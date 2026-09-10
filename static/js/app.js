@@ -1,0 +1,242 @@
+// Main Application Wiring
+
+document.addEventListener('DOMContentLoaded', () => {
+    console.log('IDE SQL Lite — Initialized');
+
+    // Apply saved theme before initializing (ThemeManager already ran before DOM)
+    // Sync CodeMirror after editor init
+    window.AppEditor      = initEditor();
+    window.AppTabs        = initTabs();
+    window.AppExplorer    = initExplorer();
+    window.AppQuery       = initQuery();
+    window.AppConnections = initConnections();  // initialize connection modal
+
+    // Apply current theme now that editor is ready (respects OS theme by default)
+    const effectiveTheme = (window.ThemeManager && window.ThemeManager.getEffectiveTheme) 
+        ? window.ThemeManager.getEffectiveTheme() 
+        : (localStorage.getItem('ide-theme') || 'dark');
+    const hasManualPreference = !!localStorage.getItem('ide-theme');
+    if (window.ThemeManager) {
+        window.ThemeManager.applyTheme(effectiveTheme, hasManualPreference);
+    }
+
+    // ── Theme toggle button ───────────────────────────────────────────────────
+    const themeBtn = document.getElementById('ide-theme-btn');
+    if (themeBtn) {
+        themeBtn.addEventListener('click', () => window.ThemeManager.toggle());
+    }
+
+    // ── Horizontal resizer (editor ↕ results) ─────────────────────────────────
+    const hResizer    = document.querySelector('.ide-resizer-horizontal');
+    let lastEditorHeight = null;
+    let isResultPanelHidden = false;
+
+    if (hResizer) {
+        const editorPane  = document.getElementById('ide-editor-pane') || hResizer.previousElementSibling;
+        let hDragging = false;
+        let startY = 0;
+        let startEditorH = 0;
+        let containerH = 0;
+        let minEditorH = 65;
+        let maxEditorH = 500;
+        let rAF = null;
+
+        hResizer.addEventListener('pointerdown', e => {
+            hDragging = true;
+            hResizer.setPointerCapture(e.pointerId);
+            hResizer.classList.add('dragging');
+            document.body.style.userSelect = 'none';
+            document.body.style.cursor = 'row-resize';
+
+            startY = e.clientY;
+            startEditorH = editorPane ? editorPane.getBoundingClientRect().height : 300;
+            const container = editorPane ? editorPane.parentElement : null;
+            containerH = container ? container.getBoundingClientRect().height : 600;
+
+            const actionBar = editorPane ? editorPane.querySelector('.ide-action-bar') : null;
+            const tabsBar = editorPane ? editorPane.querySelector('.ide-tabs-container') : null;
+            minEditorH = (actionBar ? actionBar.offsetHeight : 34) + (tabsBar ? tabsBar.offsetHeight : 31);
+            maxEditorH = containerH - 30; // Leave 30px minimum for result tabs bar
+        });
+
+        hResizer.addEventListener('pointermove', e => {
+            if (!hDragging || !editorPane) return;
+            const deltaY = e.clientY - startY;
+            let newH = Math.round(startEditorH + deltaY);
+            newH = Math.max(minEditorH, Math.min(newH, maxEditorH));
+
+            if (rAF) cancelAnimationFrame(rAF);
+            rAF = requestAnimationFrame(() => {
+                editorPane.style.setProperty('flex', 'none', 'important');
+                editorPane.style.height = newH + 'px';
+                lastEditorHeight = newH + 'px';
+            });
+        });
+
+        const stopDrag = () => {
+            if (!hDragging) return;
+            hDragging = false;
+            if (rAF) cancelAnimationFrame(rAF);
+            hResizer.classList.remove('dragging');
+            document.body.style.userSelect = '';
+            document.body.style.cursor = '';
+            if (window.AppEditor) window.AppEditor.refresh();
+        };
+
+        hResizer.addEventListener('pointerup', stopDrag);
+        hResizer.addEventListener('pointercancel', stopDrag);
+    }
+
+    // ── Toggle Result Panel (Ctrl+R / Cmd+R) ──────────────────────────────────
+    function toggleResultPanel() {
+        const panel = document.getElementById('ide-result-panel');
+        if (!panel) return;
+
+        const resizer = document.querySelector('.ide-resizer-horizontal');
+        const editorPane = document.getElementById('ide-editor-pane')
+            || (resizer ? resizer.previousElementSibling : null);
+
+        const isHidden = panel.classList.contains('d-none') || panel.style.display === 'none';
+
+        if (isHidden) {
+            // Show result panel
+            panel.classList.remove('d-none');
+            panel.style.display = '';
+            if (resizer) {
+                resizer.classList.remove('d-none');
+                resizer.style.display = '';
+            }
+            if (editorPane) {
+                if (lastEditorHeight) {
+                    editorPane.style.setProperty('flex', 'none', 'important');
+                    editorPane.style.height = lastEditorHeight;
+                } else {
+                    editorPane.style.setProperty('flex', '1 1 0%', 'important');
+                    editorPane.style.height = '';
+                }
+            }
+            isResultPanelHidden = false;
+        } else {
+            // Hide result panel
+            if (editorPane && editorPane.style.height && editorPane.style.height !== '100%') {
+                lastEditorHeight = editorPane.style.height;
+            }
+            panel.classList.add('d-none');
+            if (resizer) {
+                resizer.classList.add('d-none');
+            }
+            if (editorPane) {
+                editorPane.style.setProperty('flex', '1 1 auto', 'important');
+                editorPane.style.height = '100%';
+            }
+            isResultPanelHidden = true;
+        }
+
+        if (window.AppEditor) {
+            window.AppEditor.refresh();
+        }
+    }
+
+    window.toggleResultPanel = toggleResultPanel;
+    window.isResultPanelHidden = () => isResultPanelHidden;
+
+    // Intercept Ctrl+R / Cmd+R globally (capture phase to override browser reload)
+    document.addEventListener('keydown', (e) => {
+        if ((e.ctrlKey || e.metaKey) && !e.shiftKey && (e.key === 'r' || e.key === 'R' || e.code === 'KeyR')) {
+            e.preventDefault();
+            e.stopPropagation();
+            toggleResultPanel();
+        }
+    }, true);
+
+    // ── Sidebar horizontal resizer ────────────────────────────────────────────
+    const sidebar        = document.getElementById('ide-sidebar');
+    const sidebarResizer = document.getElementById('ide-sidebar-resizer');
+    const reopenBtn      = document.getElementById('ide-sidebar-reopen');
+
+    const SIDEBAR_MIN     = 30;
+    const SIDEBAR_MAX     = 600;
+    const SIDEBAR_DEFAULT = 260;
+    const COLLAPSE_THRESH = 30;
+
+    let sLastWidth = parseInt(localStorage.getItem('ide-sidebar-width') || SIDEBAR_DEFAULT, 10);
+    let sCollapsed = localStorage.getItem('ide-sidebar-collapsed') === 'true';
+    let sDragging  = false;
+
+    function setSidebarWidth(w) {
+        if (sidebar) {
+            sidebar.style.width    = w + 'px';
+            sidebar.style.minWidth = w + 'px';
+        }
+        sLastWidth = w;
+    }
+
+    function collapseSidebar() {
+        sCollapsed = true;
+        if (sidebar) { sidebar.style.display = 'none'; }
+        if (sidebarResizer) sidebarResizer.style.display = 'none';
+        if (reopenBtn) reopenBtn.classList.remove('d-none');
+        localStorage.setItem('ide-sidebar-collapsed', 'true');
+        if (window.AppEditor) window.AppEditor.refresh();
+    }
+
+    function expandSidebar() {
+        sCollapsed = false;
+        if (sidebar) { sidebar.style.display = ''; setSidebarWidth(sLastWidth || SIDEBAR_DEFAULT); }
+        if (sidebarResizer) sidebarResizer.style.display = '';
+        if (reopenBtn) reopenBtn.classList.add('d-none');
+        localStorage.setItem('ide-sidebar-collapsed', 'false');
+        if (window.AppEditor) window.AppEditor.refresh();
+    }
+
+    // Restore saved state
+    if (sCollapsed) {
+        collapseSidebar();
+    } else {
+        setSidebarWidth(sLastWidth);
+    }
+
+    if (sidebarResizer) {
+        sidebarResizer.addEventListener('pointerdown', e => {
+            sDragging = true;
+            sidebarResizer.setPointerCapture(e.pointerId);
+            sidebarResizer.classList.add('dragging');
+            document.body.style.userSelect = 'none';
+            document.body.style.cursor = 'col-resize';
+        });
+
+        sidebarResizer.addEventListener('pointermove', e => {
+            if (!sDragging) return;
+            const mainEl = document.getElementById('ide-main-area');
+            const mainRect = mainEl.getBoundingClientRect();
+            let newW = e.clientX - mainRect.left;
+            newW = Math.max(0, Math.min(newW, SIDEBAR_MAX));
+
+            if (newW <= COLLAPSE_THRESH) {
+                collapseSidebar();
+                sDragging = false;
+                sidebarResizer.releasePointerCapture(e.pointerId);
+                sidebarResizer.classList.remove('dragging');
+                document.body.style.userSelect = '';
+                document.body.style.cursor = '';
+                return;
+            }
+
+            const clamped = Math.max(SIDEBAR_MIN, newW);
+            setSidebarWidth(clamped);
+        });
+
+        sidebarResizer.addEventListener('pointerup', () => {
+            sDragging = false;
+            sidebarResizer.classList.remove('dragging');
+            document.body.style.userSelect = '';
+            document.body.style.cursor = '';
+            localStorage.setItem('ide-sidebar-width', sLastWidth);
+            if (window.AppEditor) window.AppEditor.refresh();
+        });
+    }
+
+    if (reopenBtn) {
+        reopenBtn.addEventListener('click', expandSidebar);
+    }
+});

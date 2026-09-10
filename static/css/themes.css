@@ -1,0 +1,202 @@
+/* =============================================================================
+   IDE Theme Tokens — Dark & Light
+   All component colors must reference these variables.
+   ============================================================================= */
+
+/* ── Dark Theme (default) ───────────────────────────────────────────────────── */
+:root,
+html[data-bs-theme="dark"] {
+
+    /* Bootstrap overrides */
+    --bs-body-bg:               #1C1D23;
+    --bs-body-color:            #c7cfcf;
+    --bs-border-color:          #3c3f41;
+    --bs-border-color-translucent: rgba(60,63,65,0.5);
+    --bs-primary:               #CC7832;
+    --bs-primary-rgb:           204,120,50;
+    --bs-dark:                  #202228;
+    --bs-dark-rgb:              32,34,40;
+    --bs-secondary:             #848c94;
+    --bs-secondary-rgb:         132,140,148;
+    --bs-link-color:            #CC7832;
+    --bs-link-hover-color:      #e08b46;
+
+    /* IDE surface layers */
+    --ide-bg-main:              #1C1D23;
+    --ide-bg-sidebar:           #1C1D23;
+    --ide-bg-toolbar:           #202228;
+    --ide-bg-editor:            #18191E;
+    --ide-bg-panel:             #1C1D23;
+    --ide-bg-result:            #1C1D23;
+    --ide-bg-input:             #13141A;
+    --ide-bg-modal:             #202228;
+    --ide-bg-dropdown:          #202228;
+    --ide-bg-context-menu:      #2B2D35;
+
+    /* Borders */
+    --ide-border:               #3c3f41;
+    --ide-border-active:        #CC7832;
+
+    /* Text */
+    --ide-text-main:            #c7cfcf;
+    --ide-text-muted:           #848c94;
+    --ide-text-active:          #ffffff;
+    --ide-text-dim:             #5a6068;
+
+    /* Interactive states */
+    --ide-hover-bg:             rgba(255,255,255,0.05);
+    --ide-active-bg:            rgba(204,120,50,0.12);
+    --ide-selection-bg:         rgba(204,120,50,0.20);
+
+    /* Accent */
+    --ide-accent:               #CC7832;
+    --ide-accent-hover:         #e08b46;
+    --ide-accent-subtle:        rgba(204,120,50,0.15);
+
+    /* Status */
+    --ide-danger:               #ff5c5c;
+    --ide-success:              #6A8759;
+    --ide-warning:              #E8C859;
+    --ide-info:                 #6897BB;
+
+    /* Tabs */
+    --ide-tab-active-bg:        #18191E;
+    --ide-tab-inactive-bg:      #202228;
+    --ide-tab-active-border:    #CC7832;
+
+    /* Result grid */
+    --ide-grid-header-bg:       #202228;
+    --ide-grid-row-alt:         rgba(255,255,255,0.02);
+    --ide-grid-row-hover:       rgba(255,255,255,0.05);
+
+    /* Action bar */
+    --ide-action-bar-bg:        #202228;
+    --ide-badge-bg:             #2B2D35;
+    --ide-badge-text:           #c7cfcf;
+    --ide-badge-hover:          #3c3f41;
+
+    /* Context menu */
+    --ide-ctx-item-hover:       rgba(204,120,50,0.12);
+    --ide-ctx-separator:        #3c3f41;
+
+    /* Scrollbars */
+    --ide-scroll-track:         #18191E;
+    --ide-scroll-thumb:         #3c3f41;
+    --ide-scroll-thumb-hover:   #848c94;
+}
+
+/* ── Light Theme ─────────────────────────────────────────────────────────────── */
+html[data-bs-theme="light"] {
+
+    /* Bootstrap overrides */
+    --bs-body-bg:               #f0f0f0;
+    --bs-body-color:            #2b2b2b;
+    --bs-border-color:          #cccccc;
+    --bs-border-color-translucent: rgba(200,200,200,0.5);
+    --bs-primary:               #CC7832;
+    --bs-primary-rgb:           204,120,50;
+    --bs-dark:                  #e8e8e8;
+    --bs-dark-rgb:              232,232,232;
+    --bs-secondary:             #6c757d;
+    --bs-secondary-rgb:         108,117,125;
+    --bs-link-color:            #CC7832;
+    --bs-link-hover-color:      #b36520;
+
+    /* IDE surface layers */
+    --ide-bg-main:              #f0f0f0;
+    --ide-bg-sidebar:           #e8e8e8;
+    --ide-bg-toolbar:           #dcdcdc;
+    --ide-bg-editor:            #ffffff;
+    --ide-bg-panel:             #f5f5f5;
+    --ide-bg-result:            #f5f5f5;
+    --ide-bg-input:             #ffffff;
+    --ide-bg-modal:             #ffffff;
+    --ide-bg-dropdown:          #ffffff;
+    --ide-bg-context-menu:      #ffffff;
+
+    /* Borders */
+    --ide-border:               #cccccc;
+    --ide-border-active:        #CC7832;
+
+    /* Text */
+    --ide-text-main:            #2b2b2b;
+    --ide-text-muted:           #6c757d;
+    --ide-text-active:          #000000;
+    --ide-text-dim:             #aaaaaa;
+
+    /* Interactive states */
+    --ide-hover-bg:             rgba(0,0,0,0.05);
+    --ide-active-bg:            rgba(204,120,50,0.10);
+    --ide-selection-bg:         rgba(204,120,50,0.20);
+
+    /* Accent */
+    --ide-accent:               #CC7832;
+    --ide-accent-hover:         #b36520;
+    --ide-accent-subtle:        rgba(204,120,50,0.12);
+
+    /* Status */
+    --ide-danger:               #d9534f;
+    --ide-success:              #4a7c3f;
+    --ide-warning:              #b8960c;
+    --ide-info:                 #2c6a9e;
+
+    /* Tabs */
+    --ide-tab-active-bg:        #ffffff;
+    --ide-tab-inactive-bg:      #e0e0e0;
+    --ide-tab-active-border:    #CC7832;
+
+    /* Result grid */
+    --ide-grid-header-bg:       #e8e8e8;
+    --ide-grid-row-alt:         rgba(0,0,0,0.02);
+    --ide-grid-row-hover:       rgba(0,0,0,0.04);
+
+    /* Action bar */
+    --ide-action-bar-bg:        #dcdcdc;
+    --ide-badge-bg:             #e8e8e8;
+    --ide-badge-text:           #2b2b2b;
+    --ide-badge-hover:          #cccccc;
+
+    /* Context menu */
+    --ide-ctx-item-hover:       rgba(204,120,50,0.10);
+    --ide-ctx-separator:        #cccccc;
+
+    /* Scrollbars */
+    --ide-scroll-track:         #e8e8e8;
+    --ide-scroll-thumb:         #cccccc;
+    --ide-scroll-thumb-hover:   #aaaaaa;
+}
+
+/* ── Scrollbar theming ───────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: var(--ide-scroll-track); }
+::-webkit-scrollbar-thumb { background: var(--ide-scroll-thumb); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--ide-scroll-thumb-hover); }
+
+/* ── CodeMirror theme sync ───────────────────────────────────────────────────── */
+.CodeMirror {
+    background: var(--ide-bg-editor) !important;
+    color: var(--ide-text-main) !important;
+    height: 100% !important;
+    font-family: 'JetBrains Mono', 'Consolas', 'Menlo', 'Monaco', monospace !important;
+    font-size: 13px !important;
+    line-height: 1.4 !important;
+}
+.CodeMirror-gutters {
+    background: var(--ide-bg-editor) !important;
+    border-right: 1px solid var(--ide-border) !important;
+}
+.CodeMirror-gutter-elt {
+    color: var(--ide-text-dim) !important;
+}
+.CodeMirror-cursor {
+    border-left: 2px solid var(--ide-text-main) !important;
+}
+.CodeMirror-selected {
+    background: var(--ide-selection-bg) !important;
+}
+.CodeMirror-activeline-background {
+    background: rgba(255,255,255,0.03) !important;
+}
+html[data-bs-theme="light"] .CodeMirror-activeline-background {
+    background: rgba(0,0,0,0.03) !important;
+}

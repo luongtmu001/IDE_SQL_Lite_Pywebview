@@ -1,0 +1,220 @@
+/* =============================================================================
+   Object Explorer Sidebar CSS
+   ============================================================================= */
+
+/* ── Sidebar shell ───────────────────────────────────────────────────────────── */
+.ide-sidebar {
+    background: var(--ide-bg-sidebar);
+    border-right: 1px solid var(--ide-border);
+    flex-shrink: 0;
+    position: relative;
+    overflow: hidden;
+}
+
+.ide-sidebar-header {
+    background: var(--ide-bg-toolbar);
+    border-bottom: 1px solid var(--ide-border);
+    height: 30px;
+    flex-shrink: 0;
+}
+
+.ide-sidebar-header-title {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: var(--ide-text-muted);
+}
+
+/* ── Sidebar drag resizer ─────────────────────────────────────────────────────── */
+.ide-sidebar-resizer {
+    width: 5px;
+    cursor: col-resize;
+    background: transparent;
+    flex-shrink: 0;
+    z-index: 20;
+    position: relative;
+    transition: background 0.15s;
+}
+.ide-sidebar-resizer:hover,
+.ide-sidebar-resizer.dragging {
+    background: var(--ide-accent);
+}
+
+/* ── Sidebar reopen (collapsed state) ────────────────────────────────────────── */
+.ide-sidebar-reopen {
+    position: absolute;
+    left: 4px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: var(--ide-bg-toolbar);
+    border: 1px solid var(--ide-border);
+    border-radius: 3px;
+    color: var(--ide-text-muted);
+    width: 22px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 30;
+    font-size: 11px;
+}
+.ide-sidebar-reopen:hover {
+    background: var(--ide-hover-bg);
+    color: var(--ide-text-active);
+}
+
+/* ── Tree ────────────────────────────────────────────────────────────────────── */
+.ide-tree {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: auto;
+    padding: 4px 0;
+}
+
+.ide-tree ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+.ide-tree > ul { padding-left: 4px !important; }
+
+/* Tree children indentation & guide line */
+.ide-tree ul.tree-children {
+    padding-left: 18px !important;
+    margin-left: 7px;
+    border-left: 1px dotted var(--ide-border, rgba(255, 255, 255, 0.18));
+}
+
+/* ── Tree item ───────────────────────────────────────────────────────────────── */
+.tree-item {
+    display: inline-flex;
+    align-items: center;
+    width: max-content;
+    min-width: 100%;
+    padding: 2px 8px 2px 2px;
+    cursor: pointer;
+    white-space: nowrap;
+    border-radius: 2px;
+    font-size: 12px;
+    color: var(--ide-text-main);
+    position: relative;
+    box-sizing: border-box;
+}
+.tree-item:hover { background: var(--ide-hover-bg); }
+.tree-item.selected {
+    background: var(--ide-active-bg);
+    color: var(--ide-text-active);
+}
+
+.tree-toggle {
+    width: 16px;
+    height: 16px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--ide-text-dim);
+    font-size: 10px;
+    flex-shrink: 0;
+    transition: transform 0.1s, color 0.15s;
+}
+.tree-toggle:hover {
+    color: var(--ide-text-active);
+}
+
+.tree-icon {
+    width: 16px;
+    text-align: center;
+    margin-right: 6px;
+    flex-shrink: 0;
+    font-size: 12px;
+}
+
+.tree-label {
+    white-space: nowrap;
+    user-select: none;
+    margin-right: 8px;
+}
+
+/* ── Filter icon on category nodes ──────────────────────────────────────────── */
+.tree-filter-btn {
+    opacity: 0;
+    color: var(--ide-text-muted);
+    background: none;
+    border: none;
+    padding: 0 3px;
+    font-size: 10px;
+    cursor: pointer;
+    border-radius: 2px;
+    line-height: 1;
+    transition: opacity 0.15s;
+}
+.tree-item:hover .tree-filter-btn { opacity: 1; }
+.tree-filter-btn:hover { color: var(--ide-accent); background: var(--ide-accent-subtle); }
+.tree-filter-btn.filter-active {
+    opacity: 1;
+    color: var(--ide-accent);
+}
+
+/* ── Dropdown action button (schema filter ...) ──────────────────────────────── */
+.tree-action-btn {
+    opacity: 0;
+    color: var(--ide-text-muted);
+    background: none;
+    border: none;
+    padding: 0 4px;
+    font-size: 11px;
+    cursor: pointer;
+    border-radius: 2px;
+    transition: opacity 0.15s;
+}
+.tree-item:hover .tree-action-btn { opacity: 1; }
+.tree-action-btn:hover { color: var(--ide-text-active); background: var(--ide-hover-bg); }
+.tree-action-btn.filter-active {
+    opacity: 1 !important;
+    color: var(--ide-accent) !important;
+}
+
+/* ── Checklist Filter Modal Styling ─────────────────────────────────────────── */
+.checklist-container {
+    max-height: 220px;
+    overflow-y: auto;
+    background: var(--ide-bg-input, rgba(0, 0, 0, 0.2));
+    border: 1px solid var(--ide-border);
+    border-radius: 4px;
+    padding: 2px 0;
+}
+.checklist-item {
+    display: flex;
+    align-items: center;
+    padding: 4px 10px;
+    font-size: 12px;
+    cursor: pointer;
+    user-select: none;
+    transition: background-color 0.1s;
+    color: var(--ide-text);
+}
+.checklist-item:hover {
+    background-color: var(--ide-hover-bg, rgba(255, 255, 255, 0.08));
+}
+.checklist-item input[type="checkbox"] {
+    margin-right: 8px;
+    cursor: pointer;
+}
+.checklist-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 11px;
+    padding: 2px 2px 6px 2px;
+}
+.checklist-actions a {
+    color: var(--ide-accent);
+    text-decoration: none;
+    cursor: pointer;
+}
+.checklist-actions a:hover {
+    text-decoration: underline;
+}
+

@@ -1,0 +1,33 @@
+<!-- Sidebar / Object Explorer -->
+<div class="ide-sidebar d-flex flex-column" id="ide-sidebar" style="width: 260px;">
+    <div class="ide-sidebar-header d-flex justify-content-between align-items-center px-2 py-1">
+        <span class="ide-sidebar-header-title">
+            Object Explorer
+        </span>
+        <div class="d-flex gap-1">
+            <button id="ide-btn-connect" class="ide-toolbar-btn" title="New Connection">
+                <i class="fa-solid fa-plug"></i>
+            </button>
+            <button id="ide-btn-filter-db" class="ide-toolbar-btn" title="Filter Databases">
+                <i class="fa-solid fa-filter"></i>
+            </button>
+            <button id="ide-btn-refresh-tree" class="ide-toolbar-btn" title="Refresh">
+                <i class="fa-solid fa-rotate-right"></i>
+            </button>
+        </div>
+    </div>
+
+    <div class="ide-tree flex-grow-1 overflow-auto py-1">
+        <ul id="ide-tree-root" class="list-unstyled mb-0 ps-0">
+            <!-- Dynamically populated by explorer.js -->
+        </ul>
+    </div>
+</div>
+
+<!-- Sidebar Drag Resizer -->
+<div class="ide-sidebar-resizer" id="ide-sidebar-resizer" title="Drag to resize"></div>
+
+<!-- Sidebar Reopen Button (visible only when sidebar is collapsed) -->
+<button class="ide-sidebar-reopen d-none" id="ide-sidebar-reopen" aria-label="Open Object Explorer" title="Open Object Explorer">
+    <i class="fa-solid fa-angles-right"></i>
+</button>

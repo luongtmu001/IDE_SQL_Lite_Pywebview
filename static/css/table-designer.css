@@ -1,0 +1,664 @@
+/* Table Designer Styles — Responsive to Light and Dark Theme */
+
+#table-designer-container {
+    background-color: var(--ide-bg-main, #1C1D23);
+    color: var(--ide-text-main, #c7cfcf);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-size: 12px;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Table Header Bar (Schema & Editable Table Name) */
+.td-header-bar {
+    background: var(--ide-bg-toolbar, #202228);
+    border-bottom: 1px solid var(--ide-border, #3c3f41);
+    padding: 4px 10px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    user-select: none;
+    flex-shrink: 0;
+}
+
+.td-name-input {
+    background: var(--ide-bg-input, #13141A) !important;
+    border: 1px solid var(--ide-border, #3c3f41) !important;
+    color: var(--ide-text-active, #ffffff) !important;
+    border-radius: 3px;
+    padding: 2px 8px;
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.td-name-input:focus {
+    border-color: var(--ide-border-active, #CC7832) !important;
+    outline: none;
+    box-shadow: 0 0 0 1px var(--ide-border-active, #CC7832);
+}
+
+/* Designer Top Toolbar */
+.td-toolbar {
+    background: var(--ide-bg-toolbar, #202228);
+    border-bottom: 1px solid var(--ide-border, #3c3f41);
+    padding: 3px 8px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    user-select: none;
+    flex-shrink: 0;
+}
+
+.td-btn {
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--ide-text-main, #c7cfcf);
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 3px;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    cursor: pointer;
+    line-height: 1.5;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.td-btn:hover {
+    background: var(--ide-hover-bg, rgba(255, 255, 255, 0.06));
+    border-color: var(--ide-border, #3c3f41);
+    color: var(--ide-text-active, #ffffff);
+}
+
+.td-btn:active {
+    background: var(--ide-active-bg, rgba(204, 120, 50, 0.15));
+    border-color: var(--ide-border-active, #CC7832);
+}
+
+.td-btn--save {
+    color: var(--ide-success, #6A8759);
+    font-weight: 600;
+}
+
+.td-btn--save:hover {
+    background: rgba(106, 135, 89, 0.15);
+    border-color: var(--ide-success, #6A8759);
+    color: var(--ide-success, #6A8759);
+}
+
+.td-btn--save:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    background: transparent !important;
+    border-color: transparent !important;
+    color: var(--ide-text-dim, #5a6068) !important;
+}
+
+.td-btn--add {
+    color: var(--ide-success, #6A8759);
+}
+
+.td-btn--delete {
+    color: var(--ide-danger, #ff5c5c);
+}
+
+.td-btn--pk {
+    color: var(--ide-warning, #E8C859);
+}
+
+.td-btn-sep {
+    width: 1px;
+    height: 16px;
+    background: var(--ide-border, #3c3f41);
+    margin: 0 4px;
+}
+
+/* Designer Sub-Tabs (Fields, Indexes, Foreign Keys, Uniques, Checks, Trigger, SQL Preview) */
+.td-nav-tabs {
+    background: var(--ide-tab-inactive-bg, #202228);
+    border-bottom: 1px solid var(--ide-border, #3c3f41);
+    padding: 0 8px;
+    display: flex;
+    margin: 0;
+    list-style: none;
+    flex-shrink: 0;
+}
+
+.td-nav-item {
+    padding: 5px 12px;
+    cursor: pointer;
+    color: var(--ide-text-muted, #848c94);
+    border-bottom: 2px solid transparent;
+    font-size: 12px;
+    transition: color 0.15s, border-color 0.15s, background-color 0.15s;
+    user-select: none;
+}
+
+.td-nav-item:hover {
+    color: var(--ide-text-active, #ffffff);
+    background: var(--ide-hover-bg, rgba(255, 255, 255, 0.05));
+}
+
+.td-nav-item.active {
+    color: var(--ide-text-active, #ffffff);
+    font-weight: 600;
+    border-bottom: 2px solid var(--ide-accent, #CC7832);
+    background: var(--ide-tab-active-bg, #18191E);
+}
+
+/* Grid & Workspace */
+.td-tab-pane {
+    display: none;
+    flex-direction: column;
+    flex-grow: 1;
+    overflow: hidden;
+}
+
+.td-tab-pane.active {
+    display: flex;
+}
+
+.td-grid-wrapper {
+    flex: 1 1 auto;
+    overflow: auto;
+    background: var(--ide-bg-editor, #18191E);
+}
+
+.td-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11px;
+    table-layout: auto;
+    color: var(--ide-text-main, #c7cfcf);
+}
+
+.td-table thead th {
+    background: var(--ide-grid-header-bg, #202228);
+    color: var(--ide-text-main, #c7cfcf);
+    font-weight: 600;
+    text-align: left;
+    padding: 4px 8px;
+    border: 1px solid var(--ide-border, #3c3f41);
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    user-select: none;
+    white-space: nowrap;
+}
+
+.td-table tbody td {
+    padding: 2px 6px;
+    border: 1px solid var(--ide-border, #3c3f41);
+    vertical-align: middle;
+    white-space: nowrap;
+    height: 24px;
+    background: inherit;
+    color: inherit;
+}
+
+.td-table tbody tr {
+    background: var(--ide-bg-editor, #18191E);
+    cursor: default;
+    transition: background-color 0.1s;
+}
+
+.td-table tbody tr:hover {
+    background: var(--ide-grid-row-hover, rgba(255, 255, 255, 0.05));
+}
+
+/* Dark mode selected row */
+html[data-bs-theme="dark"] .td-table tbody tr.selected,
+:root:not([data-bs-theme="light"]) .td-table tbody tr.selected {
+    background: #094771 !important;
+    color: #ffffff !important;
+}
+
+html[data-bs-theme="dark"] .td-table tbody tr.selected td,
+:root:not([data-bs-theme="light"]) .td-table tbody tr.selected td {
+    border-color: #007acc !important;
+}
+
+/* Light mode selected row */
+html[data-bs-theme="light"] .td-table tbody tr.selected {
+    background: #cce8ff !important;
+    color: #000000 !important;
+}
+
+html[data-bs-theme="light"] .td-table tbody tr.selected td {
+    border-color: #99d1ff !important;
+}
+
+.td-input, .td-select {
+    width: 100%;
+    background: transparent;
+    border: 1px solid transparent;
+    color: inherit;
+    font-size: 11px;
+    padding: 1px 4px;
+    border-radius: 2px;
+    outline: none;
+}
+
+.td-table tr:hover .td-input,
+.td-table tr:hover .td-select {
+    border-color: var(--ide-border, #3c3f41);
+    background: var(--ide-bg-input, #13141A);
+    color: var(--ide-text-main, #c7cfcf);
+}
+
+/* Dark mode selected inputs */
+html[data-bs-theme="dark"] .td-table tr.selected .td-input,
+html[data-bs-theme="dark"] .td-table tr.selected .td-select,
+:root:not([data-bs-theme="light"]) .td-table tr.selected .td-input,
+:root:not([data-bs-theme="light"]) .td-table tr.selected .td-select {
+    border-color: #1b6698;
+    background: #0d3856;
+    color: #ffffff;
+}
+
+/* Light mode selected inputs */
+html[data-bs-theme="light"] .td-table tr.selected .td-input,
+html[data-bs-theme="light"] .td-table tr.selected .td-select {
+    border-color: #70b8ff;
+    background: #e5f3ff;
+    color: #000000;
+}
+
+/* Input Focus */
+html[data-bs-theme="dark"] .td-input:focus,
+html[data-bs-theme="dark"] .td-select:focus,
+:root:not([data-bs-theme="light"]) .td-input:focus,
+:root:not([data-bs-theme="light"]) .td-select:focus {
+    border-color: #007acc !important;
+    background: #2a2d2e !important;
+    color: #ffffff !important;
+}
+
+html[data-bs-theme="light"] .td-input:focus,
+html[data-bs-theme="light"] .td-select:focus {
+    border-color: #007acc !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+}
+
+.td-checkbox {
+    cursor: pointer;
+    accent-color: var(--ide-accent, #CC7832);
+    vertical-align: middle;
+}
+
+/* Bottom Inspector Pane (for Fields default & collation) */
+.td-inspector-pane {
+    background: var(--ide-bg-panel, #1C1D23);
+    border-top: 1px solid var(--ide-border, #3c3f41);
+    padding: 8px 12px;
+    min-height: 90px;
+    flex-shrink: 0;
+    color: var(--ide-text-main, #c7cfcf);
+}
+
+.td-inspector-row {
+    display: flex;
+    align-items: center;
+    margin-bottom: 6px;
+    font-size: 11px;
+}
+
+.td-inspector-label {
+    width: 90px;
+    color: var(--ide-text-muted, #848c94);
+    flex-shrink: 0;
+    font-weight: 500;
+}
+
+.td-inspector-control {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.td-insp-input,
+.td-insp-select {
+    background: var(--ide-bg-input, #13141A) !important;
+    border: 1px solid var(--ide-border, #3c3f41) !important;
+    color: var(--ide-text-main, #c7cfcf) !important;
+    border-radius: 3px;
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.td-insp-input:focus,
+.td-insp-select:focus {
+    border-color: var(--ide-border-active, #CC7832) !important;
+    outline: none;
+    box-shadow: 0 0 0 1px var(--ide-border-active, #CC7832);
+}
+
+.td-insp-input:disabled,
+.td-insp-select:disabled {
+    background: var(--ide-hover-bg, rgba(255, 255, 255, 0.05)) !important;
+    color: var(--ide-text-dim, #5a6068) !important;
+    opacity: 0.6;
+}
+
+/* Bottom Definition Editor Pane (for Triggers) */
+.td-trigger-def-pane {
+    height: 200px;
+    border-top: 1px solid var(--ide-border, #3c3f41);
+    display: flex;
+    flex-direction: column;
+    background: var(--ide-bg-editor, #18191E);
+    flex-shrink: 0;
+}
+
+.td-subtab-header {
+    background: var(--ide-bg-toolbar, #202228);
+    border-bottom: 1px solid var(--ide-border, #3c3f41);
+    padding: 3px 10px;
+    display: flex;
+    gap: 12px;
+    font-size: 11px;
+    color: var(--ide-text-muted, #848c94);
+}
+
+.td-subtab-item.active {
+    font-weight: 600;
+    color: var(--ide-text-active, #ffffff);
+    border-bottom: 2px solid var(--ide-accent, #CC7832);
+}
+
+.td-trigger-cm-wrap {
+    flex-grow: 1;
+    overflow: hidden;
+}
+
+.td-trigger-cm-wrap .CodeMirror {
+    height: 100% !important;
+    font-size: 12px;
+}
+
+/* Status Bar */
+.td-status-bar {
+    background: var(--ide-bg-toolbar, #202228);
+    border-top: 1px solid var(--ide-border, #3c3f41);
+    height: 24px;
+    padding: 0 10px;
+    display: flex;
+    align-items: center;
+    font-size: 11px;
+    color: var(--ide-text-muted, #848c94);
+    user-select: none;
+    gap: 20px;
+    flex-shrink: 0;
+}
+
+/* SQL Preview Area */
+.td-preview-wrap {
+    flex-grow: 1;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    background: var(--ide-bg-editor, #18191E);
+}
+
+.td-preview-wrap .CodeMirror {
+    height: 100% !important;
+    font-size: 12px;
+}
+
+.td-preview-footer {
+    background: var(--ide-bg-toolbar, #202228);
+    border-top: 1px solid var(--ide-border, #3c3f41);
+    padding: 4px 10px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 11px;
+    color: var(--ide-text-muted, #848c94);
+    flex-shrink: 0;
+}
+
+/* Dirty Dot */
+.tab-dirty-dot {
+    color: var(--ide-warning, #E8C859);
+    font-weight: bold;
+}
+
+/* Row Context Menu */
+.td-row-context-menu {
+    position: fixed;
+    z-index: 9999;
+    background: var(--ide-bg-context-menu, #2B2D35);
+    border: 1px solid var(--ide-border, #3c3f41);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+    border-radius: 4px;
+    padding: 4px 0;
+    min-width: 170px;
+    font-size: 11px;
+    color: var(--ide-text-main, #c7cfcf);
+    user-select: none;
+}
+
+.td-ctx-item {
+    padding: 5px 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    color: var(--ide-text-main, #c7cfcf);
+    transition: background 0.1s, color 0.1s;
+}
+
+.td-ctx-item:hover {
+    background: var(--ide-ctx-item-hover, rgba(204, 120, 50, 0.12));
+    color: var(--ide-text-active, #ffffff);
+}
+
+.td-ctx-sep {
+    height: 1px;
+    background: var(--ide-ctx-separator, #3c3f41);
+    margin: 4px 0;
+}
+
+/* Table Design Confirmation Modal */
+#table-design-confirm-modal .modal-content {
+    background-color: var(--ide-bg-modal, #202228);
+    border-color: var(--ide-border, #3c3f41);
+    color: var(--ide-text-main, #c7cfcf);
+}
+
+#table-design-confirm-modal .modal-header,
+#table-design-confirm-modal .modal-footer {
+    border-color: var(--ide-border, #3c3f41);
+}
+
+/* Drag and Drop Row Reordering */
+.td-col-drag {
+    width: 28px !important;
+    min-width: 28px !important;
+    max-width: 28px !important;
+    text-align: center !important;
+    padding: 0 !important;
+    cursor: grab;
+    user-select: none;
+}
+
+.td-drag-handle {
+    color: var(--ide-text-dim, #5a6068);
+    font-size: 11px;
+    cursor: grab;
+    transition: color 0.15s;
+}
+
+.td-drag-handle:hover {
+    color: var(--ide-text-main, #c7cfcf);
+}
+
+.td-row-dragging {
+    opacity: 0.45 !important;
+    background: var(--ide-active-bg, rgba(204, 120, 50, 0.12)) !important;
+}
+
+.td-drag-over-top td {
+    border-top: 2px solid var(--ide-accent, #CC7832) !important;
+}
+
+.td-drag-over-bottom td {
+    border-bottom: 2px solid var(--ide-accent, #CC7832) !important;
+}
+
+/* Quick Add Row Button */
+.td-quick-add-row td {
+    padding: 6px 10px !important;
+    background: transparent !important;
+    border-top: 1px dashed var(--ide-border, #3c3f41) !important;
+    border-left: none !important;
+    border-right: none !important;
+    border-bottom: none !important;
+}
+
+.td-quick-add-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: transparent;
+    border: 1px dashed var(--ide-border, #3c3f41);
+    color: var(--ide-text-muted, #848c94);
+    border-radius: 4px;
+    font-size: 11px;
+    padding: 3px 12px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    user-select: none;
+}
+
+.td-quick-add-btn:hover {
+    background: var(--ide-hover-bg, rgba(255, 255, 255, 0.06));
+    border-color: var(--ide-accent, #CC7832);
+    color: var(--ide-text-active, #ffffff);
+}
+
+/* Pre-Save Audit Section */
+.td-audit-container {
+    border: 1px solid var(--ide-border, #3c3f41);
+    border-radius: 6px;
+    background: var(--ide-bg-toolbar, #202228);
+    padding: 10px 12px;
+    margin-bottom: 12px;
+}
+
+.td-audit-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 12px;
+    font-weight: 600;
+    margin-bottom: 8px;
+}
+
+.td-audit-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 8px;
+    font-size: 11px;
+}
+
+.td-audit-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 10px;
+    background: var(--ide-bg-editor, #18191E);
+    border: 1px solid var(--ide-border, #3c3f41);
+    border-radius: 4px;
+}
+
+.td-audit-item.unmodified {
+    border-left: 3px solid var(--ide-warning, #E8C859);
+}
+
+.td-audit-item.modified {
+    border-left: 3px solid var(--ide-success, #6A8759);
+}
+
+.td-audit-item.warning {
+    border-left: 3px solid var(--ide-danger, #ff5c5c);
+}
+
+.td-ctx-shortcut {
+    margin-left: auto;
+    color: var(--ide-text-dim, #5a6068);
+    font-size: 10px;
+    font-family: monospace;
+}
+
+/* Interactive Audit Item in Confirm Modal */
+.td-audit-item {
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.td-audit-item:hover {
+    background: var(--ide-hover-bg, rgba(255, 255, 255, 0.05));
+    border-color: var(--ide-accent, #CC7832);
+}
+
+.td-audit-item.active {
+    background: var(--ide-active-bg, rgba(204, 120, 50, 0.15));
+    border-color: var(--ide-accent, #CC7832);
+    box-shadow: 0 0 0 1px var(--ide-accent, #CC7832);
+}
+
+/* Multi-Row Selection in Designer Grids */
+.td-table tbody tr.selected-multi td {
+    background: var(--ide-active-bg, rgba(204, 120, 50, 0.18)) !important;
+}
+
+/* Persistent Resizable Live SQL Script Container */
+.td-splitter-h {
+    height: 5px;
+    background: var(--ide-border, #3c3f41);
+    cursor: row-resize;
+    transition: background 0.15s ease;
+    position: relative;
+    z-index: 10;
+    flex-shrink: 0;
+}
+
+.td-splitter-h:hover,
+.td-splitter-h.resizing {
+    background: var(--ide-accent, #CC7832);
+}
+
+.td-live-sql-pane {
+    display: flex;
+    flex-direction: column;
+    background: var(--ide-bg-editor, #18191E);
+    border-top: 1px solid var(--ide-border, #3c3f41);
+    flex-shrink: 0;
+    overflow: hidden;
+}
+
+.td-live-sql-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 4px 12px;
+    background: var(--ide-bg-toolbar, #202228);
+    border-bottom: 1px solid var(--ide-border, #3c3f41);
+    font-size: 11px;
+    user-select: none;
+}
+
+.td-live-sql-cm-wrap {
+    flex: 1;
+    overflow: hidden;
+    position: relative;
+}
+
+.td-live-sql-cm-wrap .CodeMirror {
+    height: 100% !important;
+    font-size: 12px;
+}
+

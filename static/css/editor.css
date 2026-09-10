@@ -1,0 +1,622 @@
+/* =============================================================================
+   Editor, Tabs, Action Bar, Results CSS
+   ============================================================================= */
+
+/* ── Tab bar ─────────────────────────────────────────────────────────────────── */
+.ide-tabs-container {
+    background: var(--ide-bg-toolbar);
+    height: 31px;
+    flex-shrink: 0;
+    overflow: hidden;
+    border-top: 1px solid var(--ide-border);
+    border-bottom: 1px solid var(--ide-border);
+}
+
+.ide-tab {
+    display: inline-flex;
+    align-items: center;
+    background: var(--ide-tab-inactive-bg);
+    color: var(--ide-text-muted);
+    border: 1px solid transparent;
+    border-bottom: none;
+    border-top-left-radius: 3px;
+    border-top-right-radius: 3px;
+    padding: 4px 12px;
+    margin-right: 2px;
+    cursor: pointer;
+    font-size: 12px;
+    white-space: nowrap;
+    min-width: 80px;
+    max-width: 180px;
+    user-select: none;
+    transition: background 0.1s, color 0.1s;
+}
+
+.ide-tab:hover {
+    background: var(--ide-hover-bg);
+    color: var(--ide-text-main);
+}
+
+.ide-tab.active {
+    background: var(--ide-tab-active-bg);
+    color: var(--ide-accent);
+    border-color: var(--ide-border);
+    border-bottom: 2px solid var(--ide-tab-active-bg);
+    margin-bottom: -1px;
+}
+
+.tab-close {
+    margin-left: 8px;
+    font-size: 10px;
+    color: var(--ide-text-dim);
+    border-radius: 2px;
+    padding: 1px 2px;
+}
+
+.tab-close:hover {
+    color: var(--ide-danger) !important;
+    background: rgba(255, 92, 92, 0.1);
+}
+
+/* ── Editor area ─────────────────────────────────────────────────────────────── */
+#ide-editor-pane {
+    flex: 1 1 0%;
+    min-height: 0 !important;
+    overflow: hidden;
+}
+
+.ide-editor-wrap {
+    background: var(--ide-bg-editor);
+    flex: 1 1 0%;
+    min-height: 0 !important;
+    overflow: hidden;
+    position: relative;
+}
+
+#editor-pane-1,
+#editor-pane-2 {
+    min-height: 0 !important;
+}
+
+.ide-editor-wrap .CodeMirror {
+    min-height: 0 !important;
+}
+
+/* ── Action Bar ──────────────────────────────────────────────────────────────── */
+.ide-action-bar {
+    background: var(--ide-action-bar-bg);
+    border-top: 1px solid var(--ide-border);
+    height: 34px;
+    flex-shrink: 0;
+}
+
+.ide-ctx-badge {
+    display: inline-flex;
+    align-items: center;
+    background: var(--ide-badge-bg);
+    color: var(--ide-badge-text);
+    border: 1px solid var(--ide-border);
+    border-radius: 3px;
+    padding: 1px 7px;
+    font-size: 11px;
+    height: 22px;
+    cursor: pointer;
+    white-space: nowrap;
+    max-width: 170px;
+    overflow: hidden;
+    user-select: none;
+    line-height: 1;
+    text-decoration: none;
+}
+
+.ide-ctx-badge:hover {
+    background: var(--ide-badge-hover);
+    border-color: var(--ide-accent, #3b82f6);
+    color: var(--ide-text-active, #ffffff);
+}
+
+.ide-ctx-badge.dropdown-toggle::after {
+    margin-left: 5px;
+    vertical-align: middle;
+    font-size: 8px;
+}
+
+.ide-ctx-selectors .dropdown-menu {
+    border: 1px solid var(--ide-border);
+    background: var(--ide-bg-dropdown, #202228);
+    font-size: 12px;
+    z-index: 1060;
+}
+
+.ide-ctx-selectors .dropdown-item {
+    padding: 4px 10px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.ide-ctx-selectors .dropdown-item.active,
+.ide-ctx-selectors .dropdown-item:active {
+    background: var(--ide-accent, #3b82f6);
+    color: #fff !important;
+}
+
+.ide-ctx-search {
+    background: var(--ide-bg-sidebar, #1e1e1e) !important;
+    border: 1px solid var(--ide-border) !important;
+    color: var(--ide-text-main) !important;
+    font-size: 11px;
+    height: 24px;
+    padding: 2px 6px;
+}
+
+.ide-ctx-search:focus {
+    border-color: var(--ide-accent) !important;
+    box-shadow: none !important;
+}
+
+.ide-ctx-sep {
+    color: var(--ide-text-dim);
+    font-size: 13px;
+    padding: 0 2px;
+    flex-shrink: 0;
+}
+
+.ide-action-btn {
+    display: inline-flex;
+    align-items: center;
+    background: var(--ide-badge-bg);
+    border: 1px solid var(--ide-border);
+    color: var(--ide-text-main);
+    border-radius: 3px;
+    font-size: 12px;
+    padding: 2px 10px;
+    height: 24px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s, color 0.15s;
+}
+
+.ide-action-btn:hover {
+    background: var(--ide-hover-bg);
+    color: var(--ide-text-active);
+}
+
+.ide-action-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.ide-action-btn--run {
+    background: var(--ide-accent-subtle);
+    color: var(--ide-accent);
+    border-color: var(--ide-accent);
+    font-weight: 600;
+}
+
+.ide-action-btn--run:hover {
+    background: var(--ide-accent);
+    color: #fff;
+}
+
+.ide-action-btn--danger {
+    color: var(--ide-danger);
+    border-color: var(--ide-danger);
+}
+
+.ide-action-btn--danger:hover {
+    background: rgba(255, 92, 92, 0.1);
+}
+
+/* ── Result panel tabs ───────────────────────────────────────────────────────── */
+.ide-result-tab {
+    display: inline-flex;
+    align-items: center;
+    height: 100%;
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    border-radius: 0;
+    color: var(--ide-text-muted);
+    font-size: 12px;
+    padding: 0 14px;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s;
+}
+
+.ide-result-tab:hover {
+    color: var(--ide-text-main);
+}
+
+.ide-result-tab.active {
+    color: var(--ide-accent);
+    border-bottom-color: var(--ide-accent);
+}
+
+.ide-result-status-text {
+    font-size: 11px;
+    color: var(--ide-text-muted);
+}
+
+#ide-result-panel,
+.ide-result-panel {
+    background: var(--ide-bg-result);
+    flex: 1 1 0%;
+    min-height: 30px !important;
+    overflow: hidden;
+}
+
+.ide-result-tabs-bar {
+    background: var(--ide-bg-toolbar);
+    border-bottom: 1px solid var(--ide-border);
+    height: 30px;
+    flex-shrink: 0;
+}
+
+.ide-result-empty-state {
+    color: var(--ide-text-dim);
+}
+
+.ide-result-empty-icon {
+    font-size: 2rem;
+    opacity: 0.3;
+}
+
+.ide-result-footer {
+    height: 24px;
+    background: var(--ide-bg-toolbar);
+    border-top: 1px solid var(--ide-border);
+    flex-shrink: 0;
+    font-size: 11px;
+    color: var(--ide-text-muted);
+}
+
+/* ── Multi-grid panes and splitters (SSMS-like) ─────────────────────────────── */
+#ide-results-table-wrap {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow-y: auto;
+    overflow-x: hidden;
+    position: relative;
+}
+
+.ide-grid-pane {
+    position: relative;
+    overflow: auto;
+    flex-shrink: 0;
+    min-height: 80px;
+    background: var(--ide-bg-main);
+    box-sizing: border-box;
+}
+
+.ide-grid-splitter {
+    height: 6px;
+    min-height: 6px;
+    background: var(--ide-bg-toolbar, #2d3139);
+    border-top: 1px solid var(--ide-border);
+    border-bottom: 1px solid var(--ide-border);
+    cursor: row-resize;
+    flex-shrink: 0;
+    position: relative;
+    z-index: 15;
+    transition: background 0.15s;
+}
+
+.ide-grid-splitter:hover,
+.ide-grid-splitter.dragging {
+    background: var(--ide-accent);
+}
+
+/* ── Results data grid ───────────────────────────────────────────────────────── */
+.ide-results-table {
+    width: max-content;
+    min-width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+}
+
+.ide-results-table th,
+.ide-results-table td {
+    border-right: 1px solid var(--ide-border);
+    border-bottom: 1px solid var(--ide-border);
+    padding: 3px 8px;
+    text-align: left;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 12px;
+}
+
+.ide-results-table th {
+    background: var(--ide-grid-header-bg);
+    color: var(--ide-text-muted);
+    position: sticky;
+    top: 0;
+    font-weight: 600;
+    font-size: 11px;
+    letter-spacing: 0.3px;
+    z-index: 5;
+    user-select: none;
+}
+
+.ide-results-table th .col-resizer {
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: 5px;
+    cursor: col-resize;
+    background: transparent;
+}
+
+.ide-results-table th .col-resizer:hover,
+.ide-results-table th .col-resizer.dragging {
+    background: var(--ide-accent);
+}
+
+.ide-results-table th-inner {
+    display: flex;
+    align-items: center;
+}
+
+.ide-results-table td {
+    color: var(--ide-text-main);
+}
+
+.ide-results-table tbody tr:nth-child(even) {
+    background: var(--ide-grid-row-alt);
+}
+
+.ide-results-table tbody tr:hover {
+    background: var(--ide-grid-row-hover);
+}
+
+.ide-row-number {
+    color: var(--ide-text-dim);
+    background: var(--ide-grid-header-bg) !important;
+    text-align: center !important;
+    font-size: 10px;
+    min-width: 36px;
+    width: 36px;
+    border-right: 1px solid var(--ide-border);
+    user-select: none;
+    position: sticky;
+    left: 0;
+    z-index: 6;
+}
+
+th.ide-row-number {
+    z-index: 10;
+}
+
+.ide-null-value {
+    color: #b58900 !important;
+    background: rgba(255, 235, 59, 0.2);
+    padding: 1px 4px;
+    border-radius: 2px;
+    font-style: italic;
+    font-weight: 500;
+}
+
+.ide-num-value {
+    color: var(--ide-info);
+}
+
+.ide-str-value {
+    color: #6A8759;
+}
+
+.ide-bool-value {
+    color: var(--ide-warning);
+}
+
+/* ── Messages / Plan pre ─────────────────────────────────────────────────────── */
+.ide-messages-pre {
+    font-family: 'Consolas', 'Menlo', monospace;
+    font-size: 12px;
+    color: var(--ide-text-main);
+    background: transparent;
+    white-space: pre-wrap;
+    word-break: break-all;
+    line-height: 1.6;
+}
+
+.ide-messages-pre .msg-error {
+    color: var(--ide-danger);
+}
+
+.ide-messages-pre .msg-success {
+    color: var(--ide-success);
+}
+
+/* ── Result view toggling ─────────────────────────────────────────────────────── */
+.ide-result-view {
+    height: 100%;
+    overflow: auto;
+}
+
+/* Style filter and replace */
+.fr-replace-notification {
+    flex-direction: column-reverse;
+    align-items: flex-start !important;
+}
+
+.fr-status-text {
+    color: var(--ide-success);
+}
+
+/* ── CodeMirror Font & Line Height (Section 13) ──────────────────────────────── */
+.CodeMirror {
+    font-family: 'JetBrains Mono', 'Consolas', monospace !important;
+    font-size: 13px !important;
+    line-height: 1.4 !important;
+}
+
+.CodeMirror pre.CodeMirror-line,
+.CodeMirror pre.CodeMirror-line-like {
+    font-family: 'JetBrains Mono', 'Consolas', monospace !important;
+    line-height: 1.4 !important;
+}
+
+/* ── IntelliSense Dual-Panel Popup ────────────────────────────────────────────── */
+.ide-intellisense-popup {
+    position: fixed !important;
+    display: flex;
+    flex-direction: row;
+    height: 280px;
+    max-height: 360px;
+    background-color: var(--ide-bg-panel);
+    border: 1px solid var(--ide-border) !important;
+    border-radius: 4px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.45);
+    overflow: hidden;
+    user-select: none;
+    z-index: 2000 !important;
+}
+
+.ide-intellisense-list-panel {
+    background: var(--ide-bg-sidebar, #1e1e1e);
+    border-right: 1px solid var(--ide-border);
+}
+
+.ide-intellisense-header {
+    background: var(--ide-bg-panel);
+    height: 28px;
+    flex-shrink: 0;
+    cursor: move;
+    user-select: none;
+}
+
+.ide-drag-handle {
+    cursor: grab;
+    font-size: 11px;
+}
+
+.ide-drag-handle:active {
+    cursor: grabbing;
+}
+
+.ide-intellisense-list {
+    min-height: 100px;
+}
+
+.ide-intellisense-splitter {
+    width: 4px;
+    cursor: col-resize;
+    background: var(--ide-border);
+    flex-shrink: 0;
+    transition: background 0.15s;
+}
+
+.ide-intellisense-splitter:hover,
+.ide-intellisense-splitter.dragging {
+    background: var(--ide-accent, #3b82f6);
+}
+
+.ide-intellisense-details-panel {
+    background: var(--ide-bg-panel);
+    flex-grow: 1;
+    overflow: hidden;
+}
+
+.ide-intellisense-tabs {
+    background: var(--ide-bg-sidebar, #1e1e1e);
+    border-color: var(--ide-border) !important;
+}
+
+.ide-intellisense-tabs .nav-link {
+    color: var(--ide-text-muted);
+    border: none;
+    border-bottom: 2px solid transparent;
+    border-radius: 0;
+    transition: color 0.15s, border-color 0.15s;
+}
+
+.ide-intellisense-tabs .nav-link:hover {
+    color: var(--ide-text-main);
+}
+
+.ide-intellisense-tabs .nav-link.active {
+    color: var(--ide-accent);
+    background: transparent;
+    border-bottom-color: var(--ide-accent);
+    font-weight: 600;
+}
+
+.ide-intellisense-item {
+    height: 24px;
+    display: flex;
+    align-items: center;
+    padding: 0 8px;
+    cursor: pointer;
+    font-size: 12px;
+    color: var(--ide-text-main);
+    white-space: nowrap;
+    transition: background 0.08s;
+}
+
+.ide-intellisense-item:hover {
+    background: var(--ide-hover-bg, rgba(255, 255, 255, 0.05));
+}
+
+.ide-intellisense-item.active {
+    background: var(--ide-accent, #3b82f6) !important;
+    color: #ffffff !important;
+}
+
+.ide-intellisense-item.active .badge-type,
+.ide-intellisense-item.active .text-muted,
+.ide-intellisense-item.active i {
+    color: #ffffff !important;
+    opacity: 0.9;
+}
+
+.ide-intellisense-item .item-icon {
+    width: 16px;
+    text-align: center;
+    margin-right: 6px;
+    font-size: 11px;
+    flex-shrink: 0;
+}
+
+.ide-intellisense-item .item-name {
+    flex-grow: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-family: 'JetBrains Mono', 'Consolas', monospace;
+    font-size: 11.5px;
+}
+
+.ide-intellisense-item.is-keyword .item-name {
+    font-weight: 700;
+}
+
+.ide-intellisense-item .badge-type {
+    font-size: 10px;
+    color: var(--ide-text-dim, #888);
+    margin-left: 8px;
+    flex-shrink: 0;
+}
+
+/* Detail summary table */
+.ide-is-summary-table {
+    width: 100%;
+    font-size: 11px;
+    border-collapse: collapse;
+}
+
+.ide-is-summary-table th {
+    padding: 3px 6px;
+    font-weight: 600;
+    color: var(--ide-text-muted);
+    border-bottom: 1px solid var(--ide-border);
+    background: var(--ide-bg-sidebar);
+}
+
+.ide-is-summary-table td {
+    padding: 2px 6px;
+    border-bottom: 1px solid var(--ide-border-subtle, rgba(255,255,255,0.05));
+    color: var(--ide-text-main);
+}

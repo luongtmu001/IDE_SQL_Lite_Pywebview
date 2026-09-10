@@ -1,0 +1,213 @@
+<div id="ide-editor-pane" class="d-flex flex-column overflow-hidden">
+    <!-- Action Bar (Connection context + Run controls) -->
+    <div class="ide-action-bar d-flex align-items-center px-2 gap-1">
+        <!-- Left: Context badges / Interactive Selectors -->
+        <div class="d-flex align-items-center gap-1 flex-grow-1 ide-ctx-selectors">
+            <!-- Connection Selector -->
+            <div class="dropdown d-inline-block">
+                <button class="ide-ctx-badge dropdown-toggle" type="button" id="ide-ctx-connection"
+                    data-bs-toggle="dropdown" aria-expanded="false" title="Switch Connection">
+                    <i class="fa-solid fa-plug-circle-bolt me-1 text-success"></i>
+                    <span id="ide-ctx-conn-label" class="text-truncate" style="max-width: 130px;">No connection</span>
+                </button>
+                <ul class="dropdown-menu shadow" id="ide-ctx-conn-menu" aria-labelledby="ide-ctx-connection"
+                    style="min-width: 220px; max-height: 280px; overflow-y: auto;">
+                    <!-- Populated dynamically -->
+                </ul>
+            </div>
+
+            <span class="ide-ctx-sep">›</span>
+
+            <!-- Database Selector -->
+            <div class="dropdown d-inline-block">
+                <button class="ide-ctx-badge dropdown-toggle" type="button" id="ide-ctx-database"
+                    data-bs-toggle="dropdown" aria-expanded="false" title="Switch Database">
+                    <i class="fa-solid fa-database me-1 text-info"></i>
+                    <span id="ide-ctx-db-label" class="text-truncate" style="max-width: 130px;">—</span>
+                </button>
+                <ul class="dropdown-menu shadow" id="ide-ctx-db-menu" aria-labelledby="ide-ctx-database"
+                    style="min-width: 200px; max-height: 280px; overflow-y: auto;">
+                    <!-- Populated dynamically as single-select list -->
+                </ul>
+            </div>
+
+            <span class="ide-ctx-sep">›</span>
+
+            <!-- Schema Selector -->
+            <div class="dropdown d-inline-block">
+                <button class="ide-ctx-badge dropdown-toggle" type="button" id="ide-ctx-schema"
+                    data-bs-toggle="dropdown" aria-expanded="false" title="Switch Schema">
+                    <i class="fa-solid fa-layer-group me-1 text-muted"></i>
+                    <span id="ide-ctx-schema-label" class="text-truncate" style="max-width: 110px;">—</span>
+                </button>
+                <ul class="dropdown-menu shadow" id="ide-ctx-schema-menu" aria-labelledby="ide-ctx-schema"
+                    style="min-width: 180px; max-height: 280px; overflow-y: auto;">
+                    <!-- Populated dynamically -->
+                </ul>
+            </div>
+        </div>
+
+        <!-- Divider -->
+        <span class="ide-vdivider mx-1"></span>
+
+        <!-- Right: Action buttons -->
+        <div class="d-flex align-items-center gap-1 flex-shrink-0">
+            <div class="d-flex align-items-center me-2" title="Max Rows">
+                <i class="fa-solid fa-list-ol text-muted me-1" style="font-size: 11px;"></i>
+                <select id="ide-query-limit" class="form-select form-select-sm border-secondary bg-dark text-light"
+                    style="width: 75px; height: 24px; padding: 0 4px; font-size: 11px;">
+                    <option value="100">100</option>
+                    <option value="1000" selected>1000</option>
+                    <option value="10000">10000</option>
+                    <option value="0">All</option>
+                </select>
+            </div>
+            <button id="ide-btn-run" class="ide-action-btn ide-action-btn--run" title="Execute Query (F5)">
+                <i class="fa-solid fa-play me-1"></i>Run
+            </button>
+            <button id="ide-btn-plan" class="ide-action-btn" title="Show Execution Plan">
+                <i class="fa-solid fa-diagram-project me-1"></i>Plan
+            </button>
+            <button id="ide-btn-stop" class="ide-action-btn ide-action-btn--danger" title="Cancel Query (Esc)" disabled>
+                <i class="fa-solid fa-stop me-1"></i>Stop
+            </button>
+            <span class="ide-vdivider mx-1"></span>
+            <button class="ide-action-btn" title="Import SQL file">
+                <i class="fa-solid fa-file-import me-1"></i>Import
+            </button>
+            <button class="ide-action-btn" title="Export results">
+                <i class="fa-solid fa-file-export me-1"></i>Export
+            </button>
+        </div>
+    </div>
+    <!-- Editor Tabs -->
+    <div class="ide-tabs-container d-flex align-items-end px-1">
+        <ul id="ide-tabs-bar" class="nav nav-tabs border-0 m-0 p-0 flex-nowrap" style="overflow: hidden;">
+            <!-- Tabs will be injected here by tabs.js -->
+        </ul>
+        <li id="ide-new-tab-li" class="list-unstyled d-flex align-items-center ms-1 mb-0">
+            <button id="ide-new-tab-btn" class="ide-toolbar-btn" title="New Query Tab (Ctrl+T)">
+                <i class="fa-solid fa-plus"></i>
+            </button>
+        </li>
+    </div>
+
+    <!-- Code Editor Area -->
+    <div class="ide-editor-wrap d-flex w-100 overflow-hidden position-relative">
+        <div id="editor-pane-1" class="flex-grow-1 position-relative h-100" style="width: 100%; min-width: 100px;">
+            <textarea id="sql-editor" class="d-none"></textarea>
+        </div>
+        <div id="editor-resizer" class="ide-resizer-vertical d-none"
+            style="width: 5px; background: var(--ide-border); cursor: col-resize; z-index: 15; flex-shrink: 0;"></div>
+        <div id="editor-pane-2" class="flex-grow-1 position-relative h-100 d-none"
+            style="width: 50%; min-width: 100px;">
+            <div class="position-absolute end-0 top-0 p-1" style="z-index: 20;">
+                <button id="btn-close-split" type="button" class="btn btn-sm btn-outline-secondary py-0 px-2"
+                    style="font-size: 11px; line-height: 1.6; background: var(--ide-bg-panel); opacity: 0.9;"
+                    title="Close Split View" onclick="if(window.unsplitEditor) window.unsplitEditor();">
+                    <i class="fa-solid fa-xmark me-1"></i>Close Split
+                </button>
+            </div>
+            <textarea id="sql-editor-2" class="d-none"></textarea>
+        </div>
+
+        <!-- Find & Replace Overlay -->
+        <div id="ide-find-replace-dialog" class="d-none position-absolute shadow-sm border rounded p-2"
+            style="top: 10px; right: 25px; z-index: 1000; width: 320px; background-color: var(--ide-bg-panel); font-size: 12px;">
+            <div class="d-flex align-items-start gap-1 mb-1">
+                <button id="fr-toggle-btn" class="btn btn-sm btn-link p-0 text-decoration-none text-muted"
+                    title="Toggle Replace" style="width: 20px; margin-top: 4px;">
+                    <i class="fa-solid fa-chevron-right" id="fr-toggle-icon"></i>
+                </button>
+                <div class="flex-grow-1">
+                    <div class="input-group input-group-sm mb-1">
+                        <input type="text" id="fr-find-input" class="form-control" placeholder="Find">
+                        <button class="btn btn-outline-secondary" type="button" id="fr-find-next-btn"
+                            title="Find Next (F3)">
+                            <i class="fa-solid fa-arrow-down"></i>
+                        </button>
+                        <button class="btn btn-outline-secondary" type="button" id="fr-find-prev-btn"
+                            title="Find Previous (Shift+F3)">
+                            <i class="fa-solid fa-arrow-up"></i>
+                        </button>
+                    </div>
+                    <div id="fr-replace-container" class="d-none">
+                        <div class="input-group input-group-sm mb-1">
+                            <input type="text" id="fr-replace-input" class="form-control" placeholder="Replace with">
+                            <button class="btn btn-outline-secondary" type="button" id="fr-replace-btn"
+                                title="Replace (Alt+R)">
+                                Replace
+                            </button>
+                            <button class="btn btn-outline-secondary" type="button" id="fr-replace-all-btn"
+                                title="Replace All (Alt+A)">
+                                All
+                            </button>
+                        </div>
+                    </div>
+                    <div class="d-flex align-items-center justify-content-between mt-1 fr-replace-notification">
+                        <select id="fr-scope-select" class="form-select form-select-sm d-inline-block w-auto"
+                            style="font-size: 11px; padding-top: 2px; padding-bottom: 2px;">
+                            <option value="current">Current Document</option>
+                            <option value="all">All Documents</option>
+                        </select>
+                        <span id="fr-status-text" class="text-success small"></span>
+                    </div>
+                </div>
+                <button id="fr-close-btn" class="btn btn-sm btn-link p-0 text-decoration-none text-success ms-1"
+                    title="Close (Esc)" style="width: 20px;">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- IntelliSense Dual-Panel Popup -->
+        <div id="ide-intellisense-popup" class="ide-intellisense-popup d-none position-absolute shadow-lg border rounded" style="z-index: 1050;">
+            <!-- Left panel: Suggestion list (Default width ~420px) -->
+            <div id="ide-intellisense-list-panel" class="ide-intellisense-list-panel d-flex flex-column" style="width: 420px; min-width: 280px;">
+                <div class="ide-intellisense-header px-2 py-1 border-bottom d-flex align-items-center justify-content-between" title="Click and drag to move suggestions">
+                    <div class="d-flex align-items-center flex-grow-1" style="cursor: move;">
+                        <i class="fa-solid fa-grip-vertical text-muted me-2 ide-drag-handle" title="Drag to move"></i>
+                        <span class="small fw-semibold text-muted"><i class="fa-solid fa-wand-magic-sparkles me-1 text-primary"></i>Suggestions</span>
+                    </div>
+                    <span id="ide-intellisense-count" class="badge bg-secondary-subtle text-secondary" style="font-size: 10px;">0</span>
+                </div>
+                <div id="ide-intellisense-list" class="ide-intellisense-list flex-grow-1 overflow-auto">
+                    <!-- Populated dynamically -->
+                </div>
+            </div>
+
+            <!-- Draggable Resizer Splitter -->
+            <div id="ide-intellisense-splitter" class="ide-intellisense-splitter" title="Drag to resize"></div>
+
+            <!-- Right panel: Summary & Script Details (Default width ~320px) -->
+            <div id="ide-intellisense-details-panel" class="ide-intellisense-details-panel d-flex flex-column" style="width: 320px; min-width: 200px;">
+                <ul class="nav nav-tabs ide-intellisense-tabs border-bottom px-1" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active py-1 px-2 small" id="ide-is-tab-summary-btn" data-bs-toggle="tab" data-bs-target="#ide-is-tab-summary" type="button" role="tab" style="font-size: 11px;">
+                            <i class="fa-solid fa-list-check me-1 text-info"></i>Summary
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link py-1 px-2 small" id="ide-is-tab-script-btn" data-bs-toggle="tab" data-bs-target="#ide-is-tab-script" type="button" role="tab" style="font-size: 11px;">
+                            <i class="fa-solid fa-code me-1 text-warning"></i>Script
+                        </button>
+                    </li>
+                </ul>
+                <div class="tab-content ide-intellisense-tab-content flex-grow-1 overflow-auto p-2">
+                    <div class="tab-pane fade show active h-100" id="ide-is-tab-summary" role="tabpanel">
+                        <div id="ide-is-summary-content" class="small text-muted">Select an object to view columns/parameters.</div>
+                    </div>
+                    <div class="tab-pane fade h-100" id="ide-is-tab-script" role="tabpanel">
+                        <pre id="ide-is-script-content" class="m-0 small font-monospace" style="white-space: pre-wrap; font-size: 11px; max-height: 240px; overflow-y: auto;">-- Definition script preview</pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Table Designer Area -->
+    <div id="table-designer-container" class="d-none flex-grow-1 flex-column overflow-hidden">
+        <!-- Built and managed dynamically by table-designer.js -->
+    </div>
+
+</div>

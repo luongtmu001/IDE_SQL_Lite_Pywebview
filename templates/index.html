@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>luoBTool IDE</title>
+    <link rel="icon" type="image/png" href="/static/image/logo-200x200.png">
+    <meta name="description" content="Web-based SQL IDE for SQL Server and PostgreSQL">
+    <!-- Định dạng PNG hoặc ICO -->
+    <!-- Bootstrap 5 -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <!-- Font Awesome 6 -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+
+    <!-- JetBrains Mono Font -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+
+    <!-- CodeMirror -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/theme/darcula.min.css">
+
+    <!-- IDE Styles (order matters: themes first) -->
+    <link rel="stylesheet" href="/static/css/themes.css">
+    <link rel="stylesheet" href="/static/css/app.css">
+    <link rel="stylesheet" href="/static/css/explorer.css">
+    <link rel="stylesheet" href="/static/css/editor.css">
+    <link rel="stylesheet" href="/static/css/context-menu.css">
+    <link rel="stylesheet" href="/static/css/table-designer.css">
+</head>
+
+<body class="overflow-hidden vh-100 d-flex flex-column m-0 p-0">
+
+    <!-- Toolbar -->
+    {% include 'partials/toolbar.html' %}
+
+    <!-- Main area -->
+    <div class="d-flex flex-grow-1 overflow-hidden position-relative" id="ide-main-area">
+
+        <!-- Sidebar + Resizer (from sidebar.html) -->
+        {% include 'partials/sidebar.html' %}
+
+        <!-- Editor + Results column -->
+        <div class="d-flex flex-column flex-grow-1 overflow-hidden">
+
+            <!-- Editor pane -->
+            {% include 'partials/editor.html' %}
+
+            <!-- Horizontal drag resizer (editor ↕ results) -->
+            <div class="ide-resizer-horizontal"></div>
+
+            <!-- Results pane -->
+            {% include 'partials/results.html' %}
+
+        </div>
+    </div>
+
+    <!-- Status bar -->
+    {% include 'partials/statusbar.html' %}
+
+    <!-- Modals -->
+    {% include 'partials/connection_modal.html' %}
+    {% include 'partials/password_modal.html' %}
+    {% include 'partials/table_design_modal.html' %}
+
+    <!-- Bootstrap 5 JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- CodeMirror -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/mode/sql/sql.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/addon/search/searchcursor.min.js"></script>
+
+    <!-- Theme manager first (restores saved theme before paint) -->
+    <script src="/static/js/theme.js"></script>
+
+    <!-- IDE scripts -->
+    <script src="/static/js/context-menu.js"></script>
+    <script src="/static/js/context-analyzer.js"></script>
+    <script src="/static/js/intellisense.js"></script>
+    <script src="/static/js/editor.js"></script>
+    <script src="/static/js/tabs.js"></script>
+    <script src="/static/js/explorer.js"></script>
+    <script src="/static/js/query.js"></script>
+    <script src="/static/js/connections.js"></script>
+    <script src="/static/js/table-designer.js"></script>
+    <script src="/static/js/find-replace.js"></script>
+    <script src="/static/js/app.js"></script>
+</body>
+
+</html>

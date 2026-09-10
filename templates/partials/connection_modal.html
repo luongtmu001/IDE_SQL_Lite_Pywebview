@@ -1,0 +1,117 @@
+<!-- Connection Modal -->
+<div class="modal fade" id="connectionModal" tabindex="-1" aria-labelledby="connectionModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" style="max-width: 400px;">
+        <form class="modal-content" id="connectionForm" method="post" action="javascript:void(0);" autocomplete="off">
+            <div class="modal-header">
+                <h6 class="modal-title mb-0" id="connectionModalLabel">
+                    <i class="fa-solid fa-plug me-2" style="color: var(--ide-accent);"></i>New Connection
+                </h6>
+                <button type="button" class="btn-close btn-close-sm" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+
+            <div class="modal-body">
+                <div id="connectionFormFields">
+
+                    <div class="mb-2">
+                        <label class="ide-form-label">Connection Name</label>
+                        <input type="text" class="form-control form-control-sm" id="connName" placeholder="e.g. Dev Server" autocomplete="off">
+                    </div>
+
+                    <div class="mb-2">
+                        <label class="ide-form-label">Database Type</label>
+                        <select class="form-select form-select-sm" id="connType">
+                            <option value="sqlserver">SQL Server</option>
+                            <option value="postgresql">PostgreSQL</option>
+                        </select>
+                    </div>
+
+                    <div class="row g-2 mb-2">
+                        <div class="col-8">
+                            <label class="ide-form-label">Host / Server</label>
+                            <input type="text" class="form-control form-control-sm" id="connHost" placeholder="localhost" autocomplete="off">
+                        </div>
+                        <div class="col-4">
+                            <label class="ide-form-label">Port</label>
+                            <input type="number" class="form-control form-control-sm" id="connPort" placeholder="1433">
+                        </div>
+                    </div>
+
+                    <div class="mb-2">
+                        <label class="ide-form-label">Default Database</label>
+                        <input type="text" class="form-control form-control-sm" id="connDb" placeholder="(optional)">
+                    </div>
+
+                    <div id="connSqlServerOptionsGroup">
+                        <div class="row g-2 mb-2">
+                            <div class="col-8">
+                                <label class="ide-form-label">ODBC Driver</label>
+                                <select class="form-select form-select-sm" id="connDriver">
+                                    <option value="ODBC Driver 18 for SQL Server">ODBC Driver 18 for SQL Server</option>
+                                    <option value="ODBC Driver 17 for SQL Server">ODBC Driver 17 for SQL Server</option>
+                                    <option value="SQL Server Native Client 11.0">SQL Server Native Client 11.0</option>
+                                    <option value="SQL Server">SQL Server</option>
+                                </select>
+                            </div>
+                            <div class="col-4">
+                                <label class="ide-form-label">Timeout (s)</label>
+                                <input type="number" class="form-control form-control-sm" id="connTimeout" placeholder="30" value="30">
+                            </div>
+                        </div>
+
+                        <div class="mb-2 form-check" style="margin-top: 4px;">
+                            <input type="checkbox" class="form-check-input" id="connWinAuth">
+                            <label class="form-check-label" for="connWinAuth" style="font-size: 12px;">Use Windows Authentication</label>
+                        </div>
+
+                        <div class="row g-2 mb-2">
+                            <div class="col-6">
+                                <div class="form-check">
+                                    <input type="checkbox" class="form-check-input" id="connEncrypt">
+                                    <label class="form-check-label" for="connEncrypt" style="font-size: 12px;" title="Encrypt connection (SSL/TLS)">Use SSL / Encrypt</label>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="form-check">
+                                    <input type="checkbox" class="form-check-input" id="connTrustCert" checked>
+                                    <label class="form-check-label" for="connTrustCert" style="font-size: 12px;" title="Trust server certificate without CA validation">Trust Certificate</label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="connCredentialsGroup">
+                        <div class="mb-2">
+                            <label class="ide-form-label">Username</label>
+                            <input type="text" name="username" class="form-control form-control-sm" id="connUser" autocomplete="off" data-lpignore="true">
+                        </div>
+                        <div class="mb-1">
+                            <label class="ide-form-label">Password</label>
+                            <div class="input-group input-group-sm">
+                                <input type="password" name="password" class="form-control form-control-sm" id="connPass" autocomplete="new-password" data-lpignore="true" spellcheck="false">
+                                <button class="btn btn-outline-secondary" type="button" id="btnToggleConnPass" title="Show/Hide password">
+                                    <i class="fa-solid fa-eye"></i>
+                                </button>
+                            </div>
+                            <div class="form-text small mt-1" style="font-size: 11px; color: var(--ide-text-dim, #888); line-height: 1.4;">
+                                <i class="fa-solid fa-shield-halved me-1 text-info"></i>
+                                Mật khẩu chỉ được lưu tạm trong bộ nhớ RAM phiên làm việc của server và không lưu vĩnh viễn trên ổ cứng vì lý do bảo mật.
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="btn btn-sm btn-secondary" id="btnTestConnection">
+                    <i class="fa-solid fa-flask me-1"></i>Test
+                </button>
+                <div class="flex-grow-1"></div>
+                <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-sm btn-primary" id="btnSaveConnection">
+                    <i class="fa-solid fa-plug me-1"></i>Connect
+                </button>
+            </div>
+        </form>
+    </div>
+</div>

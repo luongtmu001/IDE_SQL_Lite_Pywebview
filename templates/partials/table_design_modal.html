@@ -1,0 +1,80 @@
+<!-- Table Design Confirmation Modal -->
+<div class="modal fade" id="table-design-confirm-modal" tabindex="-1" aria-labelledby="tdConfirmModalLabel" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content shadow-lg">
+            <div class="modal-header py-2 px-3">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="fa-solid fa-code-compare text-info"></i>
+                    <h6 class="modal-title m-0 fw-bold" id="tdConfirmModalLabel">Confirm Schema Changes</h6>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-3">
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                    <div>
+                        <span class="text-muted small">Target Table:</span>
+                        <span id="td-modal-target-table" class="fw-bold text-info ms-1"></span>
+                    </div>
+                    <div>
+                        <span class="badge bg-secondary" id="td-modal-engine-badge">SQL Server</span>
+                    </div>
+                </div>
+
+                <!-- Pre-Save Audit Section: Unmodified & Modified Components Warning -->
+                <div id="td-modal-audit-section" class="td-audit-container mb-3">
+                    <div class="td-audit-header">
+                        <div class="d-flex align-items-center gap-2">
+                            <i class="fa-solid fa-clipboard-check text-warning"></i>
+                            <span>Kiểm tra trạng thái các thành phần bảng</span>
+                        </div>
+                        <span class="badge bg-warning text-dark" id="td-modal-audit-summary-badge">Cần lưu ý kiểm tra</span>
+                    </div>
+                    <div class="small text-muted mb-2" id="td-modal-audit-notice">
+                        Cảnh báo: Hãy rà soát các thành phần chưa sửa đổi (Trigger, Foreign Key, Constraint) để đảm bảo tính toàn vẹn khi bảng thay đổi cấu trúc.
+                    </div>
+                    <div class="td-audit-list" id="td-modal-audit-list">
+                        <!-- Populated dynamically -->
+                    </div>
+                </div>
+
+                <!-- Destructive Alert Warning -->
+                <div id="td-modal-destructive-warning" class="alert alert-danger py-2 px-3 d-none mb-3" role="alert">
+                    <div class="d-flex align-items-start gap-2">
+                        <i class="fa-solid fa-triangle-exclamation fs-5 text-danger mt-1 flex-shrink-0"></i>
+                        <div>
+                            <div class="fw-bold text-danger">Warning: Destructive Changes Detected</div>
+                            <div class="small" id="td-modal-warnings-list">
+                                Dropping columns or constraints will permanently delete existing data.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mb-1 d-flex justify-content-between align-items-center">
+                    <label class="form-label small fw-semibold text-muted mb-0">
+                        <i class="fa-solid fa-scroll me-1"></i>Compare Script (DDL to be executed):
+                    </label>
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="badge bg-light text-dark border" style="font-size: 10px;"><i class="fa-solid fa-pen me-1"></i>Editable</span>
+                        <span id="td-modal-filter-status" class="badge bg-secondary" style="font-size: 10px;">Hiển thị: Tất cả</span>
+                        <button type="button" class="btn btn-sm btn-link text-decoration-none text-muted p-0 d-none" id="td-modal-btn-reset-filter" style="font-size: 11px;">
+                            <i class="fa-solid fa-rotate-left me-1"></i>Xem tất cả
+                        </button>
+                    </div>
+                </div>
+
+                <div class="border rounded overflow-hidden" style="height: 320px;">
+                    <textarea id="td-modal-diff-sql" class="d-none"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer py-2 px-3 d-flex justify-content-between">
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">
+                    <i class="fa-solid fa-xmark me-1"></i>Cancel
+                </button>
+                <button type="button" class="btn btn-sm btn-success px-3" id="td-modal-btn-apply">
+                    <i class="fa-solid fa-check me-1"></i>Apply Changes
+                </button>
+            </div>
+        </div>
+    </div>
+</div>

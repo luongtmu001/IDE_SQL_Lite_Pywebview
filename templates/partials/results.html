@@ -1,0 +1,57 @@
+<div id="ide-result-panel" class="d-flex flex-column ide-result-panel">
+
+    <!-- Result Panel Tab Bar -->
+    <div class="d-flex align-items-center px-1 ide-result-tabs-bar">
+        <div class="d-flex align-items-end h-100 gap-0">
+            <button class="ide-result-tab active" data-view="results-grid" id="ide-rtab-result" title="Query results">
+                <i class="fa-solid fa-table-list me-1"></i>Results
+            </button>
+            <button class="ide-result-tab" data-view="results-messages" id="ide-rtab-messages" title="Execution messages">
+                <i class="fa-solid fa-message me-1"></i>Messages
+            </button>
+            <button class="ide-result-tab" data-view="results-plan" id="ide-rtab-plan" title="Execution plan">
+                <i class="fa-solid fa-diagram-project me-1"></i>Plan
+            </button>
+        </div>
+        <!-- Result status (right-aligned) -->
+        <div class="ms-auto pe-2 d-flex align-items-center gap-2">
+            <span id="ide-result-status" class="ide-result-status-text"></span>
+        </div>
+    </div>
+
+    <!-- Scrollable content area -->
+    <div class="flex-grow-1 overflow-hidden position-relative" id="ide-results-container">
+
+        <!-- Results Grid (default visible) -->
+        <div id="ide-results-grid-view" class="ide-result-view h-100">
+            <!-- Empty state -->
+            <div id="ide-results-empty" class="d-flex flex-column align-items-center justify-content-center h-100 text-center py-4 ide-result-empty-state">
+                <i class="fa-solid fa-play-circle mb-2 ide-result-empty-icon"></i>
+                <small>Execute a query to see results</small>
+            </div>
+            <!-- Grid (hidden until results come in) -->
+            <div id="ide-results-table-wrap" class="d-none h-100 overflow-auto">
+                <!-- Tables generated dynamically -->
+            </div>
+        </div>
+
+        <!-- Messages Panel (hidden by default) -->
+        <div id="ide-results-messages-view" class="ide-result-view d-none p-3">
+            <pre id="ide-results-messages" class="ide-messages-pre m-0"></pre>
+        </div>
+
+        <!-- Plan Panel (hidden by default) -->
+        <div id="ide-results-plan-view" class="ide-result-view d-none p-3">
+            <pre id="ide-results-plan" class="ide-messages-pre m-0"></pre>
+        </div>
+
+    </div>
+
+    <!-- Footer bar: row count + timing -->
+    <div id="ide-result-footer" class="d-none align-items-center px-3 gap-3 ide-result-footer">
+        <span id="ide-footer-rows"></span>
+        <span class="ide-vdivider" style="height: 12px;"></span>
+        <span id="ide-footer-time"></span>
+    </div>
+
+</div>
