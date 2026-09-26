@@ -1,0 +1,335 @@
+[
+    {
+        "id": "prog_1789985195046_0",
+        "stt": 1,
+        "name": "DEV_PhucLoi_B10",
+        "path": "D:\\Luong\\NB_Company\\.NB_DuAn\\NB_16_PhucLoi\\HC_04_Program\\HC_04_01_ProgramNB\\Program\\Bravo10.exe",
+        "username": "luonght",
+        "password": "ENC:gAAAAABqtjuJNf0UoFHHZtgebws7lBi0DkSJytCCbR0ve2MEl64TyAO2BQp01h7URTalGl__PHw8OFpOJi3f7MQBaaa540qDdg==",
+        "group": "DEV"
+    },
+    {
+        "id": "prog_1789985195046_1",
+        "stt": 2,
+        "name": "KH_Mani_B8",
+        "path": "D:\\Luong\\NB_Company\\.NB_DuAn\\HC_15_Mani\\HC_04_Program\\HC_04_02_ProgramKH\\Program\\Bravo8.exe",
+        "username": "luonght",
+        "password": "ENC:gAAAAABqtjuJyWWMYD0dc5G71bWX5jqsBjzM7IRupnPLxMFlCev_KVmvyjh-DBhAQjdMau_kmDGO3tso8Gxy3xTpZX9pbsKSzg==",
+        "group": "Khách hàng"
+    },
+    {
+        "id": "prog_1789985195046_2",
+        "stt": 3,
+        "name": "DEV_Mani_B8R2",
+        "path": "D:\\Luong\\NB_Company\\.NB_DuAn\\HC_15_Mani\\HC_04_Program\\HC_04_01_ProgramNB\\Program - Bravo\\Bravo8.exe",
+        "username": "luonght",
+        "password": "ENC:gAAAAABqtjuJcF86o23aewJpnNJsm0R7bmSKNm80c94jaUKowOG7OLA6Kn77Hs9hv-DvEeI2RpbWZor2sJh7-z99Gc3tkt3jpg==",
+        "group": "DEV"
+    },
+    {
+        "id": "prog_1789985195046_3",
+        "stt": 4,
+        "name": "KH_HaiAn_B10",
+        "path": "D:\\Luong\\NB_Company\\.NB_DuAn\\HC_14_HaiAn\\HC_04_Program\\HC_ProgramKH_Tracer_Old\\Bravo10.exe",
+        "username": "luonght",
+        "password": "ENC:gAAAAABqtjuJv95Fn7-Xs9eIV-2OzTA6zJpF5k2hXNzn0UyNK2YZT1SpHYbA9p_LHLIaEmR4tHCE45E1kiZyWAtCz_EQi8zL-g==",
+        "group": "Khách hàng"
+    },
+    {
+        "id": "prog_1789985195046_4",
+        "stt": 5,
+        "name": "DEV_HaiAn_B10",
+        "path": "D:\\Luong\\NB_Company\\.NB_DuAn\\HC_14_HaiAn\\HC_04_Program\\HC_04_01_ProgramNB\\DEV_Bakend_new\\Bravo10.exe",
+        "username": "luonght",
+        "password": "ENC:gAAAAABqtjuJ3cwRqvLcWsQBZJZdP-UVS3WZv5QeX4p6nl5U76x9cvpiCKL6yxABH8kbjl5mCGnHIzySTMuxN_PJprbyVM67SA==",
+        "group": "DEV"
+    },
+    {
+        "id": "prog_1789985195046_5",
+        "stt": 6,
+        "name": "KH_XMBD_B10_QT",
+        "path": "D:\\Luong\\NB_Company\\.NB_DuAn\\13_XiMangBachDang\\04_Program\\Program-KH\\Program_Online\\Program_Online\\WinApp\\Bravo10.exe",
+        "username": "Luonght",
+        "password": "ENC:gAAAAABqtjuJ49Xv1ieC0a6kG2X2Lhp_1Ekg0V30jOcJq2_2m2-n0SPCrJMEutQRQSkoKSGA42l5-X6Uc780v5_a6TREocLAJw==",
+        "group": "Khách hàng"
+    },
+    {
+        "id": "prog_1789985195046_6",
+        "stt": 7,
+        "name": "DEV_XiMangBD_B10_QT",
+        "path": "D:\\Luong\\NB_Company\\.NB_DuAn\\13_XiMangBachDang\\04_Program\\SERVER-DEV\\QT_v10.8.8.1\\Bravo10.exe",
+        "username": "LUONGHT",
+        "password": "ENC:gAAAAABqtjuJcMqaBqww3fK0lo7Yx_9xbFhBOsE92AOmuuvT-ArFND9XDBr53donj19wOOqYexAGVOGdZ5MMyydgPhY-dIrMxQ==",
+        "group": "DEV"
+    },
+    {
+        "id": "prog_1789985195046_7",
+        "stt": 8,
+        "name": "DEV_ForeverTrue_B10",
+        "path": "D:\\Luong\\NB_Company\\.NB_DuAn\\12_ForeverTrue\\04_Program\\ForeverTrue_Program\\Bravo10.exe",
+        "username": "Admin",
+        "password": "ENC:gAAAAABqtjuJBNtJqN-2RbGLvAvvflRYqmDdyG2jGDMsgZnOyKDhAxqzYZJKXlf-AuAMeEUL0bSjozKzzLcALJK4eqd06_8qLw==",
+        "group": "DEV"
+    },
+    {
+        "id": "prog_1789985195046_8",
+        "stt": 9,
+        "name": "KH_PG_B10_QT",
+        "path": "D:\\Luong\\NB_Company\\.NB_DuAn\\11.PG\\03. Program\\KH\\Bravo10\\QT\\WinApp\\Bravo10.exe",
+        "username": "Luonght",
+        "password": "ENC:gAAAAABqtjuJsyRVGL6P8jLbkA31RY0X_gqo8VHHZ3brm_bFqJNu7aRymEtSXv6rn29F0ECRHBBb2R0mjDV2b1Thq7kcdPEJmw==",
+        "group": "Khách hàng"
+    },
+    {
+        "id": "prog_1789985195046_9",
+        "stt": 10,
+        "name": "DEV_PG_B10_QT",
+        "path": "D:\\Luong\\NB_Company\\.NB_DuAn\\11.PG\\03. Program\\SERVER\\QT\\BRAVO10.9.1.1\\Bravo10.exe",
+        "username": "luonght",
+        "password": "ENC:gAAAAABqtjuJryJLvuCL5tRE9VS3J1JB5d5R3CuXEA2YbF22okmjMLgterLa9P2HMvSqon7McFiezFha2rBNKrDwVFI-TdY6BA==",
+        "group": "DEV"
+    },
+    {
+        "id": "prog_1789985195046_10",
+        "stt": 11,
+        "name": "DEV_LongPhuong_ERP",
+        "path": "D:\\Luong\\NB_Company\\.NB_DuAn\\10. Long Phuong\\Program\\Cong-ty-Co-phan-Cung-ung-TD-Long-Phuong-WinApp10-10.6.3.2-2d0b8b6f-b2cc-4e57-a9e2-019588a89fd8\\Bravo10.exe",
+        "username": "luonght",
+        "password": "ENC:gAAAAABqtjuJTMoZWjuT7D6bBtxVNICXT8_WKkVjDfGtjkJj0aEe_CZRYvy5_f7CqwFJRnil60fWIBqrTduTB3W4ccvsCM90CQ==",
+        "group": "DEV"
+    },
+    {
+        "id": "prog_1789985195046_11",
+        "stt": 12,
+        "name": "KH_KKTL_B7",
+        "path": "D:\\Luong\\NB_Company\\.NB_DuAn\\9. KKTL\\3. Program\\_Output_B7_KT\\Bravo7.exe",
+        "username": "bhbravo",
+        "password": "ENC:gAAAAABqtjuJKnaiIGUVU3_82Ra8DhR6bK8rJYFY2nWq5Tw9Bh6YFerJAxf9Zcy7ZwNWtP8kiSEc6xbep3qaOSCzuXwmmMzRrw==",
+        "group": "Khách hàng"
+    },
+    {
+        "id": "prog_1789985195046_12",
+        "stt": 13,
+        "name": "KH_KKTL_B10",
+        "path": "D:\\Luong\\NB_Company\\.NB_DuAn\\9. KKTL\\3. Program\\Server_KH\\NB_WinApp_10.9.3\\WinApp\\Bravo10.exe",
+        "username": "luonght",
+        "password": "ENC:gAAAAABqtjuJMbZtWiFcvl7-dTcYdPFRbq9Px0mIQpUejVvMbTNOYF2x-aQ_uC-onwAPX_JpkDBLC0K_Vh06QH9B6UOfQOj-HA==",
+        "group": "Khách hàng"
+    },
+    {
+        "id": "prog_1789985195046_13",
+        "stt": 14,
+        "name": "DEV_KKTL_B10_TC",
+        "path": "D:\\Luong\\NB_Company\\.NB_DuAn\\9. KKTL\\3. Program\\Server_Dev\\TC\\Bravo10.exe",
+        "username": "admin",
+        "password": "ENC:gAAAAABqtjuJQPKYD5pl0lTOvW0egs00gcd3tNNiRYg3VTDG8tw0FjprhkBgGFc7VKXTzGJMgB6a6CICw0Y6FAi4eyryXmL0fA==",
+        "group": "DEV"
+    },
+    {
+        "id": "prog_1789985195046_14",
+        "stt": 15,
+        "name": "DEV_KKTL_B10",
+        "path": "D:\\Luong\\NB_Company\\.NB_DuAn\\9. KKTL\\3. Program\\Server_Dev\\Program_v10.9\\Bravo10.exe",
+        "username": "luonght",
+        "password": "ENC:gAAAAABqtjuJHuu48YuXxLTADN5A00e5RPtxnjLYEqoGeIm-a_gnPZ2fanwzT0ApqmZWuMprcxM4MZWEhqrcy2wTB_1i7bMI-A==",
+        "group": "DEV"
+    },
+    {
+        "id": "prog_1789985195046_15",
+        "stt": 16,
+        "name": "CLOUD_AMV_B10",
+        "path": "D:\\Luong\\NB_Company\\.NB_DuAn\\8.AMV\\3_Program\\SERVER_UAT\\Cong-ty-TNHH-Alewijnse-Marine_v10.6.3.2\\Cong-ty-TNHH-Alewijnse-Marine\\Bravo10.exe",
+        "username": "admin",
+        "password": "ENC:gAAAAABqtjuJJsUc_51VtNJvNU4GTJa3isCXHFJJ_9kIoKPUqBOMKiTbf7VhOTQjs4qlSBYjGfnyu8KVNAL9qsRJxb4hdlL_Pg==",
+        "group": "Khách hàng"
+    },
+    {
+        "id": "prog_1789985195046_16",
+        "stt": 17,
+        "name": "DEV_AMV_B10",
+        "path": "D:\\Luong\\NB_Company\\.NB_DuAn\\8.AMV\\3_Program\\SERVER_DEV\\VER 10.6.3.2\\Cong-ty-TNHH-Alewijnse-Marine-Viet-Nam-WinApp10-10.6.3.2-bfd06326-0b61-4f4b-bbb8-2301217f9048\\Bravo10.exe",
+        "username": "luonght",
+        "password": "ENC:gAAAAABqtjuJk4s7LNJ-Q7FH8CaUdNOIpK4KENxBHnz0UaunQ6QF90XPnfftbnNiRnDxHCOhMZxNTICfMNkppLJ9oq-GfUA3XA==",
+        "group": "DEV"
+    },
+    {
+        "id": "prog_1789985195046_17",
+        "stt": 18,
+        "name": "KH_MinhDuc_B8R3",
+        "path": "D:\\Luong\\NB_Company\\.NB_DuAn\\7.Minh Duc\\Program_New\\Bravo8.exe",
+        "username": "luonght2",
+        "password": "ENC:gAAAAABqtjuJZZQKXyZKcrz7dQn-xFtd3vxf2knFualVHd22bWHcG9_qsXeziQkOcLAKz3MmAB148axXXKXBJFXURIeb45DSAg==",
+        "group": "Khách hàng"
+    },
+    {
+        "id": "prog_1789985195046_18",
+        "stt": 19,
+        "name": "SER_MinhDuc_B8",
+        "path": "D:\\Luong\\NB_Company\\.NB_DuAn\\7.Minh Duc\\Program_Server\\MD_8_OLD\\Bravo8.exe",
+        "username": "luonght",
+        "password": "ENC:gAAAAABqtjuJDq15Rc-zCMjGf3AjZrt_2W27d0yt2X6SiRGMz5AUr2hkWIDE8o88FhLsBODvhZCeF1jZlGvpNon_F5q-I-SM-Q==",
+        "group": "DEV"
+    },
+    {
+        "id": "prog_1789985195046_19",
+        "stt": 20,
+        "name": "SER_MinhDuc_B8R3",
+        "path": "D:\\Luong\\NB_Company\\.NB_DuAn\\7.Minh Duc\\Program_Server\\MinhDuc_BTXD_ERP_B8R3\\Program\\Bravo8.exe",
+        "username": "luonght2",
+        "password": "ENC:gAAAAABqtjuJsIIC7MNSt2k_-KxCetA2ZDGW5wcvnWTLtuYQXxrHJZQHOAEuXgt1XhTPWgXBusr5w5bDTVS5PxO8Dvj3G6B0Sw==",
+        "group": "DEV"
+    },
+    {
+        "id": "prog_1789985195046_20",
+        "stt": 21,
+        "name": "Online_DucHung_QT",
+        "path": "D:\\Luong\\NB_Company\\.NB_DuAn\\6.DucHung\\Program_KH\\BRAVO\\DucHung_QT\\Bravo8.exe",
+        "username": "luonght",
+        "password": "ENC:gAAAAABqtjuJVtwoWSd3hJIzOAfbrK0ibhy_LdNRq4loUj1jW1ScVQ76xPadvDEVPhOoCU2ISZUhv9AErUsgTESKdboS0qq1FQ==",
+        "group": "Khách hàng"
+    },
+    {
+        "id": "prog_1789985195046_21",
+        "stt": 22,
+        "name": "Online_DucHung_TC",
+        "path": "D:\\Luong\\NB_Company\\.NB_DuAn\\6.DucHung\\Program_KH\\BRAVO\\DucHung_TC\\Bravo8.exe",
+        "username": "Admin",
+        "password": "ENC:gAAAAABqtjuJBESm3iaQ3ClBTRid4tcxpVROP6znPkGnAtaIRnUXlYyKaAwWdbL8jTU--cOI6gwDsfnrEiqAx564cxWTXE5UrQ==",
+        "group": "Khách hàng"
+    },
+    {
+        "id": "prog_1789985195046_22",
+        "stt": 23,
+        "name": "Online_TuanHung_TC",
+        "path": "D:\\Luong\\NB_Company\\.NB_DuAn\\6.DucHung\\Program_KH\\BRAVO\\TuanHung_TC\\Bravo8.exe",
+        "username": "admin",
+        "password": "ENC:gAAAAABqtjuJOVJkVEImE0TrVaIOgu142CTwnUjx1PKPnFVkIucmVvtUo5fV4OamWwyDpTz1LYu8cCClcHhOsicC99R_J5wpUg==",
+        "group": "Khách hàng"
+    },
+    {
+        "id": "prog_1789985195046_23",
+        "stt": 24,
+        "name": "SER_DucHung_QT",
+        "path": "D:\\Luong\\NB_Company\\.NB_DuAn\\6.DucHung\\Program\\Ver QT\\Program\\Bravo8.exe",
+        "username": "luonght",
+        "password": "ENC:gAAAAABqtjuJ9Dh9ScN-AthaF2cS7Qa9oyXHU_LHVGFxOarDrqOIyCdmMV8VVGnQghVjf7tGRzVHdi24S2_-ik-D5rLltBJXuw==",
+        "group": "DEV"
+    },
+    {
+        "id": "prog_1789985195046_24",
+        "stt": 25,
+        "name": "SER_DucHung_TC",
+        "path": "\\\\srv-data01-bhn\\8.Products_Team1-2\\PHONGTRIENKHAI01\\DucHung_B8R3\\00. Program\\TC\\Program\\Bravo8.exe",
+        "username": "admin",
+        "password": "ENC:gAAAAABqtjuJOizt8qSBEQ8CypdB5p7OU9kQsi09FAS_egJV4IF2O1CA9ijxeJkNFtQXjEjiUH4SIApeskJg2L1r3qfDpn3bSQ==",
+        "group": "DEV"
+    },
+    {
+        "id": "prog_1789985195046_25",
+        "stt": 26,
+        "name": "SER_TuanHung_TC",
+        "path": "\\\\srv-data01-bhn\\8.Products_Team1-2\\PHONGTRIENKHAI01\\DucHung_B8R3\\00. Program\\Program_TuanHung_XNK_TC\\Bravo8.exe",
+        "username": "admin",
+        "password": "ENC:gAAAAABqtjuJovab-7SHtLL6PMZiuzo2UwfzZKqhUzCkk1Y5xOM5kTq3kzQ_PgNEqzBMAiQUTmx-MI7Qg24x94TCZa64jlhCBQ==",
+        "group": "DEV"
+    },
+    {
+        "id": "prog_1789985195046_26",
+        "stt": 27,
+        "name": "KH_B8R3_Sugiko",
+        "path": "D:\\Luong\\NB_Company\\.NB_DuAn\\5.SuGiKo\\Program_Online\\Bravo8.exe",
+        "username": "luonght",
+        "password": "ENC:gAAAAABqtjuJHdjA48CnTKuLKgIlIpFHF8n2HuLfjuEWCS5APdLVXUMkomynnlPAQSIIxGu9U9yRDOXLyEwZ8EJIjt7JpfBCwQ==",
+        "group": "Khách hàng"
+    },
+    {
+        "id": "prog_1789985195046_27",
+        "stt": 28,
+        "name": "Ser_B8R3_SUGIKO",
+        "path": "D:\\Luong\\NB_Company\\.NB_DuAn\\5.SuGiKo\\Program_NB\\Bravo8.exe",
+        "username": "luonght",
+        "password": "ENC:gAAAAABqtjuJ-xBjtAwNChCuyqs2hO2e3KQcGqqC7IPY-gaRj8PNu9tomS_YsYYEOHav6m6Upg0g-dbk_1p2FZvJVS240bRlEQ==",
+        "group": "DEV"
+    },
+    {
+        "id": "prog_1789985195046_28",
+        "stt": 29,
+        "name": "KH_B8r3_DucAnh_Online",
+        "path": "D:\\Luong\\NB_Company\\.NB_DuAn\\4.Keo Dan Duc Anh\\Program_Online\\BRAVO8R3 v5.2.0.1\\BRAVO8R3 v5.2.0.1\\Bravo8.exe",
+        "username": "luonght",
+        "password": "ENC:gAAAAABqtjuJ_GfV_sL-PiqFOxguGdgxwhL0cIpJ5MSsBgObGwYUMocPLqS03ibkFlrr4LJjnh4TpRnP83NmANwaNdSicOGhfw==",
+        "group": "Khách hàng"
+    },
+    {
+        "id": "prog_1789985195046_29",
+        "stt": 30,
+        "name": "Ser_B8r3_DucAnh",
+        "path": "D:\\Luong\\NB_Company\\.NB_DuAn\\4.Keo Dan Duc Anh\\Program_NB\\Program\\Bravo8.exe",
+        "username": "luonght",
+        "password": "ENC:gAAAAABqtjuJVRHiyQg9VJfQse6IN4i7blWKknY7did6UgcyhQq-AweEEExJ-VV2MYbNppHAEekhfgto3bhCsc6iSGwQRpq0fg==",
+        "group": "DEV"
+    },
+    {
+        "id": "prog_1789985195046_30",
+        "stt": 31,
+        "name": "Ser_B8r3_IMC",
+        "path": "\\\\srv-data01-bhn\\8.Products_Team1-2\\PHONGTRIENKHAI01\\Z_Done\\IMC_B8R3\\00. Program\\Program\\Bravo8.exe",
+        "username": "luonght",
+        "password": "ENC:gAAAAABqtjuJqHTK8750eAY5zs6GxD_jZm16eC1mYMSvRCrOakaRQHhQ5Kdv_9EgVtoyOioY0Auo2Wi3LPSswkeS1Versk4fDA==",
+        "group": "DEV"
+    },
+    {
+        "id": "prog_1789985195046_31",
+        "stt": 32,
+        "name": "KH_B8r3_IMC",
+        "path": "D:\\Luong\\NB_Company\\.NB_DuAn\\3.IMC\\Program_Online\\Program_IMC\\Program_IMC\\Bravo8.exe",
+        "username": "luonght",
+        "password": "ENC:gAAAAABqtjuJpYdGRpWqs3U1ZsVHIRlg-AQ8xxzeiGgwa-arzn5VZBZegk1HAHwx2YSZzO3tpVYaRAhSPpre8nNzQ3Zf5tpxiA==",
+        "group": "Khách hàng"
+    },
+    {
+        "id": "prog_1789985195046_32",
+        "stt": 33,
+        "name": "Ser_B8r3_Entec",
+        "path": "\\\\srv-data01-bhn\\8.Products_Team1-2\\PHONGTRIENKHAI01\\ENTEC\\ENTEC_ERP_B8R3\\Program\\Bravo8.exe",
+        "username": "luonght",
+        "password": "ENC:gAAAAABqtjuJG58IQ0iVG8zIzbneeMjWmFe04pWWGHL7mSsuRJxC36-6UKJgP5RRaEYUZydTevKKLQ_-K8hdjvw-CkpZrN6XCg==",
+        "group": "DEV"
+    },
+    {
+        "id": "prog_1789985195046_33",
+        "stt": 34,
+        "name": "KH_B8R3_Entec",
+        "path": "D:\\Luong\\NB_Company\\.NB_DuAn\\2.Entec_B8R3\\Program_v5.2.0.1\\Program_v5.2.0.1\\Bravo8.exe",
+        "username": "luonght",
+        "password": "ENC:gAAAAABqtjuJVCbHm7K-34CoxeSBkolvcoFfWHXGDcEAJQkwhMJ6XjSLWdw-Yhg1B5B3tGi03rc1bHqqvUS3quzKP9NsD-Kpzg==",
+        "group": "Khách hàng"
+    },
+    {
+        "id": "prog_1789985195046_34",
+        "stt": 35,
+        "name": "B8r3_Chuan",
+        "path": "D:\\Luong\\B8R3Chuan\\Programv5.2\\Program_v5.2.0.1\\_Output_v5.2.0.1\\Bravo8.exe",
+        "username": "luonght",
+        "password": "ENC:gAAAAABqtjuJWbrs8NZHaVP3CsVpiNBCD2EqC2FCYcuY6Gf-UOgKwTT05Aikc51IlLvOi57BPOjkLKrBdyMZaB22MaYJFsKP3Q==",
+        "group": "BẢN CHUẨN"
+    },
+    {
+        "id": "prog_1789985195046_36",
+        "stt": 36,
+        "name": "B10_DEMO",
+        "path": "D:\\Luong\\NB_Company\\.NB_DuAn\\0.1. DEMO\\WinApp\\WinApp\\Bravo10.exe",
+        "username": "Admin",
+        "password": "ENC:gAAAAABqtjuJYVf9DBFTiDHfQLZDc9iwhXJ1gtD8A_Q5Gpojjbk43mqI4Go6nDLtNbGryX2w3NLy68bRY9pDCxTcxigqzEwimQ==",
+        "group": "BẢN CHUẨN"
+    },
+    {
+        "id": "prog_1789985195046_37",
+        "stt": 37,
+        "name": "SER_PostGres_Training",
+        "path": "D:\\Luong\\NB_Company\\.NB_DuAn\\0.2 PostGre_Training\\KT1-PostgreSQL-WinApp10-10.9.1.1-123963a5-ac47-47ed-b433-59f4084d91af\\Bravo10.exe",
+        "username": "admin",
+        "password": "ENC:gAAAAABqtjuJ3-ObHBl7jSP7YW-SMub9swv1gglWRBTVXTCsHje48SXPnODXgpMqpG9BiQ4STgQ1no-crGVC3MV8_srLCfvLTg==",
+        "group": "BẢN CHUẨN"
+    }
+]

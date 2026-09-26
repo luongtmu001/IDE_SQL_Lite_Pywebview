@@ -11,18 +11,25 @@ function initTabs() {
 
     function loadSavedDefaultContext() {
         try {
+            if (window.AppSession && typeof window.AppSession.getDefaultConnectionContext === 'function') {
+                const ctx = window.AppSession.getDefaultConnectionContext();
+                if (ctx && typeof ctx === 'object') return ctx;
+            }
             const raw = localStorage.getItem('ide_default_connection_context');
-            if (raw) return JSON.parse(raw);
+            if (raw) {
+                const parsed = JSON.parse(raw);
+                if (parsed && typeof parsed === 'object') return parsed;
+            }
         } catch (_) {}
         return {};
     }
 
-    let defaultContext = loadSavedDefaultContext();
+    let defaultContext = loadSavedDefaultContext() || {};
 
     function setDefaultContext(ctx = {}) {
         defaultContext = { ...defaultContext, ...ctx };
         try {
-            localStorage.setItem('ide_default_connection_context', JSON.stringify(defaultContext));
+            if (window.AppSession) { window.AppSession.setDefaultConnectionContext(defaultContext); } else { localStorage.setItem('ide_default_connection_context', JSON.stringify(defaultContext)); }
         } catch (_) {}
     }
 
@@ -117,8 +124,9 @@ function initTabs() {
         activeTabId = tabId;
         const state = tabsData.get(tabId);
 
-        // Toggle workspace views: Query View vs Table Designer View
+        // Toggle workspace views: Query View vs Table Designer View vs Table Data Editor View
         const designerContainer = document.getElementById('table-designer-container');
+        const dataEditorContainer = document.getElementById('table-data-editor-container');
         const editorWrap = document.querySelector('.ide-editor-wrap');
         const resizer = document.querySelector('.ide-resizer-horizontal');
         const resultsPane = document.getElementById('ide-result-panel') || document.getElementById('ide-results-pane') || (resizer ? resizer.nextElementSibling : null);
@@ -128,14 +136,27 @@ function initTabs() {
             if (editorWrap) editorWrap.classList.add('d-none');
             if (resizer) resizer.classList.add('d-none');
             if (resultsPane) resultsPane.classList.add('d-none');
+            if (dataEditorContainer) dataEditorContainer.classList.add('d-none');
             if (queryControls) queryControls.classList.add('opacity-50', 'pe-none');
             if (designerContainer) designerContainer.classList.remove('d-none');
 
             if (window.TableDesigner) {
                 window.TableDesigner.activateTab(tabId);
             }
+        } else if (state && state.tabType === 'data-editor') {
+            if (editorWrap) editorWrap.classList.add('d-none');
+            if (resizer) resizer.classList.add('d-none');
+            if (resultsPane) resultsPane.classList.add('d-none');
+            if (designerContainer) designerContainer.classList.add('d-none');
+            if (queryControls) queryControls.classList.add('opacity-50', 'pe-none');
+            if (dataEditorContainer) dataEditorContainer.classList.remove('d-none');
+
+            if (window.TableDataEditor) {
+                window.TableDataEditor.activateTab(tabId);
+            }
         } else {
             if (designerContainer) designerContainer.classList.add('d-none');
+            if (dataEditorContainer) dataEditorContainer.classList.add('d-none');
             if (editorWrap) editorWrap.classList.remove('d-none');
             const isResultHidden = window.isResultPanelHidden && window.isResultPanelHidden();
             if (!isResultHidden) {
@@ -147,7 +168,7 @@ function initTabs() {
             // Restore editor content
             if (state && window.AppEditor) {
                 window.AppEditor.setValue(state.content || '');
-                setTimeout(() => window.AppEditor.refresh(), 10);
+                setTimeout(() => { if (window.AppEditor) { if (window.AppEditor.layout) window.AppEditor.layout(); else if (window.AppEditor.refresh) window.AppEditor.refresh(); } }, 10);
             }
         }
 
@@ -162,6 +183,9 @@ function initTabs() {
 
         // Notify action bar + other components
         document.dispatchEvent(new CustomEvent('ide-tab-switched', { detail: { tabId, state } }));
+        if (typeof window.updateActionBar === 'function') {
+            window.updateActionBar();
+        }
     }
 
     function closeTab(tabId, tabEl) {
@@ -176,6 +200,8 @@ function initTabs() {
         const title = state ? state.title : 'Editor';
         if (state && state.tabType === 'designer' && window.TableDesigner) {
             window.TableDesigner.closeTab(tabId);
+        } else if (state && state.tabType === 'data-editor' && window.TableDataEditor) {
+            window.TableDataEditor.closeTab(tabId);
         }
 
         tabsData.delete(tabId);
@@ -233,6 +259,7 @@ function initTabs() {
                     </div>
                     <div class="modal-footer py-2 d-flex justify-content-end gap-2">
                         <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Hủy</button>
+                        ${isDirty ? `<button type="button" class="btn btn-sm btn-primary" id="ide-tab-close-save"><i class="fa-solid fa-floppy-disk me-1"></i>Lưu & Đóng</button>` : ''}
                         <button type="button" class="btn btn-sm ${confirmBtnClass}" id="ide-tab-close-confirm">
                             <i class="fa-solid fa-xmark me-1"></i>${confirmBtnText}
                         </button>
@@ -247,6 +274,25 @@ function initTabs() {
             bsModal.hide();
             onConfirm();
         });
+
+        // §48 Save button: save first, then close if successful
+        const saveBtn = modal.querySelector('#ide-tab-close-save');
+        if (saveBtn) {
+            saveBtn.addEventListener('click', async () => {
+                bsModal.hide();
+                // Delegate to TableDataEditor.saveActiveTab which calls triggerSaveAll
+                if (window.TableDataEditor && window.TableDataEditor.saveActiveTab) {
+                    await window.TableDataEditor.saveActiveTab();
+                    // After save, close if no more dirty state
+                    const tabEl = document.querySelector('.ide-tab[data-tab-id]');
+                    if (tabEl && !tabEl.querySelector('.tab-dirty-dot.d-block')) {
+                        onConfirm();
+                    }
+                } else {
+                    onConfirm();
+                }
+            });
+        }
         modal.addEventListener('hidden.bs.modal', () => modal.remove());
         bsModal.show();
     }
@@ -323,6 +369,10 @@ function initTabs() {
             if (typeof showToast === 'function') showToast('Saved ' + state.title, 'success');
         } else if (state.tabType === 'designer' && window.TableDesigner) {
             // Save logic for designer if any
+        } else if (state.tabType === 'data-editor' && window.TableDataEditor) {
+            if (typeof window.TableDataEditor.triggerSaveAll === 'function') {
+                window.TableDataEditor.triggerSaveAll(activeTabId);
+            }
         }
     }
 
@@ -374,17 +424,22 @@ function initTabs() {
     }
 
     function updateActiveTabContext(ctx = {}) {
-        if (!activeTabId || !tabsData.has(activeTabId)) return;
-        const state = tabsData.get(activeTabId);
-        Object.assign(state, ctx);
-        // Also update globals
+        // Always update globals and default context first
         if (ctx.connectionId   !== undefined) window.ActiveConnectionId   = ctx.connectionId;
         if (ctx.connectionName !== undefined) window.ActiveConnectionName = ctx.connectionName;
         if (ctx.database       !== undefined) window.ActiveDatabase       = ctx.database;
         if (ctx.schema         !== undefined) window.ActiveSchema         = ctx.schema;
         if (ctx.dbType         !== undefined) window.ActiveDbType         = ctx.dbType;
         setDefaultContext(ctx);
+
+        if (activeTabId && tabsData.has(activeTabId)) {
+            const state = tabsData.get(activeTabId);
+            Object.assign(state, ctx);
+        }
         document.dispatchEvent(new CustomEvent('ide-context-changed', { detail: ctx }));
+        if (typeof window.updateActionBar === 'function') {
+            window.updateActionBar();
+        }
     }
 
     if (newTabBtn) newTabBtn.addEventListener('click', () => createTab());

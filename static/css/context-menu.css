@@ -63,9 +63,22 @@
 .ide-ctx-label { flex: 1; }
 
 .ide-ctx-shortcut {
+    margin-left: auto;
     color: var(--ide-text-dim);
     font-size: 10px;
     letter-spacing: 0.3px;
+    padding-left: 16px;
+    font-family: inherit;
+}
+
+.ide-ctx-arrow {
+    margin-left: auto;
+    font-size: 9px;
+    color: var(--ide-text-dim);
+    padding-left: 12px;
+}
+.ide-ctx-item:hover > .ide-ctx-arrow {
+    color: var(--ide-text-active);
 }
 
 .ide-ctx-separator {
@@ -82,4 +95,34 @@
     text-transform: uppercase;
     color: var(--ide-text-dim);
     user-select: none;
+}
+
+/* Submenu container */
+.ide-ctx-item.has-submenu {
+    position: relative;
+}
+
+.ide-ctx-submenu {
+    position: absolute;
+    top: -4px;
+    left: 100%;
+    background: var(--ide-bg-context-menu);
+    border: 1px solid var(--ide-border);
+    border-radius: 3px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.35);
+    min-width: 170px;
+    padding: 3px 0;
+    display: none;
+    z-index: 10001;
+    animation: ctx-appear 0.06s ease-out;
+}
+
+.ide-ctx-item.has-submenu:hover > .ide-ctx-submenu,
+.ide-ctx-item.has-submenu.open > .ide-ctx-submenu {
+    display: block;
+}
+
+.ide-ctx-submenu.open-left {
+    left: auto;
+    right: 100%;
 }

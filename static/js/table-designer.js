@@ -2481,7 +2481,11 @@
                 if (session.liveSqlCm) {
                     const sql = session.liveSqlCm.getValue();
                     if (sql) {
-                        navigator.clipboard?.writeText(sql);
+                        if (window.copyToClipboard) {
+                            window.copyToClipboard(sql);
+                        } else {
+                            navigator.clipboard?.writeText(sql);
+                        }
                         showDesignerNotification('Copied SQL script to clipboard.');
                     }
                 }

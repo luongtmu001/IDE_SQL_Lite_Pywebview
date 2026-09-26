@@ -1,4 +1,5 @@
 from app.database.base import DatabaseAdapter
+from app.utils.db_message import clean_db_message, parse_error_details
 
 try:
     import psycopg
@@ -21,17 +22,31 @@ class PostgreSqlAdapter(DatabaseAdapter):
             raise RuntimeError("psycopg is not installed")
 
         c = self.config
+        app_name = c.get("application_name", "luoBTool")
 
         self.connection = psycopg.connect(
-            host=c["host"],
+            host=c.get("host") or c.get("server") or "localhost",
             port=int(c.get("port", 5432)),
             dbname=c.get("database", "postgres"),
-            user=c["username"],
-            password=c["password"],
+            user=c.get("username") or c.get("user") or "postgres",
+            password=c.get("password", ""),
             connect_timeout=int(c.get("timeout", 10)),
+            application_name=app_name,
         )
 
         self.connection.autocommit = True
+
+    def _build_conn_params(self):
+        c = self.config
+        return {
+            "host": c.get("host", "localhost"),
+            "port": int(c.get("port", 5432)),
+            "dbname": c.get("database", "postgres"),
+            "user": c.get("username", "postgres"),
+            "password": c.get("password", ""),
+            "connect_timeout": int(c.get("timeout", 10)),
+            "application_name": c.get("application_name", "luoBTool"),
+        }
 
     def close(self):
         if self.connection:
@@ -39,55 +54,90 @@ class PostgreSqlAdapter(DatabaseAdapter):
             self.connection = None
 
     def execute(self, sql, params=None, limit=None, database=None):
-        with self.connection.cursor() as cursor:
-            cursor.execute(sql, params or ())
+        results = []
+        messages = []
+        errors = []
+        total_affected = 0
+        seen_notices = set()
 
-            results = []
-            messages = []
-            total_affected = 0
+        def notice_callback(diag):
+            raw = getattr(diag, 'message_primary', None) or str(diag)
+            cleaned = clean_db_message(raw)
+            if cleaned and cleaned not in seen_notices:
+                seen_notices.add(cleaned)
+                messages.append(cleaned)
 
-            while True:
-                if cursor.description:
-                    columns = [desc.name for desc in cursor.description]
-                    fetch_limit = limit if limit is not None else int(self.config.get("max_rows", 1000))
-                    if fetch_limit == 0:
-                        raw_rows = cursor.fetchall()
-                    else:
-                        raw_rows = cursor.fetchmany(fetch_limit)
+        has_handler = hasattr(self.connection, 'add_notice_handler')
+        if has_handler:
+            try:
+                self.connection.add_notice_handler(notice_callback)
+            except Exception:
+                has_handler = False
 
-                    rows = [[serialize_cell(c) for c in r] for r in raw_rows]
-                    row_count = len(rows)
-                    results.append({
-                        "columns": columns,
-                        "rows": rows,
-                        "row_count": row_count
-                    })
-                    messages.append(f"({row_count} row(s) returned)")
-                else:
-                    rc = cursor.rowcount
-                    if rc != -1 and rc is not None:
-                        messages.append(f"({rc} row(s) affected)")
-                        total_affected += rc
-                    else:
-                        messages.append("Commands completed successfully.")
-
+        try:
+            with self.connection.cursor() as cursor:
                 try:
-                    if not cursor.nextset():
-                        break
-                except Exception:
-                    break
+                    cursor.execute(sql, params or ())
+                    while True:
+                        if cursor.description:
+                            columns = [desc.name for desc in cursor.description]
+                            fetch_limit = limit if limit is not None else int(self.config.get("max_rows", 1000))
+                            if fetch_limit == 0:
+                                raw_rows = cursor.fetchall()
+                            else:
+                                raw_rows = cursor.fetchmany(fetch_limit)
 
-            first = results[0] if results else {"columns": [], "rows": [], "row_count": total_affected}
-            return {
-                "success": True,
-                "columns": first["columns"],
-                "rows": first["rows"],
-                "row_count": first["row_count"],
-                "results": results,
-                "messages": messages,
-                "message": "\n".join(messages) if messages else "Commands completed successfully.",
-                "current_database": self.config.get("database", "postgres"),
-            }
+                            rows = [[serialize_cell(c) for c in r] for r in raw_rows]
+                            row_count = len(rows)
+                            results.append({
+                                "columns": columns,
+                                "rows": rows,
+                                "row_count": row_count
+                            })
+                            messages.append(f"({row_count} row(s) returned)")
+                        else:
+                            rc = cursor.rowcount
+                            if rc != -1 and rc is not None:
+                                messages.append(f"({rc} row(s) affected)")
+                                total_affected += rc
+
+                        try:
+                            if not cursor.nextset():
+                                break
+                        except Exception:
+                            break
+
+                except Exception as pg_err:
+                    err_detail = parse_error_details(sql, pg_err)
+                    if err_detail["clean_message"]:
+                        errors.append(err_detail)
+                        if err_detail.get("line"):
+                            messages.append(f"Msg: Line {err_detail['line']}: {err_detail['clean_message']}")
+                        else:
+                            messages.append(f"Msg: {err_detail['clean_message']}")
+
+        finally:
+            if has_handler:
+                try:
+                    self.connection.remove_notice_handler(notice_callback)
+                except Exception:
+                    pass
+
+        first = results[0] if results else {"columns": [], "rows": [], "row_count": total_affected}
+        success = len(errors) == 0
+
+        return {
+            "success": success,
+            "columns": first["columns"],
+            "rows": first["rows"],
+            "row_count": first["row_count"],
+            "results": results,
+            "messages": messages,
+            "errors": errors,
+            "error": "\n".join(e["clean_message"] for e in errors) if errors else None,
+            "message": "\n".join(messages) if messages else ("Commands completed successfully." if success else "\n".join(e["clean_message"] for e in errors)),
+            "current_database": self.config.get("database", "postgres"),
+        }
 
     def list_databases(self):
         result = self.execute(
@@ -181,23 +231,28 @@ class PostgreSqlAdapter(DatabaseAdapter):
         name,
         object_type,
     ):
-        if object_type in {"functions", "procedures"}:
+        target_schema = schema or "public"
+        norm_type = (object_type or "").lower().rstrip("s")
+
+        if norm_type in {"function", "procedure", "routine"}:
             result = self.execute(
                 """
-                SELECT pg_get_functiondef(p.oid)
-                FROM pg_proc AS p
-                JOIN pg_namespace AS n
+                SELECT pg_catalog.pg_get_functiondef(p.oid)
+                FROM pg_catalog.pg_proc AS p
+                JOIN pg_catalog.pg_namespace AS n
                   ON n.oid = p.pronamespace
                 WHERE n.nspname = %s
-                  AND p.proname = %s
+                  AND (p.proname = %s OR lower(p.proname) = lower(%s))
+                ORDER BY p.pronargs ASC
                 LIMIT 1
                 """,
-                (schema, name),
+                (target_schema, name, name),
+                limit=1,
+                database=database
             )
+            return result["rows"][0][0] if result.get("rows") else None
 
-            return result["rows"][0][0] if result["rows"] else None
-
-        if object_type == "views":
+        if norm_type == "view":
             result = self.execute(
                 """
                 SELECT
@@ -207,29 +262,32 @@ class PostgreSqlAdapter(DatabaseAdapter):
                     definition
                 FROM pg_views
                 WHERE schemaname = %s
-                  AND viewname = %s
+                  AND (viewname = %s OR lower(viewname) = lower(%s))
+                LIMIT 1
                 """,
-                (schema, name),
+                (target_schema, name, name),
+                limit=1,
+                database=database
             )
+            return result["rows"][0][0] if result.get("rows") else None
 
-            return result["rows"][0][0] if result["rows"] else None
-
-        if object_type in {"trigger", "triggers"}:
+        if norm_type == "trigger":
             result = self.execute(
                 """
-                SELECT pg_get_triggerdef(t.oid, true) || ';'
-                FROM pg_trigger AS t
-                JOIN pg_class AS c ON c.oid = t.tgrelid
-                JOIN pg_namespace AS n ON n.oid = c.relnamespace
+                SELECT pg_catalog.pg_get_triggerdef(t.oid, true) || ';'
+                FROM pg_catalog.pg_trigger AS t
+                JOIN pg_catalog.pg_class AS c ON c.oid = t.tgrelid
+                JOIN pg_catalog.pg_namespace AS n ON n.oid = c.relnamespace
                 WHERE n.nspname = %s
-                  AND t.tgname = %s
+                  AND (t.tgname = %s OR lower(t.tgname) = lower(%s))
                   AND NOT t.tgisinternal
                 LIMIT 1
                 """,
-                (schema, name),
+                (target_schema, name, name),
+                limit=1,
+                database=database
             )
-
-            return result["rows"][0][0] if result["rows"] else None
+            return result["rows"][0][0] if result.get("rows") else None
 
         return None
 
@@ -255,12 +313,19 @@ class PostgreSqlAdapter(DatabaseAdapter):
                     "target_object": ""
                 })
 
-            # 2. Routines (Procedures / Functions)
+            # 2. Routines (Procedures / Functions from pg_proc)
             routines_query = """
-                SELECT routine_name, routine_schema, routine_type
-                FROM information_schema.routines
-                WHERE routine_schema = %s
-                ORDER BY routine_name
+                SELECT 
+                    p.proname AS routine_name, 
+                    n.nspname AS routine_schema, 
+                    CASE 
+                        WHEN p.prokind = 'p' THEN 'procedure'
+                        ELSE 'function'
+                    END AS routine_type
+                FROM pg_catalog.pg_proc p
+                JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace
+                WHERE n.nspname = %s
+                ORDER BY p.proname
             """
             res_r = self.execute(routines_query, [target_schema], limit=0, database=database)
             for row in res_r.get("rows", []):
@@ -794,4 +859,8 @@ class PostgreSqlAdapter(DatabaseAdapter):
             raise exc
         finally:
             self.connection.autocommit = True
+
+# Alias for compatibility
+PostgresAdapter = PostgreSqlAdapter
+
 

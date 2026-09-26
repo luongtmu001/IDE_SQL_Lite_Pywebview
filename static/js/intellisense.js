@@ -44,7 +44,8 @@
         temp_table: 'fa-clock text-warning',
         table_variable: 'fa-cube text-info',
         data_type: 'fa-cube text-info',
-        user_data_type: 'fa-shapes text-warning'
+        user_data_type: 'fa-shapes text-warning',
+        snippet: 'fa-wand-magic-sparkles text-warning'
     };
 
     function init() {
@@ -193,7 +194,8 @@
     }
 
     function attachEditor(cm) {
-        if (!cm) return;
+        if (!cm || cm._intellisenseAttached) return;
+        cm._intellisenseAttached = true;
 
         cm.on('change', (editor, changeObj) => {
             if (changeObj.origin === 'setValue') return;
@@ -333,7 +335,11 @@
             });
         } else if (!context.qualifier) {
             // Standard keywords (Level 1)
-            window.SqlContextAnalyzer.SQL_KEYWORDS.forEach(kw => {
+            const keywordsToUse = (window.SqlContextAnalyzer && window.SqlContextAnalyzer.getKeywordsForDbType)
+                ? window.SqlContextAnalyzer.getKeywordsForDbType(tabCtx.dbType)
+                : window.SqlContextAnalyzer.SQL_KEYWORDS;
+
+            keywordsToUse.forEach(kw => {
                 if (!wordLower || kw.toLowerCase().startsWith(wordLower)) {
                     allCandidates.push({
                         name: kw,
@@ -355,6 +361,24 @@
                     });
                 }
             });
+
+            // SQL Snippets (Templates)
+            if (window.AppSnippets && typeof window.AppSnippets.getSnippets === 'function') {
+                const allSnips = window.AppSnippets.getSnippets();
+                allSnips.forEach(snip => {
+                    const prefixLower = (snip.prefix || '').toLowerCase();
+                    if (prefixLower && (!wordLower || prefixLower.startsWith(wordLower) || prefixLower.includes(wordLower))) {
+                        allCandidates.push({
+                            name: snip.prefix,
+                            type: 'snippet',
+                            level: prefixLower.startsWith(wordLower) ? 0.9 : 1.5,
+                            displayType: 'Snippet',
+                            description: snip.description || '',
+                            snippetData: snip
+                        });
+                    }
+                });
+            }
         }
 
         // 2. Level 2: Local Script Objects (strictly in file scope)
@@ -538,6 +562,14 @@
         const isFromClause = (context.clause === 'FROM' || context.clause === 'JOIN');
 
         unique.sort((a, b) => {
+            // Prioritize matching object type in ALTER / CREATE OR ALTER context
+            if (context.isAlterContext && context.alterObjectType) {
+                const aMatches = a.type === context.alterObjectType;
+                const bMatches = b.type === context.alterObjectType;
+                if (aMatches && !bMatches) return -1;
+                if (!aMatches && bMatches) return 1;
+            }
+
             if (isFromClause && !context.qualifier) {
                 const aIsSource = ['table', 'view', 'temp_table', 'table_variable', 'synonym'].includes(a.type);
                 const bIsSource = ['table', 'view', 'temp_table', 'table_variable', 'synonym'].includes(b.type);
@@ -587,7 +619,8 @@
             temp_table: 'Temp Table',
             table_variable: 'Table Var',
             data_type: 'Data Type',
-            user_data_type: 'UDT'
+            user_data_type: 'UDT',
+            snippet: 'Snippet'
         };
         return map[type] || (type.charAt(0).toUpperCase() + type.slice(1));
     }
@@ -895,6 +928,35 @@
                 </div>
             `;
             scriptContent.textContent = `-- Data Type: ${item.name}\n-- Category: ${item.displayType}`;
+        } else if (item.type === 'snippet') {
+            const snip = item.snippetData || {};
+            const placeholders = snip.placeholders || [];
+            let phHtml = '';
+            if (placeholders.length > 0) {
+                phHtml = `
+                    <div class="mt-2">
+                        <div class="small fw-semibold text-secondary mb-1">Placeholders:</div>
+                        <div class="d-flex flex-wrap gap-1">
+                            ${placeholders.map(p => `<span class="badge bg-secondary-subtle text-warning font-monospace" style="font-size:0.75rem;">$${p.name}$ = "${p.defaultValue !== undefined ? p.defaultValue : ''}"</span>`).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+            summaryContent.innerHTML = `
+                <div class="p-2">
+                    <div class="fw-bold mb-1"><i class="fa-solid fa-wand-magic-sparkles text-warning me-1"></i>${item.name}</div>
+                    <div class="small text-muted mb-1">Loại: <span class="fw-semibold text-warning">SQL Snippet</span></div>
+                    <div class="small text-light">${item.description || 'Không có mô tả'}</div>
+                    ${phHtml}
+                    <div class="small text-muted mt-2 fst-italic">Nhấn <b>Tab</b> hoặc <b>Enter</b> để chèn snippet.</div>
+                </div>
+            `;
+            if (window.AppSnippets && typeof window.AppSnippets.expandSnippetBody === 'function') {
+                const exp = window.AppSnippets.expandSnippetBody(snip);
+                scriptContent.textContent = exp.expandedText || snip.body || '';
+            } else {
+                scriptContent.textContent = snip.body || '';
+            }
         } else {
             summaryContent.innerHTML = `
                 <div class="p-2">
@@ -937,15 +999,66 @@
         const fromPos = { line: cursor.line, ch: cursor.ch - wordLen };
         const toPos = cursor;
 
-        // Check if user is writing ALTER / CREATE OR ALTER context
+        // Check if snippet completion
+        if (item.type === 'snippet' && item.snippetData && window.AppSnippets && typeof window.AppSnippets.expandSnippetBody === 'function') {
+            const expanded = window.AppSnippets.expandSnippetBody(item.snippetData);
+            cm.operation(() => {
+                cm.replaceRange(expanded.expandedText, fromPos, toPos);
+                const startOffset = cm.indexFromPos(fromPos);
+                const absSelStart = startOffset + expanded.selectionStart;
+                const absSelEnd = startOffset + expanded.selectionEnd;
+                const posStart = cm.posFromIndex(absSelStart);
+                const posEnd = cm.posFromIndex(absSelEnd);
+                if (absSelStart !== absSelEnd) {
+                    cm.setSelection(posStart, posEnd);
+                } else {
+                    cm.setCursor(posStart);
+                }
+                cm.focus();
+            });
+            return;
+        }
+
+        // Check if user is writing ALTER / CREATE OR ALTER / CREATE OR REPLACE context
         if (activeContext && activeContext.isAlterContext && ['procedure', 'function', 'trigger', 'view'].includes(item.type)) {
             const tabCtx = getActiveTabContext();
             const defScript = await fetchDefinition(tabCtx.connectionId, tabCtx.database, item.schema || tabCtx.schema, item.name, item.type);
 
             if (defScript) {
-                // Find start of statement: e.g. "ALTER PROCEDURE ..."
-                // Replace entire line/statement with defScript
-                cm.replaceRange(defScript, { line: cursor.line, ch: 0 }, { line: cursor.line, ch: line.length });
+                let transformedScript = defScript;
+                const userTypedLine = line.substring(0, cursor.ch).trim();
+                const isCreateOrAlter = /\bCREATE\s+OR\s+ALTER\b/i.test(userTypedLine);
+                const isCreateOrReplace = /\bCREATE\s+OR\s+REPLACE\b/i.test(userTypedLine);
+                const isAlterOnly = /\bALTER\b/i.test(userTypedLine) && !isCreateOrAlter;
+
+                if (isAlterOnly) {
+                    if (/^\s*CREATE\s+OR\s+REPLACE\s+/i.test(transformedScript)) {
+                        transformedScript = transformedScript.replace(/^\s*CREATE\s+OR\s+REPLACE\s+/i, 'ALTER ');
+                    } else if (/^\s*CREATE\s+OR\s+ALTER\s+/i.test(transformedScript)) {
+                        transformedScript = transformedScript.replace(/^\s*CREATE\s+OR\s+ALTER\s+/i, 'ALTER ');
+                    } else if (/^\s*CREATE\s+/i.test(transformedScript)) {
+                        transformedScript = transformedScript.replace(/^\s*CREATE\s+/i, 'ALTER ');
+                    }
+                } else if (isCreateOrAlter) {
+                    if (/^\s*CREATE\s+OR\s+REPLACE\s+/i.test(transformedScript)) {
+                        transformedScript = transformedScript.replace(/^\s*CREATE\s+OR\s+REPLACE\s+/i, 'CREATE OR ALTER ');
+                    } else if (/^\s*ALTER\s+/i.test(transformedScript)) {
+                        transformedScript = transformedScript.replace(/^\s*ALTER\s+/i, 'CREATE OR ALTER ');
+                    } else if (/^\s*CREATE\s+/i.test(transformedScript) && !/^\s*CREATE\s+OR\s+ALTER\s+/i.test(transformedScript)) {
+                        transformedScript = transformedScript.replace(/^\s*CREATE\s+/i, 'CREATE OR ALTER ');
+                    }
+                } else if (isCreateOrReplace) {
+                    if (/^\s*CREATE\s+OR\s+ALTER\s+/i.test(transformedScript)) {
+                        transformedScript = transformedScript.replace(/^\s*CREATE\s+OR\s+ALTER\s+/i, 'CREATE OR REPLACE ');
+                    } else if (/^\s*ALTER\s+/i.test(transformedScript)) {
+                        transformedScript = transformedScript.replace(/^\s*ALTER\s+/i, 'CREATE OR REPLACE ');
+                    } else if (/^\s*CREATE\s+/i.test(transformedScript) && !/^\s*CREATE\s+OR\s+REPLACE\s+/i.test(transformedScript)) {
+                        transformedScript = transformedScript.replace(/^\s*CREATE\s+/i, 'CREATE OR REPLACE ');
+                    }
+                }
+
+                // Replace line/statement with transformedScript
+                cm.replaceRange(transformedScript, { line: cursor.line, ch: 0 }, { line: cursor.line, ch: line.length });
 
                 // Position cursor immediately after object name in the header!
                 setTimeout(() => {
@@ -1035,7 +1148,9 @@
         attachEditor,
         triggerIntelliSense,
         hidePopup,
-        goToDefinition
+        goToDefinition,
+        isPopupVisible: () => isPopupVisible,
+        chooseCurrentItem
     };
 
     document.addEventListener('DOMContentLoaded', () => {

@@ -62,6 +62,10 @@ class ConnectionManager:
                 self._credential_cache.pop(key, None)
 
     def create(self, owner_session_id, config):
+        db_type = (config.get("type") or "").strip().lower()
+        if db_type == "group_marker" or str(config.get("name", "")).startswith("__group__"):
+            raise ValueError("Không thể tạo kết nối cho thư mục nhóm (group_marker).")
+
         config_to_use = dict(config)
         # If password not provided in payload, check in-memory RAM cache
         if not config_to_use.get("password") and not config_to_use.get("trusted_connection"):
@@ -100,6 +104,25 @@ class ConnectionManager:
             self._connections[connection_id] = connection
 
         return connection
+
+    def create_or_get(self, owner_session_id, config):
+        db_type = (config.get("type") or "").strip().lower()
+        if db_type == "group_marker" or str(config.get("name", "")).startswith("__group__"):
+            raise ValueError("Không thể tạo kết nối cho thư mục nhóm (group_marker).")
+
+        with self._lock:
+            for conn in self.list(owner_session_id):
+                cfg = conn.config or {}
+                if (
+                    str(cfg.get("type", "")).lower() == str(config.get("type", "")).lower()
+                    and str(cfg.get("server") or cfg.get("host") or "").lower() == str(config.get("server") or config.get("host") or "").lower()
+                    and str(cfg.get("database") or "").lower() == str(config.get("database") or "").lower()
+                    and str(cfg.get("username") or "").lower() == str(config.get("username") or "").lower()
+                ):
+                    return conn, True
+
+        conn = self.create(owner_session_id, config)
+        return conn, False
 
     def get(self, owner_session_id, connection_id):
         with self._lock:

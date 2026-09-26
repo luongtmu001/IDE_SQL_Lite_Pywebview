@@ -1,0 +1,1170 @@
+// ── VS Code Authentic Settings Manager ──────────────────────────────────────
+// Supports Visual Form & Raw JSON editing, Save button, Theme inheritance,
+// and transmission of CSS/JS variables for Editor, Grid Result, Messages, etc.
+
+(function (global) {
+    'use strict';
+
+    const FONT_OPTIONS_CODE = [
+        { value: 'Consolas', label: 'Consolas (Mặc định)' },
+        { value: 'JetBrains Mono', label: 'JetBrains Mono' },
+        { value: 'Fira Code', label: 'Fira Code' },
+        { value: 'Courier New', label: 'Courier New' },
+        { value: 'monospace', label: 'Monospace' }
+    ];
+
+    const FONT_OPTIONS_TEXT = [
+        { value: 'Segoe UI', label: 'Segoe UI (Mặc định)' },
+        { value: 'Arial', label: 'Arial' },
+        { value: 'Tahoma', label: 'Tahoma' },
+        { value: 'Consolas', label: 'Consolas' },
+        { value: 'JetBrains Mono', label: 'JetBrains Mono' },
+        { value: 'sans-serif', label: 'Sans-serif' }
+    ];
+
+    function getThemeOptions() {
+        const reg = window.ThemeRegistry || (window.parent && window.parent.ThemeRegistry);
+        if (reg && typeof reg.getAllThemes === 'function') {
+            return reg.getAllThemes().map(t => ({
+                value: t.id,
+                label: t.name
+            }));
+        }
+        return [
+            { value: 'dark', label: 'Dark Mode (Giao diện Tối)' },
+            { value: 'light', label: 'Light Mode (Giao diện Sáng)' },
+            { value: 'win-nt', label: 'Windows NT (Classic)' },
+            { value: 'win-xp', label: 'Windows XP (Luna)' },
+            { value: 'monokai', label: 'Monokai' },
+            { value: 'nord', label: 'Nord' }
+        ];
+    }
+
+    const CATEGORIES = [
+        {
+            key: 'editor',
+            name: 'Trình soạn thảo',
+            subtitle: 'Text Editor',
+            icon: 'fa-solid fa-pen-to-square',
+            fields: [
+                {
+                    key: 'fontFamily',
+                    label: 'Phông chữ soạn thảo (Editor Font Family)',
+                    desc: 'Biến cấu hình: editor.fontFamily. Phông chữ hiển thị trong vùng soạn thảo câu lệnh SQL.',
+                    type: 'select',
+                    options: FONT_OPTIONS_CODE
+                },
+                {
+                    key: 'fontSize',
+                    label: 'Cỡ chữ soạn thảo (Editor Font Size)',
+                    desc: 'Biến cấu hình: editor.fontSize. Kích thước chữ trong trình soạn thảo code (pixel).',
+                    type: 'number',
+                    min: 10,
+                    max: 36,
+                    step: 1
+                },
+                {
+                    key: 'tabSize',
+                    label: 'Độ dài Tab (Tab Size)',
+                    desc: 'Biến cấu hình: editor.tabSize. Số lượng khoảng trắng tương ứng khi nhấn phím Tab.',
+                    type: 'number',
+                    min: 2,
+                    max: 8,
+                    step: 2
+                },
+                {
+                    key: 'insertSpaces',
+                    label: 'Chèn khoảng trắng thay vì Tab (Insert Spaces)',
+                    desc: 'Biến cấu hình: editor.insertSpaces. Tự động chèn các khoảng trắng khi nhấn Tab.',
+                    type: 'switch'
+                },
+                {
+                    key: 'wordWrap',
+                    label: 'Tự động ngắt dòng (Word Wrap)',
+                    desc: 'Biến cấu hình: editor.wordWrap. Tự động xuống dòng khi nội dung vượt quá chiều ngang màn hình.',
+                    type: 'switch'
+                },
+                {
+                    key: 'minimap',
+                    label: 'Bản đồ thu nhỏ (Minimap)',
+                    desc: 'Biến cấu hình: editor.minimap. Hiển thị thanh cuộn xem trước dạng bản đồ thu nhỏ bên phải.',
+                    type: 'switch'
+                },
+                {
+                    key: 'keywordCase',
+                    label: 'Định dạng từ khóa SQL (Keyword Case)',
+                    desc: 'Biến cấu hình: editor.keywordCase. Quy tắc viết hoa hoặc viết thường các từ khóa cú pháp SQL.',
+                    type: 'select',
+                    options: [
+                        { value: 'upper', label: 'VIẾT HOA (UPPERCASE)' },
+                        { value: 'lower', label: 'viết thường (lowercase)' },
+                        { value: 'preserve', label: 'Giữ nguyên (Preserve)' }
+                    ]
+                }
+            ]
+        },
+        {
+            key: 'grid',
+            name: 'Bảng kết quả (Grid)',
+            subtitle: 'Result Grid',
+            icon: 'fa-solid fa-table-cells',
+            fields: [
+                {
+                    key: 'fontFamily',
+                    label: 'Phông chữ bảng kết quả (Grid Font Family)',
+                    desc: 'Biến cấu hình: grid.fontFamily. Phông chữ hiển thị các hàng và cột trong bảng dữ liệu kết quả truy vấn.',
+                    type: 'select',
+                    options: FONT_OPTIONS_TEXT
+                },
+                {
+                    key: 'fontSize',
+                    label: 'Cỡ chữ bảng kết quả (Grid Font Size)',
+                    desc: 'Biến cấu hình: grid.fontSize. Kích thước chữ trong các ô dữ liệu của bảng kết quả (pixel).',
+                    type: 'number',
+                    min: 10,
+                    max: 24,
+                    step: 1
+                }
+            ]
+        },
+        {
+            key: 'messages',
+            name: 'Thông báo SQL (Messages)',
+            subtitle: 'SQL Messages',
+            icon: 'fa-solid fa-comment-dots',
+            fields: [
+                {
+                    key: 'fontFamily',
+                    label: 'Phông chữ tab thông báo (Messages Font Family)',
+                    desc: 'Biến cấu hình: messages.fontFamily. Phông chữ hiển thị văn bản kết quả, lỗi hoặc thông báo thực thi SQL trong tab Messages.',
+                    type: 'select',
+                    options: FONT_OPTIONS_CODE
+                },
+                {
+                    key: 'fontSize',
+                    label: 'Cỡ chữ tab thông báo (Messages Font Size)',
+                    desc: 'Biến cấu hình: messages.fontSize. Kích thước chữ hiển thị trong tab thông báo Messages (pixel).',
+                    type: 'number',
+                    min: 10,
+                    max: 24,
+                    step: 1
+                }
+            ]
+        },
+        {
+            key: 'appearance',
+            name: 'Giao diện',
+            subtitle: 'Appearance / Theme',
+            icon: 'fa-solid fa-palette',
+            fields: [
+                {
+                    key: 'theme',
+                    label: 'Chế độ giao diện (Color Theme)',
+                    desc: 'Biến cấu hình: theme. Chuyển đổi giao diện màu sắc của IDE. Đọc từ file theme-variables.css.',
+                    type: 'select',
+                    options: getThemeOptions()
+                },
+                {
+                    key: 'importVsixTheme',
+                    label: 'Import Theme từ file .vsix (VS Code Extension)',
+                    desc: 'Mở hộp thoại chọn file .vsix để tự động phát hiện theme, kiểm tra tính duy nhất của theme key và lưu cấu hình vào style.css.',
+                    type: 'action-button',
+                    buttonText: 'Chọn file .vsix...',
+                    icon: 'fa-solid fa-file-import'
+                },
+                {
+                    key: 'iconSize',
+                    label: 'Kích thước biểu tượng (Icon Size)',
+                    desc: 'Biến cấu hình: appearance.iconSize. Kích thước hiển thị của các biểu tượng trên Object Explorer (pixel).',
+                    type: 'number',
+                    min: 12,
+                    max: 24,
+                    step: 2
+                }
+            ]
+        },
+        {
+            key: 'sql',
+            name: 'Truy vấn SQL',
+            subtitle: 'SQL Query',
+            icon: 'fa-solid fa-database',
+            fields: [
+                {
+                    key: 'maxRows',
+                    label: 'Giới hạn số dòng kết quả (Max Rows)',
+                    desc: 'Biến cấu hình: sql.maxRows. Số lượng dòng tối đa được nạp lên bảng hiển thị kết quả truy vấn (0 = không giới hạn).',
+                    type: 'number',
+                    min: 0,
+                    max: 50000,
+                    step: 500
+                },
+                {
+                    key: 'timeoutSeconds',
+                    label: 'Thời gian chờ truy vấn (Timeout Seconds)',
+                    desc: 'Biến cấu hình: sql.timeoutSeconds. Thời gian tối đa (giây) cho phép câu truy vấn chạy trước khi ngắt.',
+                    type: 'number',
+                    min: 5,
+                    max: 300,
+                    step: 5
+                }
+            ]
+        },
+        {
+            key: 'addons',
+            name: 'Tiện ích mở rộng',
+            subtitle: 'Extensions',
+            icon: 'fa-solid fa-puzzle-piece',
+            fields: [
+                {
+                    subpath: 'bravo_tool.enabled',
+                    label: 'Kích hoạt BRAVO Tool Extension',
+                    desc: 'Biến cấu hình: addons.bravo_tool.enabled. Hiển thị nút công cụ BRAVO Tool trên thanh taskbar để mở Layout Editor & Forms.',
+                    type: 'switch'
+                }
+            ]
+        }
+    ];
+
+    const DEFAULT_SETTINGS = {
+        theme: 'dark',
+        editor: {
+            fontFamily: 'Consolas',
+            fontSize: 14,
+            tabSize: 4,
+            insertSpaces: true,
+            wordWrap: false,
+            minimap: true,
+            keywordCase: 'upper'
+        },
+        grid: {
+            fontFamily: 'Segoe UI',
+            fontSize: 13
+        },
+        messages: {
+            fontFamily: 'Consolas',
+            fontSize: 13
+        },
+        appearance: {
+            theme: 'dark',
+            iconSize: 16
+        },
+        sql: {
+            maxRows: 1000,
+            timeoutSeconds: 30
+        },
+        addons: {
+            bravo_tool: {
+                enabled: true
+            }
+        }
+    };
+
+    let _settings = null;       // Currently saved settings in file
+    let _draftSettings = null;  // Temporary draft modified by user before clicking Save
+    let _isDirty = false;       // Has user changed anything?
+    let _activeCat = 'editor';
+    let _activeTab = 'visual';   // 'visual' or 'json'
+    let _searchQuery = '';
+    let _bsModal = null;
+
+    // ── Popup Dialog Helpers (No default browser alert/confirm) ───────────────
+    function showPopupAlert(title, message, iconType = 'info') {
+        const backdrop = document.getElementById('settingsPopupBackdrop');
+        if (!backdrop) {
+            alert(message);
+            return;
+        }
+
+        const titleEl = document.getElementById('settingsPopupTitle');
+        const msgEl = document.getElementById('settingsPopupMessage');
+        const footerEl = document.getElementById('settingsPopupFooter');
+        const closeBtn = document.getElementById('settingsPopupCloseBtn');
+
+        let iconHtml = '<i class="fa-solid fa-circle-info text-info me-2"></i>';
+        if (iconType === 'success') iconHtml = '<i class="fa-solid fa-circle-check text-success me-2"></i>';
+        if (iconType === 'warning') iconHtml = '<i class="fa-solid fa-triangle-exclamation text-warning me-2"></i>';
+        if (iconType === 'error') iconHtml = '<i class="fa-solid fa-circle-xmark text-danger me-2"></i>';
+
+        if (titleEl) titleEl.innerHTML = `${iconHtml}<span>${title}</span>`;
+        if (msgEl) msgEl.textContent = message;
+
+        if (footerEl) {
+            footerEl.innerHTML = `
+                <button type="button" class="btn-popup btn-popup-primary" id="popupAlertOkBtn">Đồng ý</button>
+            `;
+            const okBtn = document.getElementById('popupAlertOkBtn');
+            if (okBtn) {
+                okBtn.onclick = () => backdrop.classList.add('d-none');
+                okBtn.focus();
+            }
+        }
+
+        if (closeBtn) {
+            closeBtn.onclick = () => backdrop.classList.add('d-none');
+        }
+
+        backdrop.classList.remove('d-none');
+    }
+
+    function showPopupConfirm(title, message, onConfirm, onDiscard) {
+        const backdrop = document.getElementById('settingsPopupBackdrop');
+        if (!backdrop) {
+            if (confirm(message)) onConfirm();
+            else if (onDiscard) onDiscard();
+            return;
+        }
+
+        const titleEl = document.getElementById('settingsPopupTitle');
+        const msgEl = document.getElementById('settingsPopupMessage');
+        const footerEl = document.getElementById('settingsPopupFooter');
+        const closeBtn = document.getElementById('settingsPopupCloseBtn');
+
+        if (titleEl) titleEl.innerHTML = `<i class="fa-solid fa-circle-question text-warning me-2"></i><span>${title}</span>`;
+        if (msgEl) msgEl.textContent = message;
+
+        if (footerEl) {
+            footerEl.innerHTML = `
+                <button type="button" class="btn-popup btn-popup-secondary" id="popupConfirmCancelBtn">Hủy bỏ</button>
+                <button type="button" class="btn-popup btn-popup-primary" id="popupConfirmOkBtn">Xác nhận</button>
+            `;
+            const okBtn = document.getElementById('popupConfirmOkBtn');
+            const cancelBtn = document.getElementById('popupConfirmCancelBtn');
+
+            if (okBtn) {
+                okBtn.onclick = () => {
+                    backdrop.classList.add('d-none');
+                    if (typeof onConfirm === 'function') onConfirm();
+                };
+            }
+            if (cancelBtn) {
+                cancelBtn.onclick = () => {
+                    backdrop.classList.add('d-none');
+                    if (typeof onDiscard === 'function') onDiscard();
+                };
+            }
+        }
+
+        if (closeBtn) {
+            closeBtn.onclick = () => backdrop.classList.add('d-none');
+        }
+
+        backdrop.classList.remove('d-none');
+    }
+
+    // ── Get & Set Values in Draft Settings ────────────────────────────────────
+    function getSettingValue(settings, catKey, field) {
+        if (!settings) return undefined;
+        if (catKey === 'appearance' && field.key === 'theme') {
+            return settings.appearance?.theme || settings.theme || 'dark';
+        }
+        if (field.subpath) {
+            const parts = [catKey, ...field.subpath.split('.')];
+            let curr = settings;
+            for (const p of parts) {
+                if (curr == null) return undefined;
+                curr = curr[p];
+            }
+            return curr;
+        }
+        return settings[catKey] ? settings[catKey][field.key] : undefined;
+    }
+
+    function setDraftValue(catKey, field, value) {
+        if (!_draftSettings) _draftSettings = {};
+        _isDirty = true;
+
+        if (catKey === 'appearance' && field.key === 'theme') {
+            if (!_draftSettings.appearance) _draftSettings.appearance = {};
+            _draftSettings.appearance.theme = value;
+            _draftSettings.theme = value;
+            return;
+        }
+
+        if (field.subpath) {
+            const parts = [catKey, ...field.subpath.split('.')];
+            let curr = _draftSettings;
+            for (let i = 0; i < parts.length - 1; i++) {
+                const p = parts[i];
+                if (!curr[p] || typeof curr[p] !== 'object') curr[p] = {};
+                curr = curr[p];
+            }
+            curr[parts[parts.length - 1]] = value;
+        } else {
+            if (!_draftSettings[catKey] || typeof _draftSettings[catKey] !== 'object') _draftSettings[catKey] = {};
+            _draftSettings[catKey][field.key] = value;
+        }
+    }
+
+    // ── Apply Settings (Truyền toàn bộ biến vào DOM và Runtime) ───────────────
+    function applyAllSettings(settings) {
+        if (!settings) return;
+
+        // Lưu bản sao toàn cục để các module khác chủ động truy cập
+        window.IDE_SETTINGS = JSON.parse(JSON.stringify(settings));
+
+        // 1. Theme
+        const theme = settings.appearance?.theme || settings.theme || 'dark';
+        if (window.ThemeManager && typeof window.ThemeManager.applyTheme === 'function') {
+            window.ThemeManager.applyTheme(theme, false);
+        } else {
+            document.documentElement.setAttribute('data-bs-theme', theme);
+        }
+
+        // 2. Editor font & size (Truyền biến CSS và cập nhật CodeMirror)
+        const editorFont = settings.editor?.fontFamily || 'Consolas';
+        const editorSize = settings.editor?.fontSize || 14;
+        document.documentElement.style.setProperty('--ide-editor-font-family', editorFont);
+        document.documentElement.style.setProperty('--ide-editor-font-size', editorSize + 'px');
+
+        if (window.AppEditor) {
+            const wrap = window.AppEditor.getWrapperElement ? window.AppEditor.getWrapperElement() : null;
+            if (wrap) {
+                wrap.style.fontFamily = editorFont;
+                wrap.style.fontSize = editorSize + 'px';
+                if (typeof window.AppEditor.refresh === 'function') window.AppEditor.refresh();
+            }
+            if (typeof window.AppEditor.setOption === 'function') {
+                if (settings.editor?.wordWrap !== undefined) window.AppEditor.setOption('lineWrapping', Boolean(settings.editor.wordWrap));
+                if (settings.editor?.tabSize !== undefined) window.AppEditor.setOption('tabSize', Number(settings.editor.tabSize) || 4);
+                if (settings.editor?.insertSpaces !== undefined) window.AppEditor.setOption('indentWithTabs', !settings.editor.insertSpaces);
+            }
+        }
+        if (window.AppEditor2) {
+            const wrap2 = window.AppEditor2.getWrapperElement ? window.AppEditor2.getWrapperElement() : null;
+            if (wrap2) {
+                wrap2.style.fontFamily = editorFont;
+                wrap2.style.fontSize = editorSize + 'px';
+                if (typeof window.AppEditor2.refresh === 'function') window.AppEditor2.refresh();
+            }
+        }
+
+        // 3. Grid Result font & size (Truyền biến CSS cho bảng kết quả)
+        const gridFont = settings.grid?.fontFamily || 'Segoe UI, Arial, sans-serif';
+        const gridFontSize = settings.grid?.fontSize || 13;
+        document.documentElement.style.setProperty('--ide-grid-font-family', gridFont);
+        document.documentElement.style.setProperty('--ide-grid-font-size', gridFontSize + 'px');
+
+        // 4. Message SQL font & size (Truyền biến CSS cho tab thông báo)
+        const msgFont = settings.messages?.fontFamily || 'Consolas, Courier New, monospace';
+        const msgFontSize = settings.messages?.fontSize || 13;
+        document.documentElement.style.setProperty('--ide-message-font-family', msgFont);
+        document.documentElement.style.setProperty('--ide-message-font-size', msgFontSize + 'px');
+
+        // 5. BRAVO Tool Addon
+        const bravoEnabled = settings.addons?.bravo_tool?.enabled;
+        const wrapBravo = document.getElementById('ide-bravo-launcher-wrap');
+        if (wrapBravo && bravoEnabled !== undefined) {
+            wrapBravo.style.display = bravoEnabled ? 'block' : 'none';
+        }
+
+        // 6. SQL Query config
+        if (settings.sql) {
+            window._sqlConfig = window._sqlConfig || {};
+            if (settings.sql.maxRows !== undefined) window._sqlConfig.maxRows = Number(settings.sql.maxRows);
+            if (settings.sql.timeoutSeconds !== undefined) window._sqlConfig.timeoutSeconds = Number(settings.sql.timeoutSeconds);
+        }
+
+        // 7. Dispatch Event thông báo cập nhật cho toàn hệ thống
+        document.dispatchEvent(new CustomEvent('ide-settings-updated', { detail: { settings } }));
+    }
+
+    // Expose global callback for IPC broadcast
+    window.onSettingsChanged = function (newSettings) {
+        if (!newSettings) return;
+        _settings = newSettings;
+        applyAllSettings(newSettings);
+        if (_draftSettings && !_isDirty) {
+            _draftSettings = JSON.parse(JSON.stringify(newSettings));
+            renderSidebar();
+            renderContent();
+            updateRawJsonEditor();
+        }
+    };
+
+    // Cross-window sync via storage event for all settings
+    window.addEventListener('storage', (e) => {
+        if (e.key === 'ide-settings' && e.newValue) {
+            try {
+                const parsed = JSON.parse(e.newValue);
+                if (window.onSettingsChanged) {
+                    window.onSettingsChanged(parsed);
+                }
+            } catch (_) {}
+        }
+    });
+
+    // ── Save Current Settings ─────────────────────────────────────────────────
+    async function saveCurrentSettings() {
+        // Nếu đang ở tab JSON: kiểm tra cú pháp JSON từ textarea trước
+        if (_activeTab === 'json') {
+            const textarea = document.getElementById('settingsRawJsonTextarea');
+            if (textarea) {
+                try {
+                    const parsed = JSON.parse(textarea.value);
+                    _draftSettings = parsed;
+                } catch (e) {
+                    showPopupAlert('Lỗi cú pháp JSON', 'Nội dung JSON không hợp lệ: ' + e.message, 'error');
+                    return;
+                }
+            }
+        }
+
+        if (!_draftSettings) return;
+        try {
+            const theme = _draftSettings.appearance?.theme || _draftSettings.theme || 'dark';
+            _draftSettings.theme = theme;
+            if (!_draftSettings.appearance) _draftSettings.appearance = {};
+            _draftSettings.appearance.theme = theme;
+
+            if (window.AppStorage && typeof window.AppStorage.saveSettings === 'function') {
+                const ok = await window.AppStorage.saveSettings(_draftSettings);
+                if (ok) {
+                    _settings = JSON.parse(JSON.stringify(_draftSettings));
+                    _isDirty = false;
+                    applyAllSettings(_settings);
+                    if (window.ThemeManager && typeof window.ThemeManager.applyTheme === 'function') {
+                        window.ThemeManager.applyTheme(theme, false);
+                    }
+                    try {
+                        localStorage.setItem('ide-settings', JSON.stringify(_settings));
+                    } catch (_) {}
+                    updateRawJsonEditor();
+                    showPopupAlert('Thành công', '✓ Đã lưu các thay đổi cài đặt thành công!', 'success');
+                    return;
+                }
+            }
+            showPopupAlert('Lỗi', 'Không thể lưu cài đặt vào hệ thống.', 'error');
+        } catch (e) {
+            console.error('[SettingsManager] saveSettings failed:', e);
+            showPopupAlert('Lỗi', 'Có lỗi xảy ra khi lưu cài đặt: ' + e.message, 'error');
+        }
+    }
+
+    // ── Update Raw JSON Textarea ──────────────────────────────────────────────
+    function updateRawJsonEditor() {
+        const textarea = document.getElementById('settingsRawJsonTextarea');
+        if (textarea) {
+            const targetObj = _draftSettings || _settings || DEFAULT_SETTINGS;
+            textarea.value = JSON.stringify(targetObj, null, 4);
+        }
+    }
+
+    // ── Import VSIX Theme Handler ─────────────────────────────────────────────
+    async function handleImportVsixTheme(btn) {
+        if (!window.pywebview || !window.pywebview.api || typeof window.pywebview.api.import_vsix_theme !== 'function') {
+            showPopupAlert('Thông báo', 'Tính năng import file .vsix yêu cầu môi trường desktop pywebview.', 'warning');
+            return;
+        }
+
+        const originalHtml = btn ? btn.innerHTML : '';
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-2"></i>Đang xử lý...';
+        }
+
+        try {
+            const res = await window.pywebview.api.import_vsix_theme();
+            if (!res) return;
+
+            if (res.cancelled) {
+                return;
+            }
+
+            if (res.duplicate) {
+                // Yêu cầu: kiểm tra được key của theme xem có là duy nhất không, nếu trùng theme thì phải báo trùng
+                showPopupAlert(
+                    'Báo trùng Theme',
+                    res.message || `Theme '${res.theme_name}' (mã: '${res.theme_id}') đã tồn tại trong hệ thống. Vui lòng kiểm tra lại.`,
+                    'warning'
+                );
+                return;
+            }
+
+            if (!res.success) {
+                showPopupAlert('Lỗi Import Theme', res.error || 'Có lỗi xảy ra khi đọc file .vsix.', 'error');
+                return;
+            }
+
+            // Thành công:
+            const themesList = (res.imported_themes && Array.isArray(res.imported_themes) && res.imported_themes.length > 0)
+                ? res.imported_themes
+                : [res];
+
+            // 1. Nhúng động style vào DOM cho từng theme
+            themesList.forEach(t => {
+                if (t.css) {
+                    let styleEl = document.getElementById(`dynamic-theme-${t.theme_id}`);
+                    if (!styleEl) {
+                        styleEl = document.createElement('style');
+                        styleEl.id = `dynamic-theme-${t.theme_id}`;
+                        document.head.appendChild(styleEl);
+                    }
+                    styleEl.textContent = t.css;
+                }
+            });
+
+            // 2. Đăng ký tất cả các themes vào ThemeRegistry
+            const targetRegistry = window.ThemeRegistry || (window.parent && window.parent.ThemeRegistry);
+            if (targetRegistry && typeof targetRegistry.registerTheme === 'function') {
+                themesList.forEach(t => {
+                    targetRegistry.registerTheme({
+                        id: t.theme_id,
+                        name: t.theme_name,
+                        isDark: Boolean(t.is_dark),
+                        cmTheme: t.cm_theme || (t.is_dark ? 'darcula' : 'default'),
+                        titlebarBg: t.titlebar_bg || (t.is_dark ? '#202228' : '#ffffff'),
+                        titlebarText: t.titlebar_text || (t.is_dark ? '#ffffff' : '#000000'),
+                        border: t.border || (t.is_dark ? '#3c3f41' : '#cccccc')
+                    });
+                });
+            }
+
+            // 3. Cập nhật options trong cấu trúc CATEGORIES cho trường Appearance Theme
+            const appCategory = CATEGORIES.find(c => c.key === 'appearance');
+            if (appCategory && appCategory.fields) {
+                const themeField = appCategory.fields.find(f => f.key === 'theme');
+                if (themeField) {
+                    themeField.options = getThemeOptions();
+                }
+            }
+
+            // 4. Tự động chọn theme đầu tiên vừa import trong draft settings
+            const primaryTheme = themesList[0];
+            setDraftValue('appearance', { key: 'theme' }, primaryTheme.theme_id);
+
+            // 5. Áp dụng ngay giao diện mới để người dùng trải nghiệm tức thì
+            if (window.ThemeManager && typeof window.ThemeManager.applyTheme === 'function') {
+                window.ThemeManager.applyTheme(primaryTheme.theme_id, false);
+            } else {
+                document.documentElement.setAttribute('data-bs-theme', primaryTheme.theme_id);
+            }
+
+            // 6. Cập nhật lại giao diện Settings để dropdown hiển thị theme mới
+            renderSidebar();
+            renderContent();
+            updateRawJsonEditor();
+
+            // 7. Hiển thị thông báo thành công
+            const namesList = themesList.map(t => `'${t.theme_name}'`).join(', ');
+            showPopupAlert(
+                'Import Theme thành công',
+                `✓ ${res.message}\nĐã thêm ${themesList.length} theme (${namesList}) từ file .vsix, trích xuất bảng màu và lưu vào file style.css thành công.\nNhấn nút "Lưu (Save)" để lưu cố định cấu hình.`,
+                'success'
+            );
+        } catch (err) {
+            console.error('[Settings] Error importing VSIX theme:', err);
+            showPopupAlert('Lỗi', 'Không thể import file .vsix: ' + err.message, 'error');
+        } finally {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = originalHtml;
+            }
+        }
+    }
+
+    // ── Render Sidebar ────────────────────────────────────────────────────────
+    function renderSidebar() {
+        const navList = document.getElementById('settingsNavList');
+        if (!navList) return;
+        navList.innerHTML = '';
+
+        const label = document.createElement('div');
+        label.className = 'section-label';
+        label.textContent = _searchQuery ? 'Danh mục' : 'Commonly Used';
+        navList.appendChild(label);
+
+        CATEGORIES.forEach(cat => {
+            const item = document.createElement('div');
+            item.className = 'nav-item' + (!_searchQuery && cat.key === _activeCat ? ' active' : '');
+            item.innerHTML = `<span class="chevron">›</span><span>${cat.name}</span>`;
+            item.onclick = () => {
+                if (_searchQuery) {
+                    const searchInput = document.getElementById('settingsSearchInput');
+                    if (searchInput) searchInput.value = '';
+                    _searchQuery = '';
+                    const clearBtn = document.getElementById('settingsSearchClear');
+                    if (clearBtn) clearBtn.classList.add('d-none');
+                }
+                _activeCat = cat.key;
+                renderSidebar();
+                renderContent();
+            };
+            navList.appendChild(item);
+        });
+    }
+
+    // ── Render Field Elements ─────────────────────────────────────────────────
+    function renderFieldElement(catKey, field, currentVal) {
+        // Type 1: Checkbox (.check-setting)
+        if (field.type === 'switch') {
+            const wrap = document.createElement('div');
+            wrap.className = 'check-setting';
+
+            const title = document.createElement('div');
+            title.className = 'setting-title';
+            title.textContent = field.label;
+
+            const label = document.createElement('label');
+            label.className = 'check-row';
+
+            const checkbox = document.createElement('input');
+            checkbox.className = 'checkbox';
+            checkbox.type = 'checkbox';
+            checkbox.checked = Boolean(currentVal);
+
+            const span = document.createElement('span');
+            span.textContent = field.desc;
+
+            checkbox.onchange = () => {
+                setDraftValue(catKey, field, checkbox.checked);
+            };
+
+            label.appendChild(checkbox);
+            label.appendChild(span);
+            wrap.appendChild(title);
+            wrap.appendChild(label);
+            return wrap;
+        }
+
+        // Type 2: Select Dropdown (.gray-setting)
+        if (field.type === 'select') {
+            const wrap = document.createElement('div');
+            wrap.className = 'gray-setting';
+
+            const title = document.createElement('div');
+            title.className = 'setting-title';
+            title.textContent = field.label;
+
+            const desc = document.createElement('div');
+            desc.className = 'description';
+            desc.textContent = field.desc;
+
+            const select = document.createElement('select');
+            const options = (catKey === 'appearance' && field.key === 'theme') ? getThemeOptions() : (field.options || []);
+            options.forEach(opt => {
+                const optEl = document.createElement('option');
+                optEl.value = typeof opt === 'object' ? opt.value : opt;
+                optEl.textContent = typeof opt === 'object' ? opt.label : opt;
+                if (String(optEl.value) === String(currentVal)) {
+                    optEl.selected = true;
+                }
+                select.appendChild(optEl);
+            });
+
+            select.onchange = () => {
+                setDraftValue(catKey, field, select.value);
+            };
+
+            wrap.appendChild(title);
+            wrap.appendChild(desc);
+            wrap.appendChild(select);
+            return wrap;
+        }
+
+        // Type 3: Action Button (.vsix-import-setting)
+        if (field.type === 'action-button' || field.type === 'button') {
+            const wrap = document.createElement('div');
+            wrap.className = 'vsix-import-setting';
+
+            const title = document.createElement('div');
+            title.className = 'setting-title';
+            title.textContent = field.label;
+
+            const desc = document.createElement('div');
+            desc.className = 'description';
+            desc.textContent = field.desc;
+
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'btn-settings-action-custom';
+            btn.innerHTML = `${field.icon ? `<i class="${field.icon} me-1"></i>` : ''}<span>${field.buttonText || 'Thực hiện'}</span>`;
+            btn.onclick = () => {
+                if (field.key === 'importVsixTheme') {
+                    handleImportVsixTheme(btn);
+                } else if (typeof field.onClick === 'function') {
+                    field.onClick(btn);
+                }
+            };
+
+            wrap.appendChild(title);
+            wrap.appendChild(desc);
+            wrap.appendChild(btn);
+            return wrap;
+        }
+
+        // Type 4: Number or Text Input (.setting)
+        const wrap = document.createElement('div');
+        wrap.className = 'setting';
+
+        const title = document.createElement('div');
+        title.className = 'setting-title';
+        title.textContent = field.label;
+
+        const desc = document.createElement('div');
+        desc.className = 'description';
+        desc.textContent = field.desc;
+
+        const input = document.createElement('input');
+        input.className = field.type === 'number' ? 'number-input' : 'text-input';
+        input.type = field.type === 'number' ? 'number' : 'text';
+        input.value = currentVal !== undefined ? currentVal : '';
+        if (field.min !== undefined) input.min = field.min;
+        if (field.max !== undefined) input.max = field.max;
+        if (field.step !== undefined) input.step = field.step;
+
+        input.oninput = () => {
+            const val = field.type === 'number' ? Number(input.value) : input.value;
+            setDraftValue(catKey, field, val);
+        };
+
+        wrap.appendChild(title);
+        wrap.appendChild(desc);
+        wrap.appendChild(input);
+        return wrap;
+    }
+
+    // ── Render Content Area ───────────────────────────────────────────────────
+    function renderContent() {
+        const contentArea = document.getElementById('settingsContentArea');
+        if (!contentArea) return;
+        contentArea.innerHTML = '';
+
+        const dataSrc = _draftSettings || _settings || DEFAULT_SETTINGS;
+
+        // Search mode
+        if (_searchQuery) {
+            const q = _searchQuery.toLowerCase();
+            let matchCount = 0;
+
+            const h1 = document.createElement('h1');
+            h1.textContent = `Kết quả tìm kiếm cho "${_searchQuery}"`;
+            contentArea.appendChild(h1);
+
+            CATEGORIES.forEach(cat => {
+                const matchedFields = cat.fields.filter(f => {
+                    const label = (f.label || '').toLowerCase();
+                    const desc = (f.desc || '').toLowerCase();
+                    const catName = (cat.name || '').toLowerCase();
+                    return label.includes(q) || desc.includes(q) || catName.includes(q);
+                });
+
+                if (matchedFields.length > 0) {
+                    matchedFields.forEach(field => {
+                        matchCount++;
+                        const currentVal = getSettingValue(dataSrc, cat.key, field);
+                        const el = renderFieldElement(cat.key, field, currentVal);
+                        contentArea.appendChild(el);
+                    });
+                }
+            });
+
+            if (matchCount === 0) {
+                const empty = document.createElement('div');
+                empty.className = 'text-center text-muted py-5';
+                empty.innerHTML = `
+                    <div style="font-size: 32px; margin-bottom: 12px; opacity: 0.5;">🔍</div>
+                    <div>Không tìm thấy cài đặt nào phù hợp với "<strong>${_searchQuery}</strong>".</div>
+                `;
+                contentArea.appendChild(empty);
+            }
+            return;
+        }
+
+        // Category mode
+        const activeCategory = CATEGORIES.find(c => c.key === _activeCat) || CATEGORIES[0];
+        if (!activeCategory) return;
+
+        const h1 = document.createElement('h1');
+        h1.innerHTML = `${activeCategory.name} <span style="font-size:15px;font-weight:normal;opacity:0.6;">(${activeCategory.subtitle || activeCategory.name})</span>`;
+        contentArea.appendChild(h1);
+
+        activeCategory.fields.forEach(field => {
+            const currentVal = getSettingValue(dataSrc, activeCategory.key, field);
+            const el = renderFieldElement(activeCategory.key, field, currentVal);
+            contentArea.appendChild(el);
+        });
+    }
+
+    // ── Open Settings: New Window or Fallback Modal ───────────────────────────
+    async function openSettings() {
+        // In desktop mode: attempt to open new window via Python IPC
+        try {
+            if (window.pywebview && window.pywebview.api && typeof window.pywebview.api.open_settings_window === 'function') {
+                if (window.AppLoader) window.AppLoader.show('Đang mở Cài đặt...');
+                try {
+                    const res = await window.pywebview.api.open_settings_window();
+                    if (res && res.success) return;
+                } finally {
+                    setTimeout(() => { if (window.AppLoader) window.AppLoader.hide(); }, 600);
+                }
+            }
+        } catch (e) {
+            console.warn('Native open_settings_window failed, falling back to modal:', e);
+        }
+
+        // Fallback: Open Modal Dialog
+        await loadSettingsData();
+        renderSidebar();
+        renderContent();
+        updateRawJsonEditor();
+
+        const modalEl = document.getElementById('settingsModal');
+        if (modalEl) {
+            _bsModal = (typeof bootstrap !== 'undefined' && bootstrap.Modal)
+                ? bootstrap.Modal.getOrCreateInstance(modalEl)
+                : null;
+            if (_bsModal) _bsModal.show();
+        }
+    }
+
+    async function loadSettingsData() {
+        if (window.AppStorage && typeof window.AppStorage.getSettings === 'function') {
+            _settings = await window.AppStorage.getSettings();
+        } else {
+            _settings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
+        }
+
+        // Merge defaults if keys missing
+        if (!_settings.editor) _settings.editor = { ...DEFAULT_SETTINGS.editor };
+        if (!_settings.grid) _settings.grid = { ...DEFAULT_SETTINGS.grid };
+        if (!_settings.messages) _settings.messages = { ...DEFAULT_SETTINGS.messages };
+        if (!_settings.appearance) _settings.appearance = { ...DEFAULT_SETTINGS.appearance };
+
+        const currentTheme = document.documentElement.getAttribute('data-bs-theme') || _settings.theme || 'dark';
+        _settings.theme = currentTheme;
+        _settings.appearance.theme = currentTheme;
+
+        // Clone to draft
+        _draftSettings = JSON.parse(JSON.stringify(_settings));
+        _isDirty = false;
+    }
+
+    // ── Initialize Event Listeners ────────────────────────────────────────────
+    function initSettings() {
+        const isStandaloneWindow = document.body.classList.contains('settings-standalone') ||
+            document.querySelector('.settings-standalone') !== null;
+
+        // 1. Triggers to Open Settings from Main IDE
+        const btnToolbar = document.getElementById('ide-settings-btn');
+        if (btnToolbar) {
+            btnToolbar.addEventListener('click', (e) => {
+                e.preventDefault();
+                openSettings();
+            });
+        }
+
+        const menuSettings = document.getElementById('menu-settings');
+        if (menuSettings) {
+            menuSettings.addEventListener('click', (e) => {
+                e.preventDefault();
+                openSettings();
+            });
+        }
+
+        window.addEventListener('keydown', (e) => {
+            if ((e.ctrlKey || e.metaKey) && (e.key === ',' || e.code === 'Comma')) {
+                e.preventDefault();
+                openSettings();
+            }
+        });
+
+        document.addEventListener('click', (e) => {
+            const target = e.target.closest('[data-action="open-settings"]');
+            if (target) {
+                e.preventDefault();
+                openSettings();
+            }
+        });
+
+        // 2. Save Button
+        const saveBtn = document.getElementById('settingsSaveBtn');
+        if (saveBtn) {
+            saveBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                saveCurrentSettings();
+            });
+        }
+
+        // 3. Reset Button (Popup confirm)
+        const resetBtn = document.getElementById('settingsResetBtn');
+        if (resetBtn) {
+            resetBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                showPopupConfirm(
+                    'Khôi phục mặc định',
+                    'Bạn có chắc chắn muốn khôi phục tất cả cài đặt về giá trị mặc định?',
+                    () => {
+                        _draftSettings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
+                        _isDirty = true;
+                        renderSidebar();
+                        renderContent();
+                        updateRawJsonEditor();
+                        showPopupAlert('Thông báo', 'Đã đặt lại các giá trị về mặc định. Nhấn nút "Lưu" để xác nhận lưu vào file.', 'info');
+                    }
+                );
+            });
+        }
+
+        // 4. Search Box
+        const searchInput = document.getElementById('settingsSearchInput');
+        const clearBtn = document.getElementById('settingsSearchClear');
+        if (searchInput) {
+            searchInput.addEventListener('input', () => {
+                _searchQuery = (searchInput.value || '').trim();
+                if (clearBtn) clearBtn.classList.toggle('d-none', !_searchQuery);
+                renderSidebar();
+                renderContent();
+            });
+        }
+        if (clearBtn && searchInput) {
+            clearBtn.addEventListener('click', () => {
+                searchInput.value = '';
+                _searchQuery = '';
+                clearBtn.classList.add('d-none');
+                renderSidebar();
+                renderContent();
+            });
+        }
+
+        // 5. Tabs (Visual Form / Raw JSON)
+        const tabEls = document.querySelectorAll('.settings-window .tab');
+        const visualArea = document.getElementById('settingsVisualArea');
+        const jsonArea = document.getElementById('settingsJsonArea');
+        const searchRow = document.getElementById('settingsSearchRow');
+
+        tabEls.forEach(t => {
+            t.addEventListener('click', () => {
+                tabEls.forEach(x => x.classList.remove('active'));
+                t.classList.add('active');
+
+                const tabKey = t.dataset.tab;
+                _activeTab = tabKey;
+
+                if (tabKey === 'json') {
+                    if (visualArea) visualArea.classList.add('d-none');
+                    if (jsonArea) jsonArea.classList.remove('d-none');
+                    if (searchRow) searchRow.classList.add('d-none');
+                    updateRawJsonEditor();
+                } else {
+                    // Chuyển về tab Visual: parse lại từ textarea nếu có thay đổi
+                    const textarea = document.getElementById('settingsRawJsonTextarea');
+                    if (textarea && textarea.value) {
+                        try {
+                            _draftSettings = JSON.parse(textarea.value);
+                        } catch (e) { }
+                    }
+                    if (jsonArea) jsonArea.classList.add('d-none');
+                    if (visualArea) visualArea.classList.remove('d-none');
+                    if (searchRow) searchRow.classList.remove('d-none');
+                    renderSidebar();
+                    renderContent();
+                }
+            });
+        });
+
+        // Live validation for textarea in JSON tab
+        const textarea = document.getElementById('settingsRawJsonTextarea');
+        const jsonBadge = document.getElementById('jsonStatusBadge');
+        if (textarea) {
+            textarea.addEventListener('input', () => {
+                _isDirty = true;
+                if (jsonBadge) {
+                    try {
+                        JSON.parse(textarea.value);
+                        jsonBadge.className = 'badge bg-success';
+                        jsonBadge.textContent = 'JSON hợp lệ';
+                    } catch (e) {
+                        jsonBadge.className = 'badge bg-danger';
+                        jsonBadge.textContent = 'Lỗi cú pháp JSON';
+                    }
+                }
+            });
+        }
+
+        // 6. Window Actions
+        const copyBtn = document.getElementById('settingsCopyJsonBtn');
+        if (copyBtn) {
+            copyBtn.addEventListener('click', () => {
+                const targetObj = _draftSettings || _settings || DEFAULT_SETTINGS;
+                const str = JSON.stringify(targetObj, null, 4);
+                const fnCopy = window.copyToClipboard || (s => navigator.clipboard.writeText(s));
+                Promise.resolve(fnCopy(str)).then(() => {
+                    showPopupAlert('Sao chép JSON', '✓ Đã sao chép nội dung settings.json vào clipboard.', 'success');
+                }).catch(err => {
+                    showPopupAlert('Lỗi', 'Không thể sao chép vào clipboard: ' + (err?.message || err), 'error');
+                });
+            });
+        }
+
+        const toggleSidebarBtn = document.getElementById('settingsToggleSidebarBtn');
+        if (toggleSidebarBtn) {
+            toggleSidebarBtn.addEventListener('click', () => {
+                const sb = document.getElementById('settingsNavList');
+                if (sb) sb.classList.toggle('collapsed');
+            });
+        }
+
+        const fullscreenBtn = document.getElementById('settingsFullscreenBtn');
+        if (fullscreenBtn) {
+            fullscreenBtn.addEventListener('click', () => {
+                const dialog = document.getElementById('settingsModalDialog');
+                if (dialog) {
+                    dialog.classList.toggle('fullscreen');
+                } else {
+                    const win = document.querySelector('.settings-window');
+                    if (win) win.classList.toggle('fullscreen');
+                }
+            });
+        }
+
+        const closeWindowBtn = document.getElementById('settingsCloseWindowBtn');
+        if (closeWindowBtn) {
+            closeWindowBtn.addEventListener('click', () => {
+                if (_isDirty) {
+                    showPopupConfirm(
+                        'Thay đổi chưa lưu',
+                        'Bạn có thay đổi chưa lưu. Bạn có muốn lưu trước khi đóng không?',
+                        async () => {
+                            await saveCurrentSettings();
+                            window.close();
+                        },
+                        () => {
+                            window.close();
+                        }
+                    );
+                } else {
+                    window.close();
+                }
+            });
+        }
+
+        // 7. Auto-load on page ready
+        setTimeout(async () => {
+            await loadSettingsData();
+            if (_settings) {
+                applyAllSettings(_settings);
+            }
+            if (isStandaloneWindow) {
+                renderSidebar();
+                renderContent();
+                updateRawJsonEditor();
+            }
+        }, 120);
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initSettings);
+    } else {
+        initSettings();
+    }
+
+    global.SettingsManager = {
+        open: openSettings,
+        showModal: openSettings,
+        save: saveCurrentSettings,
+        getSettings: () => _settings,
+        getDraft: () => _draftSettings,
+        applySettings: applyAllSettings,
+        CATEGORIES
+    };
+})(window);

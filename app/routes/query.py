@@ -1,5 +1,6 @@
 from flask import Blueprint, jsonify, request
 from app.routes._common import get_connection_manager, get_owner_session_id
+from app.utils.db_message import clean_db_message, parse_error_details
 
 query_bp = Blueprint("query", __name__)
 
@@ -41,7 +42,15 @@ def execute():
     except PermissionError:
         return jsonify(success=False, error="Forbidden"), 403
     except Exception as exc:
-        return jsonify(success=False, error=str(exc)), 400
+        clean_err = clean_db_message(exc)
+        err_detail = parse_error_details(sql, exc)
+        return jsonify(
+            success=False,
+            error=clean_err,
+            errors=[err_detail] if err_detail.get("clean_message") else [],
+            messages=[f"Msg: {clean_err}"],
+            results=[]
+        ), 400
 
 
 @query_bp.post("/explain")

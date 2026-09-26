@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="vi" data-bs-theme="dark">
+<head>
+    <!-- Immediate Theme Restore: Khôi phục ngay theme đã lưu trước khi HTML render -->
+    <script>
+        (function () {
+            try {
+                var saved = localStorage.getItem('ide-theme');
+                if (saved) {
+                    document.documentElement.setAttribute('data-bs-theme', saved);
+                }
+            } catch (e) { }
+        })();
+    </script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BRAVO Tool — Layout Editor</title>
+    <link rel="icon" type="image/png" href="../static/image/logo-200x200.png">
+
+    <!-- Critical CSS: Ngăn chặn triệt để hiện tượng white screen / white flash -->
+    <style id="critical-theme-style">
+        html, body {
+            width: 100vw;
+            height: 100vh;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #1e1e1e !important;
+            color: #d4d4d4 !important;
+        }
+        [data-bs-theme="light"] html, [data-bs-theme="light"] body,
+        html[data-bs-theme="light"], body[data-bs-theme="light"],
+        [data-bs-theme="win-nt"] html, [data-bs-theme="win-nt"] body,
+        html[data-bs-theme="win-nt"], body[data-bs-theme="win-nt"],
+        [data-bs-theme="win-xp"] html, [data-bs-theme="win-xp"] body,
+        html[data-bs-theme="win-xp"], body[data-bs-theme="win-xp"] {
+            background-color: #f3f3f3 !important;
+            color: #1e1e1e !important;
+        }
+        .bravo-window.bravo-standalone {
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            right: 0 !important;
+            bottom: 0 !important;
+            width: 100vw !important;
+            height: 100vh !important;
+            margin: 0 !important;
+            border: none !important;
+            border-radius: 0 !important;
+            box-shadow: none !important;
+            resize: none !important;
+            display: flex !important;
+            flex-direction: column !important;
+            overflow: hidden !important;
+            animation: none !important;
+            opacity: 1 !important;
+            transform: none !important;
+        }
+        /* Standalone native window: hide inner titlebar */
+        .bravo-window.bravo-standalone .bravo-titlebar {
+            display: none !important;
+        }
+        .bravo-window.bravo-standalone .bravo-content-header {
+            display: none !important;
+        }
+        /* Full layout editor area: zero redundant outer padding */
+        .bravo-window.bravo-standalone .bravo-content-body {
+            padding: 0 !important;
+            overflow: hidden !important;
+            display: flex !important;
+            flex-direction: column !important;
+            flex: 1 1 0% !important;
+            min-height: 0 !important;
+        }
+        .bravo-window.bravo-standalone .bravo-main {
+            flex: 1 1 0% !important;
+            min-height: 0 !important;
+            display: flex !important;
+            overflow: hidden !important;
+        }
+        .bravo-window.bravo-standalone .bravo-content {
+            flex: 1 1 0% !important;
+            min-height: 0 !important;
+            display: flex !important;
+            flex-direction: column !important;
+            overflow: hidden !important;
+        }
+        .bravo-window.bravo-standalone .bravo-resize-handle {
+            display: none !important;
+        }
+        /* Reusable system loader */
+        .loader {
+          width: 50px;
+          aspect-ratio: 1;
+          border-radius: 50%;
+          border: 8px solid lightblue;
+          border-right-color: orange;
+          animation: l2 1s infinite linear;
+        }
+        @keyframes l2 {to{transform: rotate(1turn)}}
+    </style>
+
+    <!-- Bootstrap 5 CSS -->
+    <link href="../static/vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
+    <!-- FontAwesome 6 -->
+    <link href="../static/vendor/fontawesome/all.min.css" rel="stylesheet">
+    <!-- JetBrains Mono -->
+    <!-- JetBrains Mono Font - Local Vendor -->
+    <link href="../static/vendor/fonts/jetbrains-mono-local.css" rel="stylesheet">
+    <!-- Monaco Editor CSS -->
+    <link rel="stylesheet" href="../static/vendor/monaco/vs/editor/editor.main.css">
+    <!-- Original CSS Modular Structure -->
+    <link rel="stylesheet" href="../static/css/theme-variables.css">
+    <link rel="stylesheet" href="../static/css/themes.css">
+    <link rel="stylesheet" href="../static/css/app.css">
+    <link rel="stylesheet" href="../static/css/explorer.css">
+    <link rel="stylesheet" href="../static/css/editor.css">
+    <link rel="stylesheet" href="../static/css/context-menu.css">
+    <link rel="stylesheet" href="../static/css/table-designer.css">
+    <link rel="stylesheet" href="../static/css/bravo.css">
+</head>
+<body class="m-0 p-0 overflow-hidden">
+    <!-- Initial Loading Overlay with standard .loader -->
+    <div id="bravo-initial-loader" style="position: fixed; inset: 0; background: var(--ide-bg-main, #1e1e1e); z-index: 999999; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: opacity 0.25s ease;">
+        <div class="loader mb-3"></div>
+        <div style="font-size: 13px; font-weight: 500; color: var(--ide-text-muted, #aaa); font-family: 'Segoe UI', system-ui, sans-serif; letter-spacing: 0.3px;">Đang tải BRAVO Tool...</div>
+    </div>
+
+    <!-- Modals -->
+<!-- Connection Modal -->
+<div class="modal fade" id="connectionModal" tabindex="-1" aria-labelledby="connectionModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" style="max-width: 400px;">
+        <form class="modal-content" id="connectionForm" method="post" action="javascript:void(0);" autocomplete="off">
+            <div class="modal-header">
+                <h6 class="modal-title mb-0" id="connectionModalLabel">
+                    <i class="fa-solid fa-plug me-2" style="color: var(--ide-accent);"></i>New Connection
+                </h6>
+                <button type="button" class="btn-close btn-close-sm" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+
+            <div class="modal-body">
+                <div id="connectionFormFields">
+
+                    <div class="mb-2">
+                        <label class="ide-form-label">Connection Name</label>
+                        <input type="text" class="form-control form-control-sm" id="connName" placeholder="e.g. Dev Server" autocomplete="off">
+                    </div>
+
+                    <div class="mb-2">
+                        <label class="ide-form-label">Database Type</label>
+                        <select class="form-select form-select-sm" id="connType">
+                            <option value="sqlserver">SQL Server</option>
+                            <option value="postgresql">PostgreSQL</option>
+                        </select>
+                    </div>
+
+                    <div class="row g-2 mb-2">
+                        <div class="col-8">
+                            <label class="ide-form-label">Host / Server</label>
+                            <input type="text" class="form-control form-control-sm" id="connHost" placeholder="localhost" autocomplete="off">
+                        </div>
+                        <div class="col-4">
+                            <label class="ide-form-label">Port</label>
+                            <input type="number" class="form-control form-control-sm" id="connPort" placeholder="1433">
+                        </div>
+                    </div>
+
+                    <div class="mb-2">
+                        <label class="ide-form-label">Default Database</label>
+                        <input type="text" class="form-control form-control-sm" id="connDb" placeholder="(optional)">
+                    </div>
+
+                    <div id="connSqlServerOptionsGroup">
+                        <div class="row g-2 mb-2">
+                            <div class="col-8">
+                                <label class="ide-form-label">ODBC Driver</label>
+                                <select class="form-select form-select-sm" id="connDriver">
+                                    <option value="ODBC Driver 18 for SQL Server">ODBC Driver 18 for SQL Server</option>
+                                    <option value="ODBC Driver 17 for SQL Server">ODBC Driver 17 for SQL Server</option>
+                                    <option value="SQL Server Native Client 11.0">SQL Server Native Client 11.0</option>
+                                    <option value="SQL Server">SQL Server</option>
+                                </select>
+                            </div>
+                            <div class="col-4">
+                                <label class="ide-form-label">Timeout (s)</label>
+                                <input type="number" class="form-control form-control-sm" id="connTimeout" placeholder="30" value="30">
+                            </div>
+                        </div>
+
+                        <div class="mb-2 form-check" style="margin-top: 4px;">
+                            <input type="checkbox" class="form-check-input" id="connWinAuth">
+                            <label class="form-check-label" for="connWinAuth" style="font-size: 12px;">Use Windows Authentication</label>
+                        </div>
+
+                        <div class="row g-2 mb-2">
+                            <div class="col-6">
+                                <div class="form-check">
+                                    <input type="checkbox" class="form-check-input" id="connEncrypt">
+                                    <label class="form-check-label" for="connEncrypt" style="font-size: 12px;" title="Encrypt connection (SSL/TLS)">Use SSL / Encrypt</label>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="form-check">
+                                    <input type="checkbox" class="form-check-input" id="connTrustCert" checked>
+                                    <label class="form-check-label" for="connTrustCert" style="font-size: 12px;" title="Trust server certificate without CA validation">Trust Certificate</label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="connCredentialsGroup">
+                        <div class="mb-2">
+                            <label class="ide-form-label">Username</label>
+                            <input type="text" name="username" class="form-control form-control-sm" id="connUser" autocomplete="off" data-lpignore="true">
+                        </div>
+                        <div class="mb-1">
+                            <label class="ide-form-label">Password</label>
+                            <div class="input-group input-group-sm">
+                                <input type="password" name="password" class="form-control form-control-sm" id="connPass" autocomplete="new-password" data-lpignore="true" spellcheck="false">
+                                <button class="btn btn-outline-secondary" type="button" id="btnToggleConnPass" title="Show/Hide password">
+                                    <i class="fa-solid fa-eye"></i>
+                                </button>
+                            </div>
+                            <div class="form-text small mt-1" style="font-size: 11px; color: var(--ide-text-dim, #888); line-height: 1.4;">
+                                <i class="fa-solid fa-shield-halved me-1 text-info"></i>
+                                Mật khẩu chỉ được lưu tạm trong bộ nhớ RAM phiên làm việc của server và không lưu vĩnh viễn trên ổ cứng vì lý do bảo mật.
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="btn btn-sm btn-secondary" id="btnTestConnection">
+                    <i class="fa-solid fa-flask me-1"></i>Test
+                </button>
+                <div class="flex-grow-1"></div>
+                <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-sm btn-primary" id="btnSaveConnection">
+                    <i class="fa-solid fa-plug me-1"></i>Connect
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Reconnect Password Modal -->
+<div class="modal fade" id="reconnectPasswordModal" tabindex="-1" aria-labelledby="reconnectPasswordModalLabel" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered" style="max-width: 440px;">
+        <form id="reconnectPasswordForm" class="modal-content ide-modal-content" method="post" action="javascript:void(0);" autocomplete="off">
+            <div class="modal-header py-2 px-3">
+                <h5 class="modal-title fs-6" id="reconnectPasswordModalLabel">
+                    <i class="fa-solid fa-key me-2 text-warning"></i>Connect to Database
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+
+            <div class="modal-body py-3 px-3">
+                <!-- Connection Information Summary Card -->
+                <div class="p-2 mb-3 rounded" style="background: var(--ide-bg-sidebar, #1e1e1e); border: 1px solid var(--ide-border, #333); font-size: 12px;">
+                    <div class="row g-1 mb-1">
+                        <div class="col-4 text-muted">Connection:</div>
+                        <div class="col-8 fw-semibold text-truncate" id="reconnectConnName">-</div>
+                    </div>
+                    <div class="row g-1 mb-1">
+                        <div class="col-4 text-muted">Server / Host:</div>
+                        <div class="col-8 fw-semibold text-truncate" id="reconnectConnHost">-</div>
+                    </div>
+                    <div class="row g-1 mb-1" id="reconnectConnPortRow" style="display: none;">
+                        <div class="col-4 text-muted">Port:</div>
+                        <div class="col-8 fw-semibold" id="reconnectConnPort">-</div>
+                    </div>
+                    <div class="row g-1">
+                        <div class="col-4 text-muted">Username:</div>
+                        <div class="col-8 fw-semibold text-truncate" id="reconnectConnUser">-</div>
+                    </div>
+                </div>
+
+                <!-- Password Input -->
+                <div class="mb-2">
+                    <label for="reconnectPassInput" class="ide-form-label mb-1">
+                        Password <span class="text-danger">*</span>
+                    </label>
+                    <div class="input-group input-group-sm">
+                        <input type="password" 
+                               name="password"
+                               class="form-control form-control-sm" 
+                               id="reconnectPassInput" 
+                               placeholder="Enter password..." 
+                               autocomplete="new-password"
+                               data-lpignore="true"
+                               spellcheck="false">
+                        <button class="btn btn-outline-secondary" 
+                                type="button" 
+                                id="btnToggleReconnectPass" 
+                                title="Show/Hide password">
+                            <i class="fa-solid fa-eye"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Security / Storage Notice -->
+                <div class="form-text small mt-2" style="font-size: 11px; color: var(--ide-text-dim, #888); line-height: 1.4;">
+                    <i class="fa-solid fa-shield-halved me-1 text-info"></i>
+                    Mật khẩu chỉ được lưu tạm trong bộ nhớ RAM phiên làm việc của server và không lưu vĩnh viễn trên ổ cứng vì lý do bảo mật.
+                </div>
+
+                <!-- Inline Error Alert -->
+                <div class="alert alert-danger py-1 px-2 mt-2 mb-0 d-none small" id="reconnectPassError" style="font-size: 12px;"></div>
+            </div>
+
+            <div class="modal-footer py-2 px-3">
+                <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-sm btn-primary" id="btnConfirmReconnect">
+                    <i class="fa-solid fa-plug me-1"></i>Connect
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+
+    <!-- Scripts -->
+    <script src="../static/vendor/bootstrap/bootstrap.bundle.min.js"></script>
+    <!-- Monaco Editor AMD Loader & Setup -->
+    <script src="../static/vendor/monaco/vs/loader.js"></script>
+    <script src="../static/js/monaco-init.js"></script>
+    <script src="../static/js/clipboard-bridge.js"></script>
+    <script src="../static/js/bravo/features/bravo-xml-monaco.js"></script>
+
+    <!-- Native IPC Bridge & Storage -->
+    <script src="../static/js/api.js"></script>
+    <script src="../static/js/storage.js"></script>
+    <script src="../static/js/theme-registry.js"></script>
+    <script src="../static/js/theme.js"></script>
+    <script src="../static/js/session.js"></script>
+    <script src="../static/js/connections.js"></script>
+
+    <!-- BRAVO Registry, Window & Feature Modules -->
+    <script src="../static/js/bravo/bravo-feature-registry.js"></script>
+    <script src="../static/js/bravo/bravo-connection-bar.js"></script>
+    <script src="../static/js/bravo/bravo-window.js"></script>
+    <script src="../static/js/bravo/features/program-list.js"></script>
+    <script src="../static/js/bravo/features/layout-editor.js"></script>
+
+    <script>
+        async function initBravoStandalone() {
+            await window.waitForPywebview();
+
+            // Initialize connection modal support
+            window.AppConnections = initConnections();
+
+            // Sync theme
+            try {
+                const settings = await window.AppStorage.getSettings();
+                const theme = settings?.appearance?.theme || settings?.theme || 'dark';
+                if (window.ThemeManager) {
+                    window.ThemeManager.applyTheme(theme, false);
+                } else {
+                    document.documentElement.setAttribute('data-bs-theme', theme);
+                }
+            } catch (_) {}
+
+            // Inherit connection, db, and schema context from URL search params or native API
+            const params = new URLSearchParams(window.location.search);
+            let connId = params.get('conn_id') || params.get('connection_id') || null;
+            let connName = params.get('conn_name') || params.get('connection_name') || null;
+            let database = params.get('database') || null;
+            let dbType = params.get('db_type') || null;
+            let schema = params.get('schema') || null;
+
+            if (window.pywebview?.api?.get_initial_context) {
+                try {
+                    const resp = await window.pywebview.api.get_initial_context();
+                    if (resp && resp.success && resp.context) {
+                        connId = resp.context.connection_id || connId;
+                        connName = resp.context.connection_name || connName;
+                        database = resp.context.database || database;
+                        dbType = resp.context.db_type || dbType;
+                        schema = resp.context.schema || schema;
+                    }
+                } catch (_) {}
+            }
+
+            if (!schema && database && database !== '—') {
+                schema = (dbType === 'postgresql' ? 'public' : 'dbo');
+            }
+
+            // Sync browser document title to reflect "connect - db"
+            if (connName && database && database !== '—') {
+                document.title = `${connName} - ${database} - BRAVO Tool`;
+            } else if (connName && connName !== 'Chưa kết nối' && connName !== 'No connection') {
+                document.title = `${connName} - BRAVO Tool`;
+            }
+
+            // Instantiate BravoWindow with full inherited context
+            const bw = new BravoWindow('standalone', {
+                isStandalone: true,
+                connectionId: connId,
+                connectionName: connName || 'Chưa kết nối',
+                database: database || '—',
+                schema: schema || '—',
+                dbType: dbType || 'sqlserver'
+            });
+
+            if (bw && bw._el) {
+                bw._el.classList.add('bravo-standalone');
+            }
+            window.standaloneBravoWindow = bw;
+
+            // Sync theme from AppStorage and listen for broadcast
+            if (window.AppStorage && typeof window.AppStorage.getTheme === 'function') {
+                window.AppStorage.getTheme().then(t => {
+                    if (t && window.ThemeManager) window.ThemeManager.applyTheme(t, false);
+                }).catch(() => {});
+            }
+            window.onSettingsChanged = function(settings) {
+                if (!settings) return;
+                const t = settings.appearance?.theme || settings.theme;
+                if (t && window.ThemeManager) window.ThemeManager.applyTheme(t, false);
+            };
+
+            // Signal ready to native backend so window appears smoothly with full DOM rendered
+            requestAnimationFrame(() => {
+                requestAnimationFrame(async () => {
+                    try {
+                        if (window.pywebview?.api?.ready) {
+                            await window.pywebview.api.ready();
+                        }
+                    } catch (_) {}
+                    const initialLoader = document.getElementById('bravo-initial-loader');
+                    if (initialLoader) {
+                        initialLoader.style.opacity = '0';
+                        setTimeout(() => initialLoader.remove(), 250);
+                    }
+                });
+            });
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initBravoStandalone);
+        } else {
+            initBravoStandalone();
+        }
+    </script>
+</body>
+</html>
+

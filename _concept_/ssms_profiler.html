@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <title>SQL Trace Profiler</title>
+    <!-- Tabulator Dark Theme CSS -->
+    <link href="https://unpkg.com/tabulator-tables@5.5.2/dist/css/tabulator_midnight.min.css" rel="stylesheet">
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace;
+            font-size: 12px;
+            background: #1e1e1e;
+            color: #d4d4d4;
+            overflow: hidden;
+        }
+
+        /* Top Toolbar */
+        #toolbar {
+            height: 38px;
+            background: #2d2d2d;
+            border-bottom: 1px solid #3e3e3e;
+            display: flex;
+            align-items: center;
+            padding: 0 10px;
+            gap: 8px;
+        }
+
+        button {
+            background: #3c3c3c;
+            color: #fff;
+            border: 1px solid #555;
+            padding: 4px 12px;
+            cursor: pointer;
+            border-radius: 2px;
+            font-size: 11px;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        button:hover {
+            background: #505050;
+        }
+
+        button.active {
+            background: #0e639c;
+            border-color: #1177bb;
+        }
+
+        button.btn-danger {
+            background: #a1260d;
+            border-color: #c93b1b;
+        }
+
+        button.btn-danger:hover {
+            background: #be2e0f;
+        }
+
+        #counter {
+            color: #4ec9b0;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+
+        /* Filter Drawer Panel */
+        #filter-drawer {
+            display: none;
+            background: #252526;
+            border-bottom: 2px solid #007acc;
+            padding: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
+        }
+
+        #filter-drawer.open {
+            display: block;
+        }
+
+        .filter-controls-row {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .filter-controls-row select,
+        .filter-controls-row input {
+            background: #1e1e1e;
+            border: 1px solid #444;
+            color: #fff;
+            padding: 4px 8px;
+            font-size: 11px;
+            border-radius: 2px;
+        }
+
+        #filter-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 6px;
+            background: #1e1e1e;
+        }
+
+        #filter-table th,
+        #filter-table td {
+            border: 1px solid #333;
+            padding: 4px 8px;
+            text-align: left;
+        }
+
+        #filter-table th {
+            background: #2d2d2d;
+            color: #9cdcfe;
+            font-weight: 600;
+        }
+
+        /* Grid Area */
+        #grid-container {
+            flex: 6;
+            position: relative;
+        }
+
+        /* Detail Pane */
+        #detail-container {
+            flex: 4;
+            background: #141414;
+            border-top: 2px solid #0e639c;
+            display: flex;
+            flex-direction: column;
+        }
+
+        #detail-header {
+            background: #252526;
+            padding: 4px 10px;
+            font-size: 11px;
+            color: #858585;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #333;
+        }
+
+        #detail-body {
+            flex: 1;
+            padding: 8px 12px;
+            margin: 0;
+            overflow: auto;
+            font-family: Consolas, "Courier New", monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+            color: #9cdcfe;
+        }
+
+        /* Tabulator Styling Tweak */
+        .tabulator .tabulator-header .tabulator-col {
+            background: #252526;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- Thanh công cụ chính -->
+    <div id="toolbar">
+        <button id="btn-pause" onclick="togglePause()">Pause</button>
+        <button id="btn-autoscroll" class="active" onclick="toggleAutoScroll()">Auto-Scroll: ON</button>
+        <button onclick="clearGrid()">Clear</button>
+        <button id="btn-filter-toggle" onclick="toggleFilterDrawer()">Filters Config (0 active)</button>
+        <span id="counter">Events: 0</span>
+    </div>
+
+    <!-- Bảng cấu hình Filter điều kiện -->
+    <div id="filter-drawer">
+        <div style="font-weight: bold; margin-bottom: 6px; color: #569cd6;">Thiết Lập Bộ Lọc Sự Kiện (Event Filter
+            Rules)</div>
+        <div class="filter-controls-row">
+            <select id="filter-field">
+                <option value="db">Database Name</option>
+                <option value="app">Application Name</option>
+                <option value="duration">Duration (ms)</option>
+                <option value="spid">SPID</option>
+                <option value="event">Event Name</option>
+                <option value="sql">SQL Statement</option>
+            </select>
+            <select id="filter-type">
+                <option value="like">chứa (like)</option>
+                <option value="=">bằng (=)</option>
+                <option value="!=">khác (!=)</option>
+                <option value=">">lớn hơn (&gt;)</option>
+                <option value=">=">lớn hơn hoặc bằng (&gt;=)</option>
+                <option value="<">nhỏ hơn (&lt;)</option>
+            </select>
+            <input type="text" id="filter-value" placeholder="Giá trị lọc..." style="width: 220px;">
+            <button onclick="addFilterRule()" class="active">+ Thêm luật</button>
+            <button onclick="applyFilterRules()">Áp dụng</button>
+            <button onclick="resetAllFilters()" class="btn-danger">Xóa toàn bộ lọc</button>
+        </div>
+
+        <!-- Bảng danh sách các luật đang kích hoạt -->
+        <table id="filter-table">
+            <thead>
+                <tr>
+                    <th style="width: 20%;">Cột</th>
+                    <th style="width: 20%;">Toán tử</th>
+                    <th style="width: 45%;">Giá trị</th>
+                    <th style="width: 15%; text-align: center;">Thao tác</th>
+                </tr>
+            </thead>
+            <tbody id="filter-list-body">
+                <tr>
+                    <td colspan="4" style="color: #666; text-align: center;">Chưa có bộ lọc nào được áp dụng.</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Bảng dữ liệu chính -->
+    <div id="grid-container">
+        <div id="trace-table"></div>
+    </div>
+
+    <!-- Cửa sổ chi tiết câu lệnh SQL -->
+    <div id="detail-container">
+        <div id="detail-header">
+            <span>Query Text Detail</span>
+            <button onclick="copySql()" style="padding: 2px 8px;">Copy SQL</button>
+        </div>
+        <pre id="detail-body">Chọn một dòng ở bảng phía trên để xem câu lệnh SQL đầy đủ...</pre>
+    </div>
+
+    <script src="https://unpkg.com/tabulator-tables@5.5.2/dist/js/tabulator.min.js"></script>
+    <script>
+        let isPaused = false;
+        let autoScroll = true;
+        const MAX_ROWS = 15000;
+        let activeFilterRules = [];
+
+        // Khởi tạo Tabulator với cơ chế Virtual Scrolling
+        const table = new Tabulator("#trace-table", {
+            height: "100%",
+            renderVertical: "virtual",
+            layout: "fitColumns",
+            data: [],
+            index: "id",
+            columns: [
+                { title: "ID", field: "id", width: 70, sorter: "number" },
+                { title: "Time", field: "time", width: 85 },
+                { title: "Event", field: "event", width: 140 },
+                { title: "SPID", field: "spid", width: 65, sorter: "number", hozAlign: "center" },
+                { title: "Database", field: "db", width: 120 },
+                { title: "App Name", field: "app", width: 140 },
+                {
+                    title: "Duration (ms)",
+                    field: "duration",
+                    width: 110,
+                    sorter: "number",
+                    hozAlign: "right",
+                    formatter: cell => {
+                        const val = cell.getValue();
+                        const color = val > 100 ? "#f48771" : "#4ec9b0";
+                        return `<span style="color:${color}; font-weight:600;">${val}</span>`;
+                    }
+                },
+                {
+                    title: "SQL Statement",
+                    field: "sql",
+                    formatter: cell => cell.getValue() ? cell.getValue().replace(/[\r\n]+/g, ' ') : ""
+                }
+            ]
+        });
+
+        // Xem chi tiết câu lệnh khi click vào dòng
+        table.on("rowClick", function (e, row) {
+            const data = row.getData();
+            document.getElementById("detail-body").innerText = data.sql || "-- Không có nội dung SQL";
+        });
+
+        // Ingest dữ liệu dạng Batch từ Python
+        window.ingestTraceBatch = function (batch) {
+            if (isPaused || !batch || batch.length === 0) return;
+
+            table.addData(batch, false).then(() => {
+                const count = table.getDataCount("active");
+                document.getElementById("counter").innerText = `Events: ${count}`;
+
+                if (autoScroll) {
+                    const lastItem = batch[batch.length - 1];
+                    table.scrollToRow(lastItem.id, "bottom", false).catch(() => { });
+                }
+
+                // Cắt tỉa nếu số dòng vượt quá giới hạn
+                if (count > MAX_ROWS) {
+                    const allData = table.getData();
+                    const pruneCount = count - MAX_ROWS;
+                    const idsToDelete = allData.slice(0, pruneCount).map(r => r.id);
+                    table.deleteRow(idsToDelete);
+                }
+            });
+        };
+
+        // --- Quản lý Filter Drawer & Filter Rules ---
+
+        function toggleFilterDrawer() {
+            const drawer = document.getElementById("filter-drawer");
+            drawer.classList.toggle("open");
+            table.redraw();
+        }
+
+        function addFilterRule() {
+            const field = document.getElementById("filter-field").value;
+            const type = document.getElementById("filter-type").value;
+            let val = document.getElementById("filter-value").value.trim();
+
+            if (!val) return;
+            if (field === "duration" || field === "spid") {
+                val = Number(val);
+            }
+
+            activeFilterRules.push({ field: field, type: type, value: val });
+            document.getElementById("filter-value").value = "";
+            renderFilterTable();
+            applyFilterRules();
+        }
+
+        function removeFilterRule(index) {
+            activeFilterRules.splice(index, 1);
+            renderFilterTable();
+            applyFilterRules();
+        }
+
+        function renderFilterTable() {
+            const tbody = document.getElementById("filter-list-body");
+            document.getElementById("btn-filter-toggle").innerText = `Filters Config (${activeFilterRules.length} active)`;
+
+            if (activeFilterRules.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="4" style="color: #666; text-align: center;">Chưa có bộ lọc nào được áp dụng.</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = activeFilterRules.map((rule, idx) => `
+        <tr>
+          <td><span style="color:#4ec9b0">${rule.field}</span></td>
+          <td>${rule.type}</td>
+          <td><b>${rule.value}</b></td>
+          <td style="text-align: center;">
+            <button onclick="removeFilterRule(${idx})" class="btn-danger" style="padding: 1px 6px;">Xóa</button>
+          </td>
+        </tr>
+      `).join("");
+        }
+
+        function applyFilterRules() {
+            table.clearFilter();
+            if (activeFilterRules.length > 0) {
+                // Tabulator nhận mảng các điều kiện dạng AND
+                table.setFilter(activeFilterRules);
+            }
+        }
+
+        function resetAllFilters() {
+            activeFilterRules = [];
+            renderFilterTable();
+            table.clearFilter();
+        }
+
+        // --- Điều khiển Toolbar ---
+
+        function togglePause() {
+            isPaused = !isPaused;
+            const btn = document.getElementById("btn-pause");
+            btn.innerText = isPaused ? "Resume" : "Pause";
+            btn.classList.toggle("active", isPaused);
+        }
+
+        function toggleAutoScroll() {
+            autoScroll = !autoScroll;
+            const btn = document.getElementById("btn-autoscroll");
+            btn.innerText = `Auto-Scroll: ${autoScroll ? "ON" : "OFF"}`;
+            btn.classList.toggle("active", autoScroll);
+        }
+
+        function clearGrid() {
+            table.clearData();
+            document.getElementById("counter").innerText = "Events: 0";
+            document.getElementById("detail-body").innerText = "Chọn một dòng ở bảng phía trên để xem câu lệnh SQL đầy đủ...";
+        }
+
+        function copySql() {
+            const sql = document.getElementById("detail-body").innerText;
+            navigator.clipboard.writeText(sql).then(() => {
+                alert("Đã sao chép câu lệnh SQL!");
+            });
+        }
+    </script>
+</body>
+
+</html>

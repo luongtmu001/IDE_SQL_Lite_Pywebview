@@ -1,0 +1,32 @@
+{
+    "theme": "shades-of-purple",
+    "appearance": {
+        "theme": "shades-of-purple",
+        "iconSize": 15
+    },
+    "addons": {
+        "bravo_tool": {
+            "enabled": true
+        }
+    },
+    "editor": {
+        "fontFamily": "JetBrains Mono",
+        "fontSize": 14,
+        "tabSize": 4,
+        "insertSpaces": true,
+        "wordWrap": false,
+        "minimap": true,
+        "keywordCase": "upper"
+    },
+    "grid": {
+        "fontFamily": "JetBrains Mono",
+        "fontSize": 12
+    },
+    "messages": {
+        "fontFamily": "JetBrains Mono",
+        "fontSize": 11
+    },
+    "sql": {
+        "maxRows": 0
+    }
+}

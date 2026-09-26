@@ -65,6 +65,9 @@
             <button id="ide-btn-run" class="ide-action-btn ide-action-btn--run" title="Execute Query (F5)">
                 <i class="fa-solid fa-play me-1"></i>Run
             </button>
+            <button id="ide-btn-parse" class="ide-action-btn" title="Check / Parse SQL Syntax (Ctrl+F5)">
+                <i class="fa-solid fa-check-double me-1 text-info"></i>Parse
+            </button>
             <button id="ide-btn-plan" class="ide-action-btn" title="Show Execution Plan">
                 <i class="fa-solid fa-diagram-project me-1"></i>Plan
             </button>
@@ -95,6 +98,7 @@
     <!-- Code Editor Area -->
     <div class="ide-editor-wrap d-flex w-100 overflow-hidden position-relative">
         <div id="editor-pane-1" class="flex-grow-1 position-relative h-100" style="width: 100%; min-width: 100px;">
+            <div id="monaco-sql-editor" style="width: 100%; height: 100%; position: absolute; inset: 0;"></div>
             <textarea id="sql-editor" class="d-none"></textarea>
         </div>
         <div id="editor-resizer" class="ide-resizer-vertical d-none"
@@ -108,6 +112,7 @@
                     <i class="fa-solid fa-xmark me-1"></i>Close Split
                 </button>
             </div>
+            <div id="monaco-sql-editor-2" style="width: 100%; height: 100%; position: absolute; inset: 0;"></div>
             <textarea id="sql-editor-2" class="d-none"></textarea>
         </div>
 
@@ -208,6 +213,11 @@
     <!-- Table Designer Area -->
     <div id="table-designer-container" class="d-none flex-grow-1 flex-column overflow-hidden">
         <!-- Built and managed dynamically by table-designer.js -->
+    </div>
+
+    <!-- Table Data Editor Area -->
+    <div id="table-data-editor-container" class="d-none flex-grow-1 flex-column overflow-hidden">
+        <!-- Built and managed dynamically by table-data-editor.js -->
     </div>
 
 </div>

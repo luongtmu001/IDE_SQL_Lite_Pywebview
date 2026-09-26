@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="vi" data-bs-theme="dark">
+
+<head>
+    <style>
+        html, body {
+            background-color: #1e1e1e !important;
+            color: #d4d4d4;
+        }
+        html[data-bs-theme="light"], html[data-bs-theme="light"] body,
+        html[data-bs-theme="win-nt"], html[data-bs-theme="win-nt"] body,
+        html[data-bs-theme="win-xp"], html[data-bs-theme="win-xp"] body {
+            background-color: #f3f3f3 !important;
+            color: #1e1e1e;
+        }
+    </style>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SQL Trace Profiler — luoBTool IDE</title>
+
+    <!-- Immediate Theme Restore -->
+    <script>
+        (function () {
+            try {
+                var saved = localStorage.getItem('ide-theme');
+                if (saved) {
+                    document.documentElement.setAttribute('data-bs-theme', saved);
+                }
+            } catch (e) { }
+        })();
+    </script>
+
+    <!-- Vendor CSS -->
+    <link rel="stylesheet" href="../static/vendor/bootstrap/bootstrap.min.css">
+    <link rel="stylesheet" href="../static/vendor/fontawesome/all.min.css">
+    <!-- Monaco Editor CSS -->
+    <link rel="stylesheet" href="../static/vendor/monaco/vs/editor/editor.main.css">
+    <link rel="stylesheet" href="../static/vendor/tabulator/tabulator.min.css">
+
+    <!-- IDE Theme Variables & Profiler Styles -->
+    <link rel="stylesheet" href="../static/css/theme-variables.css">
+    <link rel="stylesheet" href="../static/css/themes.css">
+    <link rel="stylesheet" href="../static/css/profiler.css">
+</head>
+
+<body class="profiler-body">
+    <!-- Top Master Toolbar -->
+    <header class="profiler-toolbar" id="profToolbar">
+        <div class="toolbar-section left-section">
+            <div class="brand-badge">
+                <i class="fa-solid fa-bolt text-warning"></i>
+                <span class="brand-title">SQL Profiler</span>
+            </div>
+
+            <div class="conn-picker-wrap">
+                <select id="profConnSelect" class="form-select form-select-sm conn-select">
+                    <option value="">-- Chọn kết nối (SQL Server / PostgreSQL) --</option>
+                </select>
+                <span id="profEngineBadge" class="badge engine-badge bg-secondary">Chưa chọn</span>
+            </div>
+
+            <div class="action-btn-group">
+                <button id="btnStart" class="btn btn-sm btn-success" title="Bắt đầu giám sát">
+                    <i class="fa-solid fa-play"></i> Bắt đầu
+                </button>
+                <button id="btnPause" class="btn btn-sm btn-outline-warning" disabled title="Tạm dừng/Tiếp tục">
+                    <i class="fa-solid fa-pause"></i> Tạm dừng
+                </button>
+                <button id="btnStop" class="btn btn-sm btn-danger" disabled title="Dừng phiên giám sát">
+                    <i class="fa-solid fa-stop"></i> Dừng
+                </button>
+                <button id="btnClear" class="btn btn-sm btn-outline-secondary" title="Xóa toàn bộ sự kiện trên bảng">
+                    <i class="fa-solid fa-eraser"></i> Xóa
+                </button>
+            </div>
+        </div>
+
+        <div class="toolbar-section center-section">
+            <!-- Quick Search Input -->
+            <div class="input-group input-group-sm quick-search-wrap">
+                <span class="input-group-text bg-transparent border-end-0 text-muted">
+                    <i class="fa-solid fa-magnifying-glass"></i>
+                </span>
+                <input type="text" id="quickSearchInput" class="form-control border-start-0" placeholder="Lọc nhanh (SQL, DB, SPID)...">
+                <button id="quickSearchClearBtn" class="btn btn-outline-secondary d-none" type="button">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <!-- PHẦN 1: Tách riêng nhóm Lọc nhanh Presets (chống tràn, bo góc đẹp) -->
+            <div class="filter-presets-group" id="filterPresetsGroup" role="group" aria-label="Lọc nhanh">
+                <button type="button" class="btn btn-sm btn-outline-secondary preset-btn" id="presetSlowQueriesBtn" title="Chỉ hiện câu lệnh chạy chậm (Duration >= 100ms)">
+                    <i class="fa-solid fa-stopwatch text-warning"></i><span>Chậm (&gt; 100ms)</span>
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-secondary preset-btn" id="presetErrorsBtn" title="Chỉ hiện các câu lệnh ROLLBACK hoặc có lỗi">
+                    <i class="fa-solid fa-triangle-exclamation text-danger"></i><span>Lỗi / Rollback</span>
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-secondary preset-btn" id="presetExcludeSysBtn" title="Bỏ qua các truy vấn hệ thống (sys., INFORMATION_SCHEMA, pg_)">
+                    <i class="fa-solid fa-filter-circle-xmark text-info"></i><span>Bỏ qua hệ thống</span>
+                </button>
+            </div>
+
+            <!-- Nút mở Popup Cấu hình bộ lọc (Phần 2) -->
+            <button id="btnFilterToggle" class="btn btn-sm btn-outline-secondary filter-toggle-btn" title="Cấu hình bộ lọc đa điều kiện">
+                <i class="fa-solid fa-sliders text-info me-1"></i> Bộ lọc
+                <span id="filterCountBadge" class="badge bg-primary ms-1 d-none">0</span>
+            </button>
+
+            <!-- Nút Auto-Scroll -->
+            <button id="btnAutoScroll" class="btn btn-sm btn-outline-info active" title="Bật/Tắt tự động cuộn">
+                <i class="fa-solid fa-arrows-down-to-line me-1"></i> Auto-Scroll
+            </button>
+        </div>
+
+        <div class="toolbar-section right-section">
+            <div class="dropdown">
+                <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                    <i class="fa-solid fa-file-export me-1"></i> Xuất
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end dropdown-menu-dark shadow">
+                    <li><a class="dropdown-item" href="#" id="exportJsonBtn"><i class="fa-solid fa-code me-2 text-warning"></i>Xuất JSON</a></li>
+                    <li><a class="dropdown-item" href="#" id="exportCsvBtn"><i class="fa-solid fa-file-csv me-2 text-success"></i>Xuất CSV</a></li>
+                </ul>
+            </div>
+
+            <div class="stat-badge" id="profEventCounter" title="Tổng số sự kiện đang lưu giữ">
+                <span class="pulse-indicator pulse-stopped" id="statusIndicator"></span>
+                <span id="counterText">Events: 0</span>
+                <span class="rate-badge text-muted ms-1" id="rateText">(0 ev/s)</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- PHẦN 3: Thanh Hiển thị nhanh các điều kiện lọc & Expand > -->
+    <section class="filter-summary-bar" id="filterSummaryBar">
+        <div class="summary-left">
+            <button type="button" class="btn-toggle-expand" id="btnToggleFilterExpand" title="Bấm để mở rộng/thu gọn bảng chi tiết điều kiện lọc">
+                <i class="fa-solid fa-chevron-right chevron-icon" id="filterExpandChevron"></i>
+                <span class="expand-text fw-bold" id="expandToggleText">Expand &gt;</span>
+                <span class="summary-label text-muted ms-1">Điều kiện lọc:</span>
+                <span id="activeFilterCounterBadge" class="badge bg-secondary ms-1">0</span>
+            </button>
+            <div class="active-chips-container" id="activeFilterChips">
+                <span class="text-muted small empty-filter-hint">Chưa áp dụng bộ lọc nào. Toàn bộ sự kiện đang được hiển thị.</span>
+            </div>
+        </div>
+        <div class="summary-right">
+            <button type="button" class="btn btn-xs btn-outline-secondary" id="btnOpenFilterModalFromSummary" title="Mở hộp thoại thiết lập bộ lọc chi tiết">
+                <i class="fa-solid fa-gear me-1 text-info"></i> Quản lý bộ lọc
+            </button>
+            <button type="button" class="btn btn-xs btn-outline-danger" id="btnClearAllFiltersSummary" title="Xóa toàn bộ các điều kiện lọc">
+                <i class="fa-solid fa-trash me-1"></i> Xóa tất cả
+            </button>
+        </div>
+    </section>
+
+    <!-- PHẦN 3 chi tiết: Bảng mở rộng khi bấm Expand > -->
+    <div class="filter-expandable-panel d-none" id="filterExpandablePanel">
+        <div class="filter-expandable-table-wrap">
+            <table class="table table-sm filter-table mb-0">
+                <thead>
+                    <tr>
+                        <th style="width: 25%;">Cột điều kiện</th>
+                        <th style="width: 20%;">Toán tử</th>
+                        <th style="width: 45%;">Giá trị</th>
+                        <th style="width: 10%; text-align: center;">Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody id="filterRulesDetailBody">
+                    <tr>
+                        <td colspan="4" class="text-center text-muted py-2">Chưa áp dụng bộ lọc nào.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- PHẦN 2: POPUP CẤU HÌNH BỘ LỌC ĐA ĐIỀU KIỆN (FILTER MODAL) -->
+    <div class="profiler-modal-backdrop d-none" id="filterModalBackdrop">
+        <div class="filter-modal-card" id="filterModalCard">
+            <div class="filter-modal-header">
+                <div class="filter-modal-title">
+                    <i class="fa-solid fa-sliders text-info me-2"></i>
+                    <span>Cấu hình bộ lọc đa điều kiện (In-Memory Filter Rules)</span>
+                </div>
+                <button type="button" class="modal-close-btn" id="closeFilterModalBtn">&times;</button>
+            </div>
+
+            <div class="filter-modal-body">
+                <!-- Form thêm điều kiện mới -->
+                <div class="filter-form-box">
+                    <div class="filter-form-row">
+                        <div class="filter-form-group col-field">
+                            <label class="form-label small text-muted mb-1">Cột điều kiện</label>
+                            <select id="filterField" class="form-select form-select-sm">
+                                <option value="duration">Duration (Thời gian ms)</option>
+                                <option value="sql">SQL Statement (Câu lệnh)</option>
+                                <option value="spid">SPID / PID</option>
+                                <option value="db">Database</option>
+                                <option value="app">App Name</option>
+                                <option value="event">Event Type</option>
+                            </select>
+                        </div>
+
+                        <div class="filter-form-group col-op">
+                            <label class="form-label small text-muted mb-1">Toán tử</label>
+                            <select id="filterOperator" class="form-select form-select-sm">
+                                <option value=">=">lớn hơn hoặc bằng (&gt;=)</option>
+                                <option value=">">&gt; lớn hơn (&gt;)</option>
+                                <option value="<=">nhỏ hơn hoặc bằng (&lt;=)</option>
+                                <option value="<">&lt; nhỏ hơn (&lt;)</option>
+                                <option value="=">= bằng đúng (=)</option>
+                                <option value="!=">!= khác (!=)</option>
+                                <option value="like">chứa từ khóa (like)</option>
+                                <option value="not_like">không chứa (not like)</option>
+                                <option value="starts">bắt đầu bằng</option>
+                            </select>
+                        </div>
+
+                        <div class="filter-form-group col-val flex-grow-1">
+                            <label class="form-label small text-muted mb-1">Giá trị lọc</label>
+                            <div class="input-group input-group-sm">
+                                <input type="text" id="filterValue" class="form-control" placeholder="Nhập giá trị cần lọc...">
+                                <button type="button" class="btn btn-primary" id="addFilterRuleBtn">
+                                    <i class="fa-solid fa-plus me-1"></i> Thêm luật
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Danh sách các luật đã tạo -->
+                <div class="filter-rules-list-section mt-3">
+                    <div class="d-flex align-items-center justify-content-between mb-2">
+                        <span class="small fw-semibold text-muted">Các luật lọc đang hoạt động:</span>
+                        <button type="button" class="btn btn-xs btn-outline-danger" id="resetFiltersModalBtn">
+                            <i class="fa-solid fa-trash me-1"></i> Xóa toàn bộ lọc
+                        </button>
+                    </div>
+                    <div class="modal-filter-table-wrap">
+                        <table class="table table-sm filter-table mb-0">
+                            <thead>
+                                <tr>
+                                    <th style="width: 25%;">Cột điều kiện</th>
+                                    <th style="width: 20%;">Toán tử</th>
+                                    <th style="width: 45%;">Giá trị</th>
+                                    <th style="width: 10%; text-align: center;">Xóa</th>
+                                </tr>
+                            </thead>
+                            <tbody id="filterRulesModalBody">
+                                <tr>
+                                    <td colspan="4" class="text-center text-muted py-3">Chưa áp dụng bộ lọc nào. Toàn bộ câu lệnh sẽ được hiển thị.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="filter-modal-footer">
+                <span class="text-muted small me-auto">
+                    <i class="fa-solid fa-circle-info me-1 text-info"></i>Các điều kiện được tự động kết hợp theo phép VÀ (AND).
+                </span>
+                <button type="button" class="btn btn-sm btn-secondary px-3" id="cancelFilterModalBtn">Đóng</button>
+                <button type="button" class="btn btn-sm btn-popup-primary px-3" id="applyFilterModalBtn">Áp dụng &amp; Đóng</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Master-Detail Work Area -->
+    <main class="profiler-main" id="profilerMain">
+        <!-- Master: Virtual DOM Grid -->
+        <div class="grid-container" id="gridContainer">
+            <div id="traceTable" class="tabulator-custom"></div>
+        </div>
+
+        <!-- Draggable Resizer Splitter -->
+        <div class="splitter-bar" id="splitterBar" title="Kéo thả để điều chỉnh tỷ lệ bảng và chi tiết">
+            <div class="splitter-handle"></div>
+        </div>
+
+        <!-- Detail: SQL Query Viewer -->
+        <div class="detail-container" id="detailContainer">
+            <div class="detail-header">
+                <div class="detail-meta">
+                    <i class="fa-solid fa-file-lines text-warning me-2"></i>
+                    <span id="detailTitle" class="fw-semibold">Query Text Detail</span>
+                    <span id="detailSubInfo" class="text-muted ms-2 small">Chọn một dòng ở bảng phía trên để xem câu lệnh SQL đầy đủ</span>
+                </div>
+                <div class="detail-actions">
+                    <button type="button" class="btn btn-xs btn-outline-secondary" id="formatSqlBtn" title="Định dạng thụt lề SQL">
+                        <i class="fa-solid fa-align-left me-1"></i> Format SQL
+                    </button>
+                    <button type="button" class="btn btn-xs btn-outline-secondary" id="copySqlBtn" title="Sao chép SQL vào clipboard">
+                        <i class="fa-solid fa-copy me-1"></i> Copy SQL
+                    </button>
+                </div>
+            </div>
+            <div class="detail-editor-wrap" id="detailEditorWrap">
+                <textarea id="detailSqlTextarea" readonly></textarea>
+            </div>
+        </div>
+    </main>
+
+    <!-- Bottom Status Bar -->
+    <footer class="profiler-statusbar">
+        <div class="statusbar-item">
+            <i class="fa-solid fa-circle-info text-info me-1"></i>
+            <span id="statusMessage">Sẵn sàng. Chọn kết nối và nhấn "Bắt đầu" để theo dõi truy vấn.</span>
+        </div>
+        <div class="statusbar-item ms-auto">
+            <span class="text-muted">Bộ nhớ đệm trần: 15,000 dòng</span>
+            <span class="mx-2 text-muted">|</span>
+            <span class="text-muted">60 FPS Virtual Grid</span>
+        </div>
+    </footer>
+
+    <!-- Theme-Adaptive Popup Dialog for Profiler Notifications -->
+    <div class="profiler-popup-backdrop d-none" id="profilerPopupBackdrop">
+        <div class="profiler-popup-card" id="profilerPopupCard">
+            <div class="profiler-popup-header">
+                <div class="profiler-popup-title" id="profilerPopupTitle">
+                    <i class="fa-solid fa-circle-exclamation text-danger me-1"></i>
+                    <span>Thông báo</span>
+                </div>
+                <button type="button" class="profiler-popup-close" id="profilerPopupCloseBtn">&times;</button>
+            </div>
+            <div class="profiler-popup-body" id="profilerPopupMessage">
+                Nội dung thông báo
+            </div>
+            <div class="profiler-popup-footer">
+                <button type="button" class="btn btn-sm btn-popup-primary px-3" id="profilerPopupOkBtn">Đồng ý</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Vendor Scripts -->
+    <script src="../static/vendor/bootstrap/bootstrap.bundle.min.js"></script>
+    <script src="../static/vendor/codemirror/codemirror.min.js"></script>
+    <script src="../static/vendor/codemirror/sql.min.js"></script>
+    <script src="../static/vendor/tabulator/tabulator.min.js"></script>
+
+    <!-- App Scripts -->
+    <script src="../static/js/api.js"></script>
+    <script src="../static/js/clipboard-bridge.js"></script>
+    <script src="../static/js/storage.js"></script>
+    <script src="../static/js/theme-registry.js"></script>
+    <script src="../static/js/theme.js"></script>
+    <script src="../static/js/profiler.js"></script>
+</body>
+
+</html>

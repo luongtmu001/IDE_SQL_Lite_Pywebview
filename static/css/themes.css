@@ -177,8 +177,8 @@ html[data-bs-theme="light"] {
     background: var(--ide-bg-editor) !important;
     color: var(--ide-text-main) !important;
     height: 100% !important;
-    font-family: 'JetBrains Mono', 'Consolas', 'Menlo', 'Monaco', monospace !important;
-    font-size: 13px !important;
+    font-family: var(--ide-editor-font-family, 'JetBrains Mono', monospace) !important;
+    font-size: var(--ide-editor-font-size, 13px) !important;
     line-height: 1.4 !important;
 }
 .CodeMirror-gutters {
@@ -199,4 +199,81 @@ html[data-bs-theme="light"] {
 }
 html[data-bs-theme="light"] .CodeMirror-activeline-background {
     background: rgba(0,0,0,0.03) !important;
+}
+
+/* ── Typography & Component Font Variables ───────────────────────────────────── */
+:root {
+    --ide-editor-font-family:    'Consolas', 'JetBrains Mono', 'Fira Code', monospace;
+    --ide-editor-font-size:      14px;
+    --ide-grid-font-family:      'Segoe UI', -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+    --ide-grid-font-size:        13px;
+    --ide-message-font-family:   'Consolas', 'Courier New', monospace;
+    --ide-message-font-size:     13px;
+}
+
+/* ── Typography Application ─────────────────────────────────────────────────── */
+.CodeMirror {
+    font-family: var(--ide-editor-font-family) !important;
+    font-size: var(--ide-editor-font-size) !important;
+}
+
+.ide-results-table,
+.ide-results-table th,
+.ide-results-table td,
+.ide-grid-pane,
+#ide-results-grid-view,
+#ide-results-table-wrap,
+#ide-results-table-wrap table,
+#ide-results-table-wrap th,
+#ide-results-table-wrap td {
+    font-family: var(--ide-grid-font-family) !important;
+    font-size: var(--ide-grid-font-size) !important;
+}
+
+#ide-results-messages,
+#ide-results-plan,
+.ide-messages-pre,
+#ide-results-messages-view,
+#ide-query-messages,
+#ide-query-messages pre,
+.ide-query-messages,
+.ide-messages-container,
+.msg-success,
+.msg-error {
+    font-family: var(--ide-message-font-family) !important;
+    font-size: var(--ide-message-font-size) !important;
+}
+
+/* Light & Classic Themes CodeMirror Styling */
+html[data-bs-theme="light"] .CodeMirror,
+html[data-bs-theme="win-nt"] .CodeMirror,
+html[data-bs-theme="win-xp"] .CodeMirror {
+    background: #ffffff !important;
+    color: #000000 !important;
+}
+html[data-bs-theme="light"] .CodeMirror-gutters,
+html[data-bs-theme="win-nt"] .CodeMirror-gutters,
+html[data-bs-theme="win-xp"] .CodeMirror-gutters {
+    background: var(--ide-bg-main) !important;
+    border-right: 1px solid var(--ide-border) !important;
+}
+html[data-bs-theme="light"] .CodeMirror-gutter-elt,
+html[data-bs-theme="win-nt"] .CodeMirror-gutter-elt,
+html[data-bs-theme="win-xp"] .CodeMirror-gutter-elt {
+    color: var(--ide-text-dim) !important;
+}
+html[data-bs-theme="light"] .CodeMirror-cursor,
+html[data-bs-theme="win-nt"] .CodeMirror-cursor,
+html[data-bs-theme="win-xp"] .CodeMirror-cursor {
+    border-left: 2px solid #000000 !important;
+}
+html[data-bs-theme="light"] .CodeMirror-selected,
+html[data-bs-theme="win-nt"] .CodeMirror-selected,
+html[data-bs-theme="win-xp"] .CodeMirror-selected {
+    background: var(--ide-selection-bg) !important;
+}
+html[data-bs-theme="light"] .CodeMirror-activeline-background,
+html[data-bs-theme="win-nt"] .CodeMirror-activeline-background,
+html[data-bs-theme="win-xp"] .CodeMirror-activeline-background {
+    background: rgba(0,0,0,0.04) !important;
 }

@@ -1,211 +1,149 @@
-// Find and Replace Logic (SSMS-like)
+﻿// Find and Replace Logic (SSMS-like) — Monaco Edition
 
 (function () {
     let dialog, toggleBtn, toggleIcon, replaceContainer;
     let findInput, replaceInput, findNextBtn, findPrevBtn;
     let replaceBtn, replaceAllBtn, scopeSelect, closeBtn, statusText;
 
-    let currentCursor = null; // CodeMirror search cursor
+    // Search state
     let lastQuery = null;
+    let lastMatches = [];
+    let lastMatchIndex = -1;
 
-    document.addEventListener('DOMContentLoaded', () => {
-        dialog = document.getElementById('ide-find-replace-dialog');
+    document.addEventListener("DOMContentLoaded", () => {
+        dialog = document.getElementById("ide-find-replace-dialog");
         if (!dialog) return;
 
-        toggleBtn = document.getElementById('fr-toggle-btn');
-        toggleIcon = document.getElementById('fr-toggle-icon');
-        replaceContainer = document.getElementById('fr-replace-container');
-        findInput = document.getElementById('fr-find-input');
-        replaceInput = document.getElementById('fr-replace-input');
-        findNextBtn = document.getElementById('fr-find-next-btn');
-        findPrevBtn = document.getElementById('fr-find-prev-btn');
-        replaceBtn = document.getElementById('fr-replace-btn');
-        replaceAllBtn = document.getElementById('fr-replace-all-btn');
-        scopeSelect = document.getElementById('fr-scope-select');
-        closeBtn = document.getElementById('fr-close-btn');
-        statusText = document.getElementById('fr-status-text');
+        toggleBtn = document.getElementById("fr-toggle-btn");
+        toggleIcon = document.getElementById("fr-toggle-icon");
+        replaceContainer = document.getElementById("fr-replace-container");
+        findInput = document.getElementById("fr-find-input");
+        replaceInput = document.getElementById("fr-replace-input");
+        findNextBtn = document.getElementById("fr-find-next-btn");
+        findPrevBtn = document.getElementById("fr-find-prev-btn");
+        replaceBtn = document.getElementById("fr-replace-btn");
+        replaceAllBtn = document.getElementById("fr-replace-all-btn");
+        scopeSelect = document.getElementById("fr-scope-select");
+        closeBtn = document.getElementById("fr-close-btn");
+        statusText = document.getElementById("fr-status-text");
 
         // Toggle Replace UI
-        toggleBtn.addEventListener('click', () => {
-            const isHidden = replaceContainer.classList.contains('d-none');
+        toggleBtn.addEventListener("click", () => {
+            const isHidden = replaceContainer.classList.contains("d-none");
             if (isHidden) {
-                replaceContainer.classList.remove('d-none');
-                toggleIcon.classList.remove('fa-chevron-right');
-                toggleIcon.classList.add('fa-chevron-down');
+                replaceContainer.classList.remove("d-none");
+                toggleIcon.classList.replace("fa-chevron-right", "fa-chevron-down");
             } else {
-                replaceContainer.classList.add('d-none');
-                toggleIcon.classList.remove('fa-chevron-down');
-                toggleIcon.classList.add('fa-chevron-right');
+                replaceContainer.classList.add("d-none");
+                toggleIcon.classList.replace("fa-chevron-down", "fa-chevron-right");
             }
         });
 
-        // Close Dialog
-        closeBtn.addEventListener('click', hide);
-
-        // Escape to close
-        dialog.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape') hide();
+        closeBtn.addEventListener("click", hide);
+        dialog.addEventListener("keydown", (e) => { if (e.key === "Escape") hide(); });
+        findInput.addEventListener("keydown", (e) => {
+            if (e.key === "Enter") { e.preventDefault(); findNext(e.shiftKey); }
         });
-
-        // Enter in Find triggers Find Next
-        findInput.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                findNext(e.shiftKey); // Shift+Enter = Find Prev
-            }
-        });
-
-        findNextBtn.addEventListener('click', () => findNext(false));
-        findPrevBtn.addEventListener('click', () => findNext(true));
-
-        replaceBtn.addEventListener('click', replaceCurrent);
-        replaceAllBtn.addEventListener('click', replaceAll);
-
-        // Global shortcuts for F3 and Alt+... (will be handled if dialog is focused)
-        // If not focused, CodeMirror extraKeys could handle F3.
+        findNextBtn.addEventListener("click", () => findNext(false));
+        findPrevBtn.addEventListener("click", () => findNext(true));
+        replaceBtn.addEventListener("click", replaceCurrent);
+        replaceAllBtn.addEventListener("click", replaceAll);
     });
 
     function show() {
         if (!dialog) return;
-        dialog.classList.remove('d-none');
-
-        // Auto-fill from selection if available
-        const cm = window.AppEditor;
-        if (cm && cm.somethingSelected()) {
-            const selectedText = cm.getSelection();
-            if (selectedText.indexOf('\n') === -1) {
-                findInput.value = selectedText;
-            }
+        dialog.classList.remove("d-none");
+        const editor = window.AppEditor;
+        if (editor) {
+            const sel = editor.getModel().getValueInRange(editor.getSelection());
+            if (sel && sel.indexOf("\n") === -1) findInput.value = sel;
         }
-
         findInput.focus();
         findInput.select();
-        setStatus('');
-        currentCursor = null;
+        setStatus("");
+        lastMatches = [];
+        lastMatchIndex = -1;
     }
 
     function hide() {
         if (!dialog) return;
-        dialog.classList.add('d-none');
-        if (window.AppEditor) window.AppEditor.focus();
+        dialog.classList.add("d-none");
+        // Clear search decorations
+        if (window.AppEditor) {
+            window.AppEditor.setSelection(new monaco.Selection(1,1,1,1));
+            window.AppEditor.focus();
+        }
     }
 
     function setStatus(msg, isError = false) {
-        statusText.textContent = msg;
-        statusText.className = isError ? 'text-danger small' : 'text-muted small';
+        if (statusText) {
+            statusText.textContent = msg;
+            statusText.className = isError ? "text-danger small" : "text-muted small";
+        }
     }
 
-    function clearHighlight(cm) {
-        // Optional: clear previous search highlights if implemented
+    function getMatches(model, query) {
+        if (!query) return [];
+        // findMatches(searchStr, searchOnlyEditableRange, isRegex, matchCase, wordSep, captureMatches, limitResultCount)
+        return model.findMatches(query, false, false, false, null, false, 9999);
     }
 
     function findNext(reverse = false) {
         const query = findInput.value;
         if (!query) return;
+        const editor = window.AppEditor;
+        if (!editor) return;
+        const model = editor.getModel();
 
-        const scope = scopeSelect.value; // 'current' or 'all'
-
-        // Setup Search Cursor if query changed or cursor missing
-        if (!currentCursor || query !== lastQuery) {
-            const cm = window.AppEditor;
-            if (!cm) return;
-            currentCursor = cm.getSearchCursor(query, cm.getCursor(), true); // case insensitive
+        if (query !== lastQuery) {
             lastQuery = query;
+            lastMatches = getMatches(model, query);
+            lastMatchIndex = -1;
         }
 
-        let found = reverse ? currentCursor.findPrevious() : currentCursor.findNext();
-        const cm = window.AppEditor;
-
-        if (found) {
-            cm.setSelection(currentCursor.from(), currentCursor.to());
-            cm.scrollIntoView({ from: currentCursor.from(), to: currentCursor.to() }, 20);
-            setStatus('');
-        } else {
-            // Wrap around or Search across tabs
-            if (scope === 'all') {
-                const nextTabId = findInNextTab(query, reverse);
-                if (nextTabId) {
-                    window.AppTabs.switchTab(nextTabId);
-                    setTimeout(() => {
-                        // After switching tab, active editor changed
-                        const newCm = window.AppEditor;
-                        // Start search from beginning/end of the new file
-                        const startPos = reverse ? CodeMirror.Pos(newCm.lastLine()) : CodeMirror.Pos(newCm.firstLine(), 0);
-                        currentCursor = newCm.getSearchCursor(query, startPos, true);
-                        if (reverse ? currentCursor.findPrevious() : currentCursor.findNext()) {
-                            newCm.setSelection(currentCursor.from(), currentCursor.to());
-                            newCm.scrollIntoView({ from: currentCursor.from(), to: currentCursor.to() }, 20);
-                        }
-                    }, 50);
-                    setStatus('Switched tab to find match.');
-                    return;
-                }
-            }
-
-            // Just wrap around the current document
-            currentCursor = cm.getSearchCursor(query, reverse ? CodeMirror.Pos(cm.lastLine()) : CodeMirror.Pos(cm.firstLine(), 0), true);
-            if (reverse ? currentCursor.findPrevious() : currentCursor.findNext()) {
-                cm.setSelection(currentCursor.from(), currentCursor.to());
-                cm.scrollIntoView({ from: currentCursor.from(), to: currentCursor.to() }, 20);
-                setStatus('Wrapped around document.');
-            } else {
-                setStatus('No matches found.', true);
-            }
-        }
-    }
-
-    function findInNextTab(query, reverse) {
-        if (!window.AppTabs || !window.AppTabs.getAllTabs) return null;
-
-        const activeTabId = window.AppTabs.getActiveTabId();
-        const tabsMap = window.AppTabs.getAllTabs();
-        const tabKeys = Array.from(tabsMap.keys());
-
-        if (tabKeys.length <= 1) return null; // No other tabs
-
-        let currentIndex = tabKeys.indexOf(activeTabId);
-        if (currentIndex === -1) return null;
-
-        // Check remaining tabs in order
-        let checkCount = 0;
-        let idx = currentIndex;
-        const qLower = query.toLowerCase();
-
-        while (checkCount < tabKeys.length - 1) {
-            idx = reverse ? (idx - 1 + tabKeys.length) % tabKeys.length : (idx + 1) % tabKeys.length;
-            const tabId = tabKeys[idx];
-            const state = tabsMap.get(tabId);
-
-            if (state && state.tabType === 'query') {
-                const content = (state.content || '').toLowerCase();
-                if (content.indexOf(qLower) !== -1) {
-                    return tabId;
-                }
-            }
-            checkCount++;
-        }
-        return null;
-    }
-
-    function replaceCurrent() {
-        if (!currentCursor) {
-            findNext(false);
+        if (!lastMatches.length) {
+            setStatus("No matches found.", true);
             return;
         }
 
-        const cm = window.AppEditor;
-        const replacement = replaceInput.value;
-        const query = findInput.value;
-        if (!query) return;
+        if (reverse) {
+            lastMatchIndex = (lastMatchIndex <= 0) ? lastMatches.length - 1 : lastMatchIndex - 1;
+        } else {
+            lastMatchIndex = (lastMatchIndex >= lastMatches.length - 1) ? 0 : lastMatchIndex + 1;
+        }
 
-        // Check if currently selected text matches the search query
-        const selection = cm.getSelection();
-        if (selection.toLowerCase() === query.toLowerCase() && currentCursor.from()) {
-            currentCursor.replace(replacement);
-            // Move to next automatically
+        const match = lastMatches[lastMatchIndex];
+        editor.setSelection(match.range);
+        editor.revealRangeInCenter(match.range);
+        setStatus(`Match ${lastMatchIndex + 1} of ${lastMatches.length}`);
+
+        // Check scope=all and wrap across tabs
+        if (lastMatchIndex === 0 && !reverse) {
+            setStatus(`Wrapped. Match 1 of ${lastMatches.length}`);
+        }
+    }
+
+    function replaceCurrent() {
+        const query = findInput.value;
+        const replacement = replaceInput.value;
+        if (!query) return;
+        const editor = window.AppEditor;
+        if (!editor) return;
+        const model = editor.getModel();
+
+        // If current selection matches query, replace it
+        const sel = editor.getSelection();
+        const selText = model.getValueInRange(sel);
+        if (selText.toLowerCase() === query.toLowerCase()) {
+            editor.executeEdits("find-replace", [{
+                range: sel,
+                text: replacement
+            }]);
+            // Find next
+            lastMatches = getMatches(model, query);
+            lastMatchIndex = -1;
             findNext(false);
         } else {
-            // Find first, then next click will replace
             findNext(false);
         }
     }
@@ -215,45 +153,40 @@
         const replacement = replaceInput.value;
         if (!query) return;
 
-        const scope = scopeSelect.value;
+        const scope = scopeSelect ? scopeSelect.value : "current";
         let count = 0;
 
-        if (scope === 'current') {
-            const cm = window.AppEditor;
-            cm.operation(() => {
-                const cursor = cm.getSearchCursor(query, CodeMirror.Pos(cm.firstLine(), 0), true);
-                while (cursor.findNext()) {
-                    cursor.replace(replacement);
-                    count++;
-                }
-            });
+        if (scope === "current") {
+            const editor = window.AppEditor;
+            if (!editor) return;
+            const model = editor.getModel();
+            const matches = getMatches(model, query);
+            if (!matches.length) { setStatus("No matches found.", true); return; }
+            const edits = matches.map(m => ({ range: m.range, text: replacement }));
+            editor.executeEdits("replace-all", edits);
+            count = matches.length;
             setStatus(`Replaced ${count} occurrences.`);
-        } else if (scope === 'all') {
+        } else if (scope === "all") {
             if (!window.AppTabs) return;
             const tabsMap = window.AppTabs.getAllTabs();
-
-            // Case-insensitive regex with global flag
-            const regex = new RegExp(escapeRegExp(query), 'gi');
+            const activeTabId = window.AppTabs.getActiveTabId();
+            const regex = new RegExp(escapeRegExp(query), "gi");
 
             tabsMap.forEach((state, tabId) => {
-                if (state.tabType === 'query') {
-                    // Update active editor explicitly if it's the current tab
-                    if (tabId === window.AppTabs.getActiveTabId() && window.AppEditor) {
-                        const cm = window.AppEditor;
-                        cm.operation(() => {
-                            const cursor = cm.getSearchCursor(query, CodeMirror.Pos(cm.firstLine(), 0), true);
-                            while (cursor.findNext()) {
-                                cursor.replace(replacement);
-                                count++;
-                            }
-                        });
+                if (state.tabType === "query") {
+                    if (tabId === activeTabId && window.AppEditor) {
+                        const model = window.AppEditor.getModel();
+                        const matches = getMatches(model, query);
+                        if (matches.length) {
+                            window.AppEditor.executeEdits("replace-all", matches.map(m => ({ range: m.range, text: replacement })));
+                            count += matches.length;
+                        }
                     } else {
-                        // Replace in background tab content
-                        let content = state.content || '';
-                        let matchCount = (content.match(regex) || []).length;
+                        const content = state.content || "";
+                        const matchCount = (content.match(regex) || []).length;
                         if (matchCount > 0) {
                             state.content = content.replace(regex, replacement);
-                            window.AppTabs.setTabDirty(tabId, true);
+                            if (window.AppTabs.setTabDirty) window.AppTabs.setTabDirty(tabId, true);
                             count += matchCount;
                         }
                     }
@@ -261,17 +194,11 @@
             });
             setStatus(`Replaced ${count} occurrences across all tabs.`);
         }
-        currentCursor = null; // reset search state
+        lastMatches = [];
+        lastMatchIndex = -1;
     }
 
-    function escapeRegExp(string) {
-        return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); // $& means the whole matched string
-    }
+    function escapeRegExp(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
 
-    // Export API
-    window.AppFindReplace = {
-        show,
-        hide
-    };
-
+    window.AppFindReplace = { show, hide };
 })();

@@ -13,8 +13,11 @@
                 <i class="fa-solid fa-diagram-project me-1"></i>Plan
             </button>
         </div>
-        <!-- Result status (right-aligned) -->
+        <!-- Result status & actions (right-aligned) -->
         <div class="ms-auto pe-2 d-flex align-items-center gap-2">
+            <button type="button" class="btn btn-xs btn-outline-secondary d-none" id="ide-btn-copy-messages" title="Sao chép toàn bộ thông báo (Copy All Messages)">
+                <i class="fa-solid fa-copy me-1"></i>Sao chép
+            </button>
             <span id="ide-result-status" class="ide-result-status-text"></span>
         </div>
     </div>
@@ -36,8 +39,8 @@
         </div>
 
         <!-- Messages Panel (hidden by default) -->
-        <div id="ide-results-messages-view" class="ide-result-view d-none p-3">
-            <pre id="ide-results-messages" class="ide-messages-pre m-0"></pre>
+        <div id="ide-results-messages-view" class="ide-result-view d-none">
+            <div id="ide-results-messages" class="ide-messages-container"></div>
         </div>
 
         <!-- Plan Panel (hidden by default) -->

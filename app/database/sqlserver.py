@@ -1,5 +1,6 @@
 import re
 from app.database.base import DatabaseAdapter
+from app.utils.db_message import clean_db_message, parse_error_details
 
 try:
     import pyodbc
@@ -47,7 +48,10 @@ class SqlServerAdapter(DatabaseAdapter):
         else:
             trust_cert = "yes" if raw_trust_cert else "no"
 
+        app_name = c.get("app_name") or "luoBTool"
+
         def _build_conn_str(drv):
+            app_part = f"APP={app_name};"
             if c.get("trusted_connection"):
                 return (
                     f"DRIVER={{{drv}}};"
@@ -56,6 +60,7 @@ class SqlServerAdapter(DatabaseAdapter):
                     "Trusted_Connection=yes;"
                     f"Encrypt={encrypt};"
                     f"TrustServerCertificate={trust_cert};"
+                    f"{app_part}"
                 )
             else:
                 return (
@@ -66,6 +71,7 @@ class SqlServerAdapter(DatabaseAdapter):
                     f"PWD={c.get('password', '')};"
                     f"Encrypt={encrypt};"
                     f"TrustServerCertificate={trust_cert};"
+                    f"{app_part}"
                 )
 
         drivers_to_try = []
@@ -104,6 +110,49 @@ class SqlServerAdapter(DatabaseAdapter):
         if last_exc:
             raise last_exc
 
+    def _build_connection_string(self, driver=None):
+        c = self.config
+        raw_server = str(c.get("server") or "localhost").strip()
+        port = c.get("port")
+        if port and "," not in raw_server and ":" not in raw_server:
+            server = f"{raw_server},{port}"
+        else:
+            server = raw_server
+
+        database = c.get("database") or "master"
+        drv = driver or c.get("driver") or "ODBC Driver 18 for SQL Server"
+
+        raw_encrypt = c.get("encrypt", c.get("ssl", False))
+        encrypt = "yes" if (raw_encrypt and str(raw_encrypt).lower() in ("yes", "true", "1")) else "no"
+
+        raw_trust_cert = c.get("trust_server_certificate", True)
+        trust_cert = "yes" if (raw_trust_cert and str(raw_trust_cert).lower() in ("yes", "true", "1")) else "no"
+
+        app_name = c.get("app_name") or "luoBTool"
+        app_part = f"APP={app_name};"
+
+        if c.get("trusted_connection"):
+            return (
+                f"DRIVER={{{drv}}};"
+                f"SERVER={server};"
+                f"DATABASE={database};"
+                "Trusted_Connection=yes;"
+                f"Encrypt={encrypt};"
+                f"TrustServerCertificate={trust_cert};"
+                f"{app_part}"
+            )
+        else:
+            return (
+                f"DRIVER={{{drv}}};"
+                f"SERVER={server};"
+                f"DATABASE={database};"
+                f"UID={c.get('username', '')};"
+                f"PWD={c.get('password', '')};"
+                f"Encrypt={encrypt};"
+                f"TrustServerCertificate={trust_cert};"
+                f"{app_part}"
+            )
+
     def close(self):
         if self.connection:
             self.connection.close()
@@ -121,69 +170,101 @@ class SqlServerAdapter(DatabaseAdapter):
                 except Exception:
                     pass
 
-            # Handle SSMS batch separator GO
+            # Handle SSMS batch separator GO and track batch start lines
             raw_batches = re.split(r'^\s*GO\s*;?\s*(?:--.*)?$', sql, flags=re.MULTILINE | re.IGNORECASE)
             batches = []
+            current_line = 1
             for b in raw_batches:
-                b = b.strip()
-                if not b:
+                b_str = b.strip()
+                if not b_str:
+                    current_line += b.count('\n') + 1
                     continue
-                # If a batch starts with USE [db]; followed by CREATE/ALTER on a new line, split it into two batches
                 use_match = re.match(
                     r'^(\s*USE\s+(?:\[[^\]]+\]|[^\s;]+)\s*;?)\s*\r?\n\s*((?:CREATE|ALTER)\b[\s\S]*)$',
                     b,
                     flags=re.IGNORECASE
                 )
                 if use_match:
-                    batches.append(use_match.group(1).strip())
-                    batches.append(use_match.group(2).strip())
+                    p1 = use_match.group(1).strip()
+                    p2 = use_match.group(2).strip()
+                    batches.append({"sql": p1, "start_line": current_line})
+                    batches.append({"sql": p2, "start_line": current_line + p1.count('\n') + 1})
                 else:
-                    batches.append(b)
+                    batches.append({"sql": b_str, "start_line": current_line})
+                current_line += b.count('\n') + 1
 
             if not batches:
-                batches = [sql]
+                batches = [{"sql": sql, "start_line": 1}]
 
             results = []
             messages = []
+            errors = []
             total_affected = 0
+            seen_messages = set()
 
-            for batch in batches:
-                cursor.execute(batch, params or ())
-                while True:
-                    if cursor.description:
-                        columns = [desc[0] for desc in cursor.description]
-                        fetch_limit = limit if limit is not None else int(self.config.get("max_rows", 1000))
-                        if fetch_limit == 0:
-                            raw_rows = cursor.fetchall()
+            def collect_messages():
+                if hasattr(cursor, 'messages') and cursor.messages:
+                    for item in cursor.messages:
+                        raw = item[1] if isinstance(item, (list, tuple)) and len(item) > 1 else str(item)
+                        cleaned = clean_db_message(raw)
+                        if cleaned and cleaned not in seen_messages:
+                            seen_messages.add(cleaned)
+                            messages.append(cleaned)
+
+            for b_info in batches:
+                batch_sql = b_info["sql"]
+                b_start = b_info["start_line"]
+                try:
+                    cursor.execute(batch_sql, params or ())
+                    collect_messages()
+                    while True:
+                        if cursor.description:
+                            columns = [desc[0] for desc in cursor.description]
+                            fetch_limit = limit if limit is not None else int(self.config.get("max_rows", 1000))
+                            if fetch_limit == 0:
+                                raw_rows = cursor.fetchall()
+                            else:
+                                raw_rows = cursor.fetchmany(fetch_limit)
+
+                            rows = [[serialize_cell(c) for c in r] for r in raw_rows]
+                            row_count = len(rows)
+                            results.append({
+                                "columns": columns,
+                                "rows": rows,
+                                "row_count": row_count
+                            })
+                            messages.append(f"({row_count} row(s) returned)")
                         else:
-                            raw_rows = cursor.fetchmany(fetch_limit)
+                            rc = cursor.rowcount
+                            if rc != -1 and rc is not None:
+                                messages.append(f"({rc} row(s) affected)")
+                                total_affected += rc
 
-                        rows = [[serialize_cell(c) for c in r] for r in raw_rows]
-                        row_count = len(rows)
-                        results.append({
-                            "columns": columns,
-                            "rows": rows,
-                            "row_count": row_count
-                        })
-                        messages.append(f"({row_count} row(s) returned)")
-                    else:
-                        rc = cursor.rowcount
-                        if rc != -1:
-                            messages.append(f"({rc} row(s) affected)")
-                            total_affected += rc
-                        else:
-                            messages.append("Commands completed successfully.")
-
-                    try:
-                        if not cursor.nextset():
+                        collect_messages()
+                        try:
+                            if not cursor.nextset():
+                                break
+                        except Exception as nextset_err:
+                            collect_messages()
+                            err_detail = parse_error_details(sql, nextset_err, batch_start_line=b_start)
+                            if err_detail["clean_message"]:
+                                errors.append(err_detail)
+                                if err_detail.get("line"):
+                                    messages.append(f"Msg: Line {err_detail['line']}: {err_detail['clean_message']}")
+                                else:
+                                    messages.append(f"Msg: {err_detail['clean_message']}")
                             break
-                    except Exception:
-                        break
+                        collect_messages()
 
-            # Check for driver messages or PRINT outputs
-            if hasattr(cursor, 'messages') and cursor.messages:
-                for m in cursor.messages:
-                    messages.append(str(m[1]) if isinstance(m, (list, tuple)) and len(m) > 1 else str(m))
+                except Exception as batch_err:
+                    collect_messages()
+                    err_detail = parse_error_details(sql, batch_err, batch_start_line=b_start)
+                    if err_detail["clean_message"]:
+                        errors.append(err_detail)
+                        if err_detail.get("line"):
+                            messages.append(f"Msg: Line {err_detail['line']}: {err_detail['clean_message']}")
+                        else:
+                            messages.append(f"Msg: {err_detail['clean_message']}")
 
             current_db = None
             try:
@@ -195,14 +276,18 @@ class SqlServerAdapter(DatabaseAdapter):
                 pass
 
             first = results[0] if results else {"columns": [], "rows": [], "row_count": total_affected}
+            success = len(errors) == 0
+
             return {
-                "success": True,
+                "success": success,
                 "columns": first["columns"],
                 "rows": first["rows"],
                 "row_count": first["row_count"],
                 "results": results,
                 "messages": messages,
-                "message": "\n".join(messages) if messages else "Commands completed successfully.",
+                "errors": errors,
+                "error": "\n".join(e["clean_message"] for e in errors) if errors else None,
+                "message": "\n".join(messages) if messages else ("Commands completed successfully." if success else "\n".join(e["clean_message"] for e in errors)),
                 "current_database": current_db,
             }
 
@@ -648,7 +733,8 @@ class SqlServerAdapter(DatabaseAdapter):
                 CAST(ep.value AS NVARCHAR(MAX)) AS description,
                 t.is_user_defined,
                 st.name AS type_schema,
-                t.name AS type_raw_name
+                t.name AS type_raw_name,
+                c.is_computed
             FROM {db_prefix}sys.columns c
             JOIN {db_prefix}sys.types t ON t.user_type_id = c.user_type_id
             JOIN {db_prefix}sys.schemas st ON st.schema_id = t.schema_id
@@ -712,6 +798,7 @@ class SqlServerAdapter(DatabaseAdapter):
                 "nullable": bool(r[6]),
                 "is_pk": bool(r[12]),
                 "is_identity": bool(r[7]),
+                "is_computed": bool(r[17]) if len(r) > 17 else False,
                 "identity_seed": int(r[8]) if r[8] is not None else 1,
                 "identity_increment": int(r[9]) if r[9] is not None else 1,
                 "default_value": def_val,

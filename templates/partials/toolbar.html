@@ -2,14 +2,23 @@
     <!-- Brand -->
     <div class="d-flex align-items-center me-3">
         <span class="ide-brand fw-bold me-3 d-flex align-items-center">
-            <img src="/static/image/banner.png" alt="luoBTool" style="height: 26px; width: auto; object-fit: contain;" />
+            <img src="../static/image/banner.png" alt="luoBTool"
+                style="height: 26px; width: auto; object-fit: contain;" />
         </span>
-        <ul class="navbar-nav">
+        <ul class="navbar-nav align-items-center">
             <li class="nav-item"><a class="nav-link px-2 py-1" href="#">File</a></li>
             <li class="nav-item"><a class="nav-link px-2 py-1" href="#">Edit</a></li>
             <li class="nav-item"><a class="nav-link px-2 py-1" href="#">Format</a></li>
-            <li class="nav-item"><a class="nav-link px-2 py-1" href="#">Settings</a></li>
+            <li class="nav-item"><a class="nav-link px-2 py-1" href="#" id="menu-settings">Settings</a></li>
             <li class="nav-item"><a class="nav-link px-2 py-1" href="#">Help</a></li>
+
+            <!-- BRAVO launcher with window picker dropdown (positioned right after Help) -->
+            <li class="nav-item ms-2" id="ide-bravo-launcher-wrap" style="display:none;">
+                <button id="ide-bravo-launcher" class="nav-link px-2 py-1 border-0 bg-transparent fw-semibold"
+                    title="Mở BRAVO Tool (Cửa sổ độc lập)">
+                    <i class="fa-solid fa-bolt me-1 text-warning"></i>BRAVO Tool
+                </button>
+            </li>
         </ul>
     </div>
 
@@ -20,8 +29,11 @@
         <button id="ide-theme-btn" class="ide-toolbar-btn" title="Toggle Light/Dark Theme">
             <i class="fa-solid fa-moon"></i>
         </button>
-        <button class="ide-toolbar-btn ide-toolbar-btn--accent" title="Account">
-            <i class="fa-solid fa-user me-1"></i><span>Login</span>
+        <button id="ide-settings-btn" class="ide-toolbar-btn" title="Cài đặt (Settings)">
+            <i class="fa-solid fa-gear"></i>
         </button>
+        <!--button class="ide-toolbar-btn ide-toolbar-btn--accent" title="Account">
+            <i class="fa-solid fa-user me-1"></i><span>Login</span>
+        </button-->
     </div>
 </nav>

@@ -1,0 +1,731 @@
+/* =============================================================================
+   SETTINGS WINDOW & MODAL STYLES (ĐỒNG BỘ THEME 100% VỚI FORM CHÍNH)
+   Tất cả các biến màu sắc kế thừa trực tiếp từ theme-variables.css và themes.css
+   Không nhúng CSS trực tiếp trong file HTML.
+   ============================================================================= */
+
+/* ── 1. Cửa sổ Standalone & Modal Dialog ────────────────────────────────────── */
+html, body {
+    margin: 0;
+    padding: 0;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+    background: var(--ide-bg-main, #1C1D23);
+    color: var(--ide-text-main, #c7cfcf);
+    font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+}
+
+.settings-standalone {
+    width: 100vw !important;
+    height: 100vh !important;
+    border-radius: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+.settings-modal-dialog {
+    max-width: 1080px;
+    width: 92vw;
+    height: 86vh;
+    margin: 2rem auto;
+    transition: all 0.2s ease-in-out;
+}
+
+.settings-modal-dialog.fullscreen {
+    max-width: 100vw !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    margin: 0 !important;
+}
+
+.settings-modal-dialog.fullscreen .settings-window {
+    height: 100vh !important;
+    border-radius: 0 !important;
+}
+
+/* ── 2. Settings Window Container ───────────────────────────────────────────── */
+.settings-window {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--ide-border, #3c3f41);
+    background: var(--ide-bg-main, #1C1D23);
+    color: var(--ide-text-main, #c7cfcf);
+    font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+    overflow: hidden;
+}
+
+/* ── 3. Search Row ──────────────────────────────────────────────────────────── */
+.settings-window .search-row {
+    height: 52px;
+    flex: 0 0 52px;
+    padding: 10px 24px;
+    display: flex;
+    align-items: center;
+    background: var(--ide-bg-toolbar, #202228);
+    border-bottom: 1px solid var(--ide-border, #3c3f41);
+}
+
+.settings-window .search-box {
+    height: 34px;
+    width: 100%;
+    border: 1px solid var(--ide-border, #3c3f41);
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    padding: 0 10px;
+    background: var(--ide-bg-input, #13141A);
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.settings-window .search-box:focus-within {
+    border-color: var(--ide-accent, #CC7832);
+    box-shadow: 0 0 0 2px var(--ide-accent-subtle, rgba(204, 120, 50, 0.2));
+}
+
+.settings-window .search-box input {
+    border: 0;
+    outline: none;
+    flex: 1;
+    min-width: 0;
+    font-size: 13.5px;
+    color: var(--ide-text-active, #ffffff);
+    background: transparent;
+}
+.settings-window .search-box input::placeholder {
+    color: var(--ide-text-dim, #5a6068);
+}
+
+.settings-window .search-tools {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-left: 10px;
+    color: var(--ide-text-muted, #848c94);
+}
+.settings-window .tool {
+    width: 18px; height: 18px;
+    position: relative;
+    opacity: .75;
+    cursor: pointer;
+}
+.settings-window .sparkle::before { content: "✧"; font-size: 19px; position:absolute; top:-4px; }
+.settings-window .sort-icon::before { content: "≋"; font-size: 20px; position:absolute; top:-5px; }
+.settings-window .filter-icon::before {
+    content: ""; position:absolute; left:2px; top:2px; width:13px; height:12px;
+    border:1.5px solid currentColor; border-radius:2px;
+    clip-path: polygon(0 0,100% 0,62% 45%,62% 100%,38% 100%,38% 45%);
+}
+
+/* ── 4. Tabs Row with Action Buttons ────────────────────────────────────────── */
+.settings-window .tabs {
+    height: 40px;
+    flex: 0 0 40px;
+    display: flex;
+    align-items: center;
+    padding-left: 20px;
+    padding-right: 20px;
+    gap: 8px;
+    background: var(--ide-bg-toolbar, #202228);
+    border-bottom: 1px solid var(--ide-border, #3c3f41);
+}
+
+.settings-window .tab {
+    height: 28px;
+    padding: 4px 12px;
+    font-size: 13px;
+    font-weight: 600;
+    border-radius: 5px;
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.15s, color 0.15s;
+    color: var(--ide-text-muted, #848c94);
+    display: inline-flex;
+    align-items: center;
+}
+.settings-window .tab:hover {
+    color: var(--ide-text-active, #ffffff);
+    background: var(--ide-hover-bg, rgba(255, 255, 255, 0.05));
+}
+.settings-window .tab.active {
+    color: #ffffff;
+    background: var(--ide-accent, #CC7832);
+}
+
+.tabs-actions {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.btn-settings-save {
+    height: 28px;
+    background: #238636;
+    color: #ffffff;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 4px;
+    padding: 0 14px;
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    transition: background 0.15s, transform 0.08s;
+}
+.btn-settings-save:hover {
+    background: #2ea043;
+}
+.btn-settings-save:active {
+    transform: scale(0.98);
+}
+
+.btn-settings-copy {
+    height: 28px;
+    border: 1px solid var(--ide-border, #3c3f41);
+    background: transparent;
+    color: var(--ide-text-main, #c7cfcf);
+    border-radius: 4px;
+    padding: 0 10px;
+    font-size: 12.5px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    transition: all 0.15s;
+}
+.btn-settings-copy:hover {
+    background: var(--ide-hover-bg, rgba(255, 255, 255, 0.05));
+    color: var(--ide-text-active, #ffffff);
+    border-color: var(--ide-accent, #CC7832);
+}
+
+.btn-settings-reset {
+    height: 28px;
+    border: 1px solid var(--ide-border, #3c3f41);
+    background: transparent;
+    color: var(--ide-text-muted, #848c94);
+    border-radius: 4px;
+    padding: 0 10px;
+    font-size: 12.5px;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.btn-settings-reset:hover {
+    background: var(--ide-hover-bg, rgba(255, 255, 255, 0.05));
+    color: var(--ide-text-active, #ffffff);
+    border-color: var(--ide-border-active, #CC7832);
+}
+
+/* ── 5. Settings Area (Sidebar + Content Scroll) ────────────────────────────── */
+.settings-window .settings-area {
+    min-height: 0;
+    flex: 1;
+    display: flex;
+    position: relative;
+    overflow: hidden;
+    background: var(--ide-bg-main, #1C1D23);
+}
+
+/* ── Left Navigation Sidebar ────────────────────────────────────────────────── */
+.settings-window .sidebar {
+    width: 240px;
+    flex: 0 0 240px;
+    padding-top: 14px;
+    position: relative;
+    overflow-y: auto;
+    background: var(--ide-bg-sidebar, #1C1D23);
+    border-right: 1px solid var(--ide-border, #3c3f41);
+    transition: width 0.2s, flex-basis 0.2s;
+}
+.settings-window .sidebar.collapsed {
+    width: 0 !important;
+    flex: 0 0 0 !important;
+    padding: 0 !important;
+    border-right: none !important;
+    overflow: hidden !important;
+}
+
+.settings-window .section-label {
+    margin-left: 20px;
+    margin-bottom: 8px;
+    color: var(--ide-text-dim, #5a6068);
+    font-size: 11.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+}
+
+.settings-window .nav-item {
+    width: calc(100% - 24px);
+    margin-left: 12px;
+    margin-right: 12px;
+    height: 34px;
+    display: flex;
+    align-items: center;
+    padding-left: 10px;
+    font-size: 14px;
+    color: var(--ide-text-main, #c7cfcf);
+    border: 1px solid transparent;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+    user-select: none;
+}
+.settings-window .nav-item:hover {
+    background: var(--ide-hover-bg, rgba(255, 255, 255, 0.05));
+    color: var(--ide-text-active, #ffffff);
+}
+.settings-window .nav-item.active {
+    border-color: var(--ide-accent, #CC7832);
+    color: var(--ide-text-active, #ffffff);
+    font-weight: 600;
+    background: var(--ide-active-bg, rgba(204, 120, 50, 0.12));
+}
+.settings-window .chevron {
+    width: 16px;
+    margin-right: 6px;
+    font-size: 16px;
+    line-height: 0;
+    font-weight: 400;
+    color: var(--ide-text-dim, #5a6068);
+    text-align: center;
+}
+
+/* ── Content Scroll Area ────────────────────────────────────────────────────── */
+.settings-window .content-scroll {
+    min-width: 0;
+    min-height: 0;
+    flex: 1;
+    overflow-y: auto;
+    position: relative;
+    padding: 24px 40px 40px 36px;
+    background: var(--ide-bg-editor, #18191E);
+}
+
+.settings-window .content {
+    max-width: 1050px;
+}
+
+.settings-window h1 {
+    margin: 0 0 20px;
+    font-size: 24px;
+    line-height: 1.25;
+    font-weight: 600;
+    color: var(--ide-text-active, #ffffff);
+    border-bottom: 1px solid var(--ide-border, #3c3f41);
+    padding-bottom: 10px;
+}
+
+/* ── Raw JSON Editor Panel (khi chọn tab Raw JSON) ──────────────────────────── */
+.raw-json-container {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    width: 100%;
+}
+.raw-json-textarea {
+    width: 100%;
+    height: calc(100vh - 180px);
+    background: var(--ide-bg-input, #13141A);
+    color: var(--ide-text-active, #ffffff);
+    border: 1px solid var(--ide-border, #3c3f41);
+    border-radius: 6px;
+    font-family: 'Consolas', 'JetBrains Mono', monospace;
+    font-size: 13.5px;
+    line-height: 1.5;
+    padding: 12px;
+    resize: none;
+    outline: none;
+}
+.raw-json-textarea:focus {
+    border-color: var(--ide-accent, #CC7832);
+}
+
+/* ── Setting Cards & Controls ───────────────────────────────────────────────── */
+.settings-window .setting {
+    margin-bottom: 22px;
+}
+.settings-window .setting-title {
+    font-size: 14.5px;
+    font-weight: 600;
+    margin-bottom: 5px;
+    color: var(--ide-text-active, #ffffff);
+}
+.settings-window .description {
+    font-size: 13.5px;
+    line-height: 1.45;
+    margin-bottom: 9px;
+    color: var(--ide-text-muted, #848c94);
+}
+
+.settings-window .number-input,
+.settings-window .text-input {
+    width: 280px;
+    height: 34px;
+    border: 1px solid var(--ide-border, #3c3f41);
+    border-radius: 5px;
+    padding: 6px 10px;
+    font-size: 13.5px;
+    outline: none;
+    background: var(--ide-bg-input, #13141A);
+    color: var(--ide-text-active, #ffffff);
+    transition: border-color 0.15s;
+}
+.settings-window .number-input:focus,
+.settings-window .text-input:focus {
+    border-color: var(--ide-accent, #CC7832);
+}
+
+.settings-window .gray-setting {
+    background: var(--ide-bg-panel, #1C1D23);
+    border-radius: 8px;
+    padding: 16px 18px 16px;
+    margin-top: 2px;
+    margin-bottom: 22px;
+    border: 1px solid var(--ide-border, #3c3f41);
+}
+.settings-window .gray-setting .setting-title {
+    margin-bottom: 6px;
+}
+
+.settings-window select {
+    width: 390px;
+    max-width: 100%;
+    height: 34px;
+    border: 1px solid var(--ide-border, #3c3f41);
+    border-radius: 5px;
+    background: var(--ide-bg-input, #13141A);
+    padding: 4px 10px;
+    font-size: 13.5px;
+    color: var(--ide-text-active, #ffffff);
+    outline: none;
+    transition: border-color 0.15s;
+}
+.settings-window select:focus {
+    border-color: var(--ide-accent, #CC7832);
+}
+
+.settings-window .check-setting {
+    margin: 16px 0 22px;
+}
+.settings-window .check-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13.5px;
+    color: var(--ide-text-main, #c7cfcf);
+    cursor: pointer;
+    user-select: none;
+}
+.settings-window .checkbox {
+    appearance: none;
+    width: 19px;
+    height: 19px;
+    border: 1px solid var(--ide-border, #3c3f41);
+    border-radius: 3px;
+    background: var(--ide-bg-input, #13141A);
+    position: relative;
+    flex: 0 0 19px;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.settings-window .checkbox:checked {
+    background: var(--ide-accent, #CC7832);
+    border-color: var(--ide-accent, #CC7832);
+}
+.settings-window .checkbox:checked::after {
+    content: "";
+    position: absolute;
+    width: 9px;
+    height: 5px;
+    border-left: 2px solid #ffffff;
+    border-bottom: 2px solid #ffffff;
+    transform: rotate(-45deg);
+    left: 4px;
+    top: 5px;
+}
+
+/* ── 6. Custom Modal Popup Dialog ───────────────────────────────────────────── */
+.settings-popup-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.65);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 99999;
+    backdrop-filter: blur(2px);
+}
+.settings-popup-backdrop.d-none {
+    display: none !important;
+}
+
+.settings-popup-card {
+    width: 440px;
+    max-width: 90vw;
+    background: var(--ide-bg-modal, #202228);
+    border: 1px solid var(--ide-border, #3c3f41);
+    border-radius: 8px;
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    animation: popupFadeIn 0.18s ease-out;
+}
+
+@keyframes popupFadeIn {
+    from { opacity: 0; transform: scale(0.94); }
+    to { opacity: 1; transform: scale(1); }
+}
+
+.settings-popup-header {
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--ide-border, #3c3f41);
+    background: rgba(0, 0, 0, 0.15);
+}
+.settings-popup-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--ide-text-active, #ffffff);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.settings-popup-close {
+    border: none;
+    background: transparent;
+    color: var(--ide-text-muted, #848c94);
+    font-size: 20px;
+    cursor: pointer;
+    line-height: 1;
+    padding: 0 4px;
+}
+.settings-popup-close:hover {
+    color: var(--ide-text-active, #ffffff);
+}
+
+.settings-popup-body {
+    padding: 18px;
+    font-size: 13.5px;
+    line-height: 1.5;
+    color: var(--ide-text-main, #c7cfcf);
+}
+
+.settings-popup-footer {
+    padding: 12px 16px;
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    border-top: 1px solid var(--ide-border, #3c3f41);
+    background: rgba(0, 0, 0, 0.1);
+}
+.btn-popup {
+    padding: 6px 16px;
+    font-size: 13px;
+    font-weight: 500;
+    border-radius: 4px;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: all 0.15s;
+}
+.btn-popup-primary {
+    background: var(--ide-accent, #CC7832);
+    color: #ffffff;
+}
+.btn-popup-primary:hover {
+    background: var(--ide-accent-hover, #e08b46);
+}
+.btn-popup-secondary {
+    background: transparent;
+    border-color: var(--ide-border, #3c3f41);
+    color: var(--ide-text-main, #c7cfcf);
+}
+.btn-popup-secondary:hover {
+    background: var(--ide-hover-bg, rgba(255, 255, 255, 0.05));
+    color: var(--ide-text-active, #ffffff);
+}
+
+/* =============================================================================
+   LIGHT THEME OVERRIDES (data-bs-theme="light")
+   Khi form chính chuyển sang theme Sáng, cửa sổ Settings cũng đổi sang Light theme
+   ============================================================================= */
+html[data-bs-theme="light"] {
+    background: #f0f0f0;
+    color: #2b2b2b;
+}
+
+html[data-bs-theme="light"] .settings-window {
+    background: #f0f0f0;
+    border-color: #cccccc;
+    color: #2b2b2b;
+}
+
+html[data-bs-theme="light"] .settings-window .search-row {
+    background: #e8e8e8;
+    border-bottom-color: #cccccc;
+}
+
+html[data-bs-theme="light"] .settings-window .search-box {
+    background: #ffffff;
+    border-color: #a9bddf;
+    box-shadow: 0 0 0 1px rgba(45, 93, 210, 0.03);
+}
+html[data-bs-theme="light"] .settings-window .search-box input {
+    color: #333333;
+}
+html[data-bs-theme="light"] .settings-window .search-box input::placeholder {
+    color: #888888;
+}
+
+html[data-bs-theme="light"] .settings-window .tabs {
+    background: #e0e0e0;
+    border-bottom-color: #cccccc;
+}
+html[data-bs-theme="light"] .settings-window .tab {
+    color: #555555;
+}
+html[data-bs-theme="light"] .settings-window .tab.active {
+    color: #ffffff;
+    background: #7898e5;
+}
+
+html[data-bs-theme="light"] .settings-window .sidebar {
+    background: #f0f0f0;
+    border-right-color: #ddd5c5;
+}
+html[data-bs-theme="light"] .settings-window .section-label {
+    color: #666666;
+}
+html[data-bs-theme="light"] .settings-window .nav-item {
+    color: #444444;
+}
+html[data-bs-theme="light"] .settings-window .nav-item:hover {
+    background: rgba(0, 0, 0, 0.04);
+    color: #222222;
+}
+html[data-bs-theme="light"] .settings-window .nav-item.active {
+    border-color: #2764e7;
+    color: #222222;
+    background: rgba(39, 100, 231, 0.08);
+}
+html[data-bs-theme="light"] .settings-window .chevron {
+    color: #777777;
+}
+
+html[data-bs-theme="light"] .settings-window .content-scroll {
+    background: #ffffff;
+}
+html[data-bs-theme="light"] .settings-window h1 {
+    color: #4b4b4b;
+    border-bottom-color: #e8e8e8;
+}
+html[data-bs-theme="light"] .settings-window .setting-title {
+    color: #444444;
+}
+html[data-bs-theme="light"] .settings-window .description {
+    color: #666666;
+}
+
+html[data-bs-theme="light"] .settings-window .gray-setting {
+    background: #f4f4f4;
+    border-color: #e8e8e8;
+}
+
+html[data-bs-theme="light"] .settings-window select,
+html[data-bs-theme="light"] .settings-window .number-input,
+html[data-bs-theme="light"] .settings-window .text-input {
+    background: #ffffff;
+    border-color: #cccccc;
+    color: #2b2b2b;
+}
+
+html[data-bs-theme="light"] .settings-window .checkbox {
+    background: #ffffff;
+    border-color: #cccccc;
+}
+html[data-bs-theme="light"] .settings-window .checkbox:checked {
+    background: #2764e7;
+    border-color: #2764e7;
+}
+
+html[data-bs-theme="light"] .settings-popup-card {
+    background: #ffffff;
+    border-color: #cccccc;
+    color: #2b2b2b;
+}
+html[data-bs-theme="light"] .settings-popup-header {
+    border-bottom-color: #e8e8e8;
+    background: #f8f8f8;
+}
+html[data-bs-theme="light"] .settings-popup-title {
+    color: #222222;
+}
+html[data-bs-theme="light"] .settings-popup-body {
+    color: #444444;
+}
+html[data-bs-theme="light"] .settings-popup-footer {
+    border-top-color: #e8e8e8;
+    background: #f8f8f8;
+}
+
+@media (max-width: 800px) {
+    .settings-window .sidebar { width: 190px; flex-basis: 190px; }
+    .settings-window .content-scroll { padding-left: 20px; padding-right: 20px; }
+}
+
+/* ── VSIX Theme Import Button & Setting ─────────────────────────────────────── */
+.settings-window .vsix-import-setting {
+    margin-top: 14px;
+    margin-bottom: 24px;
+    padding: 14px 16px;
+    background: var(--ide-bg-sidebar, rgba(255, 255, 255, 0.03));
+    border: 1px solid var(--ide-border, #3c3f41);
+    border-radius: 6px;
+}
+
+.settings-window .btn-settings-action-custom {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 8px;
+    padding: 6px 14px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #ffffff;
+    background: var(--ide-accent, #0066cc);
+    border: 1px solid var(--ide-border-active, #007acc);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.15s ease-in-out;
+}
+
+.settings-window .btn-settings-action-custom:hover {
+    filter: brightness(1.12);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+}
+
+.settings-window .btn-settings-action-custom:active {
+    filter: brightness(0.92);
+}
+
+.settings-window .btn-settings-action-custom:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
+}
+
+html[data-bs-theme="light"] .settings-window .vsix-import-setting {
+    background: #fbfbfb;
+    border-color: #dcdcdc;
+}
+
+html[data-bs-theme="light"] .settings-window .btn-settings-action-custom {
+    color: #ffffff;
+    background: #0066cc;
+    border-color: #005bb5;
+}

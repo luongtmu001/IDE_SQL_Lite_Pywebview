@@ -7,6 +7,7 @@
     const registry = {
         table: [
             { id: 'select-top', label: 'Select Top 1000', icon: 'fa-table-list' },
+            { id: 'edit-data', label: 'Edit Data (Top 200 Rows)', icon: 'fa-pen-to-square' },
             { id: 'select-count', label: 'Select Count(*)', icon: 'fa-hashtag' },
             { separator: true },
             { id: 'new-table', label: 'New Table...', icon: 'fa-plus' },
@@ -80,6 +81,19 @@
             { separator: true },
             { id: 'refresh', label: 'Refresh', icon: 'fa-rotate-right' },
         ],
+        sidebar: [
+            { id: 'new-connection', label: 'New Connection...', icon: 'fa-plug' },
+            { id: 'new-group', label: 'New Group...', icon: 'fa-folder-plus' },
+            { separator: true },
+            { id: 'refresh', label: 'Refresh', icon: 'fa-rotate-right' },
+        ],
+        group: [
+            { id: 'new-group', label: 'New Group...', icon: 'fa-folder-plus' },
+            { id: 'rename-group', label: 'Rename Group...', icon: 'fa-pen' },
+            { id: 'delete-group', label: 'Delete Group', icon: 'fa-trash', danger: true },
+            { separator: true },
+            { id: 'refresh', label: 'Refresh', icon: 'fa-rotate-right' },
+        ],
         connection: [
             // Dynamically built in show() based on isActive state
         ],
@@ -135,12 +149,84 @@
                 }
                 break;
             case 'connect':
+                if (nodeData.dbType === 'group_marker' || nodeData.config?.type === 'group_marker' || (nodeData.connName && nodeData.connName.startsWith('__group__'))) {
+                    console.warn('[ContextMenu] Cannot connect to a group');
+                    break;
+                }
                 if (window.AppExplorer && nodeData.config) {
                     window.AppExplorer.reconnect(nodeData.connName, nodeData.dbType, nodeData.config);
                 }
                 break;
+            case 'open-profiler':
+                if (window.pywebview && window.pywebview.api && typeof window.pywebview.api.open_profiler_window === 'function') {
+                    if (window.AppLoader) window.AppLoader.show('Đang mở SQL Trace Profiler...');
+                    window.pywebview.api.open_profiler_window(nodeData.connId || nodeData.name, nodeData.dbType);
+                    setTimeout(() => { if (window.AppLoader) window.AppLoader.hide(); }, 700);
+                }
+                break;
             case 'disconnect':
                 if (window.AppExplorer) window.AppExplorer.disconnect(connId);
+                break;
+            case 'new-connection': {
+                const connBtn = document.getElementById('ide-btn-connect');
+                if (connBtn) connBtn.click();
+                break;
+            }
+            case 'new-group': {
+                const parentGroup = (nodeData && nodeData.type === 'group') ? nodeData.name : null;
+                if (typeof window.showGroupInputModal === 'function') {
+                    window.showGroupInputModal({
+                        parentGroup: parentGroup,
+                        title: parentGroup ? `Tạo nhóm con trong "${parentGroup}"` : 'Tạo nhóm mới',
+                        onConfirm: async (groupName) => {
+                            const fullGroupPath = parentGroup ? `${parentGroup}/${groupName}` : groupName;
+                            if (window.AppExplorer && typeof window.AppExplorer.createGroup === 'function') {
+                                await window.AppExplorer.createGroup(fullGroupPath);
+                                if (typeof showToast === 'function') {
+                                    showToast(`✓ Đã tạo nhóm "${groupName}"`, 'success');
+                                }
+                            }
+                        }
+                    });
+                } else {
+                    const groupName = prompt('Nhập tên nhóm mới:');
+                    if (groupName && groupName.trim() && window.AppExplorer) {
+                        const fullGroupPath = parentGroup ? `${parentGroup}/${groupName.trim()}` : groupName.trim();
+                        window.AppExplorer.createGroup(fullGroupPath);
+                    }
+                }
+                break;
+            }
+            case 'rename-group': {
+                const fullPath = nodeData.name;
+                const baseName = nodeData.label || fullPath.split('/').pop();
+                const parentGroup = fullPath.includes('/') ? fullPath.substring(0, fullPath.lastIndexOf('/')) : null;
+                if (typeof window.showGroupInputModal === 'function') {
+                    window.showGroupInputModal({
+                        title: `Đổi tên nhóm "${baseName}"`,
+                        parentGroup: parentGroup,
+                        initialValue: baseName,
+                        onConfirm: async (newName) => {
+                            if (!newName || newName.trim() === baseName) return;
+                            const newFullPath = parentGroup ? `${parentGroup}/${newName.trim()}` : newName.trim();
+                            if (window.AppExplorer && typeof window.AppExplorer.renameGroup === 'function') {
+                                await window.AppExplorer.renameGroup(fullPath, newFullPath);
+                            }
+                        }
+                    });
+                }
+                break;
+            }
+            case 'delete-group': {
+                if (window.AppExplorer && typeof window.AppExplorer.deleteGroup === 'function') {
+                    window.AppExplorer.deleteGroup(nodeData.name);
+                }
+                break;
+            }
+            case 'edit-connection':
+                if (window.AppConnections && nodeData.config) {
+                    window.AppConnections.editConnection(nodeData.config);
+                }
                 break;
             case 'delete-connection':
                 if (confirm(`Are you sure you want to delete connection ${nodeData.connName}?`)) {
@@ -149,6 +235,11 @@
                 break;
             case 'drop':
                 confirmDrop(nodeData);
+                break;
+            case 'edit-data':
+                if (window.TableDataEditor) {
+                    window.TableDataEditor.openTable(nodeData);
+                }
                 break;
             case 'design':
                 if (window.TableDesigner) {
@@ -270,6 +361,12 @@
     function show(type, nodeData, x, y) {
         hide();
 
+        if (type === 'connection') {
+            if (nodeData?.dbType === 'group_marker' || nodeData?.config?.type === 'group_marker' || (nodeData?.name && nodeData.name.startsWith('__group__')) || (nodeData?.connName && nodeData.connName.startsWith('__group__'))) {
+                type = 'group';
+            }
+        }
+
         let items;
         if (type === 'connection') {
             // Build connection menu dynamically based on active state
@@ -278,13 +375,21 @@
                     { id: 'disconnect', label: 'Disconnect', icon: 'fa-plug-circle-xmark' },
                     { id: 'refresh', label: 'Refresh', icon: 'fa-rotate-right' },
                     { id: 'new-query', label: 'New Query', icon: 'fa-plus' },
+                    { id: 'open-profiler', label: 'SQL Trace Profiler...', icon: 'fa-bolt text-warning' },
                     { separator: true },
+                    { id: 'new-group', label: 'New Group...', icon: 'fa-folder-plus' },
+                    { separator: true },
+                    { id: 'edit-connection', label: 'Edit Connection', icon: 'fa-pen' },
                     { id: 'delete-connection', label: 'Delete Connection', icon: 'fa-trash', danger: true },
                 ];
             } else {
                 items = [
                     { id: 'connect', label: 'Connect', icon: 'fa-plug' },
+                    { id: 'open-profiler', label: 'SQL Trace Profiler...', icon: 'fa-bolt text-warning' },
                     { separator: true },
+                    { id: 'new-group', label: 'New Group...', icon: 'fa-folder-plus' },
+                    { separator: true },
+                    { id: 'edit-connection', label: 'Edit Connection', icon: 'fa-pen' },
                     { id: 'delete-connection', label: 'Delete Connection', icon: 'fa-trash', danger: true },
                 ];
             }

@@ -7,9 +7,9 @@ function initConnections() {
     const modalEl    = document.getElementById("connectionModal");
     const connForm   = document.getElementById("connectionForm");
 
-    if (!connectBtn || !modalEl || !saveBtn) return {};
-    // Initialize Bootstrap Modal
-    const bsModal = new bootstrap.Modal(modalEl);
+    if (!modalEl || !saveBtn) return {
+        editConnection,};
+    const bsModal = (typeof bootstrap !== 'undefined' && bootstrap.Modal) ? bootstrap.Modal.getOrCreateInstance(modalEl) : null;
     
     // Form elements
     const fName = document.getElementById("connName");
@@ -17,6 +17,8 @@ function initConnections() {
     const fHost = document.getElementById("connHost");
     const fPort = document.getElementById("connPort");
     const fDb = document.getElementById("connDb");
+    const fGroup = document.getElementById("connGroup");
+    const fGroupList = document.getElementById("connGroupList");
     const fWinAuth = document.getElementById("connWinAuth");
     const fEncrypt = document.getElementById("connEncrypt");
     const fTrustCert = document.getElementById("connTrustCert");
@@ -26,18 +28,109 @@ function initConnections() {
     const fUser = document.getElementById("connUser");
     const fPass = document.getElementById("connPass");
     
-    // Load last used profile from localStorage
-    function loadProfile() {
-        const saved = localStorage.getItem("ide_last_connection");
-        if (saved) {
+    // Helper to refresh group datalist safely
+    async function refreshGroupList() {
+        if (!fGroupList || !window.AppStorage || typeof window.AppStorage.getSavedConnections !== 'function') return;
+        try {
+            const saved = await window.AppStorage.getSavedConnections() || [];
+            const groups = [...new Set(
+                (saved || [])
+                    .filter(c => c && typeof c === 'object' && c.group)
+                    .map(c => String(c.group).trim())
+                    .filter(Boolean)
+            )];
+            fGroupList.innerHTML = groups.map(g => `<option value="${g}">`).join('');
+        } catch (e) {
+            console.warn('[connections.js] refreshGroupList error:', e);
+        }
+    }
+
+    // Load last used profile from AppStorage (data/connections.json)
+    async function editConnection(data) {
+        if (!data || data.type === 'group_marker' || String(data.name || '').startsWith('__group__')) {
+            console.warn('[connections.js] Cannot edit a group node as connection:', data);
+            return;
+        }
+        window._editingConnId = data.id || null;
+        fName.value = data.name || "";
+        fType.value = (data.type === "postgresql") ? "postgresql" : "sqlserver";
+        fHost.value = data.server || data.host || "localhost";
+        fPort.value = data.port || "";
+        fDb.value = data.database || "";
+        if (fGroup) fGroup.value = data.group || "";
+        fWinAuth.checked = Boolean(data.trusted_connection);
+        if (fEncrypt) fEncrypt.checked = data.encrypt !== undefined ? Boolean(data.encrypt) : (data.ssl !== undefined ? Boolean(data.ssl) : false);
+        if (fTrustCert) fTrustCert.checked = data.trust_server_certificate !== undefined ? Boolean(data.trust_server_certificate) : true;
+        if (fDriver) fDriver.value = data.driver || "ODBC Driver 17 for SQL Server";
+        if (fTimeout) fTimeout.value = data.timeout || 30;
+        fUser.value = data.username || "";
+        
+        // Show password masked if exists
+        fPass.value = "";
+        fPass.type = "password";
+        if (data.has_password || data.password) {
             try {
-                const data = JSON.parse(saved);
-                fName.value = data.name || "";
-                fType.value = data.type || "sqlserver";
+                if (window.AppStorage && typeof window.AppStorage.getConnectionPassword === 'function') {
+                    const pwd = await window.AppStorage.getConnectionPassword(data.id || data.name);
+                    if (pwd) {
+                        fPass.value = pwd;
+                        fPass.type = "password";
+                    }
+                }
+            } catch (_) {}
+        }
+        
+        // Reset toggle password eye icon to hidden (eye)
+        const toggleIcon = document.getElementById("btnToggleConnPass")?.querySelector("i");
+        if (toggleIcon) toggleIcon.className = "fa-solid fa-eye";
+
+        // Update modal title and button for Edit mode
+        const modalTitle = document.getElementById("connectionModalLabel");
+        if (modalTitle) {
+            modalTitle.innerHTML = '<i class="fa-solid fa-pen me-2" style="color: var(--ide-accent);"></i>Edit Connection';
+        }
+        if (saveBtn) {
+            saveBtn.innerHTML = '<i class="fa-solid fa-floppy-disk me-1"></i>Lưu';
+        }
+
+        syncTypeUI();
+        syncAuthUI();
+        await refreshGroupList();
+        if (bsModal) {
+            bsModal.show();
+        }
+    }
+
+    async function loadProfile() {
+        let data = null;
+        if (window.AppStorage && typeof window.AppStorage.getSavedConnections === 'function') {
+            try {
+                const savedList = await window.AppStorage.getSavedConnections();
+                if (Array.isArray(savedList)) {
+                    // Filter out group markers and non-connection items
+                    const realConns = savedList.filter(c => 
+                        c && typeof c === 'object' && 
+                        c.type && c.type !== 'group_marker' && 
+                        !String(c.name || '').startsWith('__group__')
+                    );
+                    if (realConns.length > 0) {
+                        data = realConns[realConns.length - 1];
+                    }
+                }
+            } catch (err) {
+                console.warn('[connections.js] loadProfile error:', err);
+            }
+        }
+        if (data) {
+            try {
+                fName.value = "";
+                fName.placeholder = data.name ? `Ví dụ: ${data.name}_Copy` : "My Connection";
+                fType.value = (data.type === "postgresql") ? "postgresql" : "sqlserver";
                 fHost.value = data.server || data.host || "localhost";
                 fPort.value = data.port || "";
                 fDb.value = data.database || "";
-                fWinAuth.checked = data.trusted_connection || false;
+                if (fGroup) fGroup.value = data.group || "";
+                fWinAuth.checked = Boolean(data.trusted_connection);
                 if (fEncrypt) {
                     fEncrypt.checked = data.encrypt !== undefined ? Boolean(data.encrypt) : (data.ssl !== undefined ? Boolean(data.ssl) : false);
                 }
@@ -51,11 +144,25 @@ function initConnections() {
                     fTimeout.value = data.timeout;
                 }
                 fUser.value = data.username || "";
-                // Do not load password for security
                 fPass.value = ""; 
             } catch (e) {
                 console.error("Error loading profile", e);
             }
+        } else {
+            fName.value = "";
+            fName.placeholder = "My Connection";
+            fType.value = "sqlserver";
+            fHost.value = "localhost";
+            fPort.value = "";
+            fDb.value = "";
+            if (fGroup) fGroup.value = "";
+            fWinAuth.checked = true;
+            if (fEncrypt) fEncrypt.checked = false;
+            if (fTrustCert) fTrustCert.checked = true;
+            if (fDriver) fDriver.value = "ODBC Driver 17 for SQL Server";
+            if (fTimeout) fTimeout.value = 30;
+            fUser.value = "";
+            fPass.value = "";
         }
     }
     
@@ -64,12 +171,17 @@ function initConnections() {
             alert("Connection Name and Host are required!");
             return null;
         }
+        if (fType.value === "group_marker" || fName.value.startsWith('__group__')) {
+            alert("Không thể tạo kết nối với định dạng nhóm (group marker)!");
+            return null;
+        }
         
         const payload = {
             name: fName.value,
             type: fType.value,
             port: fPort.value ? parseInt(fPort.value) : null,
-            database: fDb.value
+            database: fDb.value,
+            group: fGroup ? fGroup.value.trim() : ""
         };
         
         if (fType.value === "sqlserver") {
@@ -105,7 +217,7 @@ function initConnections() {
         if (fUser) fUser.disabled = disableCreds;
         if (fPass) fPass.disabled = disableCreds;
     }
-    fWinAuth.addEventListener('change', syncAuthUI);
+    if (fWinAuth) fWinAuth.addEventListener('change', syncAuthUI);
 
     // Toggle password visibility in Connection Modal
     const togglePassBtn = document.getElementById("btnToggleConnPass");
@@ -131,18 +243,29 @@ function initConnections() {
         }
         syncAuthUI();
     }
-    fType.addEventListener("change", syncTypeUI);
+    if (fType) fType.addEventListener("change", syncTypeUI);
 
     syncAuthUI(); // apply on load
     syncTypeUI();
 
     // Open Modal
-    connectBtn.addEventListener("click", () => {
-        loadProfile();
-        syncTypeUI();
-        syncAuthUI();
-        bsModal.show();
-    });
+    if (connectBtn && bsModal) {
+        connectBtn.addEventListener("click", async () => {
+            window._editingConnId = null;
+            const modalTitle = document.getElementById("connectionModalLabel");
+            if (modalTitle) {
+                modalTitle.innerHTML = '<i class="fa-solid fa-plug me-2" style="color: var(--ide-accent);"></i>New Connection';
+            }
+            if (saveBtn) {
+                saveBtn.innerHTML = '<i class="fa-solid fa-plug me-1"></i>Connect';
+            }
+            await loadProfile();
+            syncTypeUI();
+            syncAuthUI();
+            await refreshGroupList();
+            bsModal.show();
+        });
+    }
     
     // Test Connection
     if (testBtn) {
@@ -182,6 +305,67 @@ function initConnections() {
         const payload = buildPayload();
         if (!payload) return;
         
+        if (window.AppStorage && typeof window.AppStorage.getSavedConnections === 'function') {
+            try {
+                const savedConns = await window.AppStorage.getSavedConnections() || [];
+                const nonMarkerConns = (savedConns || []).filter(c => c && typeof c === 'object' && c.type !== 'group_marker');
+
+                // 1. Check duplicate connection name
+                const isDuplicateName = nonMarkerConns.some(c => 
+                    c.id !== window._editingConnId && 
+                    (c.name || '').trim().toLowerCase() === (payload.name || '').trim().toLowerCase()
+                );
+                if (isDuplicateName) {
+                    alert("Tên kết nối đã tồn tại! Vui lòng chọn tên khác.");
+                    return;
+                }
+
+                // 2. Check duplicate Host/IP
+                const currentHost = (payload.server || payload.host || '').trim().toLowerCase();
+                if (currentHost) {
+                    const currentPort = String(payload.port || (payload.type === 'postgresql' ? '5432' : '1433'));
+                    const isDuplicateHost = nonMarkerConns.some(c => {
+                        if (c.id === window._editingConnId) return false;
+                        const h = (c.server || c.host || '').trim().toLowerCase();
+                        const p = String(c.port || (c.type === 'postgresql' ? '5432' : '1433'));
+                        return h === currentHost && p === currentPort;
+                    });
+                    if (isDuplicateHost) {
+                        alert("Host/IP kết nối đã tồn tại! Vui lòng kiểm tra lại.");
+                        return;
+                    }
+                }
+            } catch (err) {
+                console.warn('[connections.js] check duplicate error:', err);
+            }
+        }
+        
+        // In Edit mode: save directly without re-connecting
+        if (window._editingConnId) {
+            saveBtn.disabled = true;
+            saveBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i>Đang lưu...';
+            try {
+                const profileToSave = { ...payload, id: window._editingConnId };
+                if (!profileToSave.password) {
+                    profileToSave.clear_password = true;
+                }
+                if (window.AppExplorer && typeof window.AppExplorer.saveConnectionProfile === 'function') {
+                    await window.AppExplorer.saveConnectionProfile(profileToSave);
+                } else if (window.AppStorage && typeof window.AppStorage.saveConnectionProfile === 'function') {
+                    await window.AppStorage.saveConnectionProfile(profileToSave);
+                }
+                bsModal.hide();
+                if (window.AppExplorer) window.AppExplorer.loadActiveConnections();
+                showToast(`✓ Đã lưu thay đổi kết nối ${payload.name}`, 'success');
+            } catch (e) {
+                showToast(`Lỗi khi lưu kết nối: ${e.message}`, 'danger');
+            } finally {
+                saveBtn.disabled = false;
+                saveBtn.innerHTML = '<i class="fa-solid fa-floppy-disk me-1"></i>Lưu';
+            }
+            return;
+        }
+
         // Disable button while connecting
         saveBtn.disabled = true;
         saveBtn.textContent = "Connecting...";
@@ -199,21 +383,22 @@ function initConnections() {
             if (res.ok && data.connection) {
 
                 const profileToSave = { ...payload };
-                delete profileToSave.password;
-                localStorage.setItem("ide_last_connection", JSON.stringify(profileToSave));
-
+                // Keep password in profileToSave so backend can encrypt it
                 bsModal.hide();
 
-                // Add to Object Explorer
-                if (window.AppExplorer) {
-                    if (window.AppExplorer.saveConnectionProfile) {
-                        window.AppExplorer.saveConnectionProfile(profileToSave);
-                    }
+                // Add to Object Explorer & persist profile to connections.json (Single source of truth)
+                if (window.AppExplorer && typeof window.AppExplorer.saveConnectionProfile === 'function') {
+                    await window.AppExplorer.saveConnectionProfile(profileToSave);
                     const refreshBtn = document.getElementById('ide-btn-refresh-tree');
                     if (refreshBtn) refreshBtn.click();
+                } else if (window.AppStorage && typeof window.AppStorage.saveConnectionProfile === 'function') {
+                    await window.AppStorage.saveConnectionProfile(profileToSave);
                 }
 
-                showToast(`✓ Connected to ${payload.name}`, 'success');
+                const toastMsg = data.reused
+                    ? `✓ Đã sử dụng kết nối hiện có tới ${payload.name}`
+                    : `✓ Connected to ${payload.name}`;
+                showToast(toastMsg, 'success');
 
                 // Update status bar
                 const statusConn = document.getElementById('ide-status-conn');
@@ -225,6 +410,14 @@ function initConnections() {
                 if (typeof window.activateConnectionContext === 'function') {
                     window.activateConnectionContext(data.connection.connection_id, payload.name, payload.type, payload.database);
                 }
+
+                // Dispatch event so BRAVO window or other components can catch the new connection
+                document.dispatchEvent(new CustomEvent('connection-created', {
+                    detail: { connection: data.connection, payload: payload }
+                }));
+                document.dispatchEvent(new CustomEvent('bravo-connection-created', {
+                    detail: { connection: data.connection, payload: payload }
+                }));
             } else {
                 showToast("Connection failed: " + (data.error || "Unknown error"), 'danger');
             }
@@ -246,24 +439,228 @@ function initConnections() {
         saveBtn.addEventListener("click", handleSaveAndConnect);
     }
 
-    return {};
+    window.editConnection = editConnection;
+    return {
+        editConnection,
+        loadProfile,
+        show: async () => {
+            if (bsModal) {
+                window._editingConnId = null;
+                const modalTitle = document.getElementById("connectionModalLabel");
+                if (modalTitle) {
+                    modalTitle.innerHTML = '<i class="fa-solid fa-plug me-2" style="color: var(--ide-accent);"></i>New Connection';
+                }
+                if (saveBtn) {
+                    saveBtn.innerHTML = '<i class="fa-solid fa-plug me-1"></i>Connect';
+                }
+                await loadProfile();
+                syncTypeUI();
+                syncAuthUI();
+                await refreshGroupList();
+                bsModal.show();
+            }
+        },
+        hide: () => {
+            if (bsModal) bsModal.hide();
+        }
+    };
 }
 
-// Lightweight toast helper (bottom-right, auto-dismiss)
+// Lightweight toast helper with top-right stacked container (never hidden by bottom status/task bar)
 function showToast(message, type = 'info') {
-    const colors = { success: 'var(--ide-success)', danger: 'var(--ide-danger)', info: 'var(--ide-text-muted)' };
+    let container = document.getElementById('ide-toast-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'ide-toast-container';
+        container.style.cssText = `
+            position: fixed;
+            top: 48px;
+            right: 20px;
+            z-index: 999999;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            pointer-events: none;
+            max-width: 380px;
+        `;
+        document.body.appendChild(container);
+    }
+
+    const colors = {
+        success: '#2ea44f',
+        danger: '#f85149',
+        warning: '#d29922',
+        info: '#58a6ff',
+        secondary: 'var(--ide-text-muted, #8b949e)'
+    };
+    const icons = {
+        success: 'fa-circle-check',
+        danger: 'fa-circle-xmark',
+        warning: 'fa-triangle-exclamation',
+        info: 'fa-circle-info',
+        secondary: 'fa-bell'
+    };
+
+    const color = colors[type] || colors.info;
+    const icon = icons[type] || icons.info;
+
     const el = document.createElement('div');
+    el.className = `ide-toast-item ide-toast-${type}`;
     el.style.cssText = `
-        position: fixed; bottom: 36px; right: 16px; z-index: 9999;
-        background: var(--ide-bg-modal); border: 1px solid var(--ide-border);
-        border-left: 3px solid ${colors[type] || colors.info};
-        color: var(--ide-text-main); font-size: 12px; padding: 8px 14px;
-        border-radius: 4px; box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-        animation: ctxAppear 0.15s ease; max-width: 320px;
+        pointer-events: auto;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        background: var(--ide-bg-modal, #252526);
+        border: 1px solid var(--ide-border, #3c3f41);
+        border-left: 4px solid ${color};
+        color: var(--ide-text-main, #cccccc);
+        font-size: 12px;
+        padding: 9px 14px;
+        border-radius: 5px;
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+        opacity: 0;
+        transform: translateX(30px);
+        transition: opacity 0.2s ease, transform 0.2s ease;
+        word-break: break-word;
     `;
-    el.textContent = message;
-    document.body.appendChild(el);
-    setTimeout(() => el.remove(), 4000);
+
+    const cleanMsg = typeof message === 'string' ? message.replace(/</g, '&lt;').replace(/>/g, '&gt;') : message;
+    el.innerHTML = `
+        <i class="fa-solid ${icon}" style="color: ${color}; font-size: 14px; flex-shrink: 0;"></i>
+        <span style="flex: 1; line-height: 1.4;">${cleanMsg}</span>
+        <span class="ide-toast-close" style="cursor: pointer; opacity: 0.6; padding: 0 4px; font-size: 15px; line-height: 1;" title="Đóng">&times;</span>
+    `;
+
+    const closeBtn = el.querySelector('.ide-toast-close');
+    let removed = false;
+    const dismiss = () => {
+        if (removed) return;
+        removed = true;
+        el.style.opacity = '0';
+        el.style.transform = 'translateX(30px)';
+        setTimeout(() => el.remove(), 200);
+    };
+    if (closeBtn) closeBtn.addEventListener('click', dismiss);
+
+    container.appendChild(el);
+    requestAnimationFrame(() => {
+        el.style.opacity = '1';
+        el.style.transform = 'translateX(0)';
+    });
+
+    setTimeout(dismiss, 4000);
 }
+window.showToast = showToast;
 
 // connections.js is initialized by app.js via initConnections()
+
+
+// Global promptReconnectPassword support for both IDE and Standalone BRAVO windows
+window.promptReconnectPassword = function (name, dbType, config, onConnected) {
+    if (!config || config.type === 'group_marker' || dbType === 'group_marker' || String(name || '').startsWith('__group__')) {
+        console.warn('[connections.js] Cannot prompt reconnect password for group:', name);
+        return;
+    }
+    const modalEl = document.getElementById('reconnectPasswordModal');
+    if (!modalEl) {
+        const entered = prompt(`Enter password for user '${config.username || ''}' to connect to ${name}:`);
+        if (entered !== null) {
+            fetch('/api/connections', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ...config, password: entered })
+            }).then(r => r.json()).then(data => {
+                if (data.success && typeof onConnected === 'function') onConnected(data.connection, config);
+            });
+        }
+        return;
+    }
+
+    const bsModal = (typeof bootstrap !== 'undefined' && bootstrap.Modal) ? bootstrap.Modal.getOrCreateInstance(modalEl) : null;
+    const elName = document.getElementById('reconnectConnName');
+    const elHost = document.getElementById('reconnectConnHost');
+    const elPort = document.getElementById('reconnectConnPort');
+    const elPortRow = document.getElementById('reconnectConnPortRow');
+    const elUser = document.getElementById('reconnectConnUser');
+    const elPass = document.getElementById('reconnectPassInput');
+    const elError = document.getElementById('reconnectPassError');
+    const btnToggle = document.getElementById('btnToggleReconnectPass');
+    const btnConfirm = document.getElementById('btnConfirmReconnect');
+
+    if (elName) elName.textContent = name || config.name || 'Connection';
+    if (elHost) elHost.textContent = config.server || config.host || 'localhost';
+
+    const portVal = config.port;
+    if (portVal && elPort && elPortRow) {
+        elPort.textContent = portVal;
+        elPortRow.style.display = '';
+    } else if (elPortRow) {
+        elPortRow.style.display = 'none';
+    }
+
+    if (elUser) elUser.textContent = config.username || '(not specified)';
+
+    const reconnForm = document.getElementById('reconnectPasswordForm');
+    if (elPass) { elPass.value = ''; elPass.type = 'password'; }
+    if (elError) { elError.textContent = ''; elError.classList.add('d-none'); }
+
+    if (btnToggle && !btnToggle._hasListener) {
+        btnToggle._hasListener = true;
+        btnToggle.addEventListener('click', () => {
+            if (!elPass) return;
+            const isPass = elPass.type === 'password';
+            elPass.type = isPass ? 'text' : 'password';
+            const icon = btnToggle.querySelector('i');
+            if (icon) icon.className = isPass ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye';
+        });
+    }
+
+    const submitPassword = async () => {
+        const password = elPass ? elPass.value : '';
+        if (!password) {
+            if (elError) { elError.textContent = 'Password is required.'; elError.classList.remove('d-none'); }
+            return;
+        }
+
+        if (btnConfirm) {
+            btnConfirm.disabled = true;
+            btnConfirm.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i>Connecting...';
+        }
+
+        try {
+            const res = await fetch('/api/connections', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ...config, password })
+            });
+            const data = await res.json();
+            if (res.ok && data.connection) {
+                if (bsModal) bsModal.hide();
+                if (typeof onConnected === 'function') {
+                    onConnected(data.connection, config);
+                }
+            } else {
+                const errMsg = data.error || 'Connection failed.';
+                if (elError) { elError.textContent = errMsg; elError.classList.remove('d-none'); }
+            }
+        } catch (e) {
+            if (elError) { elError.textContent = 'Network error: ' + e.message; elError.classList.remove('d-none'); }
+        } finally {
+            if (btnConfirm) {
+                btnConfirm.disabled = false;
+                btnConfirm.innerHTML = '<i class="fa-solid fa-plug me-1"></i>Connect';
+            }
+        }
+    };
+
+    if (reconnForm) {
+        reconnForm.onsubmit = (e) => { e.preventDefault(); submitPassword(); };
+    }
+    if (btnConfirm) {
+        btnConfirm.onclick = (e) => { e.preventDefault(); submitPassword(); };
+    }
+
+    if (bsModal) bsModal.show();
+    setTimeout(() => { if (elPass) elPass.focus(); }, 200);
+};

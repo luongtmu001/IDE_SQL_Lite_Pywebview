@@ -47,6 +47,11 @@ function initQuery() {
             btn.classList.toggle('active', active);
             view.classList.toggle('d-none', !active);
         });
+
+        const copyMsgBtn = document.getElementById('ide-btn-copy-messages');
+        if (copyMsgBtn) {
+            copyMsgBtn.classList.toggle('d-none', viewKey !== 'results-messages');
+        }
     }
 
     Object.entries(tabs).forEach(([key, { btn }]) => {
@@ -163,6 +168,9 @@ function initQuery() {
             newCtx.schema = newCtx.dbType === 'postgresql' ? 'public' : 'dbo';
         }
 
+        if (newCtx.database) window.ActiveDatabase = newCtx.database;
+        if (newCtx.schema) window.ActiveSchema = newCtx.schema;
+
         // Apply updated database and schema to active tab and action bar
         if (window.AppTabs) {
             window.AppTabs.updateActiveTabContext(newCtx);
@@ -205,18 +213,18 @@ function initQuery() {
                     let savedList = [];
                     if (window.AppExplorer && window.AppExplorer.getSavedConnections) {
                         savedList = window.AppExplorer.getSavedConnections();
-                    } else {
+                    } else if (window.AppStorage && typeof window.AppStorage.getSavedConnections === 'function') {
                         try {
-                            const raw = localStorage.getItem('ide_saved_connections');
-                            if (raw) savedList = JSON.parse(raw);
+                            savedList = await window.AppStorage.getSavedConnections() || [];
                         } catch (_) {}
                     }
 
                     const allItems = [];
                     const seenKeys = new Set();
 
-                    // Saved profiles first
+                    // Saved profiles first (exclude group markers)
                     savedList.forEach(s => {
+                        if (!s || s.type === 'group_marker' || String(s.name || '').startsWith('__group__')) return;
                         const sName = s.name || s.server || 'Server';
                         const sType = s.type || 'sqlserver';
                         const key = sName + '::' + sType;
@@ -234,6 +242,7 @@ function initQuery() {
 
                     // Active connections not in saved list
                     activeList.forEach(c => {
+                        if (!c || c.type === 'group_marker' || String(c.name || '').startsWith('__group__')) return;
                         const cType = c.type || c.config?.type || 'sqlserver';
                         const cName = c.name || c.config?.name || c.server || c.config?.server || 'Server';
                         const key = cName + '::' + cType;
@@ -288,6 +297,7 @@ function initQuery() {
 
                             li.querySelector('a').addEventListener('click', async (e) => {
                                 e.preventDefault();
+                                if (c.type === 'group_marker' || String(c.name || '').startsWith('__group__')) return;
                                 if (window.bootstrap) {
                                     const dd = bootstrap.Dropdown.getInstance(btnConn);
                                     if (dd) dd.hide();
@@ -373,14 +383,46 @@ function initQuery() {
                     }
 
                     const header = document.createElement('li');
-                    header.innerHTML = '<h6 class="dropdown-header text-uppercase" style="font-size: 10px; letter-spacing: 0.5px;">Select Database</h6>';
+                    header.className = 'ide-ctx-db-header';
+                    header.innerHTML = `
+                        <div class="d-flex align-items-center justify-content-between">
+                            <span class="ide-ctx-db-header-title">Select Database</span>
+                            <button type="button" class="ide-ctx-db-filter-btn" title="Lọc database">
+                                <i class="fa-solid fa-filter"></i>
+                            </button>
+                        </div>
+                        <div class="ide-ctx-db-filter-box d-none">
+                            <div class="ide-ctx-db-filter-group">
+                                <i class="fa-solid fa-magnifying-glass ide-ctx-db-filter-icon"></i>
+                                <input type="text" class="ide-ctx-db-filter-input" placeholder="Lọc database..." autocomplete="off" spellcheck="false">
+                                <button type="button" class="ide-ctx-db-filter-clear d-none" title="Xóa lọc">
+                                    <i class="fa-solid fa-xmark"></i>
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                    header.addEventListener('click', (e) => e.stopPropagation());
+                    header.addEventListener('keydown', (e) => e.stopPropagation());
                     menuDb.appendChild(header);
+
+                    const filterBtn = header.querySelector('.ide-ctx-db-filter-btn');
+                    const filterBox = header.querySelector('.ide-ctx-db-filter-box');
+                    const filterInput = header.querySelector('.ide-ctx-db-filter-input');
+                    const filterClear = header.querySelector('.ide-ctx-db-filter-clear');
+
+                    const noMatchLi = document.createElement('li');
+                    noMatchLi.className = 'ide-ctx-db-no-match d-none';
+                    noMatchLi.textContent = 'Không tìm thấy cơ sở dữ liệu phù hợp';
+                    menuDb.appendChild(noMatchLi);
+
+                    const dbItems = [];
 
                     data.items.forEach(item => {
                         const dbName = typeof item === 'string' ? item : (item.name || '');
                         const isCurrent = dbName === currentDb;
 
                         const li = document.createElement('li');
+                        li.dataset.dbname = dbName.toLowerCase();
                         li.innerHTML = `
                             <a class="dropdown-item d-flex align-items-center justify-content-between py-1 px-3 ${isCurrent ? 'active' : ''}" href="#" style="cursor: pointer;">
                                 <span><i class="fa-solid fa-database me-2 text-info"></i>${dbName}</span>
@@ -432,6 +474,66 @@ function initQuery() {
                         });
 
                         menuDb.appendChild(li);
+                        dbItems.push({ li, name: dbName.toLowerCase() });
+                    });
+
+                    // Live Filter function
+                    const applyFilter = (query) => {
+                        const q = (query || '').trim().toLowerCase();
+                        let visibleCount = 0;
+                        dbItems.forEach(({ li, name }) => {
+                            if (!q || name.includes(q)) {
+                                li.style.display = '';
+                                visibleCount++;
+                            } else {
+                                li.style.display = 'none';
+                            }
+                        });
+                        noMatchLi.classList.toggle('d-none', visibleCount > 0);
+                        filterClear.classList.toggle('d-none', !q);
+                    };
+
+                    // Toggle filter box
+                    filterBtn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        const isHidden = filterBox.classList.contains('d-none');
+                        if (isHidden) {
+                            filterBox.classList.remove('d-none');
+                            filterBtn.classList.add('active');
+                            setTimeout(() => filterInput.focus(), 50);
+                        } else {
+                            filterBox.classList.add('d-none');
+                            filterBtn.classList.remove('active');
+                            filterInput.value = '';
+                            applyFilter('');
+                        }
+                    });
+
+                    // Real-time input filtering
+                    filterInput.addEventListener('input', (e) => {
+                        applyFilter(e.target.value);
+                    });
+
+                    // Clear button click
+                    filterClear.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        filterInput.value = '';
+                        applyFilter('');
+                        filterInput.focus();
+                    });
+
+                    // Keyboard shortcuts
+                    filterInput.addEventListener('keydown', (e) => {
+                        if (e.key === 'Escape') {
+                            e.stopPropagation();
+                            if (filterInput.value) {
+                                filterInput.value = '';
+                                applyFilter('');
+                            } else {
+                                filterBox.classList.add('d-none');
+                                filterBtn.classList.remove('active');
+                            }
+                        }
                     });
                 } catch (e) {
                     menuDb.innerHTML = `<li><span class="dropdown-item text-danger small">Network error: ${e.message}</span></li>`;
@@ -524,6 +626,19 @@ function initQuery() {
         }
     }
 
+    function indicateMessagesTabError(hasError) {
+        const rtabMessages = document.getElementById('ide-rtab-messages');
+        if (!rtabMessages) return;
+        let dot = rtabMessages.querySelector('.ide-tab-err-dot');
+        if (!dot) {
+            dot = document.createElement('span');
+            dot.className = 'ide-tab-err-dot d-none';
+            dot.title = 'Có lỗi khi thực thi';
+            rtabMessages.appendChild(dot);
+        }
+        dot.classList.toggle('d-none', !hasError);
+    }
+
     // ── Restore Tab Results ───────────────────────────────────────────────────
     function restoreTabResults(state) {
         if (!state) {
@@ -532,17 +647,17 @@ function initQuery() {
             if (planEl) planEl.textContent = '';
             setStatus('');
             setResultsTabVisible(false);
+            indicateMessagesTabError(false);
             switchResultView('results-messages');
             return;
         }
 
+        indicateMessagesTabError(Boolean(state && (state.messageType === 'error' || state.messageType === 'warning')));
+
         if (messagesEl) {
             messagesEl.innerHTML = '';
             if (state.messageText) {
-                const pre = document.createElement('span');
-                pre.className = state.messageText.startsWith('Error') ? 'msg-error' : 'msg-success';
-                pre.textContent = state.messageText;
-                messagesEl.appendChild(pre);
+                showMessage(state.messageText, state.messageType || (state.messageText.startsWith('Error') ? 'error' : 'info'), state.messageMetadata || null);
             }
         }
         
@@ -565,12 +680,29 @@ function initQuery() {
     async function executeQuery() {
         if (resultPanelState.isRunning) return;
 
+        if (typeof window.ensureResultPanelVisible === 'function') {
+            window.ensureResultPanelVisible(true);
+        }
+
         if (!window.AppEditor) return;
 
-        // Prefer selected text
-        let sql = window.AppEditor.getSelection();
-        if (!sql || !sql.trim()) sql = window.AppEditor.getValue();
-        if (!sql.trim()) {
+        // Prefer selected text and track editor line offset
+        let baseStartLine = 1;
+        let sql = '';
+        if (typeof window.AppEditor.somethingSelected === 'function' && window.AppEditor.somethingSelected()) {
+            sql = window.AppEditor.getSelection();
+            const monacoSel = (typeof window.AppEditor.getMonacoSelection === 'function')
+                ? window.AppEditor.getMonacoSelection()
+                : (window.AppEditor.rawEditor ? window.AppEditor.rawEditor.getSelection() : null);
+            if (monacoSel && typeof monacoSel.startLineNumber === 'number') {
+                baseStartLine = monacoSel.startLineNumber;
+            }
+        } else if (typeof window.AppEditor.getValue === 'function') {
+            sql = window.AppEditor.getValue();
+            baseStartLine = 1;
+        }
+
+        if (!sql || !sql.trim()) {
             showMessage('Error: Query is empty.', 'error');
             setResultsTabVisible(false);
             switchResultView('results-messages');
@@ -611,51 +743,102 @@ function initQuery() {
                     database: dbName || null
                 })
             });
-            const data = await res.json();
-            const ms   = Math.round(performance.now() - t0);
 
-            if (!res.ok || !data.success) throw new Error(data.error || 'Unknown error');
+            let data;
+            try {
+                data = await res.json();
+            } catch (jsonErr) {
+                data = { success: false, error: res.statusText || 'Lỗi phản hồi từ server' };
+            }
+            const ms = Math.round(performance.now() - t0);
 
             // If query execution changed the current database (e.g. USE statement executed),
             // update tab state and action bar
-            if (data.current_database && window.AppTabs) {
+            if (data && data.current_database && window.AppTabs) {
                 window.AppTabs.updateActiveTabContext({ database: data.current_database });
             }
 
             const state = window.AppTabs ? window.AppTabs.getActiveTabState() : null;
             if (state) state.resultData = { ...data, durationMs: ms };
 
-            // Filter to only result sets with actual columns (skip USE/DDL empty sets)
-            const dataResults = (data.results || []).filter(r => r.columns && r.columns.length > 0);
+            // Filter to only result sets with actual columns
+            const dataResults = (data && data.results && Array.isArray(data.results))
+                ? data.results.filter(r => r.columns && r.columns.length > 0)
+                : [];
+            const hasData = dataResults.length > 0;
+            const hasErrors = Boolean(!res.ok || !data.success || (data.errors && data.errors.length > 0));
+
+            const errorMsg = cleanClientMessage(data.error || '');
+            const errorsList = (data.errors && Array.isArray(data.errors) && data.errors.length > 0)
+                ? data.errors
+                : (hasErrors ? [{
+                    message: errorMsg || 'Query execution failed',
+                    line: data.error_line,
+                    col: data.error_col,
+                    token: data.error_token
+                }] : []);
 
             // Format SSMS-like messages
             let msgLines = [];
-            if (data.messages && data.messages.length > 0) {
-                msgLines = [...data.messages];
+            if (data.messages && Array.isArray(data.messages) && data.messages.length > 0) {
+                msgLines = data.messages.map(cleanClientMessage).filter(m => m !== '');
             } else if (data.message) {
-                msgLines.push(data.message);
+                const cm = cleanClientMessage(data.message);
+                if (cm) msgLines.push(cm);
+            } else if (errorMsg) {
+                msgLines = [errorMsg];
             }
             msgLines.push(`\nCompletion time: ${new Date().toLocaleTimeString()} (${ms} ms)`);
-            const msgText = msgLines.join('\n');
+            const fullMsgText = msgLines.join('\n');
 
-            if (dataResults.length > 0) {
-                // SELECT result(s) -> Show Results Tab
+            const msgType = hasErrors ? (hasData ? 'warning' : 'error') : 'success';
+            showMessage(fullMsgText, msgType, {
+                baseStartLine,
+                executedSql: sql,
+                errors: errorsList
+            });
+
+            if (hasData) {
+                // Results available (e.g. statement 1 succeeded) -> Show Results Tab
                 setResultsTabVisible(true);
                 renderGrid({ results: dataResults }, ms);
-                showMessage(msgText, 'success');
+
+                if (hasErrors) {
+                    // Subsequent statement failed -> notify user and show indicator on Messages tab
+                    const firstErrMsg = (errorsList[0] && (errorsList[0].clean_message || errorsList[0].message)) || errorMsg || 'Có lỗi khi thực thi câu lệnh tiếp theo';
+                    const firstErrLine = (errorsList[0] && errorsList[0].line) ? ` tại dòng ${errorsList[0].line}` : '';
+                    setStatus(`${dataResults.length} result set${dataResults.length > 1 ? 's' : ''} · Có lỗi xảy ra${firstErrLine} · ${ms} ms`, true);
+
+                    if (typeof showToast === 'function') {
+                        showToast(`Câu lệnh 1 thành công. Lỗi${firstErrLine}: ${firstErrMsg}`, 'warning');
+                    }
+
+                    indicateMessagesTabError(true);
+                } else {
+                    indicateMessagesTabError(false);
+                }
+
                 switchResultView('results-grid');
             } else {
-                // DDL / DML / PRINT -> Hide Results Tab (SSMS Parity)
+                // No result sets (all failed or pure DDL/PRINT)
                 setResultsTabVisible(false);
                 clearResults();
-                showMessage(msgText, 'success');
+                indicateMessagesTabError(hasErrors);
+                if (hasErrors) {
+                    setStatus('Error', true);
+                }
                 switchResultView('results-messages');
             }
 
         } catch (e) {
             const ms = Math.round(performance.now() - t0);
             setResultsTabVisible(false);
-            showMessage(`Msg: ${e.message}\nCompletion time: ${new Date().toLocaleTimeString()} (${ms} ms)`, 'error');
+            const cleanErr = cleanClientMessage(e.message || 'Unknown execution error');
+            showMessage(`${cleanErr}\nCompletion time: ${new Date().toLocaleTimeString()} (${ms} ms)`, 'error', {
+                baseStartLine,
+                executedSql: sql,
+                errors: [{ message: cleanErr, line: 1, col: 1 }]
+            });
             setStatus('Error', true);
             switchResultView('results-messages');
         } finally {
@@ -666,6 +849,11 @@ function initQuery() {
     // ── Execution Plan ────────────────────────────────────────────────────────
     async function requestPlan() {
         if (resultPanelState.isRunning) return;
+
+        if (typeof window.ensureResultPanelVisible === 'function') {
+            window.ensureResultPanelVisible(true);
+        }
+
         if (!window.AppEditor) return;
 
         let sql = window.AppEditor.getSelection();
@@ -740,6 +928,25 @@ function initQuery() {
                 pane.style.flex = '1 1 100%';
             }
 
+            // Filter bar banner for this grid pane
+            const filterBar = document.createElement('div');
+            filterBar.className = 'ide-result-filter-bar d-none';
+            filterBar.style.display = 'none';
+            filterBar.innerHTML = `
+                <div class="d-flex align-items-center gap-2 flex-grow-1 text-truncate">
+                    <i class="fa-solid fa-filter text-primary" style="font-size: 11px;"></i>
+                    <span class="ide-result-filter-summary text-truncate"></span>
+                </div>
+                <button type="button" class="ide-btn-clear-all-filters" title="Xóa tất cả bộ lọc trên bảng kết quả này">
+                    <i class="fa-solid fa-circle-xmark me-1"></i>Xóa tất cả lọc
+                </button>
+            `;
+            pane.appendChild(filterBar);
+
+            // Table scroll wrapper (enables sticky thead while filterBar stays neatly above)
+            const tableScroll = document.createElement('div');
+            tableScroll.className = 'ide-grid-table-scroll';
+
             // Create table
             const table = document.createElement('table');
             table.className = 'ide-results-table';
@@ -760,19 +967,36 @@ function initQuery() {
                 const colName = typeof col === 'string' ? col : col.name;
                 const colKey = `${index}_${colName}`;
                 const th = document.createElement('th');
-                const w = savedWidths[colKey] || savedWidths[colName] || 120;
+                const minW = Math.max(38, Math.min(160, colName.length * 8 + 36));
+                const w = savedWidths[colKey] || savedWidths[colName] || Math.max(minW, 120);
                 th.style.width = w + 'px';
-                th.style.minWidth = '50px';
+                th.style.minWidth = minW + 'px';
+
+                // Content wrapper: column title + filter button
+                const contentDiv = document.createElement('div');
+                contentDiv.className = 'ide-th-content';
 
                 const label = document.createElement('span');
+                label.className = 'ide-th-name';
                 label.textContent = colName;
-                label.style.pointerEvents = 'none';
-                th.appendChild(label);
+                label.title = colName;
+                contentDiv.appendChild(label);
+
+                const filterBtn = document.createElement('button');
+                filterBtn.type = 'button';
+                filterBtn.className = 'ide-th-filter-btn';
+                filterBtn.dataset.colIdx = cIdx;
+                filterBtn.dataset.colName = colName;
+                filterBtn.title = `Lọc cột [${colName}]`;
+                filterBtn.innerHTML = '<i class="fa-solid fa-filter"></i>';
+                contentDiv.appendChild(filterBtn);
+
+                th.appendChild(contentDiv);
 
                 // Resize handle
                 const resizer = document.createElement('span');
                 resizer.className = 'col-resizer';
-                resizer.title = 'Drag to resize';
+                resizer.title = 'Kéo để thay đổi độ rộng cột';
                 th.appendChild(resizer);
 
                 // Resizer drag
@@ -786,7 +1010,7 @@ function initQuery() {
                     document.body.style.userSelect = 'none';
 
                     const onMove = mv => {
-                        const newW = Math.max(50, startW + (mv.clientX - startX));
+                        const newW = Math.max(minW, startW + (mv.clientX - startX));
                         th.style.width = newW + 'px';
                         if (tabId) savedWidths[colKey] = newW;
                     };
@@ -819,12 +1043,21 @@ function initQuery() {
                     const td = document.createElement('td');
                     if (val === null || val === undefined) {
                         td.innerHTML = '<span class="ide-null-value">NULL</span>';
+                        td.classList.add('ide-null-cell');
                     } else if (typeof val === 'number') {
                         td.textContent = val;
                         td.className = 'ide-num-value';
                     } else if (typeof val === 'boolean') {
-                        td.textContent = val ? '1' : '0';
+                        // Supports PostgreSQL boolean (true/false) as well as SQL Server bit
+                        td.textContent = String(val);
                         td.className = 'ide-bool-value';
+                    } else if (typeof val === 'object') {
+                        // PostgreSQL JSON, JSONB, arrays, etc.
+                        try {
+                            td.textContent = JSON.stringify(val);
+                        } catch (e) {
+                            td.textContent = String(val);
+                        }
                     } else {
                         td.textContent = val;
                     }
@@ -833,8 +1066,14 @@ function initQuery() {
                 tbody.appendChild(tr);
             });
             table.appendChild(tbody);
-            pane.appendChild(table);
+            tableScroll.appendChild(table);
+            pane.appendChild(tableScroll);
             tableWrap.appendChild(pane);
+
+            // Gắn GridResultManager cho cell selection, phím tắt, filter và context menu
+            if (window.GridResultManager) {
+                window.GridResultManager.attach(table, resSet, index);
+            }
 
             // Insert splitter between panes
             if (index < totalGrids - 1) {
@@ -874,6 +1113,30 @@ function initQuery() {
             }
         });
 
+        // Function to synchronize footer row counts when rows are filtered
+        function updateResultFooter() {
+            let shownTotal = 0;
+            let hiddenTotal = 0;
+            const panes = tableWrap.querySelectorAll('.ide-grid-pane');
+            panes.forEach(p => {
+                const trs = p.querySelectorAll('tbody tr');
+                trs.forEach(tr => {
+                    if (tr.classList.contains('ide-row-filtered-out')) {
+                        hiddenTotal++;
+                    } else {
+                        shownTotal++;
+                    }
+                });
+            });
+
+            if (hiddenTotal > 0) {
+                footerRows.innerHTML = `Hiển thị <b>${shownTotal}</b> / ${totalRowCount} dòng (${totalGrids} result set${totalGrids !== 1 ? 's' : ''})`;
+            } else {
+                footerRows.textContent = `${totalRowCount} row${totalRowCount !== 1 ? 's' : ''} (${totalGrids} result set${totalGrids !== 1 ? 's' : ''})`;
+            }
+        }
+        window.updateResultFooter = updateResultFooter;
+
         // Footer
         footerRows.textContent = `${totalRowCount} row${totalRowCount !== 1 ? 's' : ''} (${totalGrids} result set${totalGrids !== 1 ? 's' : ''})`;
         footerTime.textContent = `${ms} ms`;
@@ -891,16 +1154,233 @@ function initQuery() {
         footer.classList.remove('d-flex');
     }
 
-    function showMessage(text, type = 'info') {
+    // ── Helper: Clean client-side driver & tuple noise ────────────────────────
+    function cleanClientMessage(text) {
+        if (!text && text !== 0) return '';
+        let s = String(text);
+        if (s.startsWith("(") && s.endsWith(")")) {
+            const match = s.match(/^\(['"]?[A-Z0-9]+['"]?,\s*['"](.*)['"]\)$/s);
+            if (match) s = match[1];
+        }
+        s = s.replace(/(\[[^\]\r\n]+\])+/g, (match) => {
+            if (/odbc|driver|sql server|client|microsoft|psycopg/i.test(match)) {
+                return '';
+            }
+            return match;
+        });
+        s = s.replace(/\s*\(\d+\)\s*\([A-Za-z0-9_]+\)\s*$/g, '');
+        return s.trim();
+    }
+
+    // ── Helper: Jump to Monaco Editor Line & Column ───────────────────────────
+    function jumpToEditorLine(targetLine, targetCol, token) {
+        let ed = null;
+        if (window.AppEditor2 && document.activeElement && document.getElementById('editor-pane-2')?.contains(document.activeElement)) {
+            ed = window.AppEditor2.rawEditor || window.AppEditor2;
+        } else if (window.AppEditor) {
+            ed = window.AppEditor.rawEditor || window.AppEditor;
+        }
+        if (!ed) return;
+
+        let line = parseInt(targetLine, 10);
+        if (isNaN(line) || line < 1) line = 1;
+        let col = parseInt(targetCol, 10);
+        if (isNaN(col) || col < 1) col = 1;
+
+        const model = (typeof ed.getModel === 'function') ? ed.getModel() : null;
+        if (model) {
+            const maxLine = model.getLineCount();
+            if (line > maxLine) line = maxLine;
+            const lineContent = model.getLineContent(line);
+            if (token && lineContent) {
+                const cleanToken = String(token).replace(/^['"]|['"]$/g, '');
+                if (cleanToken) {
+                    const idx = lineContent.indexOf(cleanToken);
+                    if (idx !== -1) {
+                        col = idx + 1;
+                        if (typeof ed.setSelection === 'function' && typeof monaco !== 'undefined' && monaco.Selection) {
+                            ed.setSelection(new monaco.Selection(line, col, line, col + cleanToken.length));
+                        }
+                    }
+                }
+            }
+        }
+
+        if (typeof ed.setPosition === 'function') {
+            ed.setPosition({ lineNumber: line, column: col });
+        }
+        if (typeof ed.revealPositionInCenter === 'function') {
+            ed.revealPositionInCenter({ lineNumber: line, column: col });
+        } else if (typeof ed.revealLineInCenter === 'function') {
+            ed.revealLineInCenter(line);
+        }
+        if (typeof ed.focus === 'function') {
+            ed.focus();
+        }
+    }
+
+    // ── Helper: Robust Clipboard Copying ──────────────────────────────────────
+    async function copyTextToClipboard(text) {
+        if (!text) return false;
+        if (typeof window.copyToClipboard === 'function') {
+            return await window.copyToClipboard(text);
+        }
+        let ok = false;
+        if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+            try {
+                await navigator.clipboard.writeText(text);
+                ok = true;
+            } catch (e) {
+                console.warn('[Copy] navigator.clipboard error, fallback to execCommand:', e);
+            }
+        }
+        if (!ok) {
+            try {
+                const ta = document.createElement('textarea');
+                ta.value = text;
+                ta.style.position = 'fixed';
+                ta.style.left = '-9999px';
+                ta.style.top = '-9999px';
+                ta.setAttribute('readonly', '');
+                document.body.appendChild(ta);
+                ta.select();
+                ok = document.execCommand('copy');
+                document.body.removeChild(ta);
+            } catch (e2) {
+                console.error('[Copy] execCommand error:', e2);
+            }
+        }
+        return ok;
+    }
+
+    // ── Messages Renderer with Clickable Errors & Formatting ──────────────────
+    function showMessage(text, type = 'info', metadata = null) {
         const state = window.AppTabs ? window.AppTabs.getActiveTabState() : null;
-        if (state) state.messageText = text;
-        
+        if (state) {
+            state.messageText = text;
+            state.messageType = type;
+            state.messageMetadata = metadata;
+        }
+
         if (!messagesEl) return;
         messagesEl.innerHTML = '';
-        const pre = document.createElement('span');
-        pre.className = type === 'error' ? 'msg-error' : type === 'success' ? 'msg-success' : '';
-        pre.textContent = text;
-        messagesEl.appendChild(pre);
+
+        if (!text && text !== '') return;
+
+        const baseStartLine = (metadata && typeof metadata.baseStartLine === 'number') ? metadata.baseStartLine : 1;
+        const errorList = (metadata && Array.isArray(metadata.errors)) ? metadata.errors : [];
+
+        const rawLines = String(text).split(/\r?\n/);
+
+        // Strip leading and trailing empty/blank lines so messages start directly at top
+        while (rawLines.length > 0 && !rawLines[0].trim()) {
+            rawLines.shift();
+        }
+        while (rawLines.length > 0 && !rawLines[rawLines.length - 1].trim()) {
+            rawLines.pop();
+        }
+
+        function matchErrorMeta(lineText) {
+            for (const err of errorList) {
+                if (!err) continue;
+                if (err.message && lineText && (err.message.includes(lineText.trim()) || lineText.includes(err.message.trim()))) {
+                    return err;
+                }
+                if (err.line) {
+                    const linePat = new RegExp(`(?:Line|LINE)\\s+${err.line}\\b`, 'i');
+                    if (linePat.test(lineText)) return err;
+                }
+            }
+            const m = lineText.match(/(?:Line|LINE)\s+(\d+)/i) ||
+                      lineText.match(/Msg\s+\d+.*Line\s+(\d+)/i) ||
+                      lineText.match(/(?:at\s+line|on\s+line)\s+(\d+)/i);
+            if (m) {
+                const parsedRelLine = parseInt(m[1], 10);
+                const found = errorList.find(e => e && e.line === parsedRelLine);
+                if (found) return found;
+                return { line: parsedRelLine, col: 1, token: '' };
+            }
+            return null;
+        }
+
+        let activeErrorContext = null;
+
+        rawLines.forEach((rawLine) => {
+            const cleaned = cleanClientMessage(rawLine);
+            const lineEl = document.createElement('div');
+            lineEl.className = 'ide-msg-line';
+
+            if (!cleaned) {
+                lineEl.innerHTML = '&nbsp;';
+                activeErrorContext = null;
+                messagesEl.appendChild(lineEl);
+                return;
+            }
+
+            // Check if line is an informational rowcount or notice (NOT an error)
+            const isRowCount = /^\(\d+\s+row(?:\(s\))?\s+(?:returned|affected)\)/i.test(cleaned);
+            if (isRowCount) {
+                lineEl.className += ' ide-msg-info';
+                lineEl.textContent = cleaned;
+                activeErrorContext = null;
+                messagesEl.appendChild(lineEl);
+                return;
+            }
+
+            if (cleaned.startsWith('Completion time:')) {
+                lineEl.className += ' ide-msg-muted';
+                lineEl.textContent = cleaned;
+                activeErrorContext = null;
+                messagesEl.appendChild(lineEl);
+                return;
+            }
+
+            let errMeta = matchErrorMeta(cleaned);
+            if (errMeta) {
+                activeErrorContext = errMeta;
+            } else if (type === 'error' && activeErrorContext) {
+                errMeta = activeErrorContext;
+            } else if (type === 'error' && errorList.length === 1 && errorList[0] && errorList[0].line) {
+                if (/^(?:Msg\b|Error\b|Line\b|LINE\b|Exception\b)/i.test(cleaned) || (errMeta = matchErrorMeta(cleaned))) {
+                    errMeta = errorList[0];
+                    activeErrorContext = errMeta;
+                }
+            }
+
+            if (errMeta && errMeta.line) {
+                const relLine = parseInt(errMeta.line, 10);
+                const absLine = (!isNaN(relLine) && relLine > 0) ? (baseStartLine + relLine - 1) : baseStartLine;
+                const col = errMeta.col || 1;
+                const token = errMeta.token || '';
+
+                lineEl.className += ' ide-msg-error clickable';
+                lineEl.dataset.line = absLine;
+                lineEl.dataset.col = col;
+                if (token) lineEl.dataset.token = token;
+                lineEl.title = `Click đúp để nhảy tới dòng ${absLine} trong editor`;
+
+                const iconSpan = document.createElement('span');
+                iconSpan.className = 'ide-msg-jump-icon';
+                iconSpan.innerHTML = '<i class="fa-solid fa-arrow-up-right-from-square"></i>';
+                lineEl.appendChild(iconSpan);
+
+                const textSpan = document.createElement('span');
+                textSpan.className = 'ide-msg-text';
+                textSpan.textContent = cleaned;
+                lineEl.appendChild(textSpan);
+            } else {
+                if (type === 'error' || cleaned.toLowerCase().startsWith('error') || cleaned.startsWith('Msg ')) {
+                    lineEl.className += ' ide-msg-error';
+                } else if (type === 'success') {
+                    lineEl.className += ' ide-msg-success';
+                } else {
+                    lineEl.className += ' ide-msg-info';
+                }
+                lineEl.textContent = cleaned;
+            }
+
+            messagesEl.appendChild(lineEl);
+        });
     }
 
     function showPlan(text) {
@@ -935,9 +1415,59 @@ function initQuery() {
         }
     });
 
-    // ── Bind buttons ──────────────────────────────────────────────────────────
+    // ── Bind buttons & Message interactions ───────────────────────────────────
     if (runBtn)  runBtn.addEventListener('click', executeQuery);
     if (planBtn) planBtn.addEventListener('click', requestPlan);
+
+    // Copy Messages button
+    const copyMsgBtn = document.getElementById('ide-btn-copy-messages');
+    if (copyMsgBtn) {
+        copyMsgBtn.addEventListener('click', async () => {
+            const text = messagesEl ? messagesEl.innerText : '';
+            if (!text || !text.trim()) return;
+            const ok = await copyTextToClipboard(text);
+            if (ok) {
+                const origHtml = copyMsgBtn.innerHTML;
+                copyMsgBtn.innerHTML = '<i class="fa-solid fa-check me-1 text-success"></i>Đã chép!';
+                copyMsgBtn.disabled = true;
+                setTimeout(() => {
+                    copyMsgBtn.innerHTML = origHtml;
+                    copyMsgBtn.disabled = false;
+                }, 1500);
+            }
+        });
+    }
+
+    // Double-click error navigation
+    if (messagesEl) {
+        messagesEl.addEventListener('dblclick', (e) => {
+            const lineEl = e.target.closest('.ide-msg-line.clickable, .ide-msg-error.clickable');
+            if (lineEl) {
+                const line = lineEl.dataset.line;
+                const col = lineEl.dataset.col || 1;
+                const token = lineEl.dataset.token || '';
+                if (line) {
+                    jumpToEditorLine(line, col, token);
+                }
+            }
+        });
+
+        // Single click on jump icon
+        messagesEl.addEventListener('click', (e) => {
+            const jumpIcon = e.target.closest('.ide-msg-jump-icon');
+            if (jumpIcon) {
+                const lineEl = jumpIcon.closest('.ide-msg-line.clickable, .ide-msg-error.clickable');
+                if (lineEl) {
+                    const line = lineEl.dataset.line;
+                    const col = lineEl.dataset.col || 1;
+                    const token = lineEl.dataset.token || '';
+                    if (line) {
+                        jumpToEditorLine(line, col, token);
+                    }
+                }
+            }
+        });
+    }
 
     // Initial action bar update
     updateActionBar();

@@ -1,0 +1,2141 @@
+/* =============================================================================
+   THEME COLOR VARIABLES REGISTRY (QUY ĐỊNH CÁC BIẾN MÀU SẮC THEME)
+   File này tập trung quy định toàn bộ biến màu sắc cho từng Theme của IDE.
+   
+   HƯỚNG DẪN THÊM THEME MỚI TRONG TƯƠNG LAI:
+   1. Thêm một block CSS: html[data-bs-theme="tên_theme_mới"] { ... }
+   2. Khai báo các giá trị màu cho các biến bên dưới.
+   3. Khai báo tên theme trong file static/js/theme-registry.js.
+   ============================================================================= */
+
+/* ── 1. DARK THEME (Mặc định) ────────────────────────────────────────────────── */
+:root,
+html[data-bs-theme="dark"] {
+    --ide-theme-id:                 "dark";
+    --ide-theme-name:               "Dark Mode";
+    --ide-titlebar-bg:              #202228;
+    --ide-titlebar-text:            #c7cfcf;
+
+    /* Bootstrap theme overrides */
+    --bs-body-bg:                   #1C1D23;
+    --bs-body-color:                #c7cfcf;
+    --bs-border-color:              #3c3f41;
+    --bs-border-color-translucent:  rgba(60,63,65,0.5);
+    --bs-primary:                   #CC7832;
+    --bs-primary-rgb:               204,120,50;
+    --bs-dark:                      #202228;
+    --bs-dark-rgb:                  32,34,40;
+    --bs-secondary:                 #848c94;
+    --bs-secondary-rgb:             132,140,148;
+    --bs-link-color:                #CC7832;
+    --bs-link-hover-color:          #e08b46;
+
+    /* IDE Surface layers (Các tầng bề mặt) */
+    --ide-bg-main:                  #1C1D23;
+    --ide-bg-sidebar:               #1C1D23;
+    --ide-bg-toolbar:               #202228;
+    --ide-bg-editor:                #18191E;
+    --ide-bg-panel:                 #1C1D23;
+    --ide-bg-result:                #1C1D23;
+    --ide-bg-input:                 #13141A;
+    --ide-bg-modal:                 #202228;
+    --ide-bg-dropdown:              #202228;
+    --ide-bg-context-menu:          #2B2D35;
+
+    /* Borders (Đường viền) */
+    --ide-border:                   #3c3f41;
+    --ide-border-active:            #CC7832;
+
+    /* Typography (Màu chữ) */
+    --ide-text-main:                #c7cfcf;
+    --ide-text-muted:               #848c94;
+    --ide-text-active:              #ffffff;
+    --ide-text-dim:                 #5a6068;
+
+    /* Interactive states (Trạng thái tương tác) */
+    --ide-hover-bg:                 rgba(255,255,255,0.05);
+    --ide-active-bg:                rgba(204,120,50,0.12);
+    --ide-selection-bg:             rgba(204,120,50,0.20);
+
+    /* Accent color (Màu chủ đạo/nhấn mạnh) */
+    --ide-accent:                   #CC7832;
+    --ide-syntax-keyword:           #CC7832;
+    --ide-accent-hover:             #e08b46;
+    --ide-accent-subtle:            rgba(204,120,50,0.15);
+
+    /* Status indicators (Màu trạng thái) */
+    --ide-danger:                   #ff5c5c;
+    --ide-success:                  #6A8759;
+    --ide-warning:                  #E8C859;
+    --ide-info:                     #6897BB;
+
+    /* Tabs */
+    --ide-tab-active-bg:            #18191E;
+    --ide-tab-inactive-bg:          #202228;
+    --ide-tab-active-border:        #CC7832;
+
+    /* Result Grid */
+    --ide-grid-header-bg:           #202228;
+    --ide-grid-row-alt:             rgba(255,255,255,0.02);
+    --ide-grid-row-hover:           rgba(255,255,255,0.05);
+
+    /* Action bar & Badges */
+    --ide-action-bar-bg:            #202228;
+    --ide-badge-bg:                 #2B2D35;
+    --ide-badge-text:               #c7cfcf;
+    --ide-badge-hover:              #3c3f41;
+
+    /* Context menu */
+    --ide-ctx-item-hover:           rgba(204,120,50,0.12);
+    --ide-ctx-separator:            #3c3f41;
+
+    /* Scrollbars */
+    --ide-scroll-track:             #18191E;
+    --ide-scroll-thumb:             #3c3f41;
+    --ide-scroll-thumb-hover:       #848c94;
+}
+
+/* ── 2. LIGHT THEME (Giao diện Sáng) ─────────────────────────────────────────── */
+html[data-bs-theme="light"] {
+    --ide-theme-id:                 "light";
+    --ide-theme-name:               "Light Mode";
+    --ide-titlebar-bg:              #dcdcdc;
+    --ide-titlebar-text:            #2b2b2b;
+
+    /* Bootstrap theme overrides */
+    --bs-body-bg:                   #f0f0f0;
+    --bs-body-color:                #2b2b2b;
+    --bs-border-color:              #cccccc;
+    --bs-border-color-translucent:  rgba(200,200,200,0.5);
+    --bs-primary:                   #CC7832;
+    --bs-primary-rgb:               204,120,50;
+    --bs-dark:                      #e8e8e8;
+    --bs-dark-rgb:                  232,232,232;
+    --bs-secondary:                 #6c757d;
+    --bs-secondary-rgb:             108,117,125;
+    --bs-link-color:                #CC7832;
+    --bs-link-hover-color:          #b36520;
+
+    /* IDE Surface layers */
+    --ide-bg-main:                  #f0f0f0;
+    --ide-bg-sidebar:               #e8e8e8;
+    --ide-bg-toolbar:               #dcdcdc;
+    --ide-bg-editor:                #ffffff;
+    --ide-bg-panel:                 #f5f5f5;
+    --ide-bg-result:                #f5f5f5;
+    --ide-bg-input:                 #ffffff;
+    --ide-bg-modal:                 #ffffff;
+    --ide-bg-dropdown:              #ffffff;
+    --ide-bg-context-menu:          #ffffff;
+
+    /* Borders */
+    --ide-border:                   #cccccc;
+    --ide-border-active:            #CC7832;
+
+    /* Typography */
+    --ide-text-main:                #2b2b2b;
+    --ide-text-muted:               #6c757d;
+    --ide-text-active:              #000000;
+    --ide-text-dim:                 #aaaaaa;
+
+    /* Interactive states */
+    --ide-hover-bg:                 rgba(0,0,0,0.05);
+    --ide-active-bg:                rgba(204,120,50,0.10);
+    --ide-selection-bg:             rgba(204,120,50,0.20);
+
+    /* Accent color */
+    --ide-accent:                   #CC7832;
+    --ide-syntax-keyword:           #CC7832;
+    --ide-accent-hover:             #b36520;
+    --ide-accent-subtle:            rgba(204,120,50,0.12);
+
+    /* Status indicators */
+    --ide-danger:                   #d9534f;
+    --ide-success:                  #4a7c3f;
+    --ide-warning:                  #b8960c;
+    --ide-info:                     #2c6a9e;
+
+    /* Tabs */
+    --ide-tab-active-bg:            #ffffff;
+    --ide-tab-inactive-bg:          #e0e0e0;
+    --ide-tab-active-border:        #CC7832;
+
+    /* Result Grid */
+    --ide-grid-header-bg:           #e8e8e8;
+    --ide-grid-row-alt:             rgba(0,0,0,0.02);
+    --ide-grid-row-hover:           rgba(0,0,0,0.04);
+
+    /* Action bar & Badges */
+    --ide-action-bar-bg:            #dcdcdc;
+    --ide-badge-bg:                 #e8e8e8;
+    --ide-badge-text:               #2b2b2b;
+    --ide-badge-hover:              #cccccc;
+
+    /* Context menu */
+    --ide-ctx-item-hover:           rgba(204,120,50,0.10);
+    --ide-ctx-separator:            #cccccc;
+
+    /* Scrollbars */
+    --ide-scroll-track:             #e8e8e8;
+    --ide-scroll-thumb:             #cccccc;
+    --ide-scroll-thumb-hover:       #aaaaaa;
+}
+
+/* ── 3. MONOKAI THEME (Mẫu mở rộng thêm) ─────────────────────────────────────── */
+html[data-bs-theme="monokai"] {
+    --ide-theme-id:                 "monokai";
+    --ide-theme-name:               "Monokai";
+    --ide-titlebar-bg:              #1E1F1C;
+    --ide-titlebar-text:            #F8F8F2;
+
+    --bs-body-bg:                   #272822;
+    --bs-body-color:                #F8F8F2;
+    --bs-border-color:              #3E3D32;
+    --bs-primary:                   #A6E22E;
+    --ide-bg-main:                  #272822;
+    --ide-bg-sidebar:               #1E1F1C;
+    --ide-bg-toolbar:               #1E1F1C;
+    --ide-bg-editor:                #272822;
+    --ide-bg-panel:                 #272822;
+    --ide-bg-result:                #272822;
+    --ide-bg-input:                 #1E1F1C;
+    --ide-bg-modal:                 #272822;
+    --ide-bg-dropdown:              #1E1F1C;
+    --ide-bg-context-menu:          #1E1F1C;
+    --ide-border:                   #3E3D32;
+    --ide-border-active:            #A6E22E;
+    --ide-text-main:                #F8F8F2;
+    --ide-text-muted:               #75715E;
+    --ide-text-active:              #FFFFFF;
+    --ide-text-dim:                 #49483E;
+    --ide-hover-bg:                 rgba(255,255,255,0.06);
+    --ide-active-bg:                rgba(166,226,46,0.15);
+    --ide-selection-bg:             rgba(166,226,46,0.25);
+    --ide-accent:                   #A6E22E;
+    --ide-syntax-keyword:           #F92672;
+    --ide-accent-hover:             #C2F062;
+    --ide-accent-subtle:            rgba(166,226,46,0.15);
+    --ide-danger:                   #F92672;
+    --ide-success:                  #A6E22E;
+    --ide-warning:                  #E6DB74;
+    --ide-info:                     #66D9EF;
+    --ide-tab-active-bg:            #272822;
+    --ide-tab-inactive-bg:          #1E1F1C;
+    --ide-tab-active-border:        #A6E22E;
+    --ide-scroll-track:             #1E1F1C;
+    --ide-scroll-thumb:             #3E3D32;
+    --ide-scroll-thumb-hover:       #75715E;
+}
+
+/* ── 4. NORD THEME (Mẫu mở rộng thêm) ────────────────────────────────────────── */
+html[data-bs-theme="nord"] {
+    --ide-theme-id:                 "nord";
+    --ide-theme-name:               "Nord";
+    --ide-titlebar-bg:              #242933;
+    --ide-titlebar-text:            #ECEFF4;
+
+    --bs-body-bg:                   #2E3440;
+    --bs-body-color:                #ECEFF4;
+    --bs-border-color:              #4C566A;
+    --bs-primary:                   #88C0D0;
+    --ide-bg-main:                  #2E3440;
+    --ide-bg-sidebar:               #242933;
+    --ide-bg-toolbar:               #242933;
+    --ide-bg-editor:                #2E3440;
+    --ide-bg-panel:                 #2E3440;
+    --ide-bg-result:                #2E3440;
+    --ide-bg-input:                 #242933;
+    --ide-bg-modal:                 #2E3440;
+    --ide-bg-dropdown:              #242933;
+    --ide-bg-context-menu:          #242933;
+    --ide-border:                   #4C566A;
+    --ide-border-active:            #88C0D0;
+    --ide-text-main:                #ECEFF4;
+    --ide-text-muted:               #D8DEE9;
+    --ide-text-active:              #FFFFFF;
+    --ide-text-dim:                 #434C5E;
+    --ide-hover-bg:                 rgba(255,255,255,0.06);
+    --ide-active-bg:                rgba(136,192,208,0.15);
+    --ide-selection-bg:             rgba(136,192,208,0.25);
+    --ide-accent:                   #88C0D0;
+    --ide-syntax-keyword:           #81A1C1;
+    --ide-accent-hover:             #81A1C1;
+    --ide-accent-subtle:            rgba(136,192,208,0.15);
+    --ide-danger:                   #BF616A;
+    --ide-success:                  #A3BE8C;
+    --ide-warning:                  #EBCB8B;
+    --ide-info:                     #88C0D0;
+    --ide-tab-active-bg:            #2E3440;
+    --ide-tab-inactive-bg:          #242933;
+    --ide-tab-active-border:        #88C0D0;
+    --ide-scroll-track:             #242933;
+    --ide-scroll-thumb:             #434C5E;
+    --ide-scroll-thumb-hover:       #4C566A;
+}
+
+/* ── 5. WINDOWS NT THEME (Classic Workstation) ───────────────────────────────── */
+html[data-bs-theme="win-nt"] {
+    --ide-theme-id:                 "win-nt";
+    --ide-theme-name:               "Windows NT";
+    --ide-titlebar-bg:              #000080;
+    --ide-titlebar-text:            #FFFFFF;
+
+    /* Bootstrap theme overrides */
+    --bs-body-bg:                   #C0C0C0;
+    --bs-body-color:                #000000;
+    --bs-border-color:              #777777;
+    --bs-border-color-translucent:  rgba(119,119,119,0.5);
+    --bs-primary:                   #000B7B;
+    --bs-primary-rgb:               0,11,123;
+    --bs-dark:                      #C0C0C0;
+    --bs-dark-rgb:                  192,192,192;
+    --bs-secondary:                 #777777;
+    --bs-secondary-rgb:             119,119,119;
+    --bs-link-color:                #0000ff;
+    --bs-link-hover-color:          #0000aa;
+
+    /* IDE Surface layers */
+    --ide-bg-main:                  #C0C0C0;
+    --ide-bg-sidebar:               #C0C0C0;
+    --ide-bg-toolbar:               #C0C0C0;
+    --ide-bg-editor:                #ffffff;
+    --ide-bg-panel:                 #C0C0C0;
+    --ide-bg-result:                #ffffff;
+    --ide-bg-input:                 #ffffff;
+    --ide-bg-modal:                 #C0C0C0;
+    --ide-bg-dropdown:              #ffffff;
+    --ide-bg-context-menu:          #C0C0C0;
+
+    /* Borders */
+    --ide-border:                   #777777;
+    --ide-border-active:            #000B7B;
+
+    /* Typography */
+    --ide-text-main:                #000000;
+    --ide-text-muted:               #333333;
+    --ide-text-active:              #000000;
+    --ide-text-dim:                 #666666;
+
+    /* Interactive states */
+    --ide-hover-bg:                 rgba(0,11,123,0.10);
+    --ide-active-bg:                #000B7B;
+    --ide-selection-bg:             #C0C0C0;
+
+    /* Accent color */
+    --ide-accent:                   #000B7B;
+    --ide-syntax-keyword:           #0000ff;
+    --ide-accent-hover:             #0e0087;
+    --ide-accent-subtle:            rgba(0,11,123,0.15);
+
+    /* Status indicators */
+    --ide-danger:                   #e51400;
+    --ide-success:                  #006400;
+    --ide-warning:                  #ea5c00;
+    --ide-info:                     #000B7B;
+
+    /* Tabs */
+    --ide-tab-active-bg:            #ffffff;
+    --ide-tab-inactive-bg:          #C0C0C0;
+    --ide-tab-active-border:        #000B7B;
+
+    /* Result Grid */
+    --ide-grid-header-bg:           #d4d0c8;
+    --ide-grid-row-alt:             #f7f7f7;
+    --ide-grid-row-hover:           rgba(0,11,123,0.08);
+
+    /* Action bar & Badges */
+    --ide-action-bar-bg:            #C0C0C0;
+    --ide-badge-bg:                 #d4d0c8;
+    --ide-badge-text:               #000000;
+    --ide-badge-hover:              #a5a5a5;
+
+    /* Context menu */
+    --ide-ctx-item-hover:           #000B7B;
+    --ide-ctx-separator:            #777777;
+
+    /* Scrollbars */
+    --ide-scroll-track:             #C0C0C0;
+    --ide-scroll-thumb:             #a5a5a5;
+    --ide-scroll-thumb-hover:       #777777;
+}
+
+/* ── 6. WINDOWS XP LUNA THEME ─────────────────────────────────────────────────── */
+html[data-bs-theme="win-xp"] {
+    --ide-theme-id:                 "win-xp";
+    --ide-theme-name:               "Windows XP Luna";
+    --ide-titlebar-bg:              #0055ea;
+    --ide-titlebar-text:            #FFFFFF;
+
+    /* Bootstrap theme overrides */
+    --bs-body-bg:                   #f0eee4;
+    --bs-body-color:                #000000;
+    --bs-border-color:              #d8d2bd;
+    --bs-border-color-translucent:  rgba(216,210,189,0.5);
+    --bs-primary:                   #2157d7;
+    --bs-primary-rgb:               33,87,215;
+    --bs-dark:                      #2157d7;
+    --bs-dark-rgb:                  33,87,215;
+    --bs-secondary:                 #7b97e0;
+    --bs-secondary-rgb:             123,151,224;
+    --bs-link-color:                #215dc6;
+    --bs-link-hover-color:          #16449c;
+
+    /* IDE Surface layers */
+    --ide-bg-main:                  #f0eee4;
+    --ide-bg-sidebar:               #f0eee4;
+    --ide-bg-toolbar:               #efede0;
+    --ide-bg-editor:                #ffffff;
+    --ide-bg-panel:                 #f0eee4;
+    --ide-bg-result:                #ffffff;
+    --ide-bg-input:                 #ffffff;
+    --ide-bg-modal:                 #ece9d8;
+    --ide-bg-dropdown:              #ffffff;
+    --ide-bg-context-menu:          #ffffff;
+
+    /* Borders */
+    --ide-border:                   #d8d2bd;
+    --ide-border-active:            #2157d7;
+
+    /* Typography */
+    --ide-text-main:                #000000;
+    --ide-text-muted:               #555555;
+    --ide-text-active:              #000000;
+    --ide-text-dim:                 #949698;
+
+    /* Interactive states */
+    --ide-hover-bg:                 rgba(33,87,215,0.10);
+    --ide-active-bg:                #316ac5;
+    --ide-selection-bg:             rgba(49,106,197,0.25);
+
+    /* Accent color */
+    --ide-accent:                   #2157d7;
+    --ide-syntax-keyword:           #0000ff;
+    --ide-accent-hover:             #3e85f7;
+    --ide-accent-subtle:            rgba(33,87,215,0.15);
+
+    /* Status indicators */
+    --ide-danger:                   #df3804;
+    --ide-success:                  #2ed331;
+    --ide-warning:                  #dfa507;
+    --ide-info:                     #3265cc;
+
+    /* Tabs */
+    --ide-tab-active-bg:            #ffffff;
+    --ide-tab-inactive-bg:          #efede0;
+    --ide-tab-active-border:        #ffc83c;
+
+    /* Result Grid */
+    --ide-grid-header-bg:           #efede0;
+    --ide-grid-row-alt:             #f9f8f6;
+    --ide-grid-row-hover:           rgba(49,106,197,0.08);
+
+    /* Action bar & Badges */
+    --ide-action-bar-bg:            #efede0;
+    --ide-badge-bg:                 #d3d0c7;
+    --ide-badge-text:               #333333;
+    --ide-badge-hover:              #aba798;
+
+    /* Context menu */
+    --ide-ctx-item-hover:           rgba(49,106,197,0.15);
+    --ide-ctx-separator:            #aba798;
+
+    /* Scrollbars */
+    --ide-scroll-track:             #efede0;
+    --ide-scroll-thumb:             #c1d3fb;
+    --ide-scroll-thumb-hover:       #7fa2fa;
+}
+
+
+/* ── VSIX Imported Theme: Tokyo Night (Dark) (tokyo-night-dark) ────────────────────────── */
+html[data-bs-theme="tokyo-night-dark"] {
+    --ide-theme-id:                 "tokyo-night-dark";
+    --ide-theme-name:               "Tokyo Night (Dark)";
+    --ide-titlebar-bg:              #16161e;
+    --ide-titlebar-text:            #787c99;
+
+    /* Bootstrap overrides */
+    --bs-body-bg:                   #16161e;
+    --bs-body-color:                #a9b1d6;
+    --bs-border-color:              #101014;
+    --bs-border-color-translucent:  rgba(120, 120, 120, 0.35);
+    --bs-primary:                   #3d59a1dd;
+    --bs-primary-rgb:               61,89,161;
+    --bs-dark:                      #16161e;
+    --bs-secondary:                 #515670;
+    --bs-link-color:                #3d59a1dd;
+    --bs-link-hover-color:          #3d59a1dd;
+
+    /* IDE surface layers */
+    --ide-bg-main:                  #16161e;
+    --ide-bg-sidebar:               #16161e;
+    --ide-bg-toolbar:               #16161e;
+    --ide-bg-editor:                #1a1b26;
+    --ide-bg-panel:                 #16161e;
+    --ide-bg-result:                #1a1b26;
+    --ide-bg-input:                 #14141b;
+    --ide-bg-modal:                 #16161e;
+    --ide-bg-dropdown:              #14141b;
+    --ide-bg-context-menu:          #16161e;
+
+    /* Borders */
+    --ide-border:                   #101014;
+    --ide-border-active:            #545c7e33;
+
+    /* Typography */
+    --ide-text-main:                #a9b1d6;
+    --ide-text-muted:               #515670;
+    --ide-text-active:              #a9b1d6;
+    --ide-text-dim:                 #515670;
+
+    /* Interactive states */
+    --ide-hover-bg:                 rgba(128, 128, 128, 0.12);
+    --ide-active-bg:                rgba(61,89,161, 0.20);
+    --ide-selection-bg:             rgba(61,89,161, 0.25);
+
+    /* Accent */
+    --ide-accent:                   #3d59a1dd;
+    --ide-syntax-keyword:           #3d59a1dd;
+    --ide-accent-hover:             #3d59a1dd;
+    --ide-accent-subtle:            rgba(61,89,161, 0.15);
+
+    /* Status indicators */
+    --ide-danger:                   #515670;
+    --ide-success:                  #6A8759;
+    --ide-warning:                  #e0af68;
+    --ide-info:                     #0da0ba;
+
+    /* Tabs */
+    --ide-tab-active-bg:            #16161e;
+    --ide-tab-inactive-bg:          #16161e;
+    --ide-tab-active-border:        #3d59a1;
+
+    /* Result Grid */
+    --ide-grid-header-bg:           #16161e;
+    --ide-grid-row-alt:             rgba(128, 128, 128, 0.04);
+    --ide-grid-row-hover:           rgba(128, 128, 128, 0.08);
+
+    /* Action bar & Badges */
+    --ide-action-bar-bg:            #16161e;
+    --ide-badge-bg:                 #16161e;
+    --ide-badge-text:               #a9b1d6;
+    --ide-badge-hover:              #101014;
+
+    /* Context menu */
+    --ide-ctx-item-hover:           rgba(61,89,161, 0.18);
+    --ide-ctx-separator:            #101014;
+
+    /* Scrollbars */
+    --ide-scroll-track:             #16161e;
+    --ide-scroll-thumb:             #101014;
+    --ide-scroll-thumb-hover:       #515670;
+}
+
+
+/* ── VSIX Imported Theme: Tokyo Night Storm (Dark) (tokyo-night-storm-dark) ────────────────────────── */
+html[data-bs-theme="tokyo-night-storm-dark"] {
+    --ide-theme-id:                 "tokyo-night-storm-dark";
+    --ide-theme-name:               "Tokyo Night Storm (Dark)";
+    --ide-titlebar-bg:              #1f2335;
+    --ide-titlebar-text:            #8089b3;
+
+    /* Bootstrap overrides */
+    --bs-body-bg:                   #1f2335;
+    --bs-body-color:                #a9b1d6;
+    --bs-border-color:              #1b1e2e;
+    --bs-border-color-translucent:  rgba(120, 120, 120, 0.35);
+    --bs-primary:                   #3d59a1dd;
+    --bs-primary-rgb:               61,89,161;
+    --bs-dark:                      #1f2335;
+    --bs-secondary:                 #545c7e;
+    --bs-link-color:                #3d59a1dd;
+    --bs-link-hover-color:          #3d59a1dd;
+
+    /* IDE surface layers */
+    --ide-bg-main:                  #1f2335;
+    --ide-bg-sidebar:               #1f2335;
+    --ide-bg-toolbar:               #1f2335;
+    --ide-bg-editor:                #24283b;
+    --ide-bg-panel:                 #1f2335;
+    --ide-bg-result:                #24283b;
+    --ide-bg-input:                 #1b1e2e;
+    --ide-bg-modal:                 #1f2335;
+    --ide-bg-dropdown:              #1b1e2e;
+    --ide-bg-context-menu:          #1f2335;
+
+    /* Borders */
+    --ide-border:                   #1b1e2e;
+    --ide-border-active:            #545c7e33;
+
+    /* Typography */
+    --ide-text-main:                #a9b1d6;
+    --ide-text-muted:               #545c7e;
+    --ide-text-active:              #a9b1d6;
+    --ide-text-dim:                 #545c7e;
+
+    /* Interactive states */
+    --ide-hover-bg:                 rgba(128, 128, 128, 0.12);
+    --ide-active-bg:                rgba(61,89,161, 0.20);
+    --ide-selection-bg:             rgba(61,89,161, 0.25);
+
+    /* Accent */
+    --ide-accent:                   #3d59a1dd;
+    --ide-syntax-keyword:           #3d59a1dd;
+    --ide-accent-hover:             #3d59a1dd;
+    --ide-accent-subtle:            rgba(61,89,161, 0.15);
+
+    /* Status indicators */
+    --ide-danger:                   #5a607d;
+    --ide-success:                  #6A8759;
+    --ide-warning:                  #e0af68;
+    --ide-info:                     #0da0ba;
+
+    /* Tabs */
+    --ide-tab-active-bg:            #1f2335;
+    --ide-tab-inactive-bg:          #1f2335;
+    --ide-tab-active-border:        #3d59a1;
+
+    /* Result Grid */
+    --ide-grid-header-bg:           #1f2335;
+    --ide-grid-row-alt:             rgba(128, 128, 128, 0.04);
+    --ide-grid-row-hover:           rgba(128, 128, 128, 0.08);
+
+    /* Action bar & Badges */
+    --ide-action-bar-bg:            #1f2335;
+    --ide-badge-bg:                 #1f2335;
+    --ide-badge-text:               #a9b1d6;
+    --ide-badge-hover:              #1b1e2e;
+
+    /* Context menu */
+    --ide-ctx-item-hover:           rgba(61,89,161, 0.18);
+    --ide-ctx-separator:            #1b1e2e;
+
+    /* Scrollbars */
+    --ide-scroll-track:             #1f2335;
+    --ide-scroll-thumb:             #1b1e2e;
+    --ide-scroll-thumb-hover:       #545c7e;
+}
+
+
+/* ── VSIX Imported Theme: Tokyo Night (Light) (tokyo-night-light) ────────────────────────── */
+html[data-bs-theme="tokyo-night-light"] {
+    --ide-theme-id:                 "tokyo-night-light";
+    --ide-theme-name:               "Tokyo Night (Light)";
+    --ide-titlebar-bg:              #d6d8df;
+    --ide-titlebar-text:            #363c4d;
+
+    /* Bootstrap overrides */
+    --bs-body-bg:                   #d6d8df;
+    --bs-body-color:                #343b59;
+    --bs-border-color:              #c1c2c7;
+    --bs-border-color-translucent:  rgba(120, 120, 120, 0.35);
+    --bs-primary:                   #2959aadd;
+    --bs-primary-rgb:               41,89,170;
+    --bs-dark:                      #d6d8df;
+    --bs-secondary:                 #707280;
+    --bs-link-color:                #2959aadd;
+    --bs-link-hover-color:          #2959aadd;
+
+    /* IDE surface layers */
+    --ide-bg-main:                  #d6d8df;
+    --ide-bg-sidebar:               #d6d8df;
+    --ide-bg-toolbar:               #d6d8df;
+    --ide-bg-editor:                #e6e7ed;
+    --ide-bg-panel:                 #d6d8df;
+    --ide-bg-result:                #e6e7ed;
+    --ide-bg-input:                 #e6e7ed;
+    --ide-bg-modal:                 #d6d8df;
+    --ide-bg-dropdown:              #e6e7ed;
+    --ide-bg-context-menu:          #d6d8df;
+
+    /* Borders */
+    --ide-border:                   #c1c2c7;
+    --ide-border-active:            #70728033;
+
+    /* Typography */
+    --ide-text-main:                #343b59;
+    --ide-text-muted:               #707280;
+    --ide-text-active:              #343b59;
+    --ide-text-dim:                 #707280;
+
+    /* Interactive states */
+    --ide-hover-bg:                 rgba(128, 128, 128, 0.12);
+    --ide-active-bg:                rgba(41,89,170, 0.20);
+    --ide-selection-bg:             rgba(41,89,170, 0.25);
+
+    /* Accent */
+    --ide-accent:                   #2959aadd;
+    --ide-syntax-keyword:           #2959aadd;
+    --ide-accent-hover:             #2959aadd;
+    --ide-accent-subtle:            rgba(41,89,170, 0.15);
+
+    /* Status indicators */
+    --ide-danger:                   #5a607d;
+    --ide-success:                  #4a7c3f;
+    --ide-warning:                  #8f5e15;
+    --ide-info:                     #0da0ba;
+
+    /* Tabs */
+    --ide-tab-active-bg:            #dadce3;
+    --ide-tab-inactive-bg:          #d6d8df;
+    --ide-tab-active-border:        #2959aa;
+
+    /* Result Grid */
+    --ide-grid-header-bg:           #d6d8df;
+    --ide-grid-row-alt:             rgba(128, 128, 128, 0.04);
+    --ide-grid-row-hover:           rgba(128, 128, 128, 0.08);
+
+    /* Action bar & Badges */
+    --ide-action-bar-bg:            #d6d8df;
+    --ide-badge-bg:                 #d6d8df;
+    --ide-badge-text:               #343b59;
+    --ide-badge-hover:              #c1c2c7;
+
+    /* Context menu */
+    --ide-ctx-item-hover:           rgba(41,89,170, 0.18);
+    --ide-ctx-separator:            #c1c2c7;
+
+    /* Scrollbars */
+    --ide-scroll-track:             #d6d8df;
+    --ide-scroll-thumb:             #c1c2c7;
+    --ide-scroll-thumb-hover:       #707280;
+}
+
+/* ── VSIX Imported Theme: GitHub Light Default (Light) (github-light-default-light) ────────────────────────── */
+html[data-bs-theme="github-light-default-light"] {
+    --ide-theme-id:                 "github-light-default-light";
+    --ide-theme-name:               "GitHub Light Default (Light)";
+    --ide-titlebar-bg:              #ffffff;
+    --ide-titlebar-text:            #656d76;
+
+    /* Bootstrap overrides */
+    --bs-body-bg:                   #f6f8fa;
+    --bs-body-color:                #1f2328;
+    --bs-border-color:              #d0d7de;
+    --bs-border-color-translucent:  rgba(120, 120, 120, 0.35);
+    --bs-primary:                   #1f883d;
+    --bs-primary-rgb:               31,136,61;
+    --bs-dark:                      #ffffff;
+    --bs-secondary:                 #656d76;
+    --bs-link-color:                #1f883d;
+    --bs-link-hover-color:          #1f883d;
+
+    /* IDE surface layers */
+    --ide-bg-main:                  #f6f8fa;
+    --ide-bg-sidebar:               #f6f8fa;
+    --ide-bg-toolbar:               #ffffff;
+    --ide-bg-editor:                #ffffff;
+    --ide-bg-panel:                 #f6f8fa;
+    --ide-bg-result:                #ffffff;
+    --ide-bg-input:                 #ffffff;
+    --ide-bg-modal:                 #ffffff;
+    --ide-bg-dropdown:              #ffffff;
+    --ide-bg-context-menu:          #ffffff;
+
+    /* Borders */
+    --ide-border:                   #d0d7de;
+    --ide-border-active:            #0969da;
+
+    /* Typography */
+    --ide-text-main:                #1f2328;
+    --ide-text-muted:               #656d76;
+    --ide-text-active:              #1f2328;
+    --ide-text-dim:                 #656d76;
+
+    /* Interactive states */
+    --ide-hover-bg:                 rgba(128, 128, 128, 0.12);
+    --ide-active-bg:                rgba(31,136,61, 0.20);
+    --ide-selection-bg:             rgba(31,136,61, 0.25);
+
+    /* Accent */
+    --ide-accent:                   #1f883d;
+    --ide-syntax-keyword:           #1f883d;
+    --ide-accent-hover:             #1f883d;
+    --ide-accent-subtle:            rgba(31,136,61, 0.15);
+
+    /* Status indicators */
+    --ide-danger:                   #cf222e;
+    --ide-success:                  #4a7c3f;
+    --ide-warning:                  #E8C859;
+    --ide-info:                     #6897BB;
+
+    /* Tabs */
+    --ide-tab-active-bg:            #ffffff;
+    --ide-tab-inactive-bg:          #f6f8fa;
+    --ide-tab-active-border:        #ffffff;
+
+    /* Result Grid */
+    --ide-grid-header-bg:           #f6f8fa;
+    --ide-grid-row-alt:             rgba(128, 128, 128, 0.04);
+    --ide-grid-row-hover:           rgba(128, 128, 128, 0.08);
+
+    /* Action bar & Badges */
+    --ide-action-bar-bg:            #ffffff;
+    --ide-badge-bg:                 #f6f8fa;
+    --ide-badge-text:               #1f2328;
+    --ide-badge-hover:              #d0d7de;
+
+    /* Context menu */
+    --ide-ctx-item-hover:           rgba(31,136,61, 0.18);
+    --ide-ctx-separator:            #d0d7de;
+
+    /* Scrollbars */
+    --ide-scroll-track:             #ffffff;
+    --ide-scroll-thumb:             #d0d7de;
+    --ide-scroll-thumb-hover:       #656d76;
+}
+
+
+/* ── VSIX Imported Theme: GitHub Light High Contrast (Light) (github-light-high-contrast-light) ────────────────────────── */
+html[data-bs-theme="github-light-high-contrast-light"] {
+    --ide-theme-id:                 "github-light-high-contrast-light";
+    --ide-theme-name:               "GitHub Light High Contrast (Light)";
+    --ide-titlebar-bg:              #ffffff;
+    --ide-titlebar-text:            #0e1116;
+
+    /* Bootstrap overrides */
+    --bs-body-bg:                   #ffffff;
+    --bs-body-color:                #0e1116;
+    --bs-border-color:              #20252c;
+    --bs-border-color-translucent:  rgba(120, 120, 120, 0.35);
+    --bs-primary:                   #055d20;
+    --bs-primary-rgb:               5,93,32;
+    --bs-dark:                      #ffffff;
+    --bs-secondary:                 #0e1116;
+    --bs-link-color:                #055d20;
+    --bs-link-hover-color:          #055d20;
+
+    /* IDE surface layers */
+    --ide-bg-main:                  #ffffff;
+    --ide-bg-sidebar:               #ffffff;
+    --ide-bg-toolbar:               #ffffff;
+    --ide-bg-editor:                #ffffff;
+    --ide-bg-panel:                 #ffffff;
+    --ide-bg-result:                #ffffff;
+    --ide-bg-input:                 #ffffff;
+    --ide-bg-modal:                 #ffffff;
+    --ide-bg-dropdown:              #ffffff;
+    --ide-bg-context-menu:          #ffffff;
+
+    /* Borders */
+    --ide-border:                   #20252c;
+    --ide-border-active:            #0349b4;
+
+    /* Typography */
+    --ide-text-main:                #0e1116;
+    --ide-text-muted:               #0e1116;
+    --ide-text-active:              #0e1116;
+    --ide-text-dim:                 #0e1116;
+
+    /* Interactive states */
+    --ide-hover-bg:                 rgba(128, 128, 128, 0.12);
+    --ide-active-bg:                rgba(5,93,32, 0.20);
+    --ide-selection-bg:             rgba(5,93,32, 0.25);
+
+    /* Accent */
+    --ide-accent:                   #055d20;
+    --ide-syntax-keyword:           #055d20;
+    --ide-accent-hover:             #055d20;
+    --ide-accent-subtle:            rgba(5,93,32, 0.15);
+
+    /* Status indicators */
+    --ide-danger:                   #a0111f;
+    --ide-success:                  #4a7c3f;
+    --ide-warning:                  #E8C859;
+    --ide-info:                     #6897BB;
+
+    /* Tabs */
+    --ide-tab-active-bg:            #ffffff;
+    --ide-tab-inactive-bg:          #ffffff;
+    --ide-tab-active-border:        #ffffff;
+
+    /* Result Grid */
+    --ide-grid-header-bg:           #ffffff;
+    --ide-grid-row-alt:             rgba(128, 128, 128, 0.04);
+    --ide-grid-row-hover:           rgba(128, 128, 128, 0.08);
+
+    /* Action bar & Badges */
+    --ide-action-bar-bg:            #ffffff;
+    --ide-badge-bg:                 #ffffff;
+    --ide-badge-text:               #0e1116;
+    --ide-badge-hover:              #20252c;
+
+    /* Context menu */
+    --ide-ctx-item-hover:           rgba(5,93,32, 0.18);
+    --ide-ctx-separator:            #20252c;
+
+    /* Scrollbars */
+    --ide-scroll-track:             #ffffff;
+    --ide-scroll-thumb:             #20252c;
+    --ide-scroll-thumb-hover:       #0e1116;
+}
+
+
+/* ── VSIX Imported Theme: GitHub Light Colorblind (Beta) (Light) (github-light-colorblind-beta-light) ────────────────────────── */
+html[data-bs-theme="github-light-colorblind-beta-light"] {
+    --ide-theme-id:                 "github-light-colorblind-beta-light";
+    --ide-theme-name:               "GitHub Light Colorblind (Beta) (Light)";
+    --ide-titlebar-bg:              #ffffff;
+    --ide-titlebar-text:            #57606a;
+
+    /* Bootstrap overrides */
+    --bs-body-bg:                   #f6f8fa;
+    --bs-body-color:                #24292f;
+    --bs-border-color:              #d0d7de;
+    --bs-border-color-translucent:  rgba(120, 120, 120, 0.35);
+    --bs-primary:                   #218bff;
+    --bs-primary-rgb:               33,139,255;
+    --bs-dark:                      #ffffff;
+    --bs-secondary:                 #57606a;
+    --bs-link-color:                #218bff;
+    --bs-link-hover-color:          #218bff;
+
+    /* IDE surface layers */
+    --ide-bg-main:                  #f6f8fa;
+    --ide-bg-sidebar:               #f6f8fa;
+    --ide-bg-toolbar:               #ffffff;
+    --ide-bg-editor:                #ffffff;
+    --ide-bg-panel:                 #f6f8fa;
+    --ide-bg-result:                #ffffff;
+    --ide-bg-input:                 #ffffff;
+    --ide-bg-modal:                 #ffffff;
+    --ide-bg-dropdown:              #ffffff;
+    --ide-bg-context-menu:          #ffffff;
+
+    /* Borders */
+    --ide-border:                   #d0d7de;
+    --ide-border-active:            #0969da;
+
+    /* Typography */
+    --ide-text-main:                #24292f;
+    --ide-text-muted:               #57606a;
+    --ide-text-active:              #24292f;
+    --ide-text-dim:                 #57606a;
+
+    /* Interactive states */
+    --ide-hover-bg:                 rgba(128, 128, 128, 0.12);
+    --ide-active-bg:                rgba(33,139,255, 0.20);
+    --ide-selection-bg:             rgba(33,139,255, 0.25);
+
+    /* Accent */
+    --ide-accent:                   #218bff;
+    --ide-syntax-keyword:           #218bff;
+    --ide-accent-hover:             #218bff;
+    --ide-accent-subtle:            rgba(33,139,255, 0.15);
+
+    /* Status indicators */
+    --ide-danger:                   #b35900;
+    --ide-success:                  #4a7c3f;
+    --ide-warning:                  #E8C859;
+    --ide-info:                     #6897BB;
+
+    /* Tabs */
+    --ide-tab-active-bg:            #ffffff;
+    --ide-tab-inactive-bg:          #f6f8fa;
+    --ide-tab-active-border:        #ffffff;
+
+    /* Result Grid */
+    --ide-grid-header-bg:           #f6f8fa;
+    --ide-grid-row-alt:             rgba(128, 128, 128, 0.04);
+    --ide-grid-row-hover:           rgba(128, 128, 128, 0.08);
+
+    /* Action bar & Badges */
+    --ide-action-bar-bg:            #ffffff;
+    --ide-badge-bg:                 #f6f8fa;
+    --ide-badge-text:               #24292f;
+    --ide-badge-hover:              #d0d7de;
+
+    /* Context menu */
+    --ide-ctx-item-hover:           rgba(33,139,255, 0.18);
+    --ide-ctx-separator:            #d0d7de;
+
+    /* Scrollbars */
+    --ide-scroll-track:             #ffffff;
+    --ide-scroll-thumb:             #d0d7de;
+    --ide-scroll-thumb-hover:       #57606a;
+}
+
+
+/* ── VSIX Imported Theme: GitHub Dark Default (Dark) (github-dark-default-dark) ────────────────────────── */
+html[data-bs-theme="github-dark-default-dark"] {
+    --ide-theme-id:                 "github-dark-default-dark";
+    --ide-theme-name:               "GitHub Dark Default (Dark)";
+    --ide-titlebar-bg:              #0d1117;
+    --ide-titlebar-text:            #7d8590;
+
+    /* Bootstrap overrides */
+    --bs-body-bg:                   #010409;
+    --bs-body-color:                #e6edf3;
+    --bs-border-color:              #30363d;
+    --bs-border-color-translucent:  rgba(120, 120, 120, 0.35);
+    --bs-primary:                   #238636;
+    --bs-primary-rgb:               35,134,54;
+    --bs-dark:                      #0d1117;
+    --bs-secondary:                 #7d8590;
+    --bs-link-color:                #238636;
+    --bs-link-hover-color:          #238636;
+
+    /* IDE surface layers */
+    --ide-bg-main:                  #010409;
+    --ide-bg-sidebar:               #010409;
+    --ide-bg-toolbar:               #0d1117;
+    --ide-bg-editor:                #0d1117;
+    --ide-bg-panel:                 #010409;
+    --ide-bg-result:                #0d1117;
+    --ide-bg-input:                 #0d1117;
+    --ide-bg-modal:                 #161b22;
+    --ide-bg-dropdown:              #161b22;
+    --ide-bg-context-menu:          #161b22;
+
+    /* Borders */
+    --ide-border:                   #30363d;
+    --ide-border-active:            #1f6feb;
+
+    /* Typography */
+    --ide-text-main:                #e6edf3;
+    --ide-text-muted:               #7d8590;
+    --ide-text-active:              #e6edf3;
+    --ide-text-dim:                 #7d8590;
+
+    /* Interactive states */
+    --ide-hover-bg:                 rgba(128, 128, 128, 0.12);
+    --ide-active-bg:                rgba(35,134,54, 0.20);
+    --ide-selection-bg:             rgba(35,134,54, 0.25);
+
+    /* Accent */
+    --ide-accent:                   #238636;
+    --ide-syntax-keyword:           #238636;
+    --ide-accent-hover:             #238636;
+    --ide-accent-subtle:            rgba(35,134,54, 0.15);
+
+    /* Status indicators */
+    --ide-danger:                   #f85149;
+    --ide-success:                  #6A8759;
+    --ide-warning:                  #E8C859;
+    --ide-info:                     #6897BB;
+
+    /* Tabs */
+    --ide-tab-active-bg:            #0d1117;
+    --ide-tab-inactive-bg:          #010409;
+    --ide-tab-active-border:        #0d1117;
+
+    /* Result Grid */
+    --ide-grid-header-bg:           #010409;
+    --ide-grid-row-alt:             rgba(128, 128, 128, 0.04);
+    --ide-grid-row-hover:           rgba(128, 128, 128, 0.08);
+
+    /* Action bar & Badges */
+    --ide-action-bar-bg:            #0d1117;
+    --ide-badge-bg:                 #010409;
+    --ide-badge-text:               #e6edf3;
+    --ide-badge-hover:              #30363d;
+
+    /* Context menu */
+    --ide-ctx-item-hover:           rgba(35,134,54, 0.18);
+    --ide-ctx-separator:            #30363d;
+
+    /* Scrollbars */
+    --ide-scroll-track:             #0d1117;
+    --ide-scroll-thumb:             #30363d;
+    --ide-scroll-thumb-hover:       #7d8590;
+}
+
+
+/* ── VSIX Imported Theme: GitHub Dark High Contrast (Dark) (github-dark-high-contrast-dark) ────────────────────────── */
+html[data-bs-theme="github-dark-high-contrast-dark"] {
+    --ide-theme-id:                 "github-dark-high-contrast-dark";
+    --ide-theme-name:               "GitHub Dark High Contrast (Dark)";
+    --ide-titlebar-bg:              #0a0c10;
+    --ide-titlebar-text:            #f0f3f6;
+
+    /* Bootstrap overrides */
+    --bs-body-bg:                   #010409;
+    --bs-body-color:                #f0f3f6;
+    --bs-border-color:              #7a828e;
+    --bs-border-color-translucent:  rgba(120, 120, 120, 0.35);
+    --bs-primary:                   #09b43a;
+    --bs-primary-rgb:               9,180,58;
+    --bs-dark:                      #0a0c10;
+    --bs-secondary:                 #f0f3f6;
+    --bs-link-color:                #09b43a;
+    --bs-link-hover-color:          #09b43a;
+
+    /* IDE surface layers */
+    --ide-bg-main:                  #010409;
+    --ide-bg-sidebar:               #010409;
+    --ide-bg-toolbar:               #0a0c10;
+    --ide-bg-editor:                #0a0c10;
+    --ide-bg-panel:                 #010409;
+    --ide-bg-result:                #0a0c10;
+    --ide-bg-input:                 #0a0c10;
+    --ide-bg-modal:                 #272b33;
+    --ide-bg-dropdown:              #272b33;
+    --ide-bg-context-menu:          #272b33;
+
+    /* Borders */
+    --ide-border:                   #7a828e;
+    --ide-border-active:            #409eff;
+
+    /* Typography */
+    --ide-text-main:                #f0f3f6;
+    --ide-text-muted:               #f0f3f6;
+    --ide-text-active:              #f0f3f6;
+    --ide-text-dim:                 #f0f3f6;
+
+    /* Interactive states */
+    --ide-hover-bg:                 rgba(128, 128, 128, 0.12);
+    --ide-active-bg:                rgba(9,180,58, 0.20);
+    --ide-selection-bg:             rgba(9,180,58, 0.25);
+
+    /* Accent */
+    --ide-accent:                   #09b43a;
+    --ide-syntax-keyword:           #09b43a;
+    --ide-accent-hover:             #09b43a;
+    --ide-accent-subtle:            rgba(9,180,58, 0.15);
+
+    /* Status indicators */
+    --ide-danger:                   #ff6a69;
+    --ide-success:                  #6A8759;
+    --ide-warning:                  #E8C859;
+    --ide-info:                     #6897BB;
+
+    /* Tabs */
+    --ide-tab-active-bg:            #0a0c10;
+    --ide-tab-inactive-bg:          #010409;
+    --ide-tab-active-border:        #0a0c10;
+
+    /* Result Grid */
+    --ide-grid-header-bg:           #010409;
+    --ide-grid-row-alt:             rgba(128, 128, 128, 0.04);
+    --ide-grid-row-hover:           rgba(128, 128, 128, 0.08);
+
+    /* Action bar & Badges */
+    --ide-action-bar-bg:            #0a0c10;
+    --ide-badge-bg:                 #010409;
+    --ide-badge-text:               #f0f3f6;
+    --ide-badge-hover:              #7a828e;
+
+    /* Context menu */
+    --ide-ctx-item-hover:           rgba(9,180,58, 0.18);
+    --ide-ctx-separator:            #7a828e;
+
+    /* Scrollbars */
+    --ide-scroll-track:             #0a0c10;
+    --ide-scroll-thumb:             #7a828e;
+    --ide-scroll-thumb-hover:       #f0f3f6;
+}
+
+
+/* ── VSIX Imported Theme: GitHub Dark Colorblind (Beta) (Dark) (github-dark-colorblind-beta-dark) ────────────────────────── */
+html[data-bs-theme="github-dark-colorblind-beta-dark"] {
+    --ide-theme-id:                 "github-dark-colorblind-beta-dark";
+    --ide-theme-name:               "GitHub Dark Colorblind (Beta) (Dark)";
+    --ide-titlebar-bg:              #0d1117;
+    --ide-titlebar-text:            #8b949e;
+
+    /* Bootstrap overrides */
+    --bs-body-bg:                   #010409;
+    --bs-body-color:                #c9d1d9;
+    --bs-border-color:              #30363d;
+    --bs-border-color-translucent:  rgba(120, 120, 120, 0.35);
+    --bs-primary:                   #1f6feb;
+    --bs-primary-rgb:               31,111,235;
+    --bs-dark:                      #0d1117;
+    --bs-secondary:                 #8b949e;
+    --bs-link-color:                #1f6feb;
+    --bs-link-hover-color:          #1f6feb;
+
+    /* IDE surface layers */
+    --ide-bg-main:                  #010409;
+    --ide-bg-sidebar:               #010409;
+    --ide-bg-toolbar:               #0d1117;
+    --ide-bg-editor:                #0d1117;
+    --ide-bg-panel:                 #010409;
+    --ide-bg-result:                #0d1117;
+    --ide-bg-input:                 #0d1117;
+    --ide-bg-modal:                 #161b22;
+    --ide-bg-dropdown:              #161b22;
+    --ide-bg-context-menu:          #161b22;
+
+    /* Borders */
+    --ide-border:                   #30363d;
+    --ide-border-active:            #1f6feb;
+
+    /* Typography */
+    --ide-text-main:                #c9d1d9;
+    --ide-text-muted:               #8b949e;
+    --ide-text-active:              #c9d1d9;
+    --ide-text-dim:                 #8b949e;
+
+    /* Interactive states */
+    --ide-hover-bg:                 rgba(128, 128, 128, 0.12);
+    --ide-active-bg:                rgba(31,111,235, 0.20);
+    --ide-selection-bg:             rgba(31,111,235, 0.25);
+
+    /* Accent */
+    --ide-accent:                   #1f6feb;
+    --ide-syntax-keyword:           #1f6feb;
+    --ide-accent-hover:             #1f6feb;
+    --ide-accent-subtle:            rgba(31,111,235, 0.15);
+
+    /* Status indicators */
+    --ide-danger:                   #d47616;
+    --ide-success:                  #6A8759;
+    --ide-warning:                  #E8C859;
+    --ide-info:                     #6897BB;
+
+    /* Tabs */
+    --ide-tab-active-bg:            #0d1117;
+    --ide-tab-inactive-bg:          #010409;
+    --ide-tab-active-border:        #0d1117;
+
+    /* Result Grid */
+    --ide-grid-header-bg:           #010409;
+    --ide-grid-row-alt:             rgba(128, 128, 128, 0.04);
+    --ide-grid-row-hover:           rgba(128, 128, 128, 0.08);
+
+    /* Action bar & Badges */
+    --ide-action-bar-bg:            #0d1117;
+    --ide-badge-bg:                 #010409;
+    --ide-badge-text:               #c9d1d9;
+    --ide-badge-hover:              #30363d;
+
+    /* Context menu */
+    --ide-ctx-item-hover:           rgba(31,111,235, 0.18);
+    --ide-ctx-separator:            #30363d;
+
+    /* Scrollbars */
+    --ide-scroll-track:             #0d1117;
+    --ide-scroll-thumb:             #30363d;
+    --ide-scroll-thumb-hover:       #8b949e;
+}
+
+
+/* ── VSIX Imported Theme: GitHub Dark Dimmed (Dark) (github-dark-dimmed-dark) ────────────────────────── */
+html[data-bs-theme="github-dark-dimmed-dark"] {
+    --ide-theme-id:                 "github-dark-dimmed-dark";
+    --ide-theme-name:               "GitHub Dark Dimmed (Dark)";
+    --ide-titlebar-bg:              #22272e;
+    --ide-titlebar-text:            #768390;
+
+    /* Bootstrap overrides */
+    --bs-body-bg:                   #1c2128;
+    --bs-body-color:                #adbac7;
+    --bs-border-color:              #444c56;
+    --bs-border-color-translucent:  rgba(120, 120, 120, 0.35);
+    --bs-primary:                   #347d39;
+    --bs-primary-rgb:               52,125,57;
+    --bs-dark:                      #22272e;
+    --bs-secondary:                 #768390;
+    --bs-link-color:                #347d39;
+    --bs-link-hover-color:          #347d39;
+
+    /* IDE surface layers */
+    --ide-bg-main:                  #1c2128;
+    --ide-bg-sidebar:               #1c2128;
+    --ide-bg-toolbar:               #22272e;
+    --ide-bg-editor:                #22272e;
+    --ide-bg-panel:                 #1c2128;
+    --ide-bg-result:                #22272e;
+    --ide-bg-input:                 #22272e;
+    --ide-bg-modal:                 #2d333b;
+    --ide-bg-dropdown:              #2d333b;
+    --ide-bg-context-menu:          #2d333b;
+
+    /* Borders */
+    --ide-border:                   #444c56;
+    --ide-border-active:            #316dca;
+
+    /* Typography */
+    --ide-text-main:                #adbac7;
+    --ide-text-muted:               #768390;
+    --ide-text-active:              #adbac7;
+    --ide-text-dim:                 #768390;
+
+    /* Interactive states */
+    --ide-hover-bg:                 rgba(128, 128, 128, 0.12);
+    --ide-active-bg:                rgba(52,125,57, 0.20);
+    --ide-selection-bg:             rgba(52,125,57, 0.25);
+
+    /* Accent */
+    --ide-accent:                   #347d39;
+    --ide-syntax-keyword:           #347d39;
+    --ide-accent-hover:             #347d39;
+    --ide-accent-subtle:            rgba(52,125,57, 0.15);
+
+    /* Status indicators */
+    --ide-danger:                   #e5534b;
+    --ide-success:                  #6A8759;
+    --ide-warning:                  #E8C859;
+    --ide-info:                     #6897BB;
+
+    /* Tabs */
+    --ide-tab-active-bg:            #22272e;
+    --ide-tab-inactive-bg:          #1c2128;
+    --ide-tab-active-border:        #22272e;
+
+    /* Result Grid */
+    --ide-grid-header-bg:           #1c2128;
+    --ide-grid-row-alt:             rgba(128, 128, 128, 0.04);
+    --ide-grid-row-hover:           rgba(128, 128, 128, 0.08);
+
+    /* Action bar & Badges */
+    --ide-action-bar-bg:            #22272e;
+    --ide-badge-bg:                 #1c2128;
+    --ide-badge-text:               #adbac7;
+    --ide-badge-hover:              #444c56;
+
+    /* Context menu */
+    --ide-ctx-item-hover:           rgba(52,125,57, 0.18);
+    --ide-ctx-separator:            #444c56;
+
+    /* Scrollbars */
+    --ide-scroll-track:             #22272e;
+    --ide-scroll-thumb:             #444c56;
+    --ide-scroll-thumb-hover:       #768390;
+}
+
+
+/* ── VSIX Imported Theme: GitHub (Light) (github-light) ────────────────────────── */
+html[data-bs-theme="github-light"] {
+    --ide-theme-id:                 "github-light";
+    --ide-theme-name:               "GitHub (Light)";
+    --ide-titlebar-bg:              #fff;
+    --ide-titlebar-text:            #2f363d;
+
+    /* Bootstrap overrides */
+    --bs-body-bg:                   #f6f8fa;
+    --bs-body-color:                #24292e;
+    --bs-border-color:              #e1e4e8;
+    --bs-border-color-translucent:  rgba(120, 120, 120, 0.35);
+    --bs-primary:                   #159739;
+    --bs-primary-rgb:               21,151,57;
+    --bs-dark:                      #fff;
+    --bs-secondary:                 #6a737d;
+    --bs-link-color:                #159739;
+    --bs-link-hover-color:          #159739;
+
+    /* IDE surface layers */
+    --ide-bg-main:                  #f6f8fa;
+    --ide-bg-sidebar:               #f6f8fa;
+    --ide-bg-toolbar:               #fff;
+    --ide-bg-editor:                #fff;
+    --ide-bg-panel:                 #f6f8fa;
+    --ide-bg-result:                #fff;
+    --ide-bg-input:                 #fafbfc;
+    --ide-bg-modal:                 #f6f8fa;
+    --ide-bg-dropdown:              #fafbfc;
+    --ide-bg-context-menu:          #f6f8fa;
+
+    /* Borders */
+    --ide-border:                   #e1e4e8;
+    --ide-border-active:            #2188ff;
+
+    /* Typography */
+    --ide-text-main:                #24292e;
+    --ide-text-muted:               #6a737d;
+    --ide-text-active:              #24292e;
+    --ide-text-dim:                 #6a737d;
+
+    /* Interactive states */
+    --ide-hover-bg:                 rgba(128, 128, 128, 0.12);
+    --ide-active-bg:                rgba(21,151,57, 0.20);
+    --ide-selection-bg:             rgba(21,151,57, 0.25);
+
+    /* Accent */
+    --ide-accent:                   #159739;
+    --ide-syntax-keyword:           #159739;
+    --ide-accent-hover:             #159739;
+    --ide-accent-subtle:            rgba(21,151,57, 0.15);
+
+    /* Status indicators */
+    --ide-danger:                   #cb2431;
+    --ide-success:                  #4a7c3f;
+    --ide-warning:                  #f9c513;
+    --ide-info:                     #6897BB;
+
+    /* Tabs */
+    --ide-tab-active-bg:            #fff;
+    --ide-tab-inactive-bg:          #f6f8fa;
+    --ide-tab-active-border:        #fff;
+
+    /* Result Grid */
+    --ide-grid-header-bg:           #f6f8fa;
+    --ide-grid-row-alt:             rgba(128, 128, 128, 0.04);
+    --ide-grid-row-hover:           rgba(128, 128, 128, 0.08);
+
+    /* Action bar & Badges */
+    --ide-action-bar-bg:            #fff;
+    --ide-badge-bg:                 #f6f8fa;
+    --ide-badge-text:               #24292e;
+    --ide-badge-hover:              #e1e4e8;
+
+    /* Context menu */
+    --ide-ctx-item-hover:           rgba(21,151,57, 0.18);
+    --ide-ctx-separator:            #e1e4e8;
+
+    /* Scrollbars */
+    --ide-scroll-track:             #fff;
+    --ide-scroll-thumb:             #e1e4e8;
+    --ide-scroll-thumb-hover:       #6a737d;
+}
+
+
+/* ── VSIX Imported Theme: GitHub (Dark) (github-dark) ────────────────────────── */
+html[data-bs-theme="github-dark"] {
+    --ide-theme-id:                 "github-dark";
+    --ide-theme-name:               "GitHub (Dark)";
+    --ide-titlebar-bg:              #24292e;
+    --ide-titlebar-text:            #e1e4e8;
+
+    /* Bootstrap overrides */
+    --bs-body-bg:                   #1f2428;
+    --bs-body-color:                #e1e4e8;
+    --bs-border-color:              #1b1f23;
+    --bs-border-color-translucent:  rgba(120, 120, 120, 0.35);
+    --bs-primary:                   #176f2c;
+    --bs-primary-rgb:               23,111,44;
+    --bs-dark:                      #24292e;
+    --bs-secondary:                 #959da5;
+    --bs-link-color:                #176f2c;
+    --bs-link-hover-color:          #176f2c;
+
+    /* IDE surface layers */
+    --ide-bg-main:                  #1f2428;
+    --ide-bg-sidebar:               #1f2428;
+    --ide-bg-toolbar:               #24292e;
+    --ide-bg-editor:                #24292e;
+    --ide-bg-panel:                 #1f2428;
+    --ide-bg-result:                #24292e;
+    --ide-bg-input:                 #2f363d;
+    --ide-bg-modal:                 #1f2428;
+    --ide-bg-dropdown:              #2f363d;
+    --ide-bg-context-menu:          #1f2428;
+
+    /* Borders */
+    --ide-border:                   #1b1f23;
+    --ide-border-active:            #005cc5;
+
+    /* Typography */
+    --ide-text-main:                #e1e4e8;
+    --ide-text-muted:               #959da5;
+    --ide-text-active:              #e1e4e8;
+    --ide-text-dim:                 #959da5;
+
+    /* Interactive states */
+    --ide-hover-bg:                 rgba(128, 128, 128, 0.12);
+    --ide-active-bg:                rgba(23,111,44, 0.20);
+    --ide-selection-bg:             rgba(23,111,44, 0.25);
+
+    /* Accent */
+    --ide-accent:                   #176f2c;
+    --ide-syntax-keyword:           #176f2c;
+    --ide-accent-hover:             #176f2c;
+    --ide-accent-subtle:            rgba(23,111,44, 0.15);
+
+    /* Status indicators */
+    --ide-danger:                   #f97583;
+    --ide-success:                  #6A8759;
+    --ide-warning:                  #ffea7f;
+    --ide-info:                     #6897BB;
+
+    /* Tabs */
+    --ide-tab-active-bg:            #24292e;
+    --ide-tab-inactive-bg:          #1f2428;
+    --ide-tab-active-border:        #24292e;
+
+    /* Result Grid */
+    --ide-grid-header-bg:           #1f2428;
+    --ide-grid-row-alt:             rgba(128, 128, 128, 0.04);
+    --ide-grid-row-hover:           rgba(128, 128, 128, 0.08);
+
+    /* Action bar & Badges */
+    --ide-action-bar-bg:            #24292e;
+    --ide-badge-bg:                 #1f2428;
+    --ide-badge-text:               #e1e4e8;
+    --ide-badge-hover:              #1b1f23;
+
+    /* Context menu */
+    --ide-ctx-item-hover:           rgba(23,111,44, 0.18);
+    --ide-ctx-separator:            #1b1f23;
+
+    /* Scrollbars */
+    --ide-scroll-track:             #24292e;
+    --ide-scroll-thumb:             #1b1f23;
+    --ide-scroll-thumb-hover:       #959da5;
+}
+
+/* ── VSIX Imported Theme: SynthWave '84 (synthwave-84) ────────────────────────── */
+html[data-bs-theme="synthwave-84"] {
+    --ide-theme-id:                 "synthwave-84";
+    --ide-theme-name:               "SynthWave '84";
+    --ide-titlebar-bg:              #241b2f;
+    --ide-titlebar-text:            #ffffff;
+
+    /* Bootstrap overrides */
+    --bs-body-bg:                   #241b2f;
+    --bs-body-color:                #ffffff;
+    --bs-border-color:              #241b2f00;
+    --bs-border-color-translucent:  rgba(120, 120, 120, 0.35);
+    --bs-primary:                   #614D85;
+    --bs-primary-rgb:               97,77,133;
+    --bs-dark:                      #241b2f;
+    --bs-secondary:                 #ffffff73;
+    --bs-link-color:                #614D85;
+    --bs-link-hover-color:          #614D85;
+
+    /* IDE surface layers */
+    --ide-bg-main:                  #241b2f;
+    --ide-bg-sidebar:               #241b2f;
+    --ide-bg-toolbar:               #241b2f;
+    --ide-bg-editor:                #262335;
+    --ide-bg-panel:                 #262335;
+    --ide-bg-result:                #262335;
+    --ide-bg-input:                 #2a2139;
+    --ide-bg-modal:                 #171520DC;
+    --ide-bg-dropdown:              #232530;
+    --ide-bg-context-menu:          #463465;
+
+    /* Borders */
+    --ide-border:                   #241b2f00;
+    --ide-border-active:            #1f212b;
+
+    /* Typography */
+    --ide-text-main:                #ffffff;
+    --ide-text-muted:               #ffffff73;
+    --ide-text-active:              #ffffff;
+    --ide-text-dim:                 #ffffff73;
+
+    /* Interactive states */
+    --ide-hover-bg:                 rgba(128, 128, 128, 0.12);
+    --ide-active-bg:                rgba(97,77,133, 0.20);
+    --ide-selection-bg:             rgba(97,77,133, 0.25);
+
+    /* Accent */
+    --ide-accent:                   #614D85;
+    --ide-syntax-keyword:           #614D85;
+    --ide-accent-hover:             #614D85;
+    --ide-accent-subtle:            rgba(97,77,133, 0.15);
+
+    /* Status indicators */
+    --ide-danger:                   #fe4450;
+    --ide-success:                  #6A8759;
+    --ide-warning:                  #72f1b8cc;
+    --ide-info:                     #6897BB;
+
+    /* Tabs */
+    --ide-tab-active-bg:            #262335;
+    --ide-tab-inactive-bg:          #262335;
+    --ide-tab-active-border:        #880088;
+
+    /* Result Grid */
+    --ide-grid-header-bg:           #241b2f;
+    --ide-grid-row-alt:             rgba(128, 128, 128, 0.04);
+    --ide-grid-row-hover:           rgba(128, 128, 128, 0.08);
+
+    /* Action bar & Badges */
+    --ide-action-bar-bg:            #241b2f;
+    --ide-badge-bg:                 #262335;
+    --ide-badge-text:               #ffffff;
+    --ide-badge-hover:              #241b2f00;
+
+    /* Context menu */
+    --ide-ctx-item-hover:           rgba(97,77,133, 0.18);
+    --ide-ctx-separator:            #241b2f00;
+
+    /* Scrollbars */
+    --ide-scroll-track:             #241b2f;
+    --ide-scroll-thumb:             #241b2f00;
+    --ide-scroll-thumb-hover:       #ffffff73;
+}
+
+/* ── VSIX Imported Theme: Palenight Theme (palenight-theme) ────────────────────────── */
+html[data-bs-theme="palenight-theme"] {
+    --ide-theme-id:                 "palenight-theme";
+    --ide-theme-name:               "Palenight Theme";
+    --ide-titlebar-bg:              #292d3e;
+    --ide-titlebar-text:            #eeefff;
+
+    /* Bootstrap overrides */
+    --bs-body-bg:                   #292D3E;
+    --bs-body-color:                #BFC7D5;
+    --bs-border-color:              #282B3C;
+    --bs-border-color-translucent:  rgba(120, 120, 120, 0.35);
+    --bs-primary:                   #7e57c2cc;
+    --bs-primary-rgb:               126,87,194;
+    --bs-dark:                      #292d3e;
+    --bs-secondary:                 #4c5374;
+    --bs-link-color:                #7e57c2cc;
+    --bs-link-hover-color:          #7e57c2cc;
+
+    /* IDE surface layers */
+    --ide-bg-main:                  #292D3E;
+    --ide-bg-sidebar:               #292D3E;
+    --ide-bg-toolbar:               #292d3e;
+    --ide-bg-editor:                #292D3E;
+    --ide-bg-panel:                 #292D3E;
+    --ide-bg-result:                #292D3E;
+    --ide-bg-input:                 #313850;
+    --ide-bg-modal:                 #31364a;
+    --ide-bg-dropdown:              #292D3E;
+    --ide-bg-context-menu:          #31364a;
+
+    /* Borders */
+    --ide-border:                   #282B3C;
+    --ide-border-active:            #282B3C;
+
+    /* Typography */
+    --ide-text-main:                #BFC7D5;
+    --ide-text-muted:               #4c5374;
+    --ide-text-active:              #BFC7D5;
+    --ide-text-dim:                 #4c5374;
+
+    /* Interactive states */
+    --ide-hover-bg:                 rgba(128, 128, 128, 0.12);
+    --ide-active-bg:                rgba(126,87,194, 0.20);
+    --ide-selection-bg:             rgba(126,87,194, 0.25);
+
+    /* Accent */
+    --ide-accent:                   #7e57c2cc;
+    --ide-syntax-keyword:           #7e57c2cc;
+    --ide-accent-hover:             #7e57c2cc;
+    --ide-accent-subtle:            rgba(126,87,194, 0.15);
+
+    /* Status indicators */
+    --ide-danger:                   #EF5350;
+    --ide-success:                  #6A8759;
+    --ide-warning:                  #FFCA28;
+    --ide-info:                     #6897BB;
+
+    /* Tabs */
+    --ide-tab-active-bg:            #292D3E;
+    --ide-tab-inactive-bg:          #31364A;
+    --ide-tab-active-border:        #262A39;
+
+    /* Result Grid */
+    --ide-grid-header-bg:           #292D3E;
+    --ide-grid-row-alt:             rgba(128, 128, 128, 0.04);
+    --ide-grid-row-hover:           rgba(128, 128, 128, 0.08);
+
+    /* Action bar & Badges */
+    --ide-action-bar-bg:            #292d3e;
+    --ide-badge-bg:                 #31364A;
+    --ide-badge-text:               #BFC7D5;
+    --ide-badge-hover:              #282B3C;
+
+    /* Context menu */
+    --ide-ctx-item-hover:           rgba(126,87,194, 0.18);
+    --ide-ctx-separator:            #282B3C;
+
+    /* Scrollbars */
+    --ide-scroll-track:             #292d3e;
+    --ide-scroll-thumb:             #282B3C;
+    --ide-scroll-thumb-hover:       #4c5374;
+}
+
+
+/* ── VSIX Imported Theme: Palenight Italic (palenight-italic) ────────────────────────── */
+html[data-bs-theme="palenight-italic"] {
+    --ide-theme-id:                 "palenight-italic";
+    --ide-theme-name:               "Palenight Italic";
+    --ide-titlebar-bg:              #292d3e;
+    --ide-titlebar-text:            #eeefff;
+
+    /* Bootstrap overrides */
+    --bs-body-bg:                   #292D3E;
+    --bs-body-color:                #BFC7D5;
+    --bs-border-color:              #282B3C;
+    --bs-border-color-translucent:  rgba(120, 120, 120, 0.35);
+    --bs-primary:                   #7e57c2cc;
+    --bs-primary-rgb:               126,87,194;
+    --bs-dark:                      #292d3e;
+    --bs-secondary:                 #4c5374;
+    --bs-link-color:                #7e57c2cc;
+    --bs-link-hover-color:          #7e57c2cc;
+
+    /* IDE surface layers */
+    --ide-bg-main:                  #292D3E;
+    --ide-bg-sidebar:               #292D3E;
+    --ide-bg-toolbar:               #292d3e;
+    --ide-bg-editor:                #292D3E;
+    --ide-bg-panel:                 #292D3E;
+    --ide-bg-result:                #292D3E;
+    --ide-bg-input:                 #313850;
+    --ide-bg-modal:                 #31364a;
+    --ide-bg-dropdown:              #292D3E;
+    --ide-bg-context-menu:          #31364a;
+
+    /* Borders */
+    --ide-border:                   #282B3C;
+    --ide-border-active:            #282B3C;
+
+    /* Typography */
+    --ide-text-main:                #BFC7D5;
+    --ide-text-muted:               #4c5374;
+    --ide-text-active:              #BFC7D5;
+    --ide-text-dim:                 #4c5374;
+
+    /* Interactive states */
+    --ide-hover-bg:                 rgba(128, 128, 128, 0.12);
+    --ide-active-bg:                rgba(126,87,194, 0.20);
+    --ide-selection-bg:             rgba(126,87,194, 0.25);
+
+    /* Accent */
+    --ide-accent:                   #7e57c2cc;
+    --ide-syntax-keyword:           #7e57c2cc;
+    --ide-accent-hover:             #7e57c2cc;
+    --ide-accent-subtle:            rgba(126,87,194, 0.15);
+
+    /* Status indicators */
+    --ide-danger:                   #EF5350;
+    --ide-success:                  #6A8759;
+    --ide-warning:                  #FFCA28;
+    --ide-info:                     #6897BB;
+
+    /* Tabs */
+    --ide-tab-active-bg:            #292D3E;
+    --ide-tab-inactive-bg:          #31364A;
+    --ide-tab-active-border:        #262A39;
+
+    /* Result Grid */
+    --ide-grid-header-bg:           #292D3E;
+    --ide-grid-row-alt:             rgba(128, 128, 128, 0.04);
+    --ide-grid-row-hover:           rgba(128, 128, 128, 0.08);
+
+    /* Action bar & Badges */
+    --ide-action-bar-bg:            #292d3e;
+    --ide-badge-bg:                 #31364A;
+    --ide-badge-text:               #BFC7D5;
+    --ide-badge-hover:              #282B3C;
+
+    /* Context menu */
+    --ide-ctx-item-hover:           rgba(126,87,194, 0.18);
+    --ide-ctx-separator:            #282B3C;
+
+    /* Scrollbars */
+    --ide-scroll-track:             #292d3e;
+    --ide-scroll-thumb:             #282B3C;
+    --ide-scroll-thumb-hover:       #4c5374;
+}
+
+
+/* ── VSIX Imported Theme: Palenight Operator (palenight-operator) ────────────────────────── */
+html[data-bs-theme="palenight-operator"] {
+    --ide-theme-id:                 "palenight-operator";
+    --ide-theme-name:               "Palenight Operator";
+    --ide-titlebar-bg:              #292d3e;
+    --ide-titlebar-text:            #eeefff;
+
+    /* Bootstrap overrides */
+    --bs-body-bg:                   #292D3E;
+    --bs-body-color:                #BFC7D5;
+    --bs-border-color:              #282B3C;
+    --bs-border-color-translucent:  rgba(120, 120, 120, 0.35);
+    --bs-primary:                   #7e57c2cc;
+    --bs-primary-rgb:               126,87,194;
+    --bs-dark:                      #292d3e;
+    --bs-secondary:                 #4c5374;
+    --bs-link-color:                #7e57c2cc;
+    --bs-link-hover-color:          #7e57c2cc;
+
+    /* IDE surface layers */
+    --ide-bg-main:                  #292D3E;
+    --ide-bg-sidebar:               #292D3E;
+    --ide-bg-toolbar:               #292d3e;
+    --ide-bg-editor:                #292D3E;
+    --ide-bg-panel:                 #292D3E;
+    --ide-bg-result:                #292D3E;
+    --ide-bg-input:                 #313850;
+    --ide-bg-modal:                 #31364a;
+    --ide-bg-dropdown:              #292D3E;
+    --ide-bg-context-menu:          #31364a;
+
+    /* Borders */
+    --ide-border:                   #282B3C;
+    --ide-border-active:            #282B3C;
+
+    /* Typography */
+    --ide-text-main:                #BFC7D5;
+    --ide-text-muted:               #4c5374;
+    --ide-text-active:              #BFC7D5;
+    --ide-text-dim:                 #4c5374;
+
+    /* Interactive states */
+    --ide-hover-bg:                 rgba(128, 128, 128, 0.12);
+    --ide-active-bg:                rgba(126,87,194, 0.20);
+    --ide-selection-bg:             rgba(126,87,194, 0.25);
+
+    /* Accent */
+    --ide-accent:                   #7e57c2cc;
+    --ide-syntax-keyword:           #7e57c2cc;
+    --ide-accent-hover:             #7e57c2cc;
+    --ide-accent-subtle:            rgba(126,87,194, 0.15);
+
+    /* Status indicators */
+    --ide-danger:                   #EF5350;
+    --ide-success:                  #6A8759;
+    --ide-warning:                  #FFCA28;
+    --ide-info:                     #6897BB;
+
+    /* Tabs */
+    --ide-tab-active-bg:            #292D3E;
+    --ide-tab-inactive-bg:          #31364A;
+    --ide-tab-active-border:        #262A39;
+
+    /* Result Grid */
+    --ide-grid-header-bg:           #292D3E;
+    --ide-grid-row-alt:             rgba(128, 128, 128, 0.04);
+    --ide-grid-row-hover:           rgba(128, 128, 128, 0.08);
+
+    /* Action bar & Badges */
+    --ide-action-bar-bg:            #292d3e;
+    --ide-badge-bg:                 #31364A;
+    --ide-badge-text:               #BFC7D5;
+    --ide-badge-hover:              #282B3C;
+
+    /* Context menu */
+    --ide-ctx-item-hover:           rgba(126,87,194, 0.18);
+    --ide-ctx-separator:            #282B3C;
+
+    /* Scrollbars */
+    --ide-scroll-track:             #292d3e;
+    --ide-scroll-thumb:             #282B3C;
+    --ide-scroll-thumb-hover:       #4c5374;
+}
+
+
+/* ── VSIX Imported Theme: Palenight (Mild Contrast) (palenight-mild-contrast) ────────────────────────── */
+html[data-bs-theme="palenight-mild-contrast"] {
+    --ide-theme-id:                 "palenight-mild-contrast";
+    --ide-theme-name:               "Palenight (Mild Contrast)";
+    --ide-titlebar-bg:              #25293A;
+    --ide-titlebar-text:            #eeefff;
+
+    /* Bootstrap overrides */
+    --bs-body-bg:                   #25293A;
+    --bs-body-color:                #BFC7D5;
+    --bs-border-color:              #2C2F40;
+    --bs-border-color-translucent:  rgba(120, 120, 120, 0.35);
+    --bs-primary:                   #7e57c2cc;
+    --bs-primary-rgb:               126,87,194;
+    --bs-dark:                      #25293A;
+    --bs-secondary:                 #4c5374;
+    --bs-link-color:                #7e57c2cc;
+    --bs-link-hover-color:          #7e57c2cc;
+
+    /* IDE surface layers */
+    --ide-bg-main:                  #25293A;
+    --ide-bg-sidebar:               #25293A;
+    --ide-bg-toolbar:               #25293A;
+    --ide-bg-editor:                #292D3E;
+    --ide-bg-panel:                 #25293A;
+    --ide-bg-result:                #292D3E;
+    --ide-bg-input:                 #313850;
+    --ide-bg-modal:                 #31364a;
+    --ide-bg-dropdown:              #292D3E;
+    --ide-bg-context-menu:          #31364a;
+
+    /* Borders */
+    --ide-border:                   #2C2F40;
+    --ide-border-active:            #2C2F40;
+
+    /* Typography */
+    --ide-text-main:                #BFC7D5;
+    --ide-text-muted:               #4c5374;
+    --ide-text-active:              #BFC7D5;
+    --ide-text-dim:                 #4c5374;
+
+    /* Interactive states */
+    --ide-hover-bg:                 rgba(128, 128, 128, 0.12);
+    --ide-active-bg:                rgba(126,87,194, 0.20);
+    --ide-selection-bg:             rgba(126,87,194, 0.25);
+
+    /* Accent */
+    --ide-accent:                   #7e57c2cc;
+    --ide-syntax-keyword:           #7e57c2cc;
+    --ide-accent-hover:             #7e57c2cc;
+    --ide-accent-subtle:            rgba(126,87,194, 0.15);
+
+    /* Status indicators */
+    --ide-danger:                   #EF5350;
+    --ide-success:                  #6A8759;
+    --ide-warning:                  #FFCA28;
+    --ide-info:                     #6897BB;
+
+    /* Tabs */
+    --ide-tab-active-bg:            #25293A;
+    --ide-tab-inactive-bg:          #31364A;
+    --ide-tab-active-border:        #2C3041;
+
+    /* Result Grid */
+    --ide-grid-header-bg:           #25293A;
+    --ide-grid-row-alt:             rgba(128, 128, 128, 0.04);
+    --ide-grid-row-hover:           rgba(128, 128, 128, 0.08);
+
+    /* Action bar & Badges */
+    --ide-action-bar-bg:            #25293A;
+    --ide-badge-bg:                 #31364A;
+    --ide-badge-text:               #BFC7D5;
+    --ide-badge-hover:              #2C2F40;
+
+    /* Context menu */
+    --ide-ctx-item-hover:           rgba(126,87,194, 0.18);
+    --ide-ctx-separator:            #2C2F40;
+
+    /* Scrollbars */
+    --ide-scroll-track:             #25293A;
+    --ide-scroll-thumb:             #2C2F40;
+    --ide-scroll-thumb-hover:       #4c5374;
+}
+
+/* ── VSIX Imported Theme: Shades of Purple (shades-of-purple) ────────────────────────── */
+html[data-bs-theme="shades-of-purple"] {
+    --ide-theme-id:                 "shades-of-purple";
+    --ide-theme-name:               "Shades of Purple";
+    --ide-titlebar-bg:              #1E1E3F;
+    --ide-titlebar-text:            #FFFFFF;
+
+    /* Bootstrap overrides */
+    --bs-body-bg:                   #222244;
+    --bs-body-color:                #FFFFFF;
+    --bs-border-color:              #25254B;
+    --bs-border-color-translucent:  rgba(120, 120, 120, 0.35);
+    --bs-primary:                   #FAD000dd;
+    --bs-primary-rgb:               250,208,0;
+    --bs-dark:                      #1E1E3F;
+    --bs-secondary:                 #A599E9;
+    --bs-link-color:                #FAD000dd;
+    --bs-link-hover-color:          #FAD000dd;
+
+    /* IDE surface layers */
+    --ide-bg-main:                  #222244;
+    --ide-bg-sidebar:               #222244;
+    --ide-bg-toolbar:               #1E1E3F;
+    --ide-bg-editor:                #2D2B55;
+    --ide-bg-panel:                 #1E1E3F;
+    --ide-bg-result:                #2D2B55;
+    --ide-bg-input:                 #2D2B55;
+    --ide-bg-modal:                 #222244;
+    --ide-bg-dropdown:              #1E1E3F;
+    --ide-bg-context-menu:          #222244;
+
+    /* Borders */
+    --ide-border:                   #25254B;
+    --ide-border-active:            #1E1E3F;
+
+    /* Typography */
+    --ide-text-main:                #FFFFFF;
+    --ide-text-muted:               #A599E9;
+    --ide-text-active:              #FFFFFF;
+    --ide-text-dim:                 #A599E9;
+
+    /* Interactive states */
+    --ide-hover-bg:                 rgba(128, 128, 128, 0.12);
+    --ide-active-bg:                rgba(250,208,0, 0.20);
+    --ide-selection-bg:             rgba(250,208,0, 0.25);
+
+    /* Accent */
+    --ide-accent:                   #FAD000dd;
+    --ide-syntax-keyword:           #FAD000dd;
+    --ide-accent-hover:             #FAD000dd;
+    --ide-accent-subtle:            rgba(250,208,0, 0.15);
+
+    /* Status indicators */
+    --ide-danger:                   #EC3A37F5;
+    --ide-success:                  #6A8759;
+    --ide-warning:                  #FAD000;
+    --ide-info:                     #6897BB;
+
+    /* Tabs */
+    --ide-tab-active-bg:            #222244;
+    --ide-tab-inactive-bg:          #2D2B55;
+    --ide-tab-active-border:        #FAD000;
+
+    /* Result Grid */
+    --ide-grid-header-bg:           #1E1E3F;
+    --ide-grid-row-alt:             rgba(128, 128, 128, 0.04);
+    --ide-grid-row-hover:           rgba(128, 128, 128, 0.08);
+
+    /* Action bar & Badges */
+    --ide-action-bar-bg:            #1E1E3F;
+    --ide-badge-bg:                 #2D2B55;
+    --ide-badge-text:               #FFFFFF;
+    --ide-badge-hover:              #25254B;
+
+    /* Context menu */
+    --ide-ctx-item-hover:           rgba(250,208,0, 0.18);
+    --ide-ctx-separator:            #25254B;
+
+    /* Scrollbars */
+    --ide-scroll-track:             #1E1E3F;
+    --ide-scroll-thumb:             #25254B;
+    --ide-scroll-thumb-hover:       #A599E9;
+}
+
+
+/* ── VSIX Imported Theme: Shades of Purple (Super Dark) (shades-of-purple-super-dark) ────────────────────────── */
+html[data-bs-theme="shades-of-purple-super-dark"] {
+    --ide-theme-id:                 "shades-of-purple-super-dark";
+    --ide-theme-name:               "Shades of Purple (Super Dark)";
+    --ide-titlebar-bg:              #15152b;
+    --ide-titlebar-text:            #FFFFFF;
+
+    /* Bootstrap overrides */
+    --bs-body-bg:                   #131327;
+    --bs-body-color:                #FFFFFF;
+    --bs-border-color:              #1a1a35;
+    --bs-border-color-translucent:  rgba(120, 120, 120, 0.35);
+    --bs-primary:                   #FAD000dd;
+    --bs-primary-rgb:               250,208,0;
+    --bs-dark:                      #15152b;
+    --bs-secondary:                 #A599E9;
+    --bs-link-color:                #FAD000dd;
+    --bs-link-hover-color:          #FAD000dd;
+
+    /* IDE surface layers */
+    --ide-bg-main:                  #131327;
+    --ide-bg-sidebar:               #131327;
+    --ide-bg-toolbar:               #15152b;
+    --ide-bg-editor:                #191830;
+    --ide-bg-panel:                 #15152b;
+    --ide-bg-result:                #191830;
+    --ide-bg-input:                 #191830;
+    --ide-bg-modal:                 #131327;
+    --ide-bg-dropdown:              #15152b;
+    --ide-bg-context-menu:          #131327;
+
+    /* Borders */
+    --ide-border:                   #1a1a35;
+    --ide-border-active:            #15152b;
+
+    /* Typography */
+    --ide-text-main:                #FFFFFF;
+    --ide-text-muted:               #A599E9;
+    --ide-text-active:              #FFFFFF;
+    --ide-text-dim:                 #A599E9;
+
+    /* Interactive states */
+    --ide-hover-bg:                 rgba(128, 128, 128, 0.12);
+    --ide-active-bg:                rgba(250,208,0, 0.20);
+    --ide-selection-bg:             rgba(250,208,0, 0.25);
+
+    /* Accent */
+    --ide-accent:                   #FAD000dd;
+    --ide-syntax-keyword:           #FAD000dd;
+    --ide-accent-hover:             #FAD000dd;
+    --ide-accent-subtle:            rgba(250,208,0, 0.15);
+
+    /* Status indicators */
+    --ide-danger:                   #EC3A37F5;
+    --ide-success:                  #6A8759;
+    --ide-warning:                  #FAD000;
+    --ide-info:                     #6897BB;
+
+    /* Tabs */
+    --ide-tab-active-bg:            #131327;
+    --ide-tab-inactive-bg:          #191830;
+    --ide-tab-active-border:        #FAD000;
+
+    /* Result Grid */
+    --ide-grid-header-bg:           #15152b;
+    --ide-grid-row-alt:             rgba(128, 128, 128, 0.04);
+    --ide-grid-row-hover:           rgba(128, 128, 128, 0.08);
+
+    /* Action bar & Badges */
+    --ide-action-bar-bg:            #15152b;
+    --ide-badge-bg:                 #191830;
+    --ide-badge-text:               #FFFFFF;
+    --ide-badge-hover:              #1a1a35;
+
+    /* Context menu */
+    --ide-ctx-item-hover:           rgba(250,208,0, 0.18);
+    --ide-ctx-separator:            #1a1a35;
+
+    /* Scrollbars */
+    --ide-scroll-track:             #15152b;
+    --ide-scroll-thumb:             #1a1a35;
+    --ide-scroll-thumb-hover:       #A599E9;
+}
+
+/* ── VSIX Imported Theme: Cobalt2 (cobalt2) ────────────────────────── */
+html[data-bs-theme="cobalt2"] {
+    --ide-theme-id:                 "cobalt2";
+    --ide-theme-name:               "Cobalt2";
+    --ide-titlebar-bg:              #15232D;
+    --ide-titlebar-text:            #ffffff;
+
+    /* Bootstrap overrides */
+    --bs-body-bg:                   #15232d;
+    --bs-body-color:                #fff;
+    --bs-border-color:              #0d3a58;
+    --bs-border-color-translucent:  rgba(120, 120, 120, 0.35);
+    --bs-primary:                   #0088ff;
+    --bs-primary-rgb:               0,136,255;
+    --bs-dark:                      #15232D;
+    --bs-secondary:                 #aaa;
+    --bs-link-color:                #0088ff;
+    --bs-link-hover-color:          #0088ff;
+
+    /* IDE surface layers */
+    --ide-bg-main:                  #15232d;
+    --ide-bg-sidebar:               #15232d;
+    --ide-bg-toolbar:               #15232D;
+    --ide-bg-editor:                #193549;
+    --ide-bg-panel:                 #122738;
+    --ide-bg-result:                #193549;
+    --ide-bg-input:                 #193549;
+    --ide-bg-modal:                 #15232d;
+    --ide-bg-dropdown:              #193549;
+    --ide-bg-context-menu:          #122738;
+
+    /* Borders */
+    --ide-border:                   #0d3a58;
+    --ide-border-active:            #0d3a58;
+
+    /* Typography */
+    --ide-text-main:                #fff;
+    --ide-text-muted:               #aaa;
+    --ide-text-active:              #fff;
+    --ide-text-dim:                 #aaa;
+
+    /* Interactive states */
+    --ide-hover-bg:                 rgba(128, 128, 128, 0.12);
+    --ide-active-bg:                rgba(0,136,255, 0.20);
+    --ide-selection-bg:             rgba(0,136,255, 0.25);
+
+    /* Accent */
+    --ide-accent:                   #0088ff;
+    --ide-syntax-keyword:           #0088ff;
+    --ide-accent-hover:             #0088ff;
+    --ide-accent-subtle:            rgba(0,136,255, 0.15);
+
+    /* Status indicators */
+    --ide-danger:                   #A22929;
+    --ide-success:                  #6A8759;
+    --ide-warning:                  #ffc600;
+    --ide-info:                     #6897BB;
+
+    /* Tabs */
+    --ide-tab-active-bg:            #193549;
+    --ide-tab-inactive-bg:          #122738;
+    --ide-tab-active-border:        #ffc600;
+
+    /* Result Grid */
+    --ide-grid-header-bg:           #193549;
+    --ide-grid-row-alt:             rgba(128, 128, 128, 0.04);
+    --ide-grid-row-hover:           rgba(128, 128, 128, 0.08);
+
+    /* Action bar & Badges */
+    --ide-action-bar-bg:            #15232D;
+    --ide-badge-bg:                 #122738;
+    --ide-badge-text:               #fff;
+    --ide-badge-hover:              #0d3a58;
+
+    /* Context menu */
+    --ide-ctx-item-hover:           rgba(0,136,255, 0.18);
+    --ide-ctx-separator:            #0d3a58;
+
+    /* Scrollbars */
+    --ide-scroll-track:             #15232D;
+    --ide-scroll-thumb:             #0d3a58;
+    --ide-scroll-thumb-hover:       #aaa;
+}

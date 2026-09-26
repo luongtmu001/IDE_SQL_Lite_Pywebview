@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="vi" data-bs-theme="dark">
+
+<head>
+    <style>
+        html, body {
+            background-color: #1e1e1e !important;
+            color: #d4d4d4;
+        }
+        html[data-bs-theme="light"], html[data-bs-theme="light"] body,
+        html[data-bs-theme="win-nt"], html[data-bs-theme="win-nt"] body,
+        html[data-bs-theme="win-xp"], html[data-bs-theme="win-xp"] body {
+            background-color: #f3f3f3 !important;
+            color: #1e1e1e;
+        }
+    </style>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cài đặt (Settings) — luoBTool IDE</title>
+    <link rel="icon" type="image/png" href="../static/image/logo-200x200.png">
+
+    <!-- Immediate Theme Restore: Khôi phục ngay theme đã lưu trước khi HTML render -->
+    <script>
+        (function () {
+            try {
+                var saved = localStorage.getItem('ide-theme');
+                if (saved) {
+                    document.documentElement.setAttribute('data-bs-theme', saved);
+                }
+            } catch (e) { }
+        })();
+    </script>
+
+    <!-- Bootstrap 5 CSS -->
+    <link href="../static/vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
+
+    <!-- Font Awesome 6 -->
+    <link href="../static/vendor/fontawesome/all.min.css" rel="stylesheet">
+
+    <!-- JetBrains Mono Font -->
+    <link href="../static/vendor/fonts/jetbrains-mono-local.css" rel="stylesheet">
+
+    <!-- Theme Color Variables Registry (Biến màu sắc tập trung) -->
+    <link rel="stylesheet" href="../static/css/theme-variables.css">
+
+    <!-- IDE Themes CSS -->
+    <link rel="stylesheet" href="../static/css/themes.css">
+
+    <!-- Settings CSS chuyên biệt -->
+    <link rel="stylesheet" href="../static/css/settings.css">
+</head>
+
+<body>
+    <div class="settings-window settings-standalone">
+        <!-- Main Body -->
+        <main class="body">
+            <!-- Search Row -->
+            <div class="search-row" id="settingsSearchRow">
+                <div class="search-box">
+                    <input type="text" id="settingsSearchInput" placeholder="Tìm kiếm cài đặt (Search settings)..." autocomplete="off">
+                    <div class="search-tools">
+                        <span class="tool sparkle" title="AI Settings"></span>
+                        <span class="tool sort-icon" title="Sort Settings"></span>
+                        <span class="tool filter-icon" title="Filter Settings"></span>
+                        <button type="button" id="settingsSearchClear" class="btn-clear-search d-none"
+                            title="Xóa tìm kiếm"
+                            style="border:none;background:transparent;cursor:pointer;font-size:14px;color:inherit;padding:0 4px;">
+                            <i class="fa-solid fa-xmark"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tabs Row with Action Buttons -->
+            <div class="tabs">
+                <div class="tab active" data-tab="visual">
+                    <i class="fa-solid fa-sliders me-1"></i> Cài đặt (Visual)
+                </div>
+                <div class="tab" data-tab="json">
+                    <i class="fa-solid fa-code me-1"></i> Cấu hình JSON (settings.json)
+                </div>
+
+                <div class="tabs-actions">
+                    <button type="button" id="settingsSaveBtn" class="btn-settings-save" title="Lưu tất cả thay đổi vào file settings.json và áp dụng ngay">
+                        <i class="fa-solid fa-floppy-disk me-1"></i> Lưu (Save)
+                    </button>
+                    <button type="button" id="settingsCopyJsonBtn" class="btn-settings-copy" title="Sao chép JSON cài đặt vào clipboard">
+                        <i class="fa-solid fa-copy me-1"></i> Copy JSON
+                    </button>
+                    <button type="button" id="settingsResetBtn" class="btn-settings-reset" title="Khôi phục tất cả cài đặt về giá trị mặc định">
+                        Khôi phục mặc định
+                    </button>
+                    <button type="button" id="settingsCloseWindowBtn" class="btn-settings-reset" title="Đóng cửa sổ cài đặt">
+                        <i class="fa-solid fa-xmark me-1"></i> Đóng
+                    </button>
+                </div>
+            </div>
+
+            <!-- View 1: Visual Form Settings Area (Split Left/Right) -->
+            <div class="settings-area" id="settingsVisualArea">
+                <aside class="sidebar" id="settingsNavList">
+                    <!-- Rendered dynamically by settings.js -->
+                </aside>
+
+                <section class="content-scroll" id="settingsContentScroll">
+                    <div class="content" id="settingsContentArea">
+                        <!-- Rendered dynamically by settings.js -->
+                    </div>
+                </section>
+            </div>
+
+            <!-- View 2: Raw JSON Editor Area (Cho phép người dùng trực tiếp sửa file setting) -->
+            <div class="settings-area d-none" id="settingsJsonArea" style="padding: 16px 24px;">
+                <div class="raw-json-container">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="small text-muted">
+                            <i class="fa-solid fa-circle-info me-1"></i>
+                            Bạn có thể chỉnh sửa trực tiếp các biến cấu hình bên dưới. Nhấn <strong>Lưu (Save)</strong> để áp dụng.
+                        </span>
+                        <span class="badge bg-secondary" id="jsonStatusBadge">Hợp lệ</span>
+                    </div>
+                    <textarea id="settingsRawJsonTextarea" class="raw-json-textarea" spellcheck="false"></textarea>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Custom Popup Dialog for Settings Window Notifications (Không dùng popup mặc định web) -->
+    <div class="settings-popup-backdrop d-none" id="settingsPopupBackdrop">
+        <div class="settings-popup-card" id="settingsPopupCard">
+            <div class="settings-popup-header">
+                <div class="settings-popup-title" id="settingsPopupTitle">
+                    <i class="fa-solid fa-circle-info text-info me-1"></i>
+                    <span>Thông báo</span>
+                </div>
+                <button type="button" class="settings-popup-close" id="settingsPopupCloseBtn">&times;</button>
+            </div>
+            <div class="settings-popup-body" id="settingsPopupMessage">
+                Nội dung thông báo
+            </div>
+            <div class="settings-popup-footer" id="settingsPopupFooter">
+                <button type="button" class="btn-popup btn-popup-primary" id="settingsPopupOkBtn">Đồng ý</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="../static/js/api.js"></script>
+    <script src="../static/js/clipboard-bridge.js"></script>
+    <script src="../static/js/storage.js"></script>
+    <script src="../static/js/theme-registry.js"></script>
+    <script src="../static/js/theme.js"></script>
+    <script src="../static/js/settings.js"></script>
+</body>
+
+</html>

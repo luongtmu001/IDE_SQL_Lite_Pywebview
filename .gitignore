@@ -1,6 +1,17 @@
 __pycache__/
 *.py[cod]
 .venv/
+venv/
 .env
 settings/settings.json
 .vscode/
+build/
+dist/
+.pytest_cache/
+.backup_fixes/
+scratch/
+dump.json
+OUTPUT/
+data/.secret.key
+data/connections.json
+data/.webview_cache/

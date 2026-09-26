@@ -4,17 +4,58 @@
 (function (window) {
     'use strict';
 
-    const SQL_KEYWORDS = [
-        "SELECT", "FROM", "WHERE", "JOIN", "INNER", "LEFT", "RIGHT", "FULL", "CROSS", "OUTER",
+    // 1. Relational ANSI SQL (Common keywords for all relational DBs)
+    const COMMON_SQL_KEYWORDS = [
+        "SELECT", "FROM", "WHERE", "JOIN", "INNER", "LEFT", "RIGHT", "FULL", "CROSS",
         "ON", "GROUP", "ORDER", "BY", "HAVING", "INSERT", "INTO", "VALUES", "UPDATE", "SET",
-        "DELETE", "TRUNCATE", "PRINT", "CREATE", "ALTER", "DROP", "TABLE", "VIEW", "PROCEDURE", "FUNCTION",
-        "TRIGGER", "SYNONYM", "DATABASE", "SCHEMA", "INDEX", "PRIMARY", "FOREIGN", "KEY",
-        "REFERENCES", "CHECK", "DEFAULT", "UNIQUE", "CONSTRAINT", "AND", "OR", "NOT", "IN",
-        "EXISTS", "BETWEEN", "LIKE", "IS", "NULL", "UNION", "ALL", "INTERSECT", "EXCEPT",
-        "AS", "DISTINCT", "TOP", "LIMIT", "OFFSET", "CASE", "WHEN", "THEN", "ELSE", "END",
-        "BEGIN", "COMMIT", "ROLLBACK", "TRANSACTION", "DECLARE", "EXEC", "EXECUTE", "WITH",
-        "OVER", "PARTITION", "ASC", "DESC", "TRUE", "FALSE", "USE", "GO"
+        "DELETE", "TRUNCATE", "CREATE", "ALTER", "DROP", "TABLE", "VIEW", "INDEX",
+        "PRIMARY", "FOREIGN", "KEY", "REFERENCES", "CHECK", "DEFAULT", "UNIQUE", "CONSTRAINT",
+        "AND", "OR", "NOT", "IN", "EXISTS", "BETWEEN", "LIKE", "IS", "NULL", "UNION", "ALL",
+        "INTERSECT", "EXCEPT", "AS", "DISTINCT", "CASE", "WHEN", "THEN", "ELSE", "END",
+        "BEGIN", "COMMIT", "ROLLBACK", "TRANSACTION", "WITH", "OVER", "PARTITION",
+        "ASC", "DESC", "TRUE", "FALSE"
     ];
+
+    // 2. SQL Server Specific Keywords
+    const MSSQL_KEYWORDS = [
+        "TOP", "PRINT", "PROCEDURE", "PROC", "FUNCTION", "TRIGGER", "SYNONYM", "DATABASE", "SCHEMA",
+        "DECLARE", "EXEC", "EXECUTE", "USE", "GO", "APPLY", "OUTER", "CROSS APPLY", "OUTER APPLY",
+        "NOLOCK", "READPAST", "HOLDLOCK", "TABLOCK", "IDENTITY", "OUTPUT", "INSERTED", "DELETED",
+        "TRY", "CATCH", "RAISERROR", "THROW", "MERGE", "MATCHED", "RECOMPILE", "ROWCOUNT",
+        "NONCLUSTERED", "CLUSTERED", "FILLFACTOR", "PAD_INDEX", "STATISTICS_NORECOMPUTE"
+    ];
+
+    // 3. PostgreSQL Specific Keywords
+    const POSTGRES_KEYWORDS = [
+        "LIMIT", "OFFSET", "ILIKE", "SIMILAR", "RETURNING", "PROCEDURE", "FUNCTION", "TRIGGER",
+        "SCHEMA", "DATABASE", "DO", "LANGUAGE", "PLPGSQL", "PERFORM", "VACUUM", "ANALYZE",
+        "EXPLAIN", "CONFLICT", "NOTHING", "CASCADE", "RESTRICT", "FOREACH", "LOOP", "RECORD",
+        "RAISE", "NOTICE", "EXCEPTION", "RETURNS", "SETOF", "GENERATE_SERIES", "LATERAL",
+        "INHERITS", "TABLESPACE", "UNLOGGED"
+    ];
+
+    // 4. SQLite Specific Keywords
+    const SQLITE_KEYWORDS = [
+        "LIMIT", "OFFSET", "PRAGMA", "VACUUM", "ATTACH", "DETACH", "EXPLAIN", "AUTOINCREMENT",
+        "GLOB", "COLLATE", "NOCASE", "CONFLICT", "IGNORE", "REPLACE", "INDEXED", "ROWID"
+    ];
+
+    function getKeywordsForDbType(dbType) {
+        const type = (dbType || '').toLowerCase();
+        let specific = [];
+        if (type === 'postgresql' || type === 'postgres') {
+            specific = POSTGRES_KEYWORDS;
+        } else if (type === 'sqlserver' || type === 'mssql') {
+            specific = MSSQL_KEYWORDS;
+        } else if (type === 'sqlite') {
+            specific = SQLITE_KEYWORDS;
+        } else {
+            specific = [...new Set([...MSSQL_KEYWORDS, ...POSTGRES_KEYWORDS, ...SQLITE_KEYWORDS])];
+        }
+        return [...new Set([...COMMON_SQL_KEYWORDS, ...specific])];
+    }
+
+    const SQL_KEYWORDS = getKeywordsForDbType();
 
     const SQL_FUNCTIONS = [
         "COUNT", "SUM", "AVG", "MIN", "MAX", "LEN", "LENGTH", "SUBSTRING", "REPLACE",
@@ -237,26 +278,33 @@
     }
 
     function detectAlterContext(textBeforeCursor) {
-        if (!textBeforeCursor) return { isAlter: false, alterType: "" };
-        const pattern = /\b(?:ALTER|DROP|CREATE\s+OR\s+ALTER|CREATE\s+OR\s+REPLACE)\s+(PROCEDURE|PROC|FUNCTION|TRIGGER|VIEW|TABLE)\b/gi;
+        if (!textBeforeCursor) return { isAlter: false, action: "", alterType: "" };
+        const pattern = /\b(ALTER|DROP|CREATE\s+OR\s+ALTER|CREATE\s+OR\s+REPLACE)(?:\s+(PROCEDURE|PROC|FUNCTION|FUNC|TRIGGER|VIEW|TABLE))?\b/gi;
         let match;
         let lastMatch = null;
         let lastEnd = 0;
         while ((match = pattern.exec(textBeforeCursor)) !== null) {
-            lastMatch = match[1];
+            lastMatch = match;
             lastEnd = match.index + match[0].length;
         }
 
         if (lastMatch) {
             const afterClause = textBeforeCursor.substring(lastEnd).trim();
             if (!afterClause.includes("\n") && !afterClause.toUpperCase().includes(" AS ")) {
-                const rawType = lastMatch.toLowerCase();
-                if (rawType === "proc" || rawType === "procedure") return { isAlter: true, alterType: "procedure" };
-                if (rawType === "func" || rawType === "function") return { isAlter: true, alterType: "function" };
-                return { isAlter: true, alterType: rawType };
+                const action = lastMatch[1].toUpperCase();
+                const rawType = (lastMatch[2] || "").toLowerCase();
+                let alterType = rawType;
+                if (rawType === "proc" || rawType === "procedure") alterType = "procedure";
+                else if (rawType === "func" || rawType === "function") alterType = "function";
+
+                return { 
+                    isAlter: true, 
+                    action: action, 
+                    alterType: alterType 
+                };
             }
         }
-        return { isAlter: false, alterType: "" };
+        return { isAlter: false, action: "", alterType: "" };
     }
 
     function analyze(fullSql, cursorIndex) {
@@ -352,6 +400,11 @@
 
     window.SqlContextAnalyzer = {
         SQL_KEYWORDS,
+        COMMON_SQL_KEYWORDS,
+        MSSQL_KEYWORDS,
+        POSTGRES_KEYWORDS,
+        SQLITE_KEYWORDS,
+        getKeywordsForDbType,
         SQL_FUNCTIONS,
         SQL_DATA_TYPES,
         FOLLOW_UP_KEYWORDS,

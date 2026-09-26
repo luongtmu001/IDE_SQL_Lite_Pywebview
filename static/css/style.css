@@ -1,0 +1,5614 @@
+/* ===== themes.css ===== */
+/* =============================================================================
+   IDE Theme Tokens — Dark & Light
+   All component colors must reference these variables.
+   ============================================================================= */
+
+/* ── Dark Theme (default) ───────────────────────────────────────────────────── */
+:root,
+html[data-bs-theme="dark"] {
+
+    /* Bootstrap overrides */
+    --bs-body-bg:               #1C1D23;
+    --bs-body-color:            #c7cfcf;
+    --bs-border-color:          #3c3f41;
+    --bs-border-color-translucent: rgba(60,63,65,0.5);
+    --bs-primary:               #CC7832;
+    --bs-primary-rgb:           204,120,50;
+    --bs-dark:                  #202228;
+    --bs-dark-rgb:              32,34,40;
+    --bs-secondary:             #848c94;
+    --bs-secondary-rgb:         132,140,148;
+    --bs-link-color:            #CC7832;
+    --bs-link-hover-color:      #e08b46;
+
+    /* IDE surface layers */
+    --ide-bg-main:              #1C1D23;
+    --ide-bg-sidebar:           #1C1D23;
+    --ide-bg-toolbar:           #202228;
+    --ide-bg-editor:            #18191E;
+    --ide-bg-panel:             #1C1D23;
+    --ide-bg-result:            #1C1D23;
+    --ide-bg-input:             #13141A;
+    --ide-bg-modal:             #202228;
+    --ide-bg-dropdown:          #202228;
+    --ide-bg-context-menu:      #2B2D35;
+
+    /* Borders */
+    --ide-border:               #3c3f41;
+    --ide-border-active:        #CC7832;
+
+    /* Text */
+    --ide-text-main:            #c7cfcf;
+    --ide-text-muted:           #848c94;
+    --ide-text-active:          #ffffff;
+    --ide-text-dim:             #5a6068;
+
+    /* Interactive states */
+    --ide-hover-bg:             rgba(255,255,255,0.05);
+    --ide-active-bg:            rgba(204,120,50,0.12);
+    --ide-selection-bg:         rgba(204,120,50,0.20);
+
+    /* Accent */
+    --ide-accent:               #CC7832;
+    --ide-accent-hover:         #e08b46;
+    --ide-accent-subtle:        rgba(204,120,50,0.15);
+
+    /* Status */
+    --ide-danger:               #ff5c5c;
+    --ide-success:              #6A8759;
+    --ide-warning:              #E8C859;
+    --ide-info:                 #6897BB;
+
+    /* Tabs */
+    --ide-tab-active-bg:        #18191E;
+    --ide-tab-inactive-bg:      #202228;
+    --ide-tab-active-border:    #CC7832;
+
+    /* Result grid */
+    --ide-grid-header-bg:       #202228;
+    --ide-grid-row-alt:         rgba(255,255,255,0.02);
+    --ide-grid-row-hover:       rgba(255,255,255,0.05);
+
+    /* Action bar */
+    --ide-action-bar-bg:        #202228;
+    --ide-badge-bg:             #2B2D35;
+    --ide-badge-text:           #c7cfcf;
+    --ide-badge-hover:          #3c3f41;
+
+    /* Context menu */
+    --ide-ctx-item-hover:       rgba(204,120,50,0.12);
+    --ide-ctx-separator:        #3c3f41;
+
+    /* Scrollbars */
+    --ide-scroll-track:         #18191E;
+    --ide-scroll-thumb:         #3c3f41;
+    --ide-scroll-thumb-hover:   #848c94;
+}
+
+/* ── Light Theme ─────────────────────────────────────────────────────────────── */
+html[data-bs-theme="light"] {
+
+    /* Bootstrap overrides */
+    --bs-body-bg:               #f0f0f0;
+    --bs-body-color:            #2b2b2b;
+    --bs-border-color:          #cccccc;
+    --bs-border-color-translucent: rgba(200,200,200,0.5);
+    --bs-primary:               #CC7832;
+    --bs-primary-rgb:           204,120,50;
+    --bs-dark:                  #e8e8e8;
+    --bs-dark-rgb:              232,232,232;
+    --bs-secondary:             #6c757d;
+    --bs-secondary-rgb:         108,117,125;
+    --bs-link-color:            #CC7832;
+    --bs-link-hover-color:      #b36520;
+
+    /* IDE surface layers */
+    --ide-bg-main:              #f0f0f0;
+    --ide-bg-sidebar:           #e8e8e8;
+    --ide-bg-toolbar:           #dcdcdc;
+    --ide-bg-editor:            #ffffff;
+    --ide-bg-panel:             #f5f5f5;
+    --ide-bg-result:            #f5f5f5;
+    --ide-bg-input:             #ffffff;
+    --ide-bg-modal:             #ffffff;
+    --ide-bg-dropdown:          #ffffff;
+    --ide-bg-context-menu:      #ffffff;
+
+    /* Borders */
+    --ide-border:               #cccccc;
+    --ide-border-active:        #CC7832;
+
+    /* Text */
+    --ide-text-main:            #2b2b2b;
+    --ide-text-muted:           #6c757d;
+    --ide-text-active:          #000000;
+    --ide-text-dim:             #aaaaaa;
+
+    /* Interactive states */
+    --ide-hover-bg:             rgba(0,0,0,0.05);
+    --ide-active-bg:            rgba(204,120,50,0.10);
+    --ide-selection-bg:         rgba(204,120,50,0.20);
+
+    /* Accent */
+    --ide-accent:               #CC7832;
+    --ide-accent-hover:         #b36520;
+    --ide-accent-subtle:        rgba(204,120,50,0.12);
+
+    /* Status */
+    --ide-danger:               #d9534f;
+    --ide-success:              #4a7c3f;
+    --ide-warning:              #b8960c;
+    --ide-info:                 #2c6a9e;
+
+    /* Tabs */
+    --ide-tab-active-bg:        #ffffff;
+    --ide-tab-inactive-bg:      #e0e0e0;
+    --ide-tab-active-border:    #CC7832;
+
+    /* Result grid */
+    --ide-grid-header-bg:       #e8e8e8;
+    --ide-grid-row-alt:         rgba(0,0,0,0.02);
+    --ide-grid-row-hover:       rgba(0,0,0,0.04);
+
+    /* Action bar */
+    --ide-action-bar-bg:        #dcdcdc;
+    --ide-badge-bg:             #e8e8e8;
+    --ide-badge-text:           #2b2b2b;
+    --ide-badge-hover:          #cccccc;
+
+    /* Context menu */
+    --ide-ctx-item-hover:       rgba(204,120,50,0.10);
+    --ide-ctx-separator:        #cccccc;
+
+    /* Scrollbars */
+    --ide-scroll-track:         #e8e8e8;
+    --ide-scroll-thumb:         #cccccc;
+    --ide-scroll-thumb-hover:   #aaaaaa;
+}
+
+/* ── Scrollbar theming ───────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: var(--ide-scroll-track); }
+::-webkit-scrollbar-thumb { background: var(--ide-scroll-thumb); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--ide-scroll-thumb-hover); }
+
+/* ── CodeMirror theme sync ───────────────────────────────────────────────────── */
+.CodeMirror {
+    background: var(--ide-bg-editor) !important;
+    color: var(--ide-text-main) !important;
+    height: 100% !important;
+    font-family: 'JetBrains Mono', 'Consolas', 'Menlo', 'Monaco', monospace !important;
+    font-size: 13px !important;
+    line-height: 1.4 !important;
+}
+.CodeMirror-gutters {
+    background: var(--ide-bg-editor) !important;
+    border-right: 1px solid var(--ide-border) !important;
+}
+.CodeMirror-gutter-elt {
+    color: var(--ide-text-dim) !important;
+}
+.CodeMirror-cursor {
+    border-left: 2px solid var(--ide-text-main) !important;
+}
+.CodeMirror-selected {
+    background: var(--ide-selection-bg) !important;
+}
+.CodeMirror-activeline-background {
+    background: rgba(255,255,255,0.03) !important;
+}
+html[data-bs-theme="light"] .CodeMirror-activeline-background {
+    background: rgba(0,0,0,0.03) !important;
+}
+
+
+/* ===== app.css ===== */
+/* =============================================================================
+   App Base Layout — Bootstrap IDE overrides
+   ============================================================================= */
+
+/* ── Base ─────────────────────────────────────────────────────────────────────── */
+body, html {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+    font-size: 13px;
+    background: var(--ide-bg-main);
+    color: var(--ide-text-main);
+}
+
+/* ── Bootstrap input overrides ───────────────────────────────────────────────── */
+.form-control, .form-select {
+    background: var(--ide-bg-input) !important;
+    color: var(--ide-text-main) !important;
+    border-color: var(--ide-border) !important;
+    border-radius: 2px !important;
+    font-size: 13px;
+}
+.form-control:focus, .form-select:focus {
+    box-shadow: none !important;
+    border-color: var(--ide-border-active) !important;
+}
+.form-control::placeholder { color: var(--ide-text-muted) !important; }
+
+/* ── Toolbar ─────────────────────────────────────────────────────────────────── */
+.ide-toolbar {
+    background: var(--ide-bg-toolbar) !important;
+    border-bottom: 1px solid var(--ide-border) !important;
+    height: 36px;
+    flex-shrink: 0;
+}
+.ide-brand {
+    color: var(--ide-accent);
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+}
+.ide-toolbar-btn {
+    background: transparent;
+    border: none;
+    color: var(--ide-text-muted);
+    padding: 4px 6px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 13px;
+    line-height: 1;
+}
+.ide-toolbar-btn:hover {
+    color: var(--ide-text-active);
+    background: var(--ide-hover-bg);
+}
+.ide-toolbar-btn--accent {
+    color: var(--ide-success);
+}
+.nav-link {
+    color: var(--ide-text-main) !important;
+    font-size: 13px;
+    padding: 4px 8px;
+}
+.nav-link:hover { background: var(--ide-hover-bg); border-radius: 2px; }
+
+/* ── IDE select ───────────────────────────────────────────────────────────────── */
+.ide-select {
+    background: var(--ide-bg-input);
+    color: var(--ide-text-main);
+    border: 1px solid var(--ide-border);
+    font-size: 12px;
+}
+
+/* ── Common resizer (editor / results) ──────────────────────────────────────── */
+.ide-resizer-horizontal {
+    height: 5px;
+    background: var(--ide-bg-toolbar);
+    border-top: 1px solid var(--ide-border);
+    border-bottom: 1px solid var(--ide-border);
+    cursor: row-resize;
+    z-index: 10;
+    flex-shrink: 0;
+    transition: background 0.15s;
+}
+.ide-resizer-horizontal:hover,
+.ide-resizer-horizontal.dragging {
+    background: var(--ide-accent);
+}
+
+/* ── Status bar ──────────────────────────────────────────────────────────────── */
+.ide-statusbar {
+    background: var(--ide-accent);
+    color: #fff;
+    font-size: 11px;
+    height: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 8px;
+    flex-shrink: 0;
+}
+.ide-statusbar-left,
+.ide-statusbar-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+/* ── Modals ──────────────────────────────────────────────────────────────────── */
+.modal-content {
+    background: var(--ide-bg-modal) !important;
+    color: var(--ide-text-main) !important;
+    border: 1px solid var(--ide-border);
+    border-radius: 4px;
+}
+.modal-header {
+    border-color: var(--ide-border) !important;
+    padding: 12px 16px;
+}
+.modal-body {
+    padding: 12px 16px;
+}
+.modal-footer {
+    border-color: var(--ide-border) !important;
+    padding: 8px 16px;
+    gap: 8px;
+}
+.modal-title {
+    font-size: 13px;
+    font-weight: 600;
+}
+.btn-close { filter: invert(0.7); }
+html[data-bs-theme="dark"] .btn-close { filter: invert(0.8); }
+
+/* ── Forms ───────────────────────────────────────────────────────────────────── */
+.ide-form-label {
+    font-size: 11px;
+    color: var(--ide-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    margin-bottom: 4px;
+    display: inline-block;
+}
+
+/* ── Dropdown menus ──────────────────────────────────────────────────────────── */
+.dropdown-menu {
+    background: var(--ide-bg-dropdown) !important;
+    border: 1px solid var(--ide-border);
+    border-radius: 3px;
+    font-size: 12px;
+    padding: 2px 0;
+}
+.dropdown-item {
+    color: var(--ide-text-main) !important;
+    padding: 4px 12px;
+}
+.dropdown-item:hover {
+    background: var(--ide-hover-bg) !important;
+    color: var(--ide-text-active) !important;
+}
+.dropdown-divider { border-color: var(--ide-border) !important; }
+
+/* ── Input groups ─────────────────────────────────────────────────────────────── */
+.input-group-text {
+    background: var(--ide-bg-toolbar) !important;
+    color: var(--ide-text-muted) !important;
+    border-color: var(--ide-border) !important;
+    font-size: 12px;
+}
+
+/* ── Buttons ─────────────────────────────────────────────────────────────────── */
+.btn-primary {
+    background: var(--ide-accent) !important;
+    border-color: var(--ide-accent) !important;
+    color: #fff !important;
+}
+.btn-primary:hover {
+    background: var(--ide-accent-hover) !important;
+    border-color: var(--ide-accent-hover) !important;
+}
+.btn-outline-primary {
+    color: var(--ide-accent) !important;
+    border-color: var(--ide-accent) !important;
+}
+.btn-outline-primary:hover {
+    background: var(--ide-accent-subtle) !important;
+}
+.btn-secondary {
+    background: var(--ide-bg-toolbar) !important;
+    border-color: var(--ide-border) !important;
+    color: var(--ide-text-main) !important;
+}
+
+/* ── Badge / chip ─────────────────────────────────────────────────────────────── */
+.badge { font-weight: 500; }
+
+/* ── Utility divider (vertical) ──────────────────────────────────────────────── */
+.ide-vdivider {
+    width: 1px;
+    height: 18px;
+    background: var(--ide-border);
+    flex-shrink: 0;
+}
+
+
+/* ===== explorer.css ===== */
+/* =============================================================================
+   Object Explorer Sidebar CSS
+   ============================================================================= */
+
+/* ── Sidebar shell ───────────────────────────────────────────────────────────── */
+.ide-sidebar {
+    background: var(--ide-bg-sidebar);
+    border-right: 1px solid var(--ide-border);
+    flex-shrink: 0;
+    position: relative;
+    overflow: hidden;
+}
+
+.ide-sidebar-header {
+    background: var(--ide-bg-toolbar);
+    border-bottom: 1px solid var(--ide-border);
+    height: 30px;
+    flex-shrink: 0;
+}
+
+.ide-sidebar-header-title {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: var(--ide-text-muted);
+}
+
+/* ── Sidebar drag resizer ─────────────────────────────────────────────────────── */
+.ide-sidebar-resizer {
+    width: 5px;
+    cursor: col-resize;
+    background: transparent;
+    flex-shrink: 0;
+    z-index: 20;
+    position: relative;
+    transition: background 0.15s;
+}
+.ide-sidebar-resizer:hover,
+.ide-sidebar-resizer.dragging {
+    background: var(--ide-accent);
+}
+
+/* ── Sidebar reopen (collapsed state) ────────────────────────────────────────── */
+.ide-sidebar-reopen {
+    position: absolute;
+    left: 4px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: var(--ide-bg-toolbar);
+    border: 1px solid var(--ide-border);
+    border-radius: 3px;
+    color: var(--ide-text-muted);
+    width: 22px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 30;
+    font-size: 11px;
+}
+.ide-sidebar-reopen:hover {
+    background: var(--ide-hover-bg);
+    color: var(--ide-text-active);
+}
+
+/* ── Tree ────────────────────────────────────────────────────────────────────── */
+.ide-tree {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: auto;
+    padding: 4px 0;
+}
+
+.ide-tree ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+.ide-tree > ul { padding-left: 4px !important; }
+
+/* Tree children indentation & guide line */
+.ide-tree ul.tree-children {
+    padding-left: 18px !important;
+    margin-left: 7px;
+    border-left: 1px dotted var(--ide-border, rgba(255, 255, 255, 0.18));
+}
+
+/* ── Tree item ───────────────────────────────────────────────────────────────── */
+.tree-item {
+    display: inline-flex;
+    align-items: center;
+    width: max-content;
+    min-width: 100%;
+    padding: 2px 8px 2px 2px;
+    cursor: pointer;
+    white-space: nowrap;
+    border-radius: 2px;
+    font-size: 12px;
+    color: var(--ide-text-main);
+    position: relative;
+    box-sizing: border-box;
+}
+.tree-item:hover { background: var(--ide-hover-bg); }
+.tree-item.selected {
+    background: var(--ide-active-bg);
+    color: var(--ide-text-active);
+}
+
+.tree-toggle {
+    width: 16px;
+    height: 16px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--ide-text-dim);
+    font-size: 10px;
+    flex-shrink: 0;
+    transition: transform 0.1s, color 0.15s;
+}
+.tree-toggle:hover {
+    color: var(--ide-text-active);
+}
+
+.tree-icon {
+    width: 16px;
+    text-align: center;
+    margin-right: 6px;
+    flex-shrink: 0;
+    font-size: 12px;
+}
+
+.tree-label {
+    white-space: nowrap;
+    user-select: none;
+    margin-right: 8px;
+}
+
+/* ── Filter icon on category nodes ──────────────────────────────────────────── */
+.tree-filter-btn {
+    opacity: 0;
+    color: var(--ide-text-muted);
+    background: none;
+    border: none;
+    padding: 0 3px;
+    font-size: 10px;
+    cursor: pointer;
+    border-radius: 2px;
+    line-height: 1;
+    transition: opacity 0.15s;
+}
+.tree-item:hover .tree-filter-btn { opacity: 1; }
+.tree-filter-btn:hover { color: var(--ide-accent); background: var(--ide-accent-subtle); }
+.tree-filter-btn.filter-active {
+    opacity: 1;
+    color: var(--ide-accent);
+}
+
+/* ── Dropdown action button (schema filter ...) ──────────────────────────────── */
+.tree-action-btn {
+    opacity: 0;
+    color: var(--ide-text-muted);
+    background: none;
+    border: none;
+    padding: 0 4px;
+    font-size: 11px;
+    cursor: pointer;
+    border-radius: 2px;
+    transition: opacity 0.15s;
+}
+.tree-item:hover .tree-action-btn { opacity: 1; }
+.tree-action-btn:hover { color: var(--ide-text-active); background: var(--ide-hover-bg); }
+.tree-action-btn.filter-active {
+    opacity: 1 !important;
+    color: var(--ide-accent) !important;
+}
+
+/* ── Checklist Filter Modal Styling ─────────────────────────────────────────── */
+.checklist-container {
+    max-height: 220px;
+    overflow-y: auto;
+    background: var(--ide-bg-input, rgba(0, 0, 0, 0.2));
+    border: 1px solid var(--ide-border);
+    border-radius: 4px;
+    padding: 2px 0;
+}
+.checklist-item {
+    display: flex;
+    align-items: center;
+    padding: 4px 10px;
+    font-size: 12px;
+    cursor: pointer;
+    user-select: none;
+    transition: background-color 0.1s;
+    color: var(--ide-text);
+}
+.checklist-item:hover {
+    background-color: var(--ide-hover-bg, rgba(255, 255, 255, 0.08));
+}
+.checklist-item input[type="checkbox"] {
+    margin-right: 8px;
+    cursor: pointer;
+}
+.checklist-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 11px;
+    padding: 2px 2px 6px 2px;
+}
+.checklist-actions a {
+    color: var(--ide-accent);
+    text-decoration: none;
+    cursor: pointer;
+}
+.checklist-actions a:hover {
+    text-decoration: underline;
+}
+
+
+
+/* ===== editor.css ===== */
+/* =============================================================================
+   Editor, Tabs, Action Bar, Results CSS
+   ============================================================================= */
+
+/* ── Tab bar ─────────────────────────────────────────────────────────────────── */
+.ide-tabs-container {
+    background: var(--ide-bg-toolbar);
+    height: 31px;
+    flex-shrink: 0;
+    overflow: hidden;
+    border-top: 1px solid var(--ide-border);
+    border-bottom: 1px solid var(--ide-border);
+}
+
+.ide-tab {
+    display: inline-flex;
+    align-items: center;
+    background: var(--ide-tab-inactive-bg);
+    color: var(--ide-text-muted);
+    border: 1px solid transparent;
+    border-bottom: none;
+    border-top-left-radius: 3px;
+    border-top-right-radius: 3px;
+    padding: 4px 12px;
+    margin-right: 2px;
+    cursor: pointer;
+    font-size: 12px;
+    white-space: nowrap;
+    min-width: 80px;
+    max-width: 180px;
+    user-select: none;
+    transition: background 0.1s, color 0.1s;
+}
+
+.ide-tab:hover {
+    background: var(--ide-hover-bg);
+    color: var(--ide-text-main);
+}
+
+.ide-tab.active {
+    background: var(--ide-tab-active-bg);
+    color: var(--ide-accent);
+    border-color: var(--ide-border);
+    border-bottom: 2px solid var(--ide-tab-active-bg);
+    margin-bottom: -1px;
+}
+
+.tab-close {
+    margin-left: 8px;
+    font-size: 10px;
+    color: var(--ide-text-dim);
+    border-radius: 2px;
+    padding: 1px 2px;
+}
+
+.tab-close:hover {
+    color: var(--ide-danger) !important;
+    background: rgba(255, 92, 92, 0.1);
+}
+
+/* ── Editor area ─────────────────────────────────────────────────────────────── */
+#ide-editor-pane {
+    flex: 1 1 0%;
+    min-height: 0 !important;
+    overflow: hidden;
+}
+
+.ide-editor-wrap {
+    background: var(--ide-bg-editor);
+    flex: 1 1 0%;
+    min-height: 0 !important;
+    overflow: hidden;
+    position: relative;
+}
+
+#editor-pane-1,
+#editor-pane-2 {
+    min-height: 0 !important;
+}
+
+.ide-editor-wrap .CodeMirror {
+    min-height: 0 !important;
+}
+
+/* ── Action Bar ──────────────────────────────────────────────────────────────── */
+.ide-action-bar {
+    background: var(--ide-action-bar-bg);
+    border-top: 1px solid var(--ide-border);
+    height: 34px;
+    flex-shrink: 0;
+}
+
+.ide-ctx-badge {
+    display: inline-flex;
+    align-items: center;
+    background: var(--ide-badge-bg);
+    color: var(--ide-badge-text);
+    border: 1px solid var(--ide-border);
+    border-radius: 3px;
+    padding: 1px 7px;
+    font-size: 11px;
+    height: 22px;
+    cursor: pointer;
+    white-space: nowrap;
+    max-width: 170px;
+    overflow: hidden;
+    user-select: none;
+    line-height: 1;
+    text-decoration: none;
+}
+
+.ide-ctx-badge:hover {
+    background: var(--ide-badge-hover);
+    border-color: var(--ide-accent, #3b82f6);
+    color: var(--ide-text-active, #ffffff);
+}
+
+.ide-ctx-badge.dropdown-toggle::after {
+    margin-left: 5px;
+    vertical-align: middle;
+    font-size: 8px;
+}
+
+.ide-ctx-selectors .dropdown-menu {
+    border: 1px solid var(--ide-border);
+    background: var(--ide-bg-dropdown, #202228);
+    font-size: 12px;
+    z-index: 1060;
+}
+
+.ide-ctx-selectors .dropdown-item {
+    padding: 4px 10px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.ide-ctx-selectors .dropdown-item.active,
+.ide-ctx-selectors .dropdown-item:active {
+    background: var(--ide-accent, #3b82f6);
+    color: #fff !important;
+}
+
+.ide-ctx-search {
+    background: var(--ide-bg-sidebar, #1e1e1e) !important;
+    border: 1px solid var(--ide-border) !important;
+    color: var(--ide-text-main) !important;
+    font-size: 11px;
+    height: 24px;
+    padding: 2px 6px;
+}
+
+.ide-ctx-search:focus {
+    border-color: var(--ide-accent) !important;
+    box-shadow: none !important;
+}
+
+.ide-ctx-sep {
+    color: var(--ide-text-dim);
+    font-size: 13px;
+    padding: 0 2px;
+    flex-shrink: 0;
+}
+
+.ide-action-btn {
+    display: inline-flex;
+    align-items: center;
+    background: var(--ide-badge-bg);
+    border: 1px solid var(--ide-border);
+    color: var(--ide-text-main);
+    border-radius: 3px;
+    font-size: 12px;
+    padding: 2px 10px;
+    height: 24px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s, color 0.15s;
+}
+
+.ide-action-btn:hover {
+    background: var(--ide-hover-bg);
+    color: var(--ide-text-active);
+}
+
+.ide-action-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.ide-action-btn--run {
+    background: var(--ide-accent-subtle);
+    color: var(--ide-accent);
+    border-color: var(--ide-accent);
+    font-weight: 600;
+}
+
+.ide-action-btn--run:hover {
+    background: var(--ide-accent);
+    color: #fff;
+}
+
+.ide-action-btn--danger {
+    color: var(--ide-danger);
+    border-color: var(--ide-danger);
+}
+
+.ide-action-btn--danger:hover {
+    background: rgba(255, 92, 92, 0.1);
+}
+
+/* ── Result panel tabs ───────────────────────────────────────────────────────── */
+.ide-result-tab {
+    display: inline-flex;
+    align-items: center;
+    height: 100%;
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    border-radius: 0;
+    color: var(--ide-text-muted);
+    font-size: 12px;
+    padding: 0 14px;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s;
+}
+
+.ide-result-tab:hover {
+    color: var(--ide-text-main);
+}
+
+.ide-result-tab.active {
+    color: var(--ide-accent);
+    border-bottom-color: var(--ide-accent);
+}
+
+.ide-result-status-text {
+    font-size: 11px;
+    color: var(--ide-text-muted);
+}
+
+#ide-result-panel,
+.ide-result-panel {
+    background: var(--ide-bg-result);
+    flex: 1 1 0%;
+    min-height: 30px !important;
+    overflow: hidden;
+}
+
+.ide-result-tabs-bar {
+    background: var(--ide-bg-toolbar);
+    border-bottom: 1px solid var(--ide-border);
+    height: 30px;
+    flex-shrink: 0;
+}
+
+.ide-result-empty-state {
+    color: var(--ide-text-dim);
+}
+
+.ide-result-empty-icon {
+    font-size: 2rem;
+    opacity: 0.3;
+}
+
+.ide-result-footer {
+    height: 24px;
+    background: var(--ide-bg-toolbar);
+    border-top: 1px solid var(--ide-border);
+    flex-shrink: 0;
+    font-size: 11px;
+    color: var(--ide-text-muted);
+}
+
+/* ── Multi-grid panes and splitters (SSMS-like) ─────────────────────────────── */
+#ide-results-table-wrap {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow-y: auto;
+    overflow-x: hidden;
+    position: relative;
+}
+
+.ide-grid-pane {
+    position: relative;
+    overflow: auto;
+    flex-shrink: 0;
+    min-height: 80px;
+    background: var(--ide-bg-main);
+    box-sizing: border-box;
+}
+
+.ide-grid-splitter {
+    height: 6px;
+    min-height: 6px;
+    background: var(--ide-bg-toolbar, #2d3139);
+    border-top: 1px solid var(--ide-border);
+    border-bottom: 1px solid var(--ide-border);
+    cursor: row-resize;
+    flex-shrink: 0;
+    position: relative;
+    z-index: 15;
+    transition: background 0.15s;
+}
+
+.ide-grid-splitter:hover,
+.ide-grid-splitter.dragging {
+    background: var(--ide-accent);
+}
+
+/* ── Results data grid ───────────────────────────────────────────────────────── */
+.ide-results-table {
+    width: max-content;
+    min-width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+}
+
+.ide-results-table th,
+.ide-results-table td {
+    border-right: 1px solid var(--ide-border);
+    border-bottom: 1px solid var(--ide-border);
+    padding: 3px 8px;
+    text-align: left;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 12px;
+}
+
+.ide-results-table th {
+    background: var(--ide-grid-header-bg);
+    color: var(--ide-text-muted);
+    position: sticky;
+    top: 0;
+    font-weight: 600;
+    font-size: 11px;
+    letter-spacing: 0.3px;
+    z-index: 5;
+    user-select: none;
+}
+
+.ide-results-table th .col-resizer {
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: 5px;
+    cursor: col-resize;
+    background: transparent;
+}
+
+.ide-results-table th .col-resizer:hover,
+.ide-results-table th .col-resizer.dragging {
+    background: var(--ide-accent);
+}
+
+.ide-results-table th-inner {
+    display: flex;
+    align-items: center;
+}
+
+.ide-results-table td {
+    color: var(--ide-text-main);
+}
+
+.ide-results-table tbody tr:nth-child(even) {
+    background: var(--ide-grid-row-alt);
+}
+
+.ide-results-table tbody tr:hover {
+    background: var(--ide-grid-row-hover);
+}
+
+.ide-row-number {
+    color: var(--ide-text-dim);
+    background: var(--ide-grid-header-bg) !important;
+    text-align: center !important;
+    font-size: 10px;
+    min-width: 36px;
+    width: 36px;
+    border-right: 1px solid var(--ide-border);
+    user-select: none;
+    position: sticky;
+    left: 0;
+    z-index: 6;
+}
+
+th.ide-row-number {
+    z-index: 10;
+}
+
+.ide-null-value {
+    color: #b58900 !important;
+    background: rgba(255, 235, 59, 0.2);
+    padding: 1px 4px;
+    border-radius: 2px;
+    font-style: italic;
+    font-weight: 500;
+}
+
+.ide-num-value {
+    color: var(--ide-info);
+}
+
+.ide-str-value {
+    color: #6A8759;
+}
+
+.ide-bool-value {
+    color: var(--ide-warning);
+}
+
+/* ── Messages / Plan styling ─────────────────────────────────────────────────── */
+#ide-results-messages-view {
+    padding: 6px 12px !important;
+    height: 100%;
+    overflow: auto;
+    background: var(--ide-bg-main);
+    box-sizing: border-box;
+}
+
+#ide-results-messages,
+.ide-messages-container,
+.ide-messages-pre {
+    font-family: var(--ide-msg-font-family, 'Consolas', 'Menlo', monospace);
+    font-size: var(--ide-msg-font-size, 12px);
+    color: var(--ide-text-main);
+    background: transparent;
+    word-break: break-word;
+    line-height: 1.45;
+    margin: 0 !important;
+    padding: 0 !important;
+    user-select: text !important;
+    -webkit-user-select: text !important;
+    -moz-user-select: text !important;
+    -ms-user-select: text !important;
+    cursor: text;
+}
+
+.ide-messages-pre {
+    white-space: pre-wrap;
+}
+
+.ide-messages-container *,
+.ide-messages-pre * {
+    user-select: text !important;
+    -webkit-user-select: text !important;
+}
+
+.ide-msg-line {
+    padding: 1px 4px;
+    margin: 0;
+    line-height: 1.45;
+    border-radius: 3px;
+    transition: background 0.15s;
+    user-select: text !important;
+    -webkit-user-select: text !important;
+}
+
+.ide-msg-line.msg-error,
+.ide-msg-error {
+    color: var(--ide-danger, #ff5c5c);
+}
+
+.ide-msg-line.msg-success,
+.ide-msg-success {
+    color: var(--ide-success, #28a745);
+}
+
+.ide-msg-line.ide-msg-info {
+    color: var(--ide-text-main);
+}
+
+.ide-msg-line.ide-msg-muted {
+    color: var(--ide-text-muted, #888);
+}
+
+.ide-msg-line.clickable,
+.ide-msg-error-jump {
+    cursor: pointer !important;
+    display: inline-block;
+    width: 100%;
+}
+
+.ide-msg-line.clickable:hover,
+.ide-msg-error-jump:hover {
+    background: rgba(255, 92, 92, 0.12);
+    text-decoration: underline;
+}
+
+.ide-msg-jump-icon {
+    font-size: 10px;
+    opacity: 0.7;
+    margin-right: 4px;
+}
+
+.ide-msg-line.clickable:hover .ide-msg-jump-icon {
+    opacity: 1;
+}
+
+#ide-btn-copy-messages {
+    font-size: 11px;
+    padding: 1px 7px;
+    border-radius: 3px;
+}
+
+.ide-tab-err-dot {
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    background-color: var(--ide-danger, #ff5c5c);
+    border-radius: 50%;
+    margin-left: 5px;
+    vertical-align: middle;
+    animation: pulseErrDot 1.5s infinite;
+}
+@keyframes pulseErrDot {
+    0% { transform: scale(0.95); opacity: 0.8; }
+    50% { transform: scale(1.3); opacity: 1; }
+    100% { transform: scale(0.95); opacity: 0.8; }
+}
+
+/* ── Result view toggling ─────────────────────────────────────────────────────── */
+.ide-result-view {
+    height: 100%;
+    overflow: auto;
+}
+
+/* Style filter and replace */
+.fr-replace-notification {
+    flex-direction: column-reverse;
+    align-items: flex-start !important;
+}
+
+.fr-status-text {
+    color: var(--ide-success);
+}
+
+/* ── CodeMirror Font & Line Height (Section 13) ──────────────────────────────── */
+.CodeMirror {
+    font-family: 'JetBrains Mono', 'Consolas', monospace !important;
+    font-size: 13px !important;
+    line-height: 1.4 !important;
+}
+
+.CodeMirror pre.CodeMirror-line,
+.CodeMirror pre.CodeMirror-line-like {
+    font-family: 'JetBrains Mono', 'Consolas', monospace !important;
+    line-height: 1.4 !important;
+}
+
+/* ── IntelliSense Dual-Panel Popup ────────────────────────────────────────────── */
+.ide-intellisense-popup {
+    position: fixed !important;
+    display: flex;
+    flex-direction: row;
+    height: 280px;
+    max-height: 360px;
+    background-color: var(--ide-bg-panel);
+    border: 1px solid var(--ide-border) !important;
+    border-radius: 4px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.45);
+    overflow: hidden;
+    user-select: none;
+    z-index: 2000 !important;
+}
+
+.ide-intellisense-list-panel {
+    background: var(--ide-bg-sidebar, #1e1e1e);
+    border-right: 1px solid var(--ide-border);
+}
+
+.ide-intellisense-header {
+    background: var(--ide-bg-panel);
+    height: 28px;
+    flex-shrink: 0;
+    cursor: move;
+    user-select: none;
+}
+
+.ide-drag-handle {
+    cursor: grab;
+    font-size: 11px;
+}
+
+.ide-drag-handle:active {
+    cursor: grabbing;
+}
+
+.ide-intellisense-list {
+    min-height: 100px;
+}
+
+.ide-intellisense-splitter {
+    width: 4px;
+    cursor: col-resize;
+    background: var(--ide-border);
+    flex-shrink: 0;
+    transition: background 0.15s;
+}
+
+.ide-intellisense-splitter:hover,
+.ide-intellisense-splitter.dragging {
+    background: var(--ide-accent, #3b82f6);
+}
+
+.ide-intellisense-details-panel {
+    background: var(--ide-bg-panel);
+    flex-grow: 1;
+    overflow: hidden;
+}
+
+.ide-intellisense-tabs {
+    background: var(--ide-bg-sidebar, #1e1e1e);
+    border-color: var(--ide-border) !important;
+}
+
+.ide-intellisense-tabs .nav-link {
+    color: var(--ide-text-muted);
+    border: none;
+    border-bottom: 2px solid transparent;
+    border-radius: 0;
+    transition: color 0.15s, border-color 0.15s;
+}
+
+.ide-intellisense-tabs .nav-link:hover {
+    color: var(--ide-text-main);
+}
+
+.ide-intellisense-tabs .nav-link.active {
+    color: var(--ide-accent);
+    background: transparent;
+    border-bottom-color: var(--ide-accent);
+    font-weight: 600;
+}
+
+.ide-intellisense-item {
+    height: 24px;
+    display: flex;
+    align-items: center;
+    padding: 0 8px;
+    cursor: pointer;
+    font-size: 12px;
+    color: var(--ide-text-main);
+    white-space: nowrap;
+    transition: background 0.08s;
+}
+
+.ide-intellisense-item:hover {
+    background: var(--ide-hover-bg, rgba(255, 255, 255, 0.05));
+}
+
+.ide-intellisense-item.active {
+    background: var(--ide-accent, #3b82f6) !important;
+    color: #ffffff !important;
+}
+
+.ide-intellisense-item.active .badge-type,
+.ide-intellisense-item.active .text-muted,
+.ide-intellisense-item.active i {
+    color: #ffffff !important;
+    opacity: 0.9;
+}
+
+.ide-intellisense-item .item-icon {
+    width: 16px;
+    text-align: center;
+    margin-right: 6px;
+    font-size: 11px;
+    flex-shrink: 0;
+}
+
+.ide-intellisense-item .item-name {
+    flex-grow: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-family: 'JetBrains Mono', 'Consolas', monospace;
+    font-size: 11.5px;
+}
+
+.ide-intellisense-item.is-keyword .item-name {
+    font-weight: 700;
+}
+
+.ide-intellisense-item .badge-type {
+    font-size: 10px;
+    color: var(--ide-text-dim, #888);
+    margin-left: 8px;
+    flex-shrink: 0;
+}
+
+/* Detail summary table */
+.ide-is-summary-table {
+    width: 100%;
+    font-size: 11px;
+    border-collapse: collapse;
+}
+
+.ide-is-summary-table th {
+    padding: 3px 6px;
+    font-weight: 600;
+    color: var(--ide-text-muted);
+    border-bottom: 1px solid var(--ide-border);
+    background: var(--ide-bg-sidebar);
+}
+
+.ide-is-summary-table td {
+    padding: 2px 6px;
+    border-bottom: 1px solid var(--ide-border-subtle, rgba(255,255,255,0.05));
+    color: var(--ide-text-main);
+}
+
+/* ===== context-menu.css ===== */
+/* =============================================================================
+   Context Menu — SSMS-like floating menu for Object Explorer nodes
+   ============================================================================= */
+
+.ide-context-menu {
+    position: fixed;
+    z-index: 9999;
+    background: var(--ide-bg-context-menu);
+    border: 1px solid var(--ide-border);
+    border-radius: 3px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.35);
+    min-width: 190px;
+    max-width: 260px;
+    padding: 3px 0;
+    font-size: 12px;
+    animation: ctx-appear 0.07s ease-out;
+    outline: none;
+}
+
+@keyframes ctx-appear {
+    from { opacity: 0; transform: scale(0.97) translateY(-4px); }
+    to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.ide-ctx-item {
+    display: flex;
+    align-items: center;
+    padding: 5px 12px;
+    color: var(--ide-text-main);
+    cursor: pointer;
+    white-space: nowrap;
+    border: none;
+    background: none;
+    width: 100%;
+    text-align: left;
+    font-size: 12px;
+    gap: 8px;
+    user-select: none;
+}
+.ide-ctx-item:hover:not(:disabled),
+.ide-ctx-item.focused {
+    background: var(--ide-ctx-item-hover);
+    color: var(--ide-text-active);
+}
+.ide-ctx-item:disabled,
+.ide-ctx-item.disabled {
+    color: var(--ide-text-dim);
+    cursor: not-allowed;
+    pointer-events: none;
+}
+.ide-ctx-item.danger { color: var(--ide-danger); }
+.ide-ctx-item.danger:hover { background: rgba(255,92,92,0.1); }
+
+.ide-ctx-icon {
+    width: 14px;
+    text-align: center;
+    color: var(--ide-text-muted);
+    flex-shrink: 0;
+}
+.ide-ctx-item:hover .ide-ctx-icon { color: var(--ide-accent); }
+.ide-ctx-item.danger .ide-ctx-icon { color: var(--ide-danger); }
+
+.ide-ctx-label { flex: 1; }
+
+.ide-ctx-shortcut {
+    color: var(--ide-text-dim);
+    font-size: 10px;
+    letter-spacing: 0.3px;
+}
+
+.ide-ctx-separator {
+    height: 1px;
+    background: var(--ide-ctx-separator);
+    margin: 3px 0;
+}
+
+.ide-ctx-header {
+    padding: 3px 12px 3px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: var(--ide-text-dim);
+    user-select: none;
+}
+
+
+/* ===== table-designer.css ===== */
+/* Table Designer Styles — Responsive to Light and Dark Theme */
+
+#table-designer-container {
+    background-color: var(--ide-bg-main, #1C1D23);
+    color: var(--ide-text-main, #c7cfcf);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-size: 12px;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Table Header Bar (Schema & Editable Table Name) */
+.td-header-bar {
+    background: var(--ide-bg-toolbar, #202228);
+    border-bottom: 1px solid var(--ide-border, #3c3f41);
+    padding: 4px 10px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    user-select: none;
+    flex-shrink: 0;
+}
+
+.td-name-input {
+    background: var(--ide-bg-input, #13141A) !important;
+    border: 1px solid var(--ide-border, #3c3f41) !important;
+    color: var(--ide-text-active, #ffffff) !important;
+    border-radius: 3px;
+    padding: 2px 8px;
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.td-name-input:focus {
+    border-color: var(--ide-border-active, #CC7832) !important;
+    outline: none;
+    box-shadow: 0 0 0 1px var(--ide-border-active, #CC7832);
+}
+
+/* Designer Top Toolbar */
+.td-toolbar {
+    background: var(--ide-bg-toolbar, #202228);
+    border-bottom: 1px solid var(--ide-border, #3c3f41);
+    padding: 3px 8px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    user-select: none;
+    flex-shrink: 0;
+}
+
+.td-btn {
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--ide-text-main, #c7cfcf);
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 3px;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    cursor: pointer;
+    line-height: 1.5;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.td-btn:hover {
+    background: var(--ide-hover-bg, rgba(255, 255, 255, 0.06));
+    border-color: var(--ide-border, #3c3f41);
+    color: var(--ide-text-active, #ffffff);
+}
+
+.td-btn:active {
+    background: var(--ide-active-bg, rgba(204, 120, 50, 0.15));
+    border-color: var(--ide-border-active, #CC7832);
+}
+
+.td-btn--save {
+    color: var(--ide-success, #6A8759);
+    font-weight: 600;
+}
+
+.td-btn--save:hover {
+    background: rgba(106, 135, 89, 0.15);
+    border-color: var(--ide-success, #6A8759);
+    color: var(--ide-success, #6A8759);
+}
+
+.td-btn--save:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    background: transparent !important;
+    border-color: transparent !important;
+    color: var(--ide-text-dim, #5a6068) !important;
+}
+
+.td-btn--add {
+    color: var(--ide-success, #6A8759);
+}
+
+.td-btn--delete {
+    color: var(--ide-danger, #ff5c5c);
+}
+
+.td-btn--pk {
+    color: var(--ide-warning, #E8C859);
+}
+
+.td-btn-sep {
+    width: 1px;
+    height: 16px;
+    background: var(--ide-border, #3c3f41);
+    margin: 0 4px;
+}
+
+/* Designer Sub-Tabs (Fields, Indexes, Foreign Keys, Uniques, Checks, Trigger, SQL Preview) */
+.td-nav-tabs {
+    background: var(--ide-tab-inactive-bg, #202228);
+    border-bottom: 1px solid var(--ide-border, #3c3f41);
+    padding: 0 8px;
+    display: flex;
+    margin: 0;
+    list-style: none;
+    flex-shrink: 0;
+}
+
+.td-nav-item {
+    padding: 5px 12px;
+    cursor: pointer;
+    color: var(--ide-text-muted, #848c94);
+    border-bottom: 2px solid transparent;
+    font-size: 12px;
+    transition: color 0.15s, border-color 0.15s, background-color 0.15s;
+    user-select: none;
+}
+
+.td-nav-item:hover {
+    color: var(--ide-text-active, #ffffff);
+    background: var(--ide-hover-bg, rgba(255, 255, 255, 0.05));
+}
+
+.td-nav-item.active {
+    color: var(--ide-text-active, #ffffff);
+    font-weight: 600;
+    border-bottom: 2px solid var(--ide-accent, #CC7832);
+    background: var(--ide-tab-active-bg, #18191E);
+}
+
+/* Grid & Workspace */
+.td-tab-pane {
+    display: none;
+    flex-direction: column;
+    flex-grow: 1;
+    overflow: hidden;
+}
+
+.td-tab-pane.active {
+    display: flex;
+}
+
+.td-grid-wrapper {
+    flex: 1 1 auto;
+    overflow: auto;
+    background: var(--ide-bg-editor, #18191E);
+}
+
+.td-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11px;
+    table-layout: auto;
+    color: var(--ide-text-main, #c7cfcf);
+}
+
+.td-table thead th {
+    background: var(--ide-grid-header-bg, #202228);
+    color: var(--ide-text-main, #c7cfcf);
+    font-weight: 600;
+    text-align: left;
+    padding: 4px 8px;
+    border: 1px solid var(--ide-border, #3c3f41);
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    user-select: none;
+    white-space: nowrap;
+}
+
+.td-table tbody td {
+    padding: 2px 6px;
+    border: 1px solid var(--ide-border, #3c3f41);
+    vertical-align: middle;
+    white-space: nowrap;
+    height: 24px;
+    background: inherit;
+    color: inherit;
+}
+
+.td-table tbody tr {
+    background: var(--ide-bg-editor, #18191E);
+    cursor: default;
+    transition: background-color 0.1s;
+}
+
+.td-table tbody tr:hover {
+    background: var(--ide-grid-row-hover, rgba(255, 255, 255, 0.05));
+}
+
+/* Dark mode selected row */
+html[data-bs-theme="dark"] .td-table tbody tr.selected,
+:root:not([data-bs-theme="light"]) .td-table tbody tr.selected {
+    background: #094771 !important;
+    color: #ffffff !important;
+}
+
+html[data-bs-theme="dark"] .td-table tbody tr.selected td,
+:root:not([data-bs-theme="light"]) .td-table tbody tr.selected td {
+    border-color: #007acc !important;
+}
+
+/* Light mode selected row */
+html[data-bs-theme="light"] .td-table tbody tr.selected {
+    background: #cce8ff !important;
+    color: #000000 !important;
+}
+
+html[data-bs-theme="light"] .td-table tbody tr.selected td {
+    border-color: #99d1ff !important;
+}
+
+.td-input, .td-select {
+    width: 100%;
+    background: transparent;
+    border: 1px solid transparent;
+    color: inherit;
+    font-size: 11px;
+    padding: 1px 4px;
+    border-radius: 2px;
+    outline: none;
+}
+
+.td-table tr:hover .td-input,
+.td-table tr:hover .td-select {
+    border-color: var(--ide-border, #3c3f41);
+    background: var(--ide-bg-input, #13141A);
+    color: var(--ide-text-main, #c7cfcf);
+}
+
+/* Dark mode selected inputs */
+html[data-bs-theme="dark"] .td-table tr.selected .td-input,
+html[data-bs-theme="dark"] .td-table tr.selected .td-select,
+:root:not([data-bs-theme="light"]) .td-table tr.selected .td-input,
+:root:not([data-bs-theme="light"]) .td-table tr.selected .td-select {
+    border-color: #1b6698;
+    background: #0d3856;
+    color: #ffffff;
+}
+
+/* Light mode selected inputs */
+html[data-bs-theme="light"] .td-table tr.selected .td-input,
+html[data-bs-theme="light"] .td-table tr.selected .td-select {
+    border-color: #70b8ff;
+    background: #e5f3ff;
+    color: #000000;
+}
+
+/* Input Focus */
+html[data-bs-theme="dark"] .td-input:focus,
+html[data-bs-theme="dark"] .td-select:focus,
+:root:not([data-bs-theme="light"]) .td-input:focus,
+:root:not([data-bs-theme="light"]) .td-select:focus {
+    border-color: #007acc !important;
+    background: #2a2d2e !important;
+    color: #ffffff !important;
+}
+
+html[data-bs-theme="light"] .td-input:focus,
+html[data-bs-theme="light"] .td-select:focus {
+    border-color: #007acc !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+}
+
+.td-checkbox {
+    cursor: pointer;
+    accent-color: var(--ide-accent, #CC7832);
+    vertical-align: middle;
+}
+
+/* Bottom Inspector Pane (for Fields default & collation) */
+.td-inspector-pane {
+    background: var(--ide-bg-panel, #1C1D23);
+    border-top: 1px solid var(--ide-border, #3c3f41);
+    padding: 8px 12px;
+    min-height: 90px;
+    flex-shrink: 0;
+    color: var(--ide-text-main, #c7cfcf);
+}
+
+.td-inspector-row {
+    display: flex;
+    align-items: center;
+    margin-bottom: 6px;
+    font-size: 11px;
+}
+
+.td-inspector-label {
+    width: 90px;
+    color: var(--ide-text-muted, #848c94);
+    flex-shrink: 0;
+    font-weight: 500;
+}
+
+.td-inspector-control {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.td-insp-input,
+.td-insp-select {
+    background: var(--ide-bg-input, #13141A) !important;
+    border: 1px solid var(--ide-border, #3c3f41) !important;
+    color: var(--ide-text-main, #c7cfcf) !important;
+    border-radius: 3px;
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.td-insp-input:focus,
+.td-insp-select:focus {
+    border-color: var(--ide-border-active, #CC7832) !important;
+    outline: none;
+    box-shadow: 0 0 0 1px var(--ide-border-active, #CC7832);
+}
+
+.td-insp-input:disabled,
+.td-insp-select:disabled {
+    background: var(--ide-hover-bg, rgba(255, 255, 255, 0.05)) !important;
+    color: var(--ide-text-dim, #5a6068) !important;
+    opacity: 0.6;
+}
+
+/* Bottom Definition Editor Pane (for Triggers) */
+.td-trigger-def-pane {
+    height: 200px;
+    border-top: 1px solid var(--ide-border, #3c3f41);
+    display: flex;
+    flex-direction: column;
+    background: var(--ide-bg-editor, #18191E);
+    flex-shrink: 0;
+}
+
+.td-subtab-header {
+    background: var(--ide-bg-toolbar, #202228);
+    border-bottom: 1px solid var(--ide-border, #3c3f41);
+    padding: 3px 10px;
+    display: flex;
+    gap: 12px;
+    font-size: 11px;
+    color: var(--ide-text-muted, #848c94);
+}
+
+.td-subtab-item.active {
+    font-weight: 600;
+    color: var(--ide-text-active, #ffffff);
+    border-bottom: 2px solid var(--ide-accent, #CC7832);
+}
+
+.td-trigger-cm-wrap {
+    flex-grow: 1;
+    overflow: hidden;
+}
+
+.td-trigger-cm-wrap .CodeMirror {
+    height: 100% !important;
+    font-size: 12px;
+}
+
+/* Status Bar */
+.td-status-bar {
+    background: var(--ide-bg-toolbar, #202228);
+    border-top: 1px solid var(--ide-border, #3c3f41);
+    height: 24px;
+    padding: 0 10px;
+    display: flex;
+    align-items: center;
+    font-size: 11px;
+    color: var(--ide-text-muted, #848c94);
+    user-select: none;
+    gap: 20px;
+    flex-shrink: 0;
+}
+
+/* SQL Preview Area */
+.td-preview-wrap {
+    flex-grow: 1;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    background: var(--ide-bg-editor, #18191E);
+}
+
+.td-preview-wrap .CodeMirror {
+    height: 100% !important;
+    font-size: 12px;
+}
+
+.td-preview-footer {
+    background: var(--ide-bg-toolbar, #202228);
+    border-top: 1px solid var(--ide-border, #3c3f41);
+    padding: 4px 10px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 11px;
+    color: var(--ide-text-muted, #848c94);
+    flex-shrink: 0;
+}
+
+/* Dirty Dot */
+.tab-dirty-dot {
+    color: var(--ide-warning, #E8C859);
+    font-weight: bold;
+}
+
+/* Row Context Menu */
+.td-row-context-menu {
+    position: fixed;
+    z-index: 9999;
+    background: var(--ide-bg-context-menu, #2B2D35);
+    border: 1px solid var(--ide-border, #3c3f41);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+    border-radius: 4px;
+    padding: 4px 0;
+    min-width: 170px;
+    font-size: 11px;
+    color: var(--ide-text-main, #c7cfcf);
+    user-select: none;
+}
+
+.td-ctx-item {
+    padding: 5px 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    color: var(--ide-text-main, #c7cfcf);
+    transition: background 0.1s, color 0.1s;
+}
+
+.td-ctx-item:hover {
+    background: var(--ide-ctx-item-hover, rgba(204, 120, 50, 0.12));
+    color: var(--ide-text-active, #ffffff);
+}
+
+.td-ctx-sep {
+    height: 1px;
+    background: var(--ide-ctx-separator, #3c3f41);
+    margin: 4px 0;
+}
+
+/* Table Design Confirmation Modal */
+#table-design-confirm-modal .modal-content {
+    background-color: var(--ide-bg-modal, #202228);
+    border-color: var(--ide-border, #3c3f41);
+    color: var(--ide-text-main, #c7cfcf);
+}
+
+#table-design-confirm-modal .modal-header,
+#table-design-confirm-modal .modal-footer {
+    border-color: var(--ide-border, #3c3f41);
+}
+
+/* Drag and Drop Row Reordering */
+.td-col-drag {
+    width: 28px !important;
+    min-width: 28px !important;
+    max-width: 28px !important;
+    text-align: center !important;
+    padding: 0 !important;
+    cursor: grab;
+    user-select: none;
+}
+
+.td-drag-handle {
+    color: var(--ide-text-dim, #5a6068);
+    font-size: 11px;
+    cursor: grab;
+    transition: color 0.15s;
+}
+
+.td-drag-handle:hover {
+    color: var(--ide-text-main, #c7cfcf);
+}
+
+.td-row-dragging {
+    opacity: 0.45 !important;
+    background: var(--ide-active-bg, rgba(204, 120, 50, 0.12)) !important;
+}
+
+.td-drag-over-top td {
+    border-top: 2px solid var(--ide-accent, #CC7832) !important;
+}
+
+.td-drag-over-bottom td {
+    border-bottom: 2px solid var(--ide-accent, #CC7832) !important;
+}
+
+/* Quick Add Row Button */
+.td-quick-add-row td {
+    padding: 6px 10px !important;
+    background: transparent !important;
+    border-top: 1px dashed var(--ide-border, #3c3f41) !important;
+    border-left: none !important;
+    border-right: none !important;
+    border-bottom: none !important;
+}
+
+.td-quick-add-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: transparent;
+    border: 1px dashed var(--ide-border, #3c3f41);
+    color: var(--ide-text-muted, #848c94);
+    border-radius: 4px;
+    font-size: 11px;
+    padding: 3px 12px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    user-select: none;
+}
+
+.td-quick-add-btn:hover {
+    background: var(--ide-hover-bg, rgba(255, 255, 255, 0.06));
+    border-color: var(--ide-accent, #CC7832);
+    color: var(--ide-text-active, #ffffff);
+}
+
+/* Pre-Save Audit Section */
+.td-audit-container {
+    border: 1px solid var(--ide-border, #3c3f41);
+    border-radius: 6px;
+    background: var(--ide-bg-toolbar, #202228);
+    padding: 10px 12px;
+    margin-bottom: 12px;
+}
+
+.td-audit-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 12px;
+    font-weight: 600;
+    margin-bottom: 8px;
+}
+
+.td-audit-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 8px;
+    font-size: 11px;
+}
+
+.td-audit-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 10px;
+    background: var(--ide-bg-editor, #18191E);
+    border: 1px solid var(--ide-border, #3c3f41);
+    border-radius: 4px;
+}
+
+.td-audit-item.unmodified {
+    border-left: 3px solid var(--ide-warning, #E8C859);
+}
+
+.td-audit-item.modified {
+    border-left: 3px solid var(--ide-success, #6A8759);
+}
+
+.td-audit-item.warning {
+    border-left: 3px solid var(--ide-danger, #ff5c5c);
+}
+
+.td-ctx-shortcut {
+    margin-left: auto;
+    color: var(--ide-text-dim, #5a6068);
+    font-size: 10px;
+    font-family: monospace;
+}
+
+/* Interactive Audit Item in Confirm Modal */
+.td-audit-item {
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.td-audit-item:hover {
+    background: var(--ide-hover-bg, rgba(255, 255, 255, 0.05));
+    border-color: var(--ide-accent, #CC7832);
+}
+
+.td-audit-item.active {
+    background: var(--ide-active-bg, rgba(204, 120, 50, 0.15));
+    border-color: var(--ide-accent, #CC7832);
+    box-shadow: 0 0 0 1px var(--ide-accent, #CC7832);
+}
+
+/* Multi-Row Selection in Designer Grids */
+.td-table tbody tr.selected-multi td {
+    background: var(--ide-active-bg, rgba(204, 120, 50, 0.18)) !important;
+}
+
+/* Persistent Resizable Live SQL Script Container */
+.td-splitter-h {
+    height: 5px;
+    background: var(--ide-border, #3c3f41);
+    cursor: row-resize;
+    transition: background 0.15s ease;
+    position: relative;
+    z-index: 10;
+    flex-shrink: 0;
+}
+
+.td-splitter-h:hover,
+.td-splitter-h.resizing {
+    background: var(--ide-accent, #CC7832);
+}
+
+.td-live-sql-pane {
+    display: flex;
+    flex-direction: column;
+    background: var(--ide-bg-editor, #18191E);
+    border-top: 1px solid var(--ide-border, #3c3f41);
+    flex-shrink: 0;
+    overflow: hidden;
+}
+
+.td-live-sql-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 4px 12px;
+    background: var(--ide-bg-toolbar, #202228);
+    border-bottom: 1px solid var(--ide-border, #3c3f41);
+    font-size: 11px;
+    user-select: none;
+}
+
+.td-live-sql-cm-wrap {
+    flex: 1;
+    overflow: hidden;
+    position: relative;
+}
+
+.td-live-sql-cm-wrap .CodeMirror {
+    height: 100% !important;
+    font-size: 12px;
+}
+
+
+
+/* ===== bravo.css ===== */
+/* =============================================================================
+   BRAVO Tool — Floating Window Styles
+   Inherits all --ide-* CSS variables from IDE SQL themes.css
+   ============================================================================= */
+
+/* ── Window backdrop overlay (dimmed bg when a modal-type action is active) ── */
+.bravo-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 1999;
+    background: rgba(0, 0, 0, 0.35);
+}
+.bravo-backdrop.visible { display: block; }
+
+/* ── Floating window container ──────────────────────────────────────────────── */
+.bravo-window {
+    position: fixed;
+    z-index: 2000;
+    display: flex;
+    flex-direction: column;
+    min-width: 720px;
+    min-height: 440px;
+    background: var(--ide-bg-main);
+    border: 1px solid var(--ide-border);
+    border-radius: 6px;
+    box-shadow:
+        0 8px 32px rgba(0,0,0,0.45),
+        0 2px 8px rgba(0,0,0,0.3),
+        0 0 0 1px rgba(204,120,50,0.08);
+    /* NOTE: overflow must be visible so topbar dropdowns are not clipped */
+    overflow: visible;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+    font-size: 13px;
+    color: var(--ide-text-main);
+    transition: box-shadow 0.15s ease;
+    user-select: none;
+    /* Clip only the rounded corners via a pseudo element trick */
+    isolation: isolate;
+}
+.bravo-window.focused {
+    box-shadow:
+        0 12px 48px rgba(0,0,0,0.55),
+        0 4px 16px rgba(0,0,0,0.35),
+        0 0 0 1px rgba(204,120,50,0.2);
+}
+/* Clip the rounded corners of the window without clipping dropdowns:
+   Use clip-path only on the visible border region via a box decoration */
+.bravo-window::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 6px;
+    border: 1px solid var(--ide-border);
+    pointer-events: none;
+    z-index: 9999;
+}
+.bravo-window.minimized .bravo-body { display: none; }
+.bravo-window.minimized .bravo-statusbar { display: none; }
+/* When minimized, collapse to just titlebar height */
+.bravo-window.minimized {
+    min-height: unset;
+    height: auto !important;
+}
+
+/* ── Title bar ────────────────────────────────────────────────────────────── */
+.bravo-titlebar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 34px;
+    padding: 0 10px 0 12px;
+    background: var(--ide-bg-toolbar);
+    border-bottom: 1px solid var(--ide-border);
+    cursor: move;
+    flex-shrink: 0;
+}
+.bravo-titlebar-icon {
+    color: var(--ide-accent);
+    font-size: 14px;
+    flex-shrink: 0;
+}
+.bravo-titlebar-title {
+    font-weight: 600;
+    font-size: 12px;
+    color: var(--ide-text-main);
+    letter-spacing: 0.3px;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.bravo-titlebar-badge {
+    font-size: 10px;
+    font-weight: 600;
+    padding: 1px 6px;
+    border-radius: 10px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    border: 1px solid currentColor;
+}
+.bravo-env-prod { color: #ff5c5c; }
+.bravo-env-staging { color: #E8C859; }
+.bravo-env-dev { color: #6A8759; }
+
+.bravo-titlebar-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+}
+.bravo-win-btn {
+    width: 22px;
+    height: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    background: transparent;
+    color: var(--ide-text-muted);
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 11px;
+    transition: background 0.1s, color 0.1s;
+}
+.bravo-win-btn:hover { background: var(--ide-hover-bg); color: var(--ide-text-main); }
+.bravo-win-btn.close:hover { background: rgba(255,92,92,0.15); color: #ff5c5c; }
+
+/* ── Top control bar (DB Type / Connection / DB / Schema / Env) ──────────── */
+.bravo-topbar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    height: 36px;
+    padding: 0 10px;
+    background: var(--ide-action-bar-bg);
+    border-bottom: 1px solid var(--ide-border);
+    flex-shrink: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+}
+.bravo-topbar::-webkit-scrollbar { height: 3px; }
+.bravo-topbar::-webkit-scrollbar-track { background: transparent; }
+.bravo-topbar::-webkit-scrollbar-thumb { background: var(--ide-border); border-radius: 2px; }
+
+.bravo-ctx-select {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: var(--ide-badge-bg);
+    border: 1px solid var(--ide-border);
+    border-radius: 3px;
+    padding: 2px 8px;
+    font-size: 11px;
+    color: var(--ide-text-muted);
+    cursor: pointer;
+    white-space: nowrap;
+    height: 24px;
+    min-width: 80px;
+    position: relative;
+    transition: border-color 0.1s, background 0.1s;
+}
+.bravo-ctx-select:hover {
+    background: var(--ide-badge-hover);
+    border-color: var(--ide-accent);
+    color: var(--ide-text-main);
+}
+.bravo-ctx-select .bravo-ctx-icon { color: var(--ide-accent); font-size: 10px; }
+.bravo-ctx-select .bravo-ctx-arrow { font-size: 8px; margin-left: auto; }
+.bravo-ctx-select .bravo-ctx-value {
+    color: var(--ide-text-main);
+    font-weight: 500;
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.bravo-ctx-sep { color: var(--ide-text-dim); font-size: 14px; margin: 0 1px; }
+
+.bravo-ctx-add,
+.bravo-ctx-new-conn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--ide-badge-bg);
+    border: 1px solid var(--ide-border);
+    border-radius: 3px;
+    width: 24px;
+    height: 24px;
+    font-size: 11px;
+    color: var(--ide-accent);
+    cursor: pointer;
+    transition: border-color 0.1s, background 0.1s, color 0.1s;
+    flex-shrink: 0;
+}
+.bravo-ctx-add:hover,
+.bravo-ctx-new-conn:hover {
+    background: var(--ide-accent);
+    border-color: var(--ide-accent);
+    color: #ffffff;
+}
+
+/* Env badge */
+.bravo-env-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 1px 8px;
+    border-radius: 10px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    border: 1px solid currentColor;
+    height: 20px;
+    cursor: default;
+    margin-left: 4px;
+}
+
+/* Dropdown panel — rendered inside bravo-topbar which is NOT overflow:hidden */
+.bravo-dropdown {
+    position: fixed;  /* fixed so it escapes any overflow:hidden ancestor */
+    z-index: 3000;    /* above the window (z-index 2000) */
+    background: var(--ide-bg-dropdown);
+    border: 1px solid var(--ide-border);
+    border-radius: 4px;
+    box-shadow: 0 6px 24px rgba(0,0,0,0.4), 0 2px 8px rgba(0,0,0,0.2);
+    min-width: 180px;
+    max-width: 280px;
+    max-height: 220px;
+    overflow-y: auto;
+    padding: 4px 0;
+}
+.bravo-dropdown-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 10px;
+    font-size: 12px;
+    color: var(--ide-text-main);
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.bravo-dropdown-item:hover { background: var(--ide-hover-bg); }
+.bravo-dropdown-item.active {
+    background: var(--ide-active-bg);
+    color: var(--ide-accent);
+}
+.bravo-dropdown-item i { color: var(--ide-accent); font-size: 11px; width: 14px; flex-shrink: 0; }
+.bravo-dropdown-empty { padding: 8px 12px; color: var(--ide-text-dim); font-size: 12px; text-align: center; }
+
+/* ── Body (nav + content) ─────────────────────────────────────────────────── */
+.bravo-body {
+    display: flex;
+    flex: 1 1 0%;
+    min-height: 0;
+    overflow: hidden; /* safe to clip here — no dropdowns inside body */
+    /* Clip corners at body level to simulate window border-radius */
+    border-radius: 0 0 6px 6px;
+}
+
+/* ── Left navigation panel ────────────────────────────────────────────────── */
+.bravo-nav {
+    width: 200px;
+    min-width: 160px;
+    max-width: 280px;
+    background: var(--ide-bg-sidebar);
+    border-right: 1px solid var(--ide-border);
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    overflow-x: hidden;
+    flex-shrink: 0;
+}
+.bravo-nav-header {
+    padding: 8px 12px 4px;
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--ide-text-dim);
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    border-bottom: 1px solid var(--ide-border);
+    margin-bottom: 4px;
+}
+.bravo-nav-item {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 7px 14px;
+    cursor: pointer;
+    color: var(--ide-text-muted);
+    font-size: 12.5px;
+    border-left: 2px solid transparent;
+    transition: background 0.1s, color 0.1s, border-color 0.1s;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.bravo-nav-item i {
+    font-size: 12px;
+    width: 14px;
+    text-align: center;
+    flex-shrink: 0;
+    color: var(--ide-text-dim);
+    transition: color 0.1s;
+}
+.bravo-nav-item:hover {
+    background: var(--ide-hover-bg);
+    color: var(--ide-text-main);
+}
+.bravo-nav-item:hover i { color: var(--ide-accent); }
+.bravo-nav-item.active {
+    background: var(--ide-active-bg);
+    color: var(--ide-accent);
+    border-left-color: var(--ide-accent);
+    font-weight: 600;
+}
+.bravo-nav-item.active i { color: var(--ide-accent); }
+
+/* ── Resize handle between nav and content ────────────────────────────────── */
+.bravo-nav-resizer {
+    width: 4px;
+    background: var(--ide-border);
+    cursor: col-resize;
+    flex-shrink: 0;
+    transition: background 0.15s;
+}
+.bravo-nav-resizer:hover,
+.bravo-nav-resizer.dragging { background: var(--ide-accent); }
+
+/* ── Right content area ───────────────────────────────────────────────────── */
+.bravo-content {
+    flex: 1 1 0%;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: var(--ide-bg-main);
+    position: relative;
+}
+.bravo-content-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 14px;
+    background: var(--ide-bg-panel);
+    border-bottom: 1px solid var(--ide-border);
+    flex-shrink: 0;
+}
+.bravo-content-title {
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--ide-text-main);
+}
+.bravo-content-subtitle {
+    font-size: 11px;
+    color: var(--ide-text-muted);
+}
+.bravo-content-body {
+    flex: 1 1 0%;
+    min-height: 0;
+    overflow: auto;
+    padding: 16px;
+}
+
+/* Empty / no feature selected state */
+.bravo-content-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: var(--ide-text-dim);
+    gap: 12px;
+}
+.bravo-content-empty i { font-size: 36px; opacity: 0.35; }
+.bravo-content-empty p { font-size: 12px; margin: 0; }
+
+/* ── Bottom status bar ────────────────────────────────────────────────────── */
+.bravo-statusbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    height: 26px;
+    padding: 0 12px;
+    background: var(--ide-bg-toolbar);
+    border-top: 1px solid var(--ide-border);
+    flex-shrink: 0;
+    font-size: 11px;
+    color: var(--ide-text-muted);
+}
+.bravo-status-state {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+.bravo-status-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--ide-success);
+    flex-shrink: 0;
+}
+.bravo-status-dot.running {
+    background: var(--ide-warning);
+    animation: bravo-blink 0.8s ease-in-out infinite alternate;
+}
+.bravo-status-dot.error { background: var(--ide-danger); }
+@keyframes bravo-blink {
+    from { opacity: 0.4; }
+    to   { opacity: 1; }
+}
+.bravo-status-target {
+    margin-left: auto;
+    color: var(--ide-text-muted);
+    font-size: 10.5px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 300px;
+}
+.bravo-status-target strong { color: var(--ide-text-main); }
+.bravo-status-timing { color: var(--ide-text-dim); font-size: 10.5px; }
+.bravo-status-cancel {
+    background: transparent;
+    border: 1px solid var(--ide-border);
+    color: var(--ide-danger);
+    border-radius: 3px;
+    padding: 1px 8px;
+    font-size: 10.5px;
+    cursor: pointer;
+    transition: background 0.1s;
+    display: none;
+}
+.bravo-status-cancel.visible { display: block; }
+.bravo-status-cancel:hover { background: rgba(255,92,92,0.1); }
+
+/* ── Resize handle (window edges) ─────────────────────────────────────────── */
+.bravo-resize-handle {
+    position: absolute;
+    z-index: 10;
+}
+.bravo-resize-handle.se {
+    bottom: 0; right: 0;
+    width: 14px; height: 14px;
+    cursor: se-resize;
+}
+.bravo-resize-handle.se::after {
+    content: '';
+    position: absolute;
+    bottom: 3px; right: 3px;
+    width: 6px; height: 6px;
+    border-right: 2px solid var(--ide-border);
+    border-bottom: 2px solid var(--ide-border);
+    border-radius: 1px;
+}
+.bravo-resize-handle.e  { right: 0; top: 34px; bottom: 26px; width: 5px; cursor: e-resize; }
+.bravo-resize-handle.s  { bottom: 26px; left: 14px; right: 14px; height: 5px; cursor: s-resize; }
+.bravo-resize-handle.w  { left: 0; top: 34px; bottom: 26px; width: 5px; cursor: w-resize; }
+.bravo-resize-handle.n  { top: 34px; left: 14px; right: 14px; height: 5px; cursor: n-resize; }
+
+/* ── Scrollbars inside BRAVO ─────────────────────────────────────────────── */
+.bravo-window ::-webkit-scrollbar { width: 6px; height: 6px; }
+.bravo-window ::-webkit-scrollbar-track { background: transparent; }
+.bravo-window ::-webkit-scrollbar-thumb { background: var(--ide-scroll-thumb); border-radius: 3px; }
+.bravo-window ::-webkit-scrollbar-thumb:hover { background: var(--ide-scroll-thumb-hover); }
+
+/* ── BRAVO toolbar launcher button ──────────────────────────────────────── */
+#ide-bravo-launcher-wrap {
+    position: relative;
+}
+#ide-bravo-launcher {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: transparent;
+    border: 1px solid var(--ide-border);
+    color: var(--ide-text-muted);
+    padding: 3px 10px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    height: 26px;
+    transition: background 0.1s, color 0.1s, border-color 0.1s;
+    white-space: nowrap;
+}
+#ide-bravo-launcher:hover {
+    background: var(--ide-active-bg);
+    border-color: var(--ide-accent);
+    color: var(--ide-accent);
+}
+#ide-bravo-launcher .bravo-launcher-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--ide-accent);
+    flex-shrink: 0;
+    box-shadow: 0 0 4px var(--ide-accent);
+}
+/* Badge showing count of open windows */
+#ide-bravo-launcher .bravo-win-count {
+    font-size: 10px;
+    background: var(--ide-accent);
+    color: #fff;
+    border-radius: 8px;
+    padding: 0 5px;
+    min-width: 16px;
+    text-align: center;
+    line-height: 15px;
+    display: none;
+}
+#ide-bravo-launcher.has-windows .bravo-win-count { display: inline-block; }
+
+/* ── BRAVO toolbar session picker dropdown ───────────────────────────────── */
+.bravo-toolbar-picker {
+    display: none;
+    position: absolute;
+    top: calc(100% + 5px);
+    right: 0;
+    z-index: 4000;
+    background: var(--ide-bg-dropdown);
+    border: 1px solid var(--ide-border);
+    border-radius: 5px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4), 0 2px 8px rgba(0,0,0,0.2);
+    min-width: 240px;
+    overflow: hidden;
+}
+.bravo-toolbar-picker.open { display: block; }
+.bravo-toolbar-picker-header {
+    padding: 6px 12px 4px;
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--ide-text-dim);
+    letter-spacing: 0.7px;
+    text-transform: uppercase;
+    border-bottom: 1px solid var(--ide-border);
+}
+.bravo-toolbar-picker-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 12px;
+    font-size: 12px;
+    color: var(--ide-text-main);
+    cursor: pointer;
+    transition: background 0.1s;
+}
+.bravo-toolbar-picker-item:hover { background: var(--ide-hover-bg); }
+.bravo-toolbar-picker-item i { color: var(--ide-accent); font-size: 11px; width: 14px; flex-shrink: 0; }
+.bravo-toolbar-picker-item .picker-item-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bravo-toolbar-picker-item .picker-item-badge {
+    font-size: 9px; padding: 1px 5px;
+    border-radius: 3px; background: var(--ide-badge-bg);
+    color: var(--ide-text-dim);
+}
+.bravo-toolbar-picker-item .picker-item-badge.minimized { color: var(--ide-warning); }
+.bravo-toolbar-picker-sep {
+    height: 1px;
+    background: var(--ide-border);
+    margin: 2px 0;
+}
+.bravo-toolbar-picker-new {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 7px 12px;
+    font-size: 12px;
+    color: var(--ide-accent);
+    cursor: pointer;
+    transition: background 0.1s;
+    font-weight: 500;
+}
+.bravo-toolbar-picker-new:hover { background: var(--ide-active-bg); }
+.bravo-toolbar-picker-new i { font-size: 11px; }
+.bravo-toolbar-picker-empty {
+    padding: 8px 12px;
+    font-size: 11px;
+    color: var(--ide-text-dim);
+    text-align: center;
+}
+
+/* Close button per session item in picker dropdown */
+.bravo-toolbar-picker-item .picker-item-close {
+    background: transparent;
+    border: none;
+    color: var(--ide-text-dim);
+    width: 18px;
+    height: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 11px;
+    margin-left: 4px;
+    transition: background 0.1s, color 0.1s;
+}
+.bravo-toolbar-picker-item .picker-item-close:hover {
+    background: rgba(255, 92, 92, 0.2);
+    color: #ff5c5c;
+}
+
+/* Ensure Connection Modal & Reconnect Password Modal float above all BRAVO windows (z-index > 2000) */
+#connectionModal {
+    z-index: 10050 !important;
+}
+#reconnectPasswordModal {
+    z-index: 10060 !important;
+}
+body > .modal-backdrop,
+.modal-backdrop.show {
+    z-index: 10040 !important;
+}
+
+/* ── Connection toast status overlay ────────────────────────────────────────── */
+.bravo-conn-toast {
+    position: absolute;
+    top: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 100;
+    padding: 6px 16px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
+    pointer-events: none;
+    white-space: nowrap;
+}
+.bravo-conn-toast.success {
+    background: rgba(46, 160, 67, 0.2);
+    border: 1px solid #2ea44f;
+    color: #3fb950;
+}
+.bravo-conn-toast.warning {
+    background: rgba(227, 179, 65, 0.2);
+    border: 1px solid #e3b341;
+    color: #f0883e;
+}
+.bravo-conn-toast.fade-in {
+    animation: bravoToastIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+.bravo-conn-toast.fade-out {
+    animation: bravoToastOut 0.25s ease forwards;
+}
+
+@keyframes bravoToastIn {
+    from { opacity: 0; transform: translate(-50%, -12px) scale(0.95); }
+    to { opacity: 1; transform: translate(-50%, 0) scale(1); }
+}
+@keyframes bravoToastOut {
+    from { opacity: 1; transform: translate(-50%, 0) scale(1); }
+    to { opacity: 0; transform: translate(-50%, -10px) scale(0.95); }
+}
+
+/* ── Window Open & Hide Animations ──────────────────────────────────────────── */
+.bravo-window.bravo-anim-open {
+    animation: bravoWinOpen 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+.bravo-window.bravo-anim-hide {
+    animation: bravoWinHide 0.2s cubic-bezier(0.7, 0, 0.84, 0) forwards;
+}
+
+@keyframes bravoWinOpen {
+    from {
+        opacity: 0;
+        transform: scale(0.94) translateY(12px);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
+@keyframes bravoWinHide {
+    from {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+    to {
+        opacity: 0;
+        transform: scale(0.95) translateY(10px);
+    }
+}
+
+/* ── Layout Editor (Soạn thảo Layout XML) Styling ───────────────────────────── */
+.bravo-le-container {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    width: 100%;
+    overflow: hidden;
+    background: var(--ide-bg-main);
+    color: var(--ide-text-main);
+    font-size: 12px;
+}
+
+/* Reusable connection bar slot at top of layout editor */
+.bravo-le-connbar-slot {
+    flex-shrink: 0;
+    width: 100%;
+}
+.bravo-le-connbar-slot .bravo-connection-bar {
+    border-top: none;
+    border-left: none;
+    border-right: none;
+}
+
+/* Topbar header controls */
+.bravo-le-topbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    background: var(--ide-action-bar-bg);
+    border-bottom: 1px solid var(--ide-border);
+    flex-shrink: 0;
+}
+.bravo-le-field-group {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+}
+.bravo-le-label {
+    font-weight: 600;
+    color: var(--ide-text-muted);
+    white-space: nowrap;
+}
+
+/* Requirement 5: Color Theme Styled Select Elements */
+.bravo-le-select {
+    background-color: var(--ide-bg-sidebar);
+    color: var(--ide-text-main);
+    border: 1px solid var(--ide-border);
+    border-radius: 4px;
+    padding: 2px 24px 2px 8px;
+    font-size: 11px;
+    font-weight: 500;
+    height: 25px;
+    outline: none;
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='%2358a6ff' d='M0 0l5 6 5-6z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 8px center;
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+.bravo-le-select:focus, .bravo-le-select:hover {
+    border-color: var(--ide-accent);
+    box-shadow: 0 0 0 2px rgba(88, 166, 255, 0.15);
+}
+.bravo-le-select option {
+    background-color: var(--ide-bg-dropdown, var(--ide-bg-sidebar));
+    color: var(--ide-text-main);
+    padding: 4px 8px;
+}
+
+.bravo-le-input {
+    background: var(--ide-bg-sidebar);
+    color: var(--ide-text-main);
+    border: 1px solid var(--ide-border);
+    border-radius: 3px;
+    padding: 2px 6px;
+    font-size: 11px;
+    height: 25px;
+    outline: none;
+}
+.bravo-le-input:focus {
+    border-color: var(--ide-accent);
+}
+
+.bravo-le-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 2px 8px;
+    height: 25px;
+    font-size: 11px;
+    font-weight: 500;
+    background: var(--ide-badge-bg);
+    border: 1px solid var(--ide-border);
+    border-radius: 3px;
+    color: var(--ide-text-main);
+    cursor: pointer;
+    transition: background 0.1s, border-color 0.1s, color 0.1s;
+    white-space: nowrap;
+}
+.bravo-le-btn:hover {
+    background: var(--ide-hover-bg);
+    border-color: var(--ide-accent);
+    color: var(--ide-accent);
+}
+.bravo-le-btn-primary {
+    background: var(--ide-accent);
+    border-color: var(--ide-accent);
+    color: #ffffff;
+}
+.bravo-le-btn-primary:hover {
+    filter: brightness(1.1);
+    color: #ffffff;
+}
+.bravo-le-btn-danger {
+    background: #d73a49;
+    border-color: #cb2431;
+    color: #ffffff;
+}
+.bravo-le-btn-danger:hover {
+    background: #cb2431;
+    color: #ffffff;
+}
+
+/* SQL Bar with WHERE input directly adjacent */
+.bravo-le-sql-bar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px;
+    background: var(--ide-bg-sidebar);
+    border-bottom: 1px solid var(--ide-border);
+    font-size: 11px;
+    flex-shrink: 0;
+}
+.bravo-le-sql-preview {
+    font-family: 'Cascadia Code', Consolas, Monaco, monospace;
+    font-size: 10px;
+    color: var(--ide-text-dim);
+    background: var(--ide-bg-editor);
+    padding: 2px 8px;
+    border-radius: 3px;
+    border: 1px solid var(--ide-border);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 480px;
+}
+
+/* Split Workspace */
+.bravo-le-workspace {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+    position: relative;
+}
+.bravo-le-left {
+    width: 380px;
+    min-width: 240px;
+    max-width: 50%;
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid var(--ide-border);
+    background: var(--ide-bg-sidebar);
+    overflow: hidden;
+}
+.bravo-le-split-resizer {
+    width: 4px;
+    cursor: col-resize;
+    background: transparent;
+    transition: background 0.15s;
+    z-index: 10;
+}
+.bravo-le-split-resizer:hover, .bravo-le-split-resizer.dragging {
+    background: var(--ide-accent);
+}
+.bravo-le-right {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: var(--ide-bg-editor);
+    overflow: hidden;
+    min-width: 300px;
+    min-height: 0;
+    position: relative;
+}
+
+/* Checklist Panel */
+.bravo-le-checklist-block {
+    display: flex;
+    height: 140px;
+    border-bottom: 1px solid var(--ide-border);
+    background: var(--ide-bg-panel);
+    flex-shrink: 0;
+}
+.bravo-le-checklist-tabs {
+    width: 110px;
+    border-right: 1px solid var(--ide-border);
+    display: flex;
+    flex-direction: column;
+    background: var(--ide-bg-sidebar);
+    overflow-y: auto;
+}
+.bravo-le-checklist-tab {
+    padding: 5px 8px;
+    font-size: 11px;
+    color: var(--ide-text-dim);
+    cursor: pointer;
+    border-bottom: 1px solid var(--ide-border);
+    transition: background 0.1s, color 0.1s;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.bravo-le-checklist-tab:hover { background: var(--ide-hover-bg); color: var(--ide-text-main); }
+.bravo-le-checklist-tab.active {
+    background: var(--ide-active-bg);
+    color: var(--ide-accent);
+    font-weight: 600;
+    border-left: 2px solid var(--ide-accent);
+}
+
+.bravo-le-checklist-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    padding: 4px;
+}
+.bravo-le-checklist-search {
+    margin-bottom: 4px;
+}
+.bravo-le-checklist-list {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.bravo-le-checklist-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 6px;
+    border-radius: 2px;
+    font-size: 11px;
+    cursor: pointer;
+    color: var(--ide-text-main);
+}
+.bravo-le-checklist-item:hover { background: var(--ide-hover-bg); }
+.bravo-le-chk-top {
+    border-bottom: 1px dashed var(--ide-border);
+    padding-bottom: 3px;
+    margin-bottom: 2px;
+    background: var(--ide-hover-bg);
+}
+
+
+/* Master Grid */
+.bravo-le-grid-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 4px 8px;
+    background: var(--ide-bg-sidebar);
+    border-bottom: 1px solid var(--ide-border);
+    font-weight: 600;
+    font-size: 11px;
+    color: var(--ide-text-muted);
+}
+.bravo-le-grid-container {
+    flex: 1;
+    overflow: auto;
+    background: var(--ide-bg-main);
+}
+.bravo-le-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11px;
+    white-space: nowrap;
+}
+.bravo-le-table th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: var(--ide-action-bar-bg);
+    color: var(--ide-text-muted);
+    font-weight: 600;
+    padding: 4px 6px;
+    text-align: left;
+    border-bottom: 1px solid var(--ide-border);
+    border-right: 1px solid var(--ide-border);
+    vertical-align: top;
+}
+.bravo-le-th-content {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 4px;
+}
+.bravo-le-col-filter-icon {
+    font-size: 10px;
+    color: var(--ide-text-dim);
+    cursor: pointer;
+    padding: 2px;
+    border-radius: 2px;
+    transition: color 0.15s, background 0.15s;
+}
+.bravo-le-col-filter-icon:hover,
+.bravo-le-col-filter-icon.active {
+    color: var(--ide-accent, #4cc9f0);
+    background: rgba(76, 201, 240, 0.18);
+}
+.bravo-le-col-filter-box {
+    margin-top: 3px;
+}
+.bravo-le-col-filter-input {
+    width: 100%;
+    font-size: 10px;
+    padding: 2px 4px;
+    background: var(--ide-bg-main, #1e1e1e);
+    border: 1px solid var(--ide-border, #333);
+    color: var(--ide-text-main, #d4d4d4);
+    border-radius: 2px;
+    outline: none;
+    font-weight: normal;
+}
+.bravo-le-col-filter-input:focus {
+    border-color: var(--ide-accent, #4cc9f0);
+}
+
+.bravo-le-table td {
+    padding: 3px 6px;
+    border-bottom: 1px solid var(--ide-border);
+    border-right: 1px solid var(--ide-border);
+    color: var(--ide-text-main);
+}
+.bravo-le-table tr:hover { background: var(--ide-hover-bg); }
+.bravo-le-table tr.selected { background: var(--ide-active-bg); }
+.bravo-le-table tr.dirty { background: rgba(227, 179, 65, 0.08); }
+
+
+/* XML Editor Right Panel & Actions */
+.bravo-le-editor-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 8px;
+    background: var(--ide-action-bar-bg);
+    border-bottom: 1px solid var(--ide-border);
+    flex-shrink: 0;
+}
+
+/* Requirement 4: Layout Gốc vs Layout Nháp Tab Controls */
+.bravo-le-view-tabs {
+    display: inline-flex;
+    align-items: stretch;
+    height: 25px;
+    gap: 2px;
+    background: var(--ide-bg-sidebar);
+    padding: 2px;
+    border-radius: 4px;
+    border: 1px solid var(--ide-border);
+    box-sizing: border-box;
+}
+.bravo-le-vtab {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    padding: 0 10px;
+    height: 100%;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--ide-text-muted);
+    background: transparent;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+    box-sizing: border-box;
+    white-space: nowrap;
+}
+.bravo-le-vtab:hover:not(:disabled) {
+    color: var(--ide-text-main);
+    background: var(--ide-hover-bg);
+}
+.bravo-le-vtab.active {
+    background: var(--ide-accent);
+    color: #ffffff;
+    font-weight: 600;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+.bravo-le-vtab:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+.bravo-le-tab-badge {
+    font-size: 9px;
+    padding: 0 5px;
+    border-radius: 8px;
+    background: #e3b341;
+    color: #000;
+    font-weight: 700;
+    margin-left: 4px;
+}
+
+/* Display Mode Buttons (Code Editor vs Tree Map vs Split) */
+.bravo-le-mode-group {
+    display: inline-flex;
+    align-items: stretch;
+    height: 25px;
+    gap: 2px;
+    background: var(--ide-bg-sidebar);
+    padding: 2px;
+    border-radius: 4px;
+    border: 1px solid var(--ide-border);
+    box-sizing: border-box;
+}
+.bravo-le-mode-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    padding: 0 10px;
+    min-width: 58px;
+    height: 100%;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--ide-text-muted);
+    background: transparent;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+    box-sizing: border-box;
+    white-space: nowrap;
+}
+.bravo-le-mode-btn:hover {
+    color: var(--ide-text-main);
+    background: var(--ide-hover-bg);
+}
+.bravo-le-mode-btn.active {
+    background: var(--ide-active-bg);
+    color: var(--ide-accent);
+    font-weight: 600;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.15);
+}
+
+/* Requirement 1 & 2: Formatted Code Editor with Line Numbers, Folding & Tree Map XML */
+.bravo-le-editor-area {
+    flex: 1;
+    display: flex;
+    position: relative;
+    overflow: hidden;
+    background: var(--ide-bg-editor);
+}
+
+.bravo-le-code-wrapper {
+    flex: 1;
+    display: flex;
+    position: relative;
+    overflow: hidden;
+    font-family: 'Cascadia Code', 'Fira Code', Consolas, Monaco, monospace;
+    font-size: 12px;
+    line-height: 1.5;
+}
+.bravo-le-gutter {
+    width: 36px;
+    background: var(--ide-bg-sidebar);
+    border-right: 1px solid var(--ide-border);
+    color: var(--ide-text-dim);
+    user-select: none;
+    padding: 8px 4px 8px 2px;
+    font-size: 11px;
+    line-height: 1.5;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+.bravo-le-gutter-line {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 2px;
+    height: 18px;
+    padding-left: 2px;
+}
+.bravo-le-gutter-num {
+    font-size: 11px;
+    color: var(--ide-text-dim);
+    min-width: 14px;
+    text-align: right;
+}
+.bravo-le-fold-toggle {
+    width: 12px;
+    height: 12px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: var(--ide-text-dim);
+    font-size: 9px;
+    transition: color 0.1s, transform 0.15s;
+}
+.bravo-le-fold-toggle:hover { color: var(--ide-accent); }
+.bravo-le-fold-toggle.collapsed { transform: rotate(-90deg); color: #e3b341; }
+
+.bravo-le-editor-scroll-area {
+    flex: 1;
+    position: relative;
+    overflow: auto;
+}
+.bravo-le-highlight-layer {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    margin: 0;
+    padding: 8px;
+    pointer-events: none;
+    white-space: pre;
+    font-family: 'Consolas', 'Cascadia Code', 'Fira Code', 'Courier New', monospace;
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--ide-text-main);
+    tab-size: 4;
+    z-index: 1;
+    overflow: hidden;
+}
+.bravo-le-editor-textarea {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 8px;
+    background: transparent;
+    color: transparent;
+    caret-color: var(--ide-text-main);
+    font-family: 'Consolas', 'Cascadia Code', 'Fira Code', 'Courier New', monospace;
+    font-size: 12px;
+    line-height: 1.5;
+    border: none;
+    outline: none;
+    resize: none;
+    white-space: pre;
+    tab-size: 4;
+    overflow: auto;
+    z-index: 2;
+}
+
+
+/* XML Syntax Highlighting Colors */
+.xml-tag { color: #569cd6; font-weight: bold; }
+.xml-attr-name { color: #9cdcfe; }
+.xml-attr-val { color: #ce9178; }
+.xml-comment { color: #6a9955; font-style: italic; }
+.xml-bracket { color: #808080; }
+
+/* Requirement 1: Tree Map XML Component */
+.bravo-le-treemap-wrapper {
+    flex: 1;
+    overflow: auto;
+    padding: 10px;
+    background: var(--ide-bg-main);
+    border-left: 1px solid var(--ide-border);
+}
+.bravo-le-tree-container {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.bravo-le-tree-node {
+    margin-left: 14px;
+    font-family: 'Cascadia Code', Consolas, monospace;
+    font-size: 11px;
+    line-height: 1.6;
+}
+.bravo-le-tree-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    cursor: pointer;
+    user-select: none;
+}
+.bravo-le-tree-header:hover { background: var(--ide-hover-bg); }
+.bravo-le-tree-toggle {
+    color: var(--ide-text-dim);
+    font-size: 9px;
+    width: 12px;
+    text-align: center;
+}
+.bravo-le-tree-icon { color: var(--ide-accent); font-size: 11px; }
+.bravo-le-tree-tag { color: #569cd6; font-weight: 700; }
+.bravo-le-tree-attr {
+    font-size: 10px;
+    background: var(--ide-badge-bg);
+    color: var(--ide-text-dim);
+    padding: 0 5px;
+    border-radius: 3px;
+    margin-left: 2px;
+}
+.bravo-le-tree-attr-val { color: var(--ide-text-main); font-weight: 500; }
+.bravo-le-tree-children {
+    display: flex;
+    flex-direction: column;
+    border-left: 1px dashed var(--ide-border);
+    margin-left: 6px;
+}
+
+/* Footer Commit Bar */
+.bravo-le-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 12px;
+    background: var(--ide-bg-sidebar);
+    border-top: 1px solid var(--ide-border);
+    flex-shrink: 0;
+}
+.bravo-le-stats {
+    font-size: 11px;
+    color: var(--ide-text-muted);
+}
+.bravo-le-stats strong {
+    color: var(--ide-accent);
+}
+
+/* ── Hybrid Search: Small utility button ──────────────────────────────────── */
+.bravo-le-btn-xs {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 2px 6px;
+    font-size: 10px;
+    height: 20px;
+    border-radius: 3px;
+    cursor: pointer;
+    border: 1px solid var(--ide-border);
+    background: var(--ide-bg-panel);
+    color: var(--ide-text-main);
+    transition: background 0.15s;
+    white-space: nowrap;
+}
+.bravo-le-btn-xs:hover { background: var(--ide-bg-hover); }
+
+/* ── Horizontal Bottom Resizer ────────────────────────────────────────────── */
+.bravo-le-bottom-resizer {
+    height: 7px;
+    background: var(--ide-bg-sidebar);
+    border-top: 1px solid var(--ide-border);
+    border-bottom: 1px solid var(--ide-border);
+    cursor: ns-resize;
+    user-select: none;
+    touch-action: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    flex-shrink: 0;
+    z-index: 6;
+    transition: background 0.15s, border-color 0.15s;
+    position: relative;
+}
+.bravo-le-bottom-resizer:hover, .bravo-le-bottom-resizer.dragging {
+    background: color-mix(in srgb, var(--ide-accent) 20%, var(--ide-bg-sidebar));
+    border-color: var(--ide-accent);
+}
+.bravo-le-bottom-resizer-line {
+    flex: 1;
+    height: 1px;
+    background: var(--ide-border);
+    max-width: 80px;
+    transition: background 0.15s, max-width 0.15s;
+}
+.bravo-le-bottom-resizer:hover .bravo-le-bottom-resizer-line,
+.bravo-le-bottom-resizer.dragging .bravo-le-bottom-resizer-line {
+    background: var(--ide-accent);
+    max-width: 120px;
+}
+/* Toggle button embedded right inside the resizer bar */
+.bravo-le-resizer-toggle-btn {
+    height: 14px;
+    padding: 0 10px;
+    border-radius: 7px;
+    background: var(--ide-bg-panel);
+    border: 1px solid var(--ide-border);
+    color: var(--ide-text-dim);
+    font-size: 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s;
+    z-index: 7;
+}
+.bravo-le-resizer-toggle-btn:hover {
+    background: var(--ide-accent);
+    border-color: var(--ide-accent);
+    color: #fff;
+    transform: scale(1.1);
+}
+
+/* ── Bottom Search Result Panel ────────────────────────────────────────────── */
+.bravo-le-search-result-panel {
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    background: var(--ide-bg-sidebar);
+    height: 180px;
+    min-height: 28px;
+    max-height: 80%;
+    overflow: hidden;
+    font-size: 11px;
+    z-index: 5;
+    border-top: 1px solid var(--ide-border);
+    box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.15);
+    transition: height 0.12s ease-out;
+}
+.bravo-le-search-result-panel.dragging {
+    transition: none; /* Instant smooth drag without lag */
+}
+.bravo-le-search-result-panel.collapsed {
+    height: 28px !important;
+}
+.bravo-le-search-result-panel.collapsed .bravo-le-srp-body {
+    display: none !important;
+}
+.bravo-le-srp-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 2px 8px;
+    height: 28px;
+    background: color-mix(in srgb, var(--ide-accent) 12%, var(--ide-bg-sidebar));
+    border-bottom: 1px solid var(--ide-border);
+    gap: 6px;
+    flex-shrink: 0;
+    cursor: pointer;
+    user-select: none;
+}
+.bravo-le-srp-header:hover {
+    background: color-mix(in srgb, var(--ide-accent) 18%, var(--ide-bg-sidebar));
+}
+.bravo-le-srp-title {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--ide-accent);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+.bravo-le-srp-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+}
+.bravo-le-srp-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 2px 0;
+}
+.bravo-le-srp-empty {
+    padding: 8px 12px;
+    color: var(--ide-text-dim);
+    font-size: 11px;
+    font-style: italic;
+}
+
+/* Result groups */
+.bravo-le-srp-group { border-bottom: 1px solid var(--ide-border); }
+.bravo-le-srp-group-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    cursor: pointer;
+    transition: background 0.1s;
+}
+.bravo-le-srp-group-header:hover { background: var(--ide-bg-hover); }
+.bravo-le-srp-group-toggle { color: var(--ide-text-dim); font-size: 9px; width: 10px; }
+.bravo-le-srp-form-name { font-weight: 700; color: var(--ide-accent); }
+.bravo-le-srp-layout-name { color: var(--ide-text-dim); font-size: 10px; }
+.bravo-le-srp-count {
+    margin-left: auto;
+    font-size: 10px;
+    color: var(--ide-text-dim);
+    white-space: nowrap;
+}
+
+/* Source badges */
+.bravo-le-srp-badge {
+    font-size: 9px;
+    font-weight: 700;
+    padding: 1px 4px;
+    border-radius: 2px;
+    letter-spacing: 0.5px;
+}
+.bravo-le-srp-badge--ram {
+    background: color-mix(in srgb, #22c55e 20%, transparent);
+    color: #22c55e;
+    border: 1px solid #22c55e44;
+}
+.bravo-le-srp-badge--backend {
+    background: color-mix(in srgb, var(--ide-accent) 20%, transparent);
+    color: var(--ide-accent);
+    border: 1px solid color-mix(in srgb, var(--ide-accent) 40%, transparent);
+}
+
+/* Occurrence rows */
+.bravo-le-srp-group-body { padding: 0 8px 4px 20px; }
+.bravo-le-srp-occ {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 3px 6px;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: background 0.1s;
+}
+.bravo-le-srp-occ:hover { background: var(--ide-bg-hover); }
+.bravo-le-srp-occ-line {
+    font-size: 10px;
+    color: var(--ide-text-dim);
+    white-space: nowrap;
+    min-width: 54px;
+    font-family: 'Consolas', monospace;
+}
+.bravo-le-srp-occ-content {
+    font-family: 'Consolas', 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--ide-text-main);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex: 1;
+}
+.bravo-le-srp-occ-more {
+    font-size: 10px;
+    color: var(--ide-text-dim);
+    font-style: italic;
+    padding: 2px 4px;
+}
+
+/* ── Match Navigator Bar ───────────────────────────────────────────────────── */
+.bravo-le-match-nav {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 10px;
+    background: color-mix(in srgb, var(--ide-warning, #e3b341) 12%, var(--ide-bg-sidebar));
+    border-bottom: 1px solid color-mix(in srgb, var(--ide-warning, #e3b341) 30%, var(--ide-border));
+    font-size: 11px;
+    color: var(--ide-text-main);
+    flex-shrink: 0;
+    width: 100%;
+}
+#bravo-le-match-nav-label {
+    font-weight: 600;
+    min-width: 42px;
+    text-align: center;
+    color: var(--ide-warning, #e3b341);
+}
+
+/* ── Keyword Highlight Mark in XML Editor ─────────────────────────────────── */
+mark.bravo-le-search-mark {
+    background: color-mix(in srgb, var(--ide-warning, #e3b341) 35%, transparent);
+    color: inherit;
+    border-radius: 2px;
+    outline: 1px solid color-mix(in srgb, var(--ide-warning, #e3b341) 60%, transparent);
+    padding: 0;
+}
+
+/* ── Grid Row States: Match / Dimmed ─────────────────────────────────────── */
+.bravo-le-table tbody tr.bravo-le-row--match {
+    background: color-mix(in srgb, var(--ide-warning, #e3b341) 8%, var(--ide-bg-main));
+    border-left: 2px solid var(--ide-warning, #e3b341);
+}
+.bravo-le-table tbody tr.bravo-le-row--dimmed {
+    opacity: 0.45;
+}
+.bravo-le-table tbody tr.bravo-le-row--match:hover {
+    background: color-mix(in srgb, var(--ide-warning, #e3b341) 15%, var(--ide-bg-main));
+}
+
+/* ── Commit Confirmation Modal ─────────────────────────────────────────────── */
+.bravo-le-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.72);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 99999;
+    backdrop-filter: blur(4px);
+    padding: 20px;
+    box-sizing: border-box;
+    animation: bravoModalFadeIn 0.15s ease-out;
+}
+@keyframes bravoModalFadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+@keyframes bravoModalSlideUp {
+    from { transform: translateY(12px) scale(0.98); opacity: 0; }
+    to { transform: translateY(0) scale(1); opacity: 1; }
+}
+.bravo-le-commit-modal {
+    width: 760px;
+    max-width: 95%;
+    max-height: 90%;
+    display: flex;
+    flex-direction: column;
+    background: var(--ide-bg-sidebar, #1e1e24);
+    border: 1px solid var(--ide-border);
+    border-radius: 8px;
+    box-shadow: 0 20px 48px rgba(0, 0, 0, 0.6);
+    overflow: hidden;
+    animation: bravoModalSlideUp 0.18s ease-out;
+}
+.bravo-le-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 16px;
+    background: color-mix(in srgb, var(--ide-accent) 15%, var(--ide-bg-sidebar));
+    border-bottom: 1px solid var(--ide-border);
+    flex-shrink: 0;
+}
+.bravo-le-modal-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--ide-text-main);
+    display: flex;
+    align-items: center;
+}
+.bravo-le-modal-close-btn {
+    background: transparent;
+    border: none;
+    color: var(--ide-text-dim);
+    cursor: pointer;
+    font-size: 14px;
+    width: 26px;
+    height: 26px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.1s;
+}
+.bravo-le-modal-close-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--ide-text-main);
+}
+.bravo-le-modal-body {
+    padding: 14px 16px;
+    overflow-y: auto;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+.bravo-le-modal-target-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+}
+.bravo-le-target-card {
+    background: var(--ide-bg-panel, #252630);
+    border: 1px solid var(--ide-border);
+    border-radius: 6px;
+    padding: 8px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+.bravo-le-target-label {
+    font-size: 10px;
+    color: var(--ide-text-dim);
+    display: flex;
+    align-items: center;
+}
+.bravo-le-target-value {
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--ide-text-main);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.bravo-le-modal-section {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.bravo-le-modal-section-title {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--ide-text-muted);
+}
+.bravo-le-modal-table-wrap {
+    max-height: 140px;
+    overflow-y: auto;
+    border: 1px solid var(--ide-border);
+    border-radius: 4px;
+    background: var(--ide-bg-editor, #18191e);
+}
+.bravo-le-modal-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11px;
+}
+.bravo-le-modal-table th {
+    background: var(--ide-bg-panel, #202228);
+    padding: 5px 8px;
+    border-bottom: 1px solid var(--ide-border);
+    color: var(--ide-text-muted);
+    font-weight: 600;
+    text-align: left;
+    position: sticky;
+    top: 0;
+    z-index: 2;
+}
+.bravo-le-modal-table td {
+    padding: 5px 8px;
+    border-bottom: 1px solid color-mix(in srgb, var(--ide-border) 40%, transparent);
+    color: var(--ide-text-main);
+    vertical-align: middle;
+}
+.bravo-le-modal-row:hover {
+    background: var(--ide-hover-bg, rgba(255, 255, 255, 0.05));
+}
+.bravo-le-modal-sql-container {
+    background: #111217;
+    border: 1px solid var(--ide-border);
+    border-radius: 4px;
+    max-height: 180px;
+    overflow: auto;
+    padding: 8px 12px;
+}
+.bravo-le-modal-sql-code {
+    margin: 0;
+    font-family: 'Consolas', 'Cascadia Code', monospace;
+    font-size: 11px;
+    line-height: 1.5;
+    color: #9cdcfe;
+    white-space: pre;
+    user-select: text;
+}
+.bravo-le-modal-alert {
+    display: flex;
+    align-items: center;
+    padding: 8px 12px;
+    background: color-mix(in srgb, var(--ide-warning, #e3b341) 10%, transparent);
+    border: 1px solid color-mix(in srgb, var(--ide-warning, #e3b341) 30%, transparent);
+    border-radius: 4px;
+    font-size: 11px;
+    color: var(--ide-text-main);
+    gap: 8px;
+}
+.bravo-le-modal-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 16px;
+    background: var(--ide-bg-panel);
+    border-top: 1px solid var(--ide-border);
+    flex-shrink: 0;
+    gap: 12px;
+}
+.bravo-le-modal-status {
+    font-size: 11px;
+    color: var(--ide-text-muted);
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.bravo-le-modal-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+
+/* Override all modals to appear above the custom 10040 backdrop */
+.modal {
+    z-index: 10050 !important;
+}
+
+/* Tree Root Drop Zone for moving groups or connections out to root */
+.tree-root-dropzone {
+    margin: 4px 6px 6px 6px;
+    padding: 6px 10px;
+    border: 1.5px dashed var(--ide-accent, #388bfd);
+    border-radius: 4px;
+    background: rgba(56, 139, 253, 0.1);
+    color: #58a6ff;
+    font-size: 11px;
+    font-weight: 500;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    user-select: none;
+    display: none;
+}
+.tree-root-dropzone.drag-over {
+    background: rgba(56, 139, 253, 0.28);
+    border-color: #79c0ff;
+    color: #ffffff;
+    box-shadow: 0 0 8px rgba(56, 139, 253, 0.4);
+}
+
+
+/* ── VSIX Imported Theme: Tokyo Night (Dark) (tokyo-night-dark) ────────────────────────── */
+html[data-bs-theme="tokyo-night-dark"] {
+    --ide-theme-id:                 "tokyo-night-dark";
+    --ide-theme-name:               "Tokyo Night (Dark)";
+    --ide-titlebar-bg:              #16161e;
+    --ide-titlebar-text:            #787c99;
+
+    /* Bootstrap overrides */
+    --bs-body-bg:                   #16161e;
+    --bs-body-color:                #a9b1d6;
+    --bs-border-color:              #101014;
+    --bs-border-color-translucent:  rgba(120, 120, 120, 0.35);
+    --bs-primary:                   #3d59a1dd;
+    --bs-primary-rgb:               61,89,161;
+    --bs-dark:                      #16161e;
+    --bs-secondary:                 #515670;
+    --bs-link-color:                #3d59a1dd;
+    --bs-link-hover-color:          #3d59a1dd;
+
+    /* IDE surface layers */
+    --ide-bg-main:                  #16161e;
+    --ide-bg-sidebar:               #16161e;
+    --ide-bg-toolbar:               #16161e;
+    --ide-bg-editor:                #1a1b26;
+    --ide-bg-panel:                 #16161e;
+    --ide-bg-result:                #1a1b26;
+    --ide-bg-input:                 #14141b;
+    --ide-bg-modal:                 #16161e;
+    --ide-bg-dropdown:              #14141b;
+    --ide-bg-context-menu:          #16161e;
+
+    /* Borders */
+    --ide-border:                   #101014;
+    --ide-border-active:            #545c7e33;
+
+    /* Typography */
+    --ide-text-main:                #a9b1d6;
+    --ide-text-muted:               #515670;
+    --ide-text-active:              #a9b1d6;
+    --ide-text-dim:                 #515670;
+
+    /* Interactive states */
+    --ide-hover-bg:                 rgba(128, 128, 128, 0.12);
+    --ide-active-bg:                rgba(61,89,161, 0.20);
+    --ide-selection-bg:             rgba(61,89,161, 0.25);
+
+    /* Accent */
+    --ide-accent:                   #3d59a1dd;
+    --ide-syntax-keyword:           #3d59a1dd;
+    --ide-accent-hover:             #3d59a1dd;
+    --ide-accent-subtle:            rgba(61,89,161, 0.15);
+
+    /* Status indicators */
+    --ide-danger:                   #515670;
+    --ide-success:                  #6A8759;
+    --ide-warning:                  #e0af68;
+    --ide-info:                     #0da0ba;
+
+    /* Tabs */
+    --ide-tab-active-bg:            #16161e;
+    --ide-tab-inactive-bg:          #16161e;
+    --ide-tab-active-border:        #3d59a1;
+
+    /* Result Grid */
+    --ide-grid-header-bg:           #16161e;
+    --ide-grid-row-alt:             rgba(128, 128, 128, 0.04);
+    --ide-grid-row-hover:           rgba(128, 128, 128, 0.08);
+
+    /* Action bar & Badges */
+    --ide-action-bar-bg:            #16161e;
+    --ide-badge-bg:                 #16161e;
+    --ide-badge-text:               #a9b1d6;
+    --ide-badge-hover:              #101014;
+
+    /* Context menu */
+    --ide-ctx-item-hover:           rgba(61,89,161, 0.18);
+    --ide-ctx-separator:            #101014;
+
+    /* Scrollbars */
+    --ide-scroll-track:             #16161e;
+    --ide-scroll-thumb:             #101014;
+    --ide-scroll-thumb-hover:       #515670;
+}
+
+
+/* ── VSIX Imported Theme: Tokyo Night Storm (Dark) (tokyo-night-storm-dark) ────────────────────────── */
+html[data-bs-theme="tokyo-night-storm-dark"] {
+    --ide-theme-id:                 "tokyo-night-storm-dark";
+    --ide-theme-name:               "Tokyo Night Storm (Dark)";
+    --ide-titlebar-bg:              #1f2335;
+    --ide-titlebar-text:            #8089b3;
+
+    /* Bootstrap overrides */
+    --bs-body-bg:                   #1f2335;
+    --bs-body-color:                #a9b1d6;
+    --bs-border-color:              #1b1e2e;
+    --bs-border-color-translucent:  rgba(120, 120, 120, 0.35);
+    --bs-primary:                   #3d59a1dd;
+    --bs-primary-rgb:               61,89,161;
+    --bs-dark:                      #1f2335;
+    --bs-secondary:                 #545c7e;
+    --bs-link-color:                #3d59a1dd;
+    --bs-link-hover-color:          #3d59a1dd;
+
+    /* IDE surface layers */
+    --ide-bg-main:                  #1f2335;
+    --ide-bg-sidebar:               #1f2335;
+    --ide-bg-toolbar:               #1f2335;
+    --ide-bg-editor:                #24283b;
+    --ide-bg-panel:                 #1f2335;
+    --ide-bg-result:                #24283b;
+    --ide-bg-input:                 #1b1e2e;
+    --ide-bg-modal:                 #1f2335;
+    --ide-bg-dropdown:              #1b1e2e;
+    --ide-bg-context-menu:          #1f2335;
+
+    /* Borders */
+    --ide-border:                   #1b1e2e;
+    --ide-border-active:            #545c7e33;
+
+    /* Typography */
+    --ide-text-main:                #a9b1d6;
+    --ide-text-muted:               #545c7e;
+    --ide-text-active:              #a9b1d6;
+    --ide-text-dim:                 #545c7e;
+
+    /* Interactive states */
+    --ide-hover-bg:                 rgba(128, 128, 128, 0.12);
+    --ide-active-bg:                rgba(61,89,161, 0.20);
+    --ide-selection-bg:             rgba(61,89,161, 0.25);
+
+    /* Accent */
+    --ide-accent:                   #3d59a1dd;
+    --ide-syntax-keyword:           #3d59a1dd;
+    --ide-accent-hover:             #3d59a1dd;
+    --ide-accent-subtle:            rgba(61,89,161, 0.15);
+
+    /* Status indicators */
+    --ide-danger:                   #5a607d;
+    --ide-success:                  #6A8759;
+    --ide-warning:                  #e0af68;
+    --ide-info:                     #0da0ba;
+
+    /* Tabs */
+    --ide-tab-active-bg:            #1f2335;
+    --ide-tab-inactive-bg:          #1f2335;
+    --ide-tab-active-border:        #3d59a1;
+
+    /* Result Grid */
+    --ide-grid-header-bg:           #1f2335;
+    --ide-grid-row-alt:             rgba(128, 128, 128, 0.04);
+    --ide-grid-row-hover:           rgba(128, 128, 128, 0.08);
+
+    /* Action bar & Badges */
+    --ide-action-bar-bg:            #1f2335;
+    --ide-badge-bg:                 #1f2335;
+    --ide-badge-text:               #a9b1d6;
+    --ide-badge-hover:              #1b1e2e;
+
+    /* Context menu */
+    --ide-ctx-item-hover:           rgba(61,89,161, 0.18);
+    --ide-ctx-separator:            #1b1e2e;
+
+    /* Scrollbars */
+    --ide-scroll-track:             #1f2335;
+    --ide-scroll-thumb:             #1b1e2e;
+    --ide-scroll-thumb-hover:       #545c7e;
+}
+
+
+/* ── VSIX Imported Theme: Tokyo Night (Light) (tokyo-night-light) ────────────────────────── */
+html[data-bs-theme="tokyo-night-light"] {
+    --ide-theme-id:                 "tokyo-night-light";
+    --ide-theme-name:               "Tokyo Night (Light)";
+    --ide-titlebar-bg:              #d6d8df;
+    --ide-titlebar-text:            #363c4d;
+
+    /* Bootstrap overrides */
+    --bs-body-bg:                   #d6d8df;
+    --bs-body-color:                #343b59;
+    --bs-border-color:              #c1c2c7;
+    --bs-border-color-translucent:  rgba(120, 120, 120, 0.35);
+    --bs-primary:                   #2959aadd;
+    --bs-primary-rgb:               41,89,170;
+    --bs-dark:                      #d6d8df;
+    --bs-secondary:                 #707280;
+    --bs-link-color:                #2959aadd;
+    --bs-link-hover-color:          #2959aadd;
+
+    /* IDE surface layers */
+    --ide-bg-main:                  #d6d8df;
+    --ide-bg-sidebar:               #d6d8df;
+    --ide-bg-toolbar:               #d6d8df;
+    --ide-bg-editor:                #e6e7ed;
+    --ide-bg-panel:                 #d6d8df;
+    --ide-bg-result:                #e6e7ed;
+    --ide-bg-input:                 #e6e7ed;
+    --ide-bg-modal:                 #d6d8df;
+    --ide-bg-dropdown:              #e6e7ed;
+    --ide-bg-context-menu:          #d6d8df;
+
+    /* Borders */
+    --ide-border:                   #c1c2c7;
+    --ide-border-active:            #70728033;
+
+    /* Typography */
+    --ide-text-main:                #343b59;
+    --ide-text-muted:               #707280;
+    --ide-text-active:              #343b59;
+    --ide-text-dim:                 #707280;
+
+    /* Interactive states */
+    --ide-hover-bg:                 rgba(128, 128, 128, 0.12);
+    --ide-active-bg:                rgba(41,89,170, 0.20);
+    --ide-selection-bg:             rgba(41,89,170, 0.25);
+
+    /* Accent */
+    --ide-accent:                   #2959aadd;
+    --ide-syntax-keyword:           #2959aadd;
+    --ide-accent-hover:             #2959aadd;
+    --ide-accent-subtle:            rgba(41,89,170, 0.15);
+
+    /* Status indicators */
+    --ide-danger:                   #5a607d;
+    --ide-success:                  #4a7c3f;
+    --ide-warning:                  #8f5e15;
+    --ide-info:                     #0da0ba;
+
+    /* Tabs */
+    --ide-tab-active-bg:            #dadce3;
+    --ide-tab-inactive-bg:          #d6d8df;
+    --ide-tab-active-border:        #2959aa;
+
+    /* Result Grid */
+    --ide-grid-header-bg:           #d6d8df;
+    --ide-grid-row-alt:             rgba(128, 128, 128, 0.04);
+    --ide-grid-row-hover:           rgba(128, 128, 128, 0.08);
+
+    /* Action bar & Badges */
+    --ide-action-bar-bg:            #d6d8df;
+    --ide-badge-bg:                 #d6d8df;
+    --ide-badge-text:               #343b59;
+    --ide-badge-hover:              #c1c2c7;
+
+    /* Context menu */
+    --ide-ctx-item-hover:           rgba(41,89,170, 0.18);
+    --ide-ctx-separator:            #c1c2c7;
+
+    /* Scrollbars */
+    --ide-scroll-track:             #d6d8df;
+    --ide-scroll-thumb:             #c1c2c7;
+    --ide-scroll-thumb-hover:       #707280;
+}
+
+/* ── VSIX Imported Theme: GitHub Light Default (Light) (github-light-default-light) ────────────────────────── */
+html[data-bs-theme="github-light-default-light"] {
+    --ide-theme-id:                 "github-light-default-light";
+    --ide-theme-name:               "GitHub Light Default (Light)";
+    --ide-titlebar-bg:              #ffffff;
+    --ide-titlebar-text:            #656d76;
+
+    /* Bootstrap overrides */
+    --bs-body-bg:                   #f6f8fa;
+    --bs-body-color:                #1f2328;
+    --bs-border-color:              #d0d7de;
+    --bs-border-color-translucent:  rgba(120, 120, 120, 0.35);
+    --bs-primary:                   #1f883d;
+    --bs-primary-rgb:               31,136,61;
+    --bs-dark:                      #ffffff;
+    --bs-secondary:                 #656d76;
+    --bs-link-color:                #1f883d;
+    --bs-link-hover-color:          #1f883d;
+
+    /* IDE surface layers */
+    --ide-bg-main:                  #f6f8fa;
+    --ide-bg-sidebar:               #f6f8fa;
+    --ide-bg-toolbar:               #ffffff;
+    --ide-bg-editor:                #ffffff;
+    --ide-bg-panel:                 #f6f8fa;
+    --ide-bg-result:                #ffffff;
+    --ide-bg-input:                 #ffffff;
+    --ide-bg-modal:                 #ffffff;
+    --ide-bg-dropdown:              #ffffff;
+    --ide-bg-context-menu:          #ffffff;
+
+    /* Borders */
+    --ide-border:                   #d0d7de;
+    --ide-border-active:            #0969da;
+
+    /* Typography */
+    --ide-text-main:                #1f2328;
+    --ide-text-muted:               #656d76;
+    --ide-text-active:              #1f2328;
+    --ide-text-dim:                 #656d76;
+
+    /* Interactive states */
+    --ide-hover-bg:                 rgba(128, 128, 128, 0.12);
+    --ide-active-bg:                rgba(31,136,61, 0.20);
+    --ide-selection-bg:             rgba(31,136,61, 0.25);
+
+    /* Accent */
+    --ide-accent:                   #1f883d;
+    --ide-syntax-keyword:           #1f883d;
+    --ide-accent-hover:             #1f883d;
+    --ide-accent-subtle:            rgba(31,136,61, 0.15);
+
+    /* Status indicators */
+    --ide-danger:                   #cf222e;
+    --ide-success:                  #4a7c3f;
+    --ide-warning:                  #E8C859;
+    --ide-info:                     #6897BB;
+
+    /* Tabs */
+    --ide-tab-active-bg:            #ffffff;
+    --ide-tab-inactive-bg:          #f6f8fa;
+    --ide-tab-active-border:        #ffffff;
+
+    /* Result Grid */
+    --ide-grid-header-bg:           #f6f8fa;
+    --ide-grid-row-alt:             rgba(128, 128, 128, 0.04);
+    --ide-grid-row-hover:           rgba(128, 128, 128, 0.08);
+
+    /* Action bar & Badges */
+    --ide-action-bar-bg:            #ffffff;
+    --ide-badge-bg:                 #f6f8fa;
+    --ide-badge-text:               #1f2328;
+    --ide-badge-hover:              #d0d7de;
+
+    /* Context menu */
+    --ide-ctx-item-hover:           rgba(31,136,61, 0.18);
+    --ide-ctx-separator:            #d0d7de;
+
+    /* Scrollbars */
+    --ide-scroll-track:             #ffffff;
+    --ide-scroll-thumb:             #d0d7de;
+    --ide-scroll-thumb-hover:       #656d76;
+}
+
+
+/* ── VSIX Imported Theme: GitHub Light High Contrast (Light) (github-light-high-contrast-light) ────────────────────────── */
+html[data-bs-theme="github-light-high-contrast-light"] {
+    --ide-theme-id:                 "github-light-high-contrast-light";
+    --ide-theme-name:               "GitHub Light High Contrast (Light)";
+    --ide-titlebar-bg:              #ffffff;
+    --ide-titlebar-text:            #0e1116;
+
+    /* Bootstrap overrides */
+    --bs-body-bg:                   #ffffff;
+    --bs-body-color:                #0e1116;
+    --bs-border-color:              #20252c;
+    --bs-border-color-translucent:  rgba(120, 120, 120, 0.35);
+    --bs-primary:                   #055d20;
+    --bs-primary-rgb:               5,93,32;
+    --bs-dark:                      #ffffff;
+    --bs-secondary:                 #0e1116;
+    --bs-link-color:                #055d20;
+    --bs-link-hover-color:          #055d20;
+
+    /* IDE surface layers */
+    --ide-bg-main:                  #ffffff;
+    --ide-bg-sidebar:               #ffffff;
+    --ide-bg-toolbar:               #ffffff;
+    --ide-bg-editor:                #ffffff;
+    --ide-bg-panel:                 #ffffff;
+    --ide-bg-result:                #ffffff;
+    --ide-bg-input:                 #ffffff;
+    --ide-bg-modal:                 #ffffff;
+    --ide-bg-dropdown:              #ffffff;
+    --ide-bg-context-menu:          #ffffff;
+
+    /* Borders */
+    --ide-border:                   #20252c;
+    --ide-border-active:            #0349b4;
+
+    /* Typography */
+    --ide-text-main:                #0e1116;
+    --ide-text-muted:               #0e1116;
+    --ide-text-active:              #0e1116;
+    --ide-text-dim:                 #0e1116;
+
+    /* Interactive states */
+    --ide-hover-bg:                 rgba(128, 128, 128, 0.12);
+    --ide-active-bg:                rgba(5,93,32, 0.20);
+    --ide-selection-bg:             rgba(5,93,32, 0.25);
+
+    /* Accent */
+    --ide-accent:                   #055d20;
+    --ide-syntax-keyword:           #055d20;
+    --ide-accent-hover:             #055d20;
+    --ide-accent-subtle:            rgba(5,93,32, 0.15);
+
+    /* Status indicators */
+    --ide-danger:                   #a0111f;
+    --ide-success:                  #4a7c3f;
+    --ide-warning:                  #E8C859;
+    --ide-info:                     #6897BB;
+
+    /* Tabs */
+    --ide-tab-active-bg:            #ffffff;
+    --ide-tab-inactive-bg:          #ffffff;
+    --ide-tab-active-border:        #ffffff;
+
+    /* Result Grid */
+    --ide-grid-header-bg:           #ffffff;
+    --ide-grid-row-alt:             rgba(128, 128, 128, 0.04);
+    --ide-grid-row-hover:           rgba(128, 128, 128, 0.08);
+
+    /* Action bar & Badges */
+    --ide-action-bar-bg:            #ffffff;
+    --ide-badge-bg:                 #ffffff;
+    --ide-badge-text:               #0e1116;
+    --ide-badge-hover:              #20252c;
+
+    /* Context menu */
+    --ide-ctx-item-hover:           rgba(5,93,32, 0.18);
+    --ide-ctx-separator:            #20252c;
+
+    /* Scrollbars */
+    --ide-scroll-track:             #ffffff;
+    --ide-scroll-thumb:             #20252c;
+    --ide-scroll-thumb-hover:       #0e1116;
+}
+
+
+/* ── VSIX Imported Theme: GitHub Light Colorblind (Beta) (Light) (github-light-colorblind-beta-light) ────────────────────────── */
+html[data-bs-theme="github-light-colorblind-beta-light"] {
+    --ide-theme-id:                 "github-light-colorblind-beta-light";
+    --ide-theme-name:               "GitHub Light Colorblind (Beta) (Light)";
+    --ide-titlebar-bg:              #ffffff;
+    --ide-titlebar-text:            #57606a;
+
+    /* Bootstrap overrides */
+    --bs-body-bg:                   #f6f8fa;
+    --bs-body-color:                #24292f;
+    --bs-border-color:              #d0d7de;
+    --bs-border-color-translucent:  rgba(120, 120, 120, 0.35);
+    --bs-primary:                   #218bff;
+    --bs-primary-rgb:               33,139,255;
+    --bs-dark:                      #ffffff;
+    --bs-secondary:                 #57606a;
+    --bs-link-color:                #218bff;
+    --bs-link-hover-color:          #218bff;
+
+    /* IDE surface layers */
+    --ide-bg-main:                  #f6f8fa;
+    --ide-bg-sidebar:               #f6f8fa;
+    --ide-bg-toolbar:               #ffffff;
+    --ide-bg-editor:                #ffffff;
+    --ide-bg-panel:                 #f6f8fa;
+    --ide-bg-result:                #ffffff;
+    --ide-bg-input:                 #ffffff;
+    --ide-bg-modal:                 #ffffff;
+    --ide-bg-dropdown:              #ffffff;
+    --ide-bg-context-menu:          #ffffff;
+
+    /* Borders */
+    --ide-border:                   #d0d7de;
+    --ide-border-active:            #0969da;
+
+    /* Typography */
+    --ide-text-main:                #24292f;
+    --ide-text-muted:               #57606a;
+    --ide-text-active:              #24292f;
+    --ide-text-dim:                 #57606a;
+
+    /* Interactive states */
+    --ide-hover-bg:                 rgba(128, 128, 128, 0.12);
+    --ide-active-bg:                rgba(33,139,255, 0.20);
+    --ide-selection-bg:             rgba(33,139,255, 0.25);
+
+    /* Accent */
+    --ide-accent:                   #218bff;
+    --ide-syntax-keyword:           #218bff;
+    --ide-accent-hover:             #218bff;
+    --ide-accent-subtle:            rgba(33,139,255, 0.15);
+
+    /* Status indicators */
+    --ide-danger:                   #b35900;
+    --ide-success:                  #4a7c3f;
+    --ide-warning:                  #E8C859;
+    --ide-info:                     #6897BB;
+
+    /* Tabs */
+    --ide-tab-active-bg:            #ffffff;
+    --ide-tab-inactive-bg:          #f6f8fa;
+    --ide-tab-active-border:        #ffffff;
+
+    /* Result Grid */
+    --ide-grid-header-bg:           #f6f8fa;
+    --ide-grid-row-alt:             rgba(128, 128, 128, 0.04);
+    --ide-grid-row-hover:           rgba(128, 128, 128, 0.08);
+
+    /* Action bar & Badges */
+    --ide-action-bar-bg:            #ffffff;
+    --ide-badge-bg:                 #f6f8fa;
+    --ide-badge-text:               #24292f;
+    --ide-badge-hover:              #d0d7de;
+
+    /* Context menu */
+    --ide-ctx-item-hover:           rgba(33,139,255, 0.18);
+    --ide-ctx-separator:            #d0d7de;
+
+    /* Scrollbars */
+    --ide-scroll-track:             #ffffff;
+    --ide-scroll-thumb:             #d0d7de;
+    --ide-scroll-thumb-hover:       #57606a;
+}
+
+
+/* ── VSIX Imported Theme: GitHub Dark Default (Dark) (github-dark-default-dark) ────────────────────────── */
+html[data-bs-theme="github-dark-default-dark"] {
+    --ide-theme-id:                 "github-dark-default-dark";
+    --ide-theme-name:               "GitHub Dark Default (Dark)";
+    --ide-titlebar-bg:              #0d1117;
+    --ide-titlebar-text:            #7d8590;
+
+    /* Bootstrap overrides */
+    --bs-body-bg:                   #010409;
+    --bs-body-color:                #e6edf3;
+    --bs-border-color:              #30363d;
+    --bs-border-color-translucent:  rgba(120, 120, 120, 0.35);
+    --bs-primary:                   #238636;
+    --bs-primary-rgb:               35,134,54;
+    --bs-dark:                      #0d1117;
+    --bs-secondary:                 #7d8590;
+    --bs-link-color:                #238636;
+    --bs-link-hover-color:          #238636;
+
+    /* IDE surface layers */
+    --ide-bg-main:                  #010409;
+    --ide-bg-sidebar:               #010409;
+    --ide-bg-toolbar:               #0d1117;
+    --ide-bg-editor:                #0d1117;
+    --ide-bg-panel:                 #010409;
+    --ide-bg-result:                #0d1117;
+    --ide-bg-input:                 #0d1117;
+    --ide-bg-modal:                 #161b22;
+    --ide-bg-dropdown:              #161b22;
+    --ide-bg-context-menu:          #161b22;
+
+    /* Borders */
+    --ide-border:                   #30363d;
+    --ide-border-active:            #1f6feb;
+
+    /* Typography */
+    --ide-text-main:                #e6edf3;
+    --ide-text-muted:               #7d8590;
+    --ide-text-active:              #e6edf3;
+    --ide-text-dim:                 #7d8590;
+
+    /* Interactive states */
+    --ide-hover-bg:                 rgba(128, 128, 128, 0.12);
+    --ide-active-bg:                rgba(35,134,54, 0.20);
+    --ide-selection-bg:             rgba(35,134,54, 0.25);
+
+    /* Accent */
+    --ide-accent:                   #238636;
+    --ide-syntax-keyword:           #238636;
+    --ide-accent-hover:             #238636;
+    --ide-accent-subtle:            rgba(35,134,54, 0.15);
+
+    /* Status indicators */
+    --ide-danger:                   #f85149;
+    --ide-success:                  #6A8759;
+    --ide-warning:                  #E8C859;
+    --ide-info:                     #6897BB;
+
+    /* Tabs */
+    --ide-tab-active-bg:            #0d1117;
+    --ide-tab-inactive-bg:          #010409;
+    --ide-tab-active-border:        #0d1117;
+
+    /* Result Grid */
+    --ide-grid-header-bg:           #010409;
+    --ide-grid-row-alt:             rgba(128, 128, 128, 0.04);
+    --ide-grid-row-hover:           rgba(128, 128, 128, 0.08);
+
+    /* Action bar & Badges */
+    --ide-action-bar-bg:            #0d1117;
+    --ide-badge-bg:                 #010409;
+    --ide-badge-text:               #e6edf3;
+    --ide-badge-hover:              #30363d;
+
+    /* Context menu */
+    --ide-ctx-item-hover:           rgba(35,134,54, 0.18);
+    --ide-ctx-separator:            #30363d;
+
+    /* Scrollbars */
+    --ide-scroll-track:             #0d1117;
+    --ide-scroll-thumb:             #30363d;
+    --ide-scroll-thumb-hover:       #7d8590;
+}
+
+
+/* ── VSIX Imported Theme: GitHub Dark High Contrast (Dark) (github-dark-high-contrast-dark) ────────────────────────── */
+html[data-bs-theme="github-dark-high-contrast-dark"] {
+    --ide-theme-id:                 "github-dark-high-contrast-dark";
+    --ide-theme-name:               "GitHub Dark High Contrast (Dark)";
+    --ide-titlebar-bg:              #0a0c10;
+    --ide-titlebar-text:            #f0f3f6;
+
+    /* Bootstrap overrides */
+    --bs-body-bg:                   #010409;
+    --bs-body-color:                #f0f3f6;
+    --bs-border-color:              #7a828e;
+    --bs-border-color-translucent:  rgba(120, 120, 120, 0.35);
+    --bs-primary:                   #09b43a;
+    --bs-primary-rgb:               9,180,58;
+    --bs-dark:                      #0a0c10;
+    --bs-secondary:                 #f0f3f6;
+    --bs-link-color:                #09b43a;
+    --bs-link-hover-color:          #09b43a;
+
+    /* IDE surface layers */
+    --ide-bg-main:                  #010409;
+    --ide-bg-sidebar:               #010409;
+    --ide-bg-toolbar:               #0a0c10;
+    --ide-bg-editor:                #0a0c10;
+    --ide-bg-panel:                 #010409;
+    --ide-bg-result:                #0a0c10;
+    --ide-bg-input:                 #0a0c10;
+    --ide-bg-modal:                 #272b33;
+    --ide-bg-dropdown:              #272b33;
+    --ide-bg-context-menu:          #272b33;
+
+    /* Borders */
+    --ide-border:                   #7a828e;
+    --ide-border-active:            #409eff;
+
+    /* Typography */
+    --ide-text-main:                #f0f3f6;
+    --ide-text-muted:               #f0f3f6;
+    --ide-text-active:              #f0f3f6;
+    --ide-text-dim:                 #f0f3f6;
+
+    /* Interactive states */
+    --ide-hover-bg:                 rgba(128, 128, 128, 0.12);
+    --ide-active-bg:                rgba(9,180,58, 0.20);
+    --ide-selection-bg:             rgba(9,180,58, 0.25);
+
+    /* Accent */
+    --ide-accent:                   #09b43a;
+    --ide-syntax-keyword:           #09b43a;
+    --ide-accent-hover:             #09b43a;
+    --ide-accent-subtle:            rgba(9,180,58, 0.15);
+
+    /* Status indicators */
+    --ide-danger:                   #ff6a69;
+    --ide-success:                  #6A8759;
+    --ide-warning:                  #E8C859;
+    --ide-info:                     #6897BB;
+
+    /* Tabs */
+    --ide-tab-active-bg:            #0a0c10;
+    --ide-tab-inactive-bg:          #010409;
+    --ide-tab-active-border:        #0a0c10;
+
+    /* Result Grid */
+    --ide-grid-header-bg:           #010409;
+    --ide-grid-row-alt:             rgba(128, 128, 128, 0.04);
+    --ide-grid-row-hover:           rgba(128, 128, 128, 0.08);
+
+    /* Action bar & Badges */
+    --ide-action-bar-bg:            #0a0c10;
+    --ide-badge-bg:                 #010409;
+    --ide-badge-text:               #f0f3f6;
+    --ide-badge-hover:              #7a828e;
+
+    /* Context menu */
+    --ide-ctx-item-hover:           rgba(9,180,58, 0.18);
+    --ide-ctx-separator:            #7a828e;
+
+    /* Scrollbars */
+    --ide-scroll-track:             #0a0c10;
+    --ide-scroll-thumb:             #7a828e;
+    --ide-scroll-thumb-hover:       #f0f3f6;
+}
+
+
+/* ── VSIX Imported Theme: GitHub Dark Colorblind (Beta) (Dark) (github-dark-colorblind-beta-dark) ────────────────────────── */
+html[data-bs-theme="github-dark-colorblind-beta-dark"] {
+    --ide-theme-id:                 "github-dark-colorblind-beta-dark";
+    --ide-theme-name:               "GitHub Dark Colorblind (Beta) (Dark)";
+    --ide-titlebar-bg:              #0d1117;
+    --ide-titlebar-text:            #8b949e;
+
+    /* Bootstrap overrides */
+    --bs-body-bg:                   #010409;
+    --bs-body-color:                #c9d1d9;
+    --bs-border-color:              #30363d;
+    --bs-border-color-translucent:  rgba(120, 120, 120, 0.35);
+    --bs-primary:                   #1f6feb;
+    --bs-primary-rgb:               31,111,235;
+    --bs-dark:                      #0d1117;
+    --bs-secondary:                 #8b949e;
+    --bs-link-color:                #1f6feb;
+    --bs-link-hover-color:          #1f6feb;
+
+    /* IDE surface layers */
+    --ide-bg-main:                  #010409;
+    --ide-bg-sidebar:               #010409;
+    --ide-bg-toolbar:               #0d1117;
+    --ide-bg-editor:                #0d1117;
+    --ide-bg-panel:                 #010409;
+    --ide-bg-result:                #0d1117;
+    --ide-bg-input:                 #0d1117;
+    --ide-bg-modal:                 #161b22;
+    --ide-bg-dropdown:              #161b22;
+    --ide-bg-context-menu:          #161b22;
+
+    /* Borders */
+    --ide-border:                   #30363d;
+    --ide-border-active:            #1f6feb;
+
+    /* Typography */
+    --ide-text-main:                #c9d1d9;
+    --ide-text-muted:               #8b949e;
+    --ide-text-active:              #c9d1d9;
+    --ide-text-dim:                 #8b949e;
+
+    /* Interactive states */
+    --ide-hover-bg:                 rgba(128, 128, 128, 0.12);
+    --ide-active-bg:                rgba(31,111,235, 0.20);
+    --ide-selection-bg:             rgba(31,111,235, 0.25);
+
+    /* Accent */
+    --ide-accent:                   #1f6feb;
+    --ide-syntax-keyword:           #1f6feb;
+    --ide-accent-hover:             #1f6feb;
+    --ide-accent-subtle:            rgba(31,111,235, 0.15);
+
+    /* Status indicators */
+    --ide-danger:                   #d47616;
+    --ide-success:                  #6A8759;
+    --ide-warning:                  #E8C859;
+    --ide-info:                     #6897BB;
+
+    /* Tabs */
+    --ide-tab-active-bg:            #0d1117;
+    --ide-tab-inactive-bg:          #010409;
+    --ide-tab-active-border:        #0d1117;
+
+    /* Result Grid */
+    --ide-grid-header-bg:           #010409;
+    --ide-grid-row-alt:             rgba(128, 128, 128, 0.04);
+    --ide-grid-row-hover:           rgba(128, 128, 128, 0.08);
+
+    /* Action bar & Badges */
+    --ide-action-bar-bg:            #0d1117;
+    --ide-badge-bg:                 #010409;
+    --ide-badge-text:               #c9d1d9;
+    --ide-badge-hover:              #30363d;
+
+    /* Context menu */
+    --ide-ctx-item-hover:           rgba(31,111,235, 0.18);
+    --ide-ctx-separator:            #30363d;
+
+    /* Scrollbars */
+    --ide-scroll-track:             #0d1117;
+    --ide-scroll-thumb:             #30363d;
+    --ide-scroll-thumb-hover:       #8b949e;
+}
+
+
+/* ── VSIX Imported Theme: GitHub Dark Dimmed (Dark) (github-dark-dimmed-dark) ────────────────────────── */
+html[data-bs-theme="github-dark-dimmed-dark"] {
+    --ide-theme-id:                 "github-dark-dimmed-dark";
+    --ide-theme-name:               "GitHub Dark Dimmed (Dark)";
+    --ide-titlebar-bg:              #22272e;
+    --ide-titlebar-text:            #768390;
+
+    /* Bootstrap overrides */
+    --bs-body-bg:                   #1c2128;
+    --bs-body-color:                #adbac7;
+    --bs-border-color:              #444c56;
+    --bs-border-color-translucent:  rgba(120, 120, 120, 0.35);
+    --bs-primary:                   #347d39;
+    --bs-primary-rgb:               52,125,57;
+    --bs-dark:                      #22272e;
+    --bs-secondary:                 #768390;
+    --bs-link-color:                #347d39;
+    --bs-link-hover-color:          #347d39;
+
+    /* IDE surface layers */
+    --ide-bg-main:                  #1c2128;
+    --ide-bg-sidebar:               #1c2128;
+    --ide-bg-toolbar:               #22272e;
+    --ide-bg-editor:                #22272e;
+    --ide-bg-panel:                 #1c2128;
+    --ide-bg-result:                #22272e;
+    --ide-bg-input:                 #22272e;
+    --ide-bg-modal:                 #2d333b;
+    --ide-bg-dropdown:              #2d333b;
+    --ide-bg-context-menu:          #2d333b;
+
+    /* Borders */
+    --ide-border:                   #444c56;
+    --ide-border-active:            #316dca;
+
+    /* Typography */
+    --ide-text-main:                #adbac7;
+    --ide-text-muted:               #768390;
+    --ide-text-active:              #adbac7;
+    --ide-text-dim:                 #768390;
+
+    /* Interactive states */
+    --ide-hover-bg:                 rgba(128, 128, 128, 0.12);
+    --ide-active-bg:                rgba(52,125,57, 0.20);
+    --ide-selection-bg:             rgba(52,125,57, 0.25);
+
+    /* Accent */
+    --ide-accent:                   #347d39;
+    --ide-syntax-keyword:           #347d39;
+    --ide-accent-hover:             #347d39;
+    --ide-accent-subtle:            rgba(52,125,57, 0.15);
+
+    /* Status indicators */
+    --ide-danger:                   #e5534b;
+    --ide-success:                  #6A8759;
+    --ide-warning:                  #E8C859;
+    --ide-info:                     #6897BB;
+
+    /* Tabs */
+    --ide-tab-active-bg:            #22272e;
+    --ide-tab-inactive-bg:          #1c2128;
+    --ide-tab-active-border:        #22272e;
+
+    /* Result Grid */
+    --ide-grid-header-bg:           #1c2128;
+    --ide-grid-row-alt:             rgba(128, 128, 128, 0.04);
+    --ide-grid-row-hover:           rgba(128, 128, 128, 0.08);
+
+    /* Action bar & Badges */
+    --ide-action-bar-bg:            #22272e;
+    --ide-badge-bg:                 #1c2128;
+    --ide-badge-text:               #adbac7;
+    --ide-badge-hover:              #444c56;
+
+    /* Context menu */
+    --ide-ctx-item-hover:           rgba(52,125,57, 0.18);
+    --ide-ctx-separator:            #444c56;
+
+    /* Scrollbars */
+    --ide-scroll-track:             #22272e;
+    --ide-scroll-thumb:             #444c56;
+    --ide-scroll-thumb-hover:       #768390;
+}
+
+
+/* ── VSIX Imported Theme: GitHub (Light) (github-light) ────────────────────────── */
+html[data-bs-theme="github-light"] {
+    --ide-theme-id:                 "github-light";
+    --ide-theme-name:               "GitHub (Light)";
+    --ide-titlebar-bg:              #fff;
+    --ide-titlebar-text:            #2f363d;
+
+    /* Bootstrap overrides */
+    --bs-body-bg:                   #f6f8fa;
+    --bs-body-color:                #24292e;
+    --bs-border-color:              #e1e4e8;
+    --bs-border-color-translucent:  rgba(120, 120, 120, 0.35);
+    --bs-primary:                   #159739;
+    --bs-primary-rgb:               21,151,57;
+    --bs-dark:                      #fff;
+    --bs-secondary:                 #6a737d;
+    --bs-link-color:                #159739;
+    --bs-link-hover-color:          #159739;
+
+    /* IDE surface layers */
+    --ide-bg-main:                  #f6f8fa;
+    --ide-bg-sidebar:               #f6f8fa;
+    --ide-bg-toolbar:               #fff;
+    --ide-bg-editor:                #fff;
+    --ide-bg-panel:                 #f6f8fa;
+    --ide-bg-result:                #fff;
+    --ide-bg-input:                 #fafbfc;
+    --ide-bg-modal:                 #f6f8fa;
+    --ide-bg-dropdown:              #fafbfc;
+    --ide-bg-context-menu:          #f6f8fa;
+
+    /* Borders */
+    --ide-border:                   #e1e4e8;
+    --ide-border-active:            #2188ff;
+
+    /* Typography */
+    --ide-text-main:                #24292e;
+    --ide-text-muted:               #6a737d;
+    --ide-text-active:              #24292e;
+    --ide-text-dim:                 #6a737d;
+
+    /* Interactive states */
+    --ide-hover-bg:                 rgba(128, 128, 128, 0.12);
+    --ide-active-bg:                rgba(21,151,57, 0.20);
+    --ide-selection-bg:             rgba(21,151,57, 0.25);
+
+    /* Accent */
+    --ide-accent:                   #159739;
+    --ide-syntax-keyword:           #159739;
+    --ide-accent-hover:             #159739;
+    --ide-accent-subtle:            rgba(21,151,57, 0.15);
+
+    /* Status indicators */
+    --ide-danger:                   #cb2431;
+    --ide-success:                  #4a7c3f;
+    --ide-warning:                  #f9c513;
+    --ide-info:                     #6897BB;
+
+    /* Tabs */
+    --ide-tab-active-bg:            #fff;
+    --ide-tab-inactive-bg:          #f6f8fa;
+    --ide-tab-active-border:        #fff;
+
+    /* Result Grid */
+    --ide-grid-header-bg:           #f6f8fa;
+    --ide-grid-row-alt:             rgba(128, 128, 128, 0.04);
+    --ide-grid-row-hover:           rgba(128, 128, 128, 0.08);
+
+    /* Action bar & Badges */
+    --ide-action-bar-bg:            #fff;
+    --ide-badge-bg:                 #f6f8fa;
+    --ide-badge-text:               #24292e;
+    --ide-badge-hover:              #e1e4e8;
+
+    /* Context menu */
+    --ide-ctx-item-hover:           rgba(21,151,57, 0.18);
+    --ide-ctx-separator:            #e1e4e8;
+
+    /* Scrollbars */
+    --ide-scroll-track:             #fff;
+    --ide-scroll-thumb:             #e1e4e8;
+    --ide-scroll-thumb-hover:       #6a737d;
+}
+
+
+/* ── VSIX Imported Theme: GitHub (Dark) (github-dark) ────────────────────────── */
+html[data-bs-theme="github-dark"] {
+    --ide-theme-id:                 "github-dark";
+    --ide-theme-name:               "GitHub (Dark)";
+    --ide-titlebar-bg:              #24292e;
+    --ide-titlebar-text:            #e1e4e8;
+
+    /* Bootstrap overrides */
+    --bs-body-bg:                   #1f2428;
+    --bs-body-color:                #e1e4e8;
+    --bs-border-color:              #1b1f23;
+    --bs-border-color-translucent:  rgba(120, 120, 120, 0.35);
+    --bs-primary:                   #176f2c;
+    --bs-primary-rgb:               23,111,44;
+    --bs-dark:                      #24292e;
+    --bs-secondary:                 #959da5;
+    --bs-link-color:                #176f2c;
+    --bs-link-hover-color:          #176f2c;
+
+    /* IDE surface layers */
+    --ide-bg-main:                  #1f2428;
+    --ide-bg-sidebar:               #1f2428;
+    --ide-bg-toolbar:               #24292e;
+    --ide-bg-editor:                #24292e;
+    --ide-bg-panel:                 #1f2428;
+    --ide-bg-result:                #24292e;
+    --ide-bg-input:                 #2f363d;
+    --ide-bg-modal:                 #1f2428;
+    --ide-bg-dropdown:              #2f363d;
+    --ide-bg-context-menu:          #1f2428;
+
+    /* Borders */
+    --ide-border:                   #1b1f23;
+    --ide-border-active:            #005cc5;
+
+    /* Typography */
+    --ide-text-main:                #e1e4e8;
+    --ide-text-muted:               #959da5;
+    --ide-text-active:              #e1e4e8;
+    --ide-text-dim:                 #959da5;
+
+    /* Interactive states */
+    --ide-hover-bg:                 rgba(128, 128, 128, 0.12);
+    --ide-active-bg:                rgba(23,111,44, 0.20);
+    --ide-selection-bg:             rgba(23,111,44, 0.25);
+
+    /* Accent */
+    --ide-accent:                   #176f2c;
+    --ide-syntax-keyword:           #176f2c;
+    --ide-accent-hover:             #176f2c;
+    --ide-accent-subtle:            rgba(23,111,44, 0.15);
+
+    /* Status indicators */
+    --ide-danger:                   #f97583;
+    --ide-success:                  #6A8759;
+    --ide-warning:                  #ffea7f;
+    --ide-info:                     #6897BB;
+
+    /* Tabs */
+    --ide-tab-active-bg:            #24292e;
+    --ide-tab-inactive-bg:          #1f2428;
+    --ide-tab-active-border:        #24292e;
+
+    /* Result Grid */
+    --ide-grid-header-bg:           #1f2428;
+    --ide-grid-row-alt:             rgba(128, 128, 128, 0.04);
+    --ide-grid-row-hover:           rgba(128, 128, 128, 0.08);
+
+    /* Action bar & Badges */
+    --ide-action-bar-bg:            #24292e;
+    --ide-badge-bg:                 #1f2428;
+    --ide-badge-text:               #e1e4e8;
+    --ide-badge-hover:              #1b1f23;
+
+    /* Context menu */
+    --ide-ctx-item-hover:           rgba(23,111,44, 0.18);
+    --ide-ctx-separator:            #1b1f23;
+
+    /* Scrollbars */
+    --ide-scroll-track:             #24292e;
+    --ide-scroll-thumb:             #1b1f23;
+    --ide-scroll-thumb-hover:       #959da5;
+}
+
+/* ── VSIX Imported Theme: SynthWave '84 (synthwave-84) ────────────────────────── */
+html[data-bs-theme="synthwave-84"] {
+    --ide-theme-id:                 "synthwave-84";
+    --ide-theme-name:               "SynthWave '84";
+    --ide-titlebar-bg:              #241b2f;
+    --ide-titlebar-text:            #ffffff;
+
+    /* Bootstrap overrides */
+    --bs-body-bg:                   #241b2f;
+    --bs-body-color:                #ffffff;
+    --bs-border-color:              #241b2f00;
+    --bs-border-color-translucent:  rgba(120, 120, 120, 0.35);
+    --bs-primary:                   #614D85;
+    --bs-primary-rgb:               97,77,133;
+    --bs-dark:                      #241b2f;
+    --bs-secondary:                 #ffffff73;
+    --bs-link-color:                #614D85;
+    --bs-link-hover-color:          #614D85;
+
+    /* IDE surface layers */
+    --ide-bg-main:                  #241b2f;
+    --ide-bg-sidebar:               #241b2f;
+    --ide-bg-toolbar:               #241b2f;
+    --ide-bg-editor:                #262335;
+    --ide-bg-panel:                 #262335;
+    --ide-bg-result:                #262335;
+    --ide-bg-input:                 #2a2139;
+    --ide-bg-modal:                 #171520DC;
+    --ide-bg-dropdown:              #232530;
+    --ide-bg-context-menu:          #463465;
+
+    /* Borders */
+    --ide-border:                   #241b2f00;
+    --ide-border-active:            #1f212b;
+
+    /* Typography */
+    --ide-text-main:                #ffffff;
+    --ide-text-muted:               #ffffff73;
+    --ide-text-active:              #ffffff;
+    --ide-text-dim:                 #ffffff73;
+
+    /* Interactive states */
+    --ide-hover-bg:                 rgba(128, 128, 128, 0.12);
+    --ide-active-bg:                rgba(97,77,133, 0.20);
+    --ide-selection-bg:             rgba(97,77,133, 0.25);
+
+    /* Accent */
+    --ide-accent:                   #614D85;
+    --ide-syntax-keyword:           #614D85;
+    --ide-accent-hover:             #614D85;
+    --ide-accent-subtle:            rgba(97,77,133, 0.15);
+
+    /* Status indicators */
+    --ide-danger:                   #fe4450;
+    --ide-success:                  #6A8759;
+    --ide-warning:                  #72f1b8cc;
+    --ide-info:                     #6897BB;
+
+    /* Tabs */
+    --ide-tab-active-bg:            #262335;
+    --ide-tab-inactive-bg:          #262335;
+    --ide-tab-active-border:        #880088;
+
+    /* Result Grid */
+    --ide-grid-header-bg:           #241b2f;
+    --ide-grid-row-alt:             rgba(128, 128, 128, 0.04);
+    --ide-grid-row-hover:           rgba(128, 128, 128, 0.08);
+
+    /* Action bar & Badges */
+    --ide-action-bar-bg:            #241b2f;
+    --ide-badge-bg:                 #262335;
+    --ide-badge-text:               #ffffff;
+    --ide-badge-hover:              #241b2f00;
+
+    /* Context menu */
+    --ide-ctx-item-hover:           rgba(97,77,133, 0.18);
+    --ide-ctx-separator:            #241b2f00;
+
+    /* Scrollbars */
+    --ide-scroll-track:             #241b2f;
+    --ide-scroll-thumb:             #241b2f00;
+    --ide-scroll-thumb-hover:       #ffffff73;
+}
+
+/* ── VSIX Imported Theme: Palenight Theme (palenight-theme) ────────────────────────── */
+html[data-bs-theme="palenight-theme"] {
+    --ide-theme-id:                 "palenight-theme";
+    --ide-theme-name:               "Palenight Theme";
+    --ide-titlebar-bg:              #292d3e;
+    --ide-titlebar-text:            #eeefff;
+
+    /* Bootstrap overrides */
+    --bs-body-bg:                   #292D3E;
+    --bs-body-color:                #BFC7D5;
+    --bs-border-color:              #282B3C;
+    --bs-border-color-translucent:  rgba(120, 120, 120, 0.35);
+    --bs-primary:                   #7e57c2cc;
+    --bs-primary-rgb:               126,87,194;
+    --bs-dark:                      #292d3e;
+    --bs-secondary:                 #4c5374;
+    --bs-link-color:                #7e57c2cc;
+    --bs-link-hover-color:          #7e57c2cc;
+
+    /* IDE surface layers */
+    --ide-bg-main:                  #292D3E;
+    --ide-bg-sidebar:               #292D3E;
+    --ide-bg-toolbar:               #292d3e;
+    --ide-bg-editor:                #292D3E;
+    --ide-bg-panel:                 #292D3E;
+    --ide-bg-result:                #292D3E;
+    --ide-bg-input:                 #313850;
+    --ide-bg-modal:                 #31364a;
+    --ide-bg-dropdown:              #292D3E;
+    --ide-bg-context-menu:          #31364a;
+
+    /* Borders */
+    --ide-border:                   #282B3C;
+    --ide-border-active:            #282B3C;
+
+    /* Typography */
+    --ide-text-main:                #BFC7D5;
+    --ide-text-muted:               #4c5374;
+    --ide-text-active:              #BFC7D5;
+    --ide-text-dim:                 #4c5374;
+
+    /* Interactive states */
+    --ide-hover-bg:                 rgba(128, 128, 128, 0.12);
+    --ide-active-bg:                rgba(126,87,194, 0.20);
+    --ide-selection-bg:             rgba(126,87,194, 0.25);
+
+    /* Accent */
+    --ide-accent:                   #7e57c2cc;
+    --ide-syntax-keyword:           #7e57c2cc;
+    --ide-accent-hover:             #7e57c2cc;
+    --ide-accent-subtle:            rgba(126,87,194, 0.15);
+
+    /* Status indicators */
+    --ide-danger:                   #EF5350;
+    --ide-success:                  #6A8759;
+    --ide-warning:                  #FFCA28;
+    --ide-info:                     #6897BB;
+
+    /* Tabs */
+    --ide-tab-active-bg:            #292D3E;
+    --ide-tab-inactive-bg:          #31364A;
+    --ide-tab-active-border:        #262A39;
+
+    /* Result Grid */
+    --ide-grid-header-bg:           #292D3E;
+    --ide-grid-row-alt:             rgba(128, 128, 128, 0.04);
+    --ide-grid-row-hover:           rgba(128, 128, 128, 0.08);
+
+    /* Action bar & Badges */
+    --ide-action-bar-bg:            #292d3e;
+    --ide-badge-bg:                 #31364A;
+    --ide-badge-text:               #BFC7D5;
+    --ide-badge-hover:              #282B3C;
+
+    /* Context menu */
+    --ide-ctx-item-hover:           rgba(126,87,194, 0.18);
+    --ide-ctx-separator:            #282B3C;
+
+    /* Scrollbars */
+    --ide-scroll-track:             #292d3e;
+    --ide-scroll-thumb:             #282B3C;
+    --ide-scroll-thumb-hover:       #4c5374;
+}
+
+
+/* ── VSIX Imported Theme: Palenight Italic (palenight-italic) ────────────────────────── */
+html[data-bs-theme="palenight-italic"] {
+    --ide-theme-id:                 "palenight-italic";
+    --ide-theme-name:               "Palenight Italic";
+    --ide-titlebar-bg:              #292d3e;
+    --ide-titlebar-text:            #eeefff;
+
+    /* Bootstrap overrides */
+    --bs-body-bg:                   #292D3E;
+    --bs-body-color:                #BFC7D5;
+    --bs-border-color:              #282B3C;
+    --bs-border-color-translucent:  rgba(120, 120, 120, 0.35);
+    --bs-primary:                   #7e57c2cc;
+    --bs-primary-rgb:               126,87,194;
+    --bs-dark:                      #292d3e;
+    --bs-secondary:                 #4c5374;
+    --bs-link-color:                #7e57c2cc;
+    --bs-link-hover-color:          #7e57c2cc;
+
+    /* IDE surface layers */
+    --ide-bg-main:                  #292D3E;
+    --ide-bg-sidebar:               #292D3E;
+    --ide-bg-toolbar:               #292d3e;
+    --ide-bg-editor:                #292D3E;
+    --ide-bg-panel:                 #292D3E;
+    --ide-bg-result:                #292D3E;
+    --ide-bg-input:                 #313850;
+    --ide-bg-modal:                 #31364a;
+    --ide-bg-dropdown:              #292D3E;
+    --ide-bg-context-menu:          #31364a;
+
+    /* Borders */
+    --ide-border:                   #282B3C;
+    --ide-border-active:            #282B3C;
+
+    /* Typography */
+    --ide-text-main:                #BFC7D5;
+    --ide-text-muted:               #4c5374;
+    --ide-text-active:              #BFC7D5;
+    --ide-text-dim:                 #4c5374;
+
+    /* Interactive states */
+    --ide-hover-bg:                 rgba(128, 128, 128, 0.12);
+    --ide-active-bg:                rgba(126,87,194, 0.20);
+    --ide-selection-bg:             rgba(126,87,194, 0.25);
+
+    /* Accent */
+    --ide-accent:                   #7e57c2cc;
+    --ide-syntax-keyword:           #7e57c2cc;
+    --ide-accent-hover:             #7e57c2cc;
+    --ide-accent-subtle:            rgba(126,87,194, 0.15);
+
+    /* Status indicators */
+    --ide-danger:                   #EF5350;
+    --ide-success:                  #6A8759;
+    --ide-warning:                  #FFCA28;
+    --ide-info:                     #6897BB;
+
+    /* Tabs */
+    --ide-tab-active-bg:            #292D3E;
+    --ide-tab-inactive-bg:          #31364A;
+    --ide-tab-active-border:        #262A39;
+
+    /* Result Grid */
+    --ide-grid-header-bg:           #292D3E;
+    --ide-grid-row-alt:             rgba(128, 128, 128, 0.04);
+    --ide-grid-row-hover:           rgba(128, 128, 128, 0.08);
+
+    /* Action bar & Badges */
+    --ide-action-bar-bg:            #292d3e;
+    --ide-badge-bg:                 #31364A;
+    --ide-badge-text:               #BFC7D5;
+    --ide-badge-hover:              #282B3C;
+
+    /* Context menu */
+    --ide-ctx-item-hover:           rgba(126,87,194, 0.18);
+    --ide-ctx-separator:            #282B3C;
+
+    /* Scrollbars */
+    --ide-scroll-track:             #292d3e;
+    --ide-scroll-thumb:             #282B3C;
+    --ide-scroll-thumb-hover:       #4c5374;
+}
+
+
+/* ── VSIX Imported Theme: Palenight Operator (palenight-operator) ────────────────────────── */
+html[data-bs-theme="palenight-operator"] {
+    --ide-theme-id:                 "palenight-operator";
+    --ide-theme-name:               "Palenight Operator";
+    --ide-titlebar-bg:              #292d3e;
+    --ide-titlebar-text:            #eeefff;
+
+    /* Bootstrap overrides */
+    --bs-body-bg:                   #292D3E;
+    --bs-body-color:                #BFC7D5;
+    --bs-border-color:              #282B3C;
+    --bs-border-color-translucent:  rgba(120, 120, 120, 0.35);
+    --bs-primary:                   #7e57c2cc;
+    --bs-primary-rgb:               126,87,194;
+    --bs-dark:                      #292d3e;
+    --bs-secondary:                 #4c5374;
+    --bs-link-color:                #7e57c2cc;
+    --bs-link-hover-color:          #7e57c2cc;
+
+    /* IDE surface layers */
+    --ide-bg-main:                  #292D3E;
+    --ide-bg-sidebar:               #292D3E;
+    --ide-bg-toolbar:               #292d3e;
+    --ide-bg-editor:                #292D3E;
+    --ide-bg-panel:                 #292D3E;
+    --ide-bg-result:                #292D3E;
+    --ide-bg-input:                 #313850;
+    --ide-bg-modal:                 #31364a;
+    --ide-bg-dropdown:              #292D3E;
+    --ide-bg-context-menu:          #31364a;
+
+    /* Borders */
+    --ide-border:                   #282B3C;
+    --ide-border-active:            #282B3C;
+
+    /* Typography */
+    --ide-text-main:                #BFC7D5;
+    --ide-text-muted:               #4c5374;
+    --ide-text-active:              #BFC7D5;
+    --ide-text-dim:                 #4c5374;
+
+    /* Interactive states */
+    --ide-hover-bg:                 rgba(128, 128, 128, 0.12);
+    --ide-active-bg:                rgba(126,87,194, 0.20);
+    --ide-selection-bg:             rgba(126,87,194, 0.25);
+
+    /* Accent */
+    --ide-accent:                   #7e57c2cc;
+    --ide-syntax-keyword:           #7e57c2cc;
+    --ide-accent-hover:             #7e57c2cc;
+    --ide-accent-subtle:            rgba(126,87,194, 0.15);
+
+    /* Status indicators */
+    --ide-danger:                   #EF5350;
+    --ide-success:                  #6A8759;
+    --ide-warning:                  #FFCA28;
+    --ide-info:                     #6897BB;
+
+    /* Tabs */
+    --ide-tab-active-bg:            #292D3E;
+    --ide-tab-inactive-bg:          #31364A;
+    --ide-tab-active-border:        #262A39;
+
+    /* Result Grid */
+    --ide-grid-header-bg:           #292D3E;
+    --ide-grid-row-alt:             rgba(128, 128, 128, 0.04);
+    --ide-grid-row-hover:           rgba(128, 128, 128, 0.08);
+
+    /* Action bar & Badges */
+    --ide-action-bar-bg:            #292d3e;
+    --ide-badge-bg:                 #31364A;
+    --ide-badge-text:               #BFC7D5;
+    --ide-badge-hover:              #282B3C;
+
+    /* Context menu */
+    --ide-ctx-item-hover:           rgba(126,87,194, 0.18);
+    --ide-ctx-separator:            #282B3C;
+
+    /* Scrollbars */
+    --ide-scroll-track:             #292d3e;
+    --ide-scroll-thumb:             #282B3C;
+    --ide-scroll-thumb-hover:       #4c5374;
+}
+
+
+/* ── VSIX Imported Theme: Palenight (Mild Contrast) (palenight-mild-contrast) ────────────────────────── */
+html[data-bs-theme="palenight-mild-contrast"] {
+    --ide-theme-id:                 "palenight-mild-contrast";
+    --ide-theme-name:               "Palenight (Mild Contrast)";
+    --ide-titlebar-bg:              #25293A;
+    --ide-titlebar-text:            #eeefff;
+
+    /* Bootstrap overrides */
+    --bs-body-bg:                   #25293A;
+    --bs-body-color:                #BFC7D5;
+    --bs-border-color:              #2C2F40;
+    --bs-border-color-translucent:  rgba(120, 120, 120, 0.35);
+    --bs-primary:                   #7e57c2cc;
+    --bs-primary-rgb:               126,87,194;
+    --bs-dark:                      #25293A;
+    --bs-secondary:                 #4c5374;
+    --bs-link-color:                #7e57c2cc;
+    --bs-link-hover-color:          #7e57c2cc;
+
+    /* IDE surface layers */
+    --ide-bg-main:                  #25293A;
+    --ide-bg-sidebar:               #25293A;
+    --ide-bg-toolbar:               #25293A;
+    --ide-bg-editor:                #292D3E;
+    --ide-bg-panel:                 #25293A;
+    --ide-bg-result:                #292D3E;
+    --ide-bg-input:                 #313850;
+    --ide-bg-modal:                 #31364a;
+    --ide-bg-dropdown:              #292D3E;
+    --ide-bg-context-menu:          #31364a;
+
+    /* Borders */
+    --ide-border:                   #2C2F40;
+    --ide-border-active:            #2C2F40;
+
+    /* Typography */
+    --ide-text-main:                #BFC7D5;
+    --ide-text-muted:               #4c5374;
+    --ide-text-active:              #BFC7D5;
+    --ide-text-dim:                 #4c5374;
+
+    /* Interactive states */
+    --ide-hover-bg:                 rgba(128, 128, 128, 0.12);
+    --ide-active-bg:                rgba(126,87,194, 0.20);
+    --ide-selection-bg:             rgba(126,87,194, 0.25);
+
+    /* Accent */
+    --ide-accent:                   #7e57c2cc;
+    --ide-syntax-keyword:           #7e57c2cc;
+    --ide-accent-hover:             #7e57c2cc;
+    --ide-accent-subtle:            rgba(126,87,194, 0.15);
+
+    /* Status indicators */
+    --ide-danger:                   #EF5350;
+    --ide-success:                  #6A8759;
+    --ide-warning:                  #FFCA28;
+    --ide-info:                     #6897BB;
+
+    /* Tabs */
+    --ide-tab-active-bg:            #25293A;
+    --ide-tab-inactive-bg:          #31364A;
+    --ide-tab-active-border:        #2C3041;
+
+    /* Result Grid */
+    --ide-grid-header-bg:           #25293A;
+    --ide-grid-row-alt:             rgba(128, 128, 128, 0.04);
+    --ide-grid-row-hover:           rgba(128, 128, 128, 0.08);
+
+    /* Action bar & Badges */
+    --ide-action-bar-bg:            #25293A;
+    --ide-badge-bg:                 #31364A;
+    --ide-badge-text:               #BFC7D5;
+    --ide-badge-hover:              #2C2F40;
+
+    /* Context menu */
+    --ide-ctx-item-hover:           rgba(126,87,194, 0.18);
+    --ide-ctx-separator:            #2C2F40;
+
+    /* Scrollbars */
+    --ide-scroll-track:             #25293A;
+    --ide-scroll-thumb:             #2C2F40;
+    --ide-scroll-thumb-hover:       #4c5374;
+}
+
+/* ── VSIX Imported Theme: Shades of Purple (shades-of-purple) ────────────────────────── */
+html[data-bs-theme="shades-of-purple"] {
+    --ide-theme-id:                 "shades-of-purple";
+    --ide-theme-name:               "Shades of Purple";
+    --ide-titlebar-bg:              #1E1E3F;
+    --ide-titlebar-text:            #FFFFFF;
+
+    /* Bootstrap overrides */
+    --bs-body-bg:                   #222244;
+    --bs-body-color:                #FFFFFF;
+    --bs-border-color:              #25254B;
+    --bs-border-color-translucent:  rgba(120, 120, 120, 0.35);
+    --bs-primary:                   #FAD000dd;
+    --bs-primary-rgb:               250,208,0;
+    --bs-dark:                      #1E1E3F;
+    --bs-secondary:                 #A599E9;
+    --bs-link-color:                #FAD000dd;
+    --bs-link-hover-color:          #FAD000dd;
+
+    /* IDE surface layers */
+    --ide-bg-main:                  #222244;
+    --ide-bg-sidebar:               #222244;
+    --ide-bg-toolbar:               #1E1E3F;
+    --ide-bg-editor:                #2D2B55;
+    --ide-bg-panel:                 #1E1E3F;
+    --ide-bg-result:                #2D2B55;
+    --ide-bg-input:                 #2D2B55;
+    --ide-bg-modal:                 #222244;
+    --ide-bg-dropdown:              #1E1E3F;
+    --ide-bg-context-menu:          #222244;
+
+    /* Borders */
+    --ide-border:                   #25254B;
+    --ide-border-active:            #1E1E3F;
+
+    /* Typography */
+    --ide-text-main:                #FFFFFF;
+    --ide-text-muted:               #A599E9;
+    --ide-text-active:              #FFFFFF;
+    --ide-text-dim:                 #A599E9;
+
+    /* Interactive states */
+    --ide-hover-bg:                 rgba(128, 128, 128, 0.12);
+    --ide-active-bg:                rgba(250,208,0, 0.20);
+    --ide-selection-bg:             rgba(250,208,0, 0.25);
+
+    /* Accent */
+    --ide-accent:                   #FAD000dd;
+    --ide-syntax-keyword:           #FAD000dd;
+    --ide-accent-hover:             #FAD000dd;
+    --ide-accent-subtle:            rgba(250,208,0, 0.15);
+
+    /* Status indicators */
+    --ide-danger:                   #EC3A37F5;
+    --ide-success:                  #6A8759;
+    --ide-warning:                  #FAD000;
+    --ide-info:                     #6897BB;
+
+    /* Tabs */
+    --ide-tab-active-bg:            #222244;
+    --ide-tab-inactive-bg:          #2D2B55;
+    --ide-tab-active-border:        #FAD000;
+
+    /* Result Grid */
+    --ide-grid-header-bg:           #1E1E3F;
+    --ide-grid-row-alt:             rgba(128, 128, 128, 0.04);
+    --ide-grid-row-hover:           rgba(128, 128, 128, 0.08);
+
+    /* Action bar & Badges */
+    --ide-action-bar-bg:            #1E1E3F;
+    --ide-badge-bg:                 #2D2B55;
+    --ide-badge-text:               #FFFFFF;
+    --ide-badge-hover:              #25254B;
+
+    /* Context menu */
+    --ide-ctx-item-hover:           rgba(250,208,0, 0.18);
+    --ide-ctx-separator:            #25254B;
+
+    /* Scrollbars */
+    --ide-scroll-track:             #1E1E3F;
+    --ide-scroll-thumb:             #25254B;
+    --ide-scroll-thumb-hover:       #A599E9;
+}
+
+
+/* ── VSIX Imported Theme: Shades of Purple (Super Dark) (shades-of-purple-super-dark) ────────────────────────── */
+html[data-bs-theme="shades-of-purple-super-dark"] {
+    --ide-theme-id:                 "shades-of-purple-super-dark";
+    --ide-theme-name:               "Shades of Purple (Super Dark)";
+    --ide-titlebar-bg:              #15152b;
+    --ide-titlebar-text:            #FFFFFF;
+
+    /* Bootstrap overrides */
+    --bs-body-bg:                   #131327;
+    --bs-body-color:                #FFFFFF;
+    --bs-border-color:              #1a1a35;
+    --bs-border-color-translucent:  rgba(120, 120, 120, 0.35);
+    --bs-primary:                   #FAD000dd;
+    --bs-primary-rgb:               250,208,0;
+    --bs-dark:                      #15152b;
+    --bs-secondary:                 #A599E9;
+    --bs-link-color:                #FAD000dd;
+    --bs-link-hover-color:          #FAD000dd;
+
+    /* IDE surface layers */
+    --ide-bg-main:                  #131327;
+    --ide-bg-sidebar:               #131327;
+    --ide-bg-toolbar:               #15152b;
+    --ide-bg-editor:                #191830;
+    --ide-bg-panel:                 #15152b;
+    --ide-bg-result:                #191830;
+    --ide-bg-input:                 #191830;
+    --ide-bg-modal:                 #131327;
+    --ide-bg-dropdown:              #15152b;
+    --ide-bg-context-menu:          #131327;
+
+    /* Borders */
+    --ide-border:                   #1a1a35;
+    --ide-border-active:            #15152b;
+
+    /* Typography */
+    --ide-text-main:                #FFFFFF;
+    --ide-text-muted:               #A599E9;
+    --ide-text-active:              #FFFFFF;
+    --ide-text-dim:                 #A599E9;
+
+    /* Interactive states */
+    --ide-hover-bg:                 rgba(128, 128, 128, 0.12);
+    --ide-active-bg:                rgba(250,208,0, 0.20);
+    --ide-selection-bg:             rgba(250,208,0, 0.25);
+
+    /* Accent */
+    --ide-accent:                   #FAD000dd;
+    --ide-syntax-keyword:           #FAD000dd;
+    --ide-accent-hover:             #FAD000dd;
+    --ide-accent-subtle:            rgba(250,208,0, 0.15);
+
+    /* Status indicators */
+    --ide-danger:                   #EC3A37F5;
+    --ide-success:                  #6A8759;
+    --ide-warning:                  #FAD000;
+    --ide-info:                     #6897BB;
+
+    /* Tabs */
+    --ide-tab-active-bg:            #131327;
+    --ide-tab-inactive-bg:          #191830;
+    --ide-tab-active-border:        #FAD000;
+
+    /* Result Grid */
+    --ide-grid-header-bg:           #15152b;
+    --ide-grid-row-alt:             rgba(128, 128, 128, 0.04);
+    --ide-grid-row-hover:           rgba(128, 128, 128, 0.08);
+
+    /* Action bar & Badges */
+    --ide-action-bar-bg:            #15152b;
+    --ide-badge-bg:                 #191830;
+    --ide-badge-text:               #FFFFFF;
+    --ide-badge-hover:              #1a1a35;
+
+    /* Context menu */
+    --ide-ctx-item-hover:           rgba(250,208,0, 0.18);
+    --ide-ctx-separator:            #1a1a35;
+
+    /* Scrollbars */
+    --ide-scroll-track:             #15152b;
+    --ide-scroll-thumb:             #1a1a35;
+    --ide-scroll-thumb-hover:       #A599E9;
+}
+
+/* ── VSIX Imported Theme: Cobalt2 (cobalt2) ────────────────────────── */
+html[data-bs-theme="cobalt2"] {
+    --ide-theme-id:                 "cobalt2";
+    --ide-theme-name:               "Cobalt2";
+    --ide-titlebar-bg:              #15232D;
+    --ide-titlebar-text:            #ffffff;
+
+    /* Bootstrap overrides */
+    --bs-body-bg:                   #15232d;
+    --bs-body-color:                #fff;
+    --bs-border-color:              #0d3a58;
+    --bs-border-color-translucent:  rgba(120, 120, 120, 0.35);
+    --bs-primary:                   #0088ff;
+    --bs-primary-rgb:               0,136,255;
+    --bs-dark:                      #15232D;
+    --bs-secondary:                 #aaa;
+    --bs-link-color:                #0088ff;
+    --bs-link-hover-color:          #0088ff;
+
+    /* IDE surface layers */
+    --ide-bg-main:                  #15232d;
+    --ide-bg-sidebar:               #15232d;
+    --ide-bg-toolbar:               #15232D;
+    --ide-bg-editor:                #193549;
+    --ide-bg-panel:                 #122738;
+    --ide-bg-result:                #193549;
+    --ide-bg-input:                 #193549;
+    --ide-bg-modal:                 #15232d;
+    --ide-bg-dropdown:              #193549;
+    --ide-bg-context-menu:          #122738;
+
+    /* Borders */
+    --ide-border:                   #0d3a58;
+    --ide-border-active:            #0d3a58;
+
+    /* Typography */
+    --ide-text-main:                #fff;
+    --ide-text-muted:               #aaa;
+    --ide-text-active:              #fff;
+    --ide-text-dim:                 #aaa;
+
+    /* Interactive states */
+    --ide-hover-bg:                 rgba(128, 128, 128, 0.12);
+    --ide-active-bg:                rgba(0,136,255, 0.20);
+    --ide-selection-bg:             rgba(0,136,255, 0.25);
+
+    /* Accent */
+    --ide-accent:                   #0088ff;
+    --ide-syntax-keyword:           #0088ff;
+    --ide-accent-hover:             #0088ff;
+    --ide-accent-subtle:            rgba(0,136,255, 0.15);
+
+    /* Status indicators */
+    --ide-danger:                   #A22929;
+    --ide-success:                  #6A8759;
+    --ide-warning:                  #ffc600;
+    --ide-info:                     #6897BB;
+
+    /* Tabs */
+    --ide-tab-active-bg:            #193549;
+    --ide-tab-inactive-bg:          #122738;
+    --ide-tab-active-border:        #ffc600;
+
+    /* Result Grid */
+    --ide-grid-header-bg:           #193549;
+    --ide-grid-row-alt:             rgba(128, 128, 128, 0.04);
+    --ide-grid-row-hover:           rgba(128, 128, 128, 0.08);
+
+    /* Action bar & Badges */
+    --ide-action-bar-bg:            #15232D;
+    --ide-badge-bg:                 #122738;
+    --ide-badge-text:               #fff;
+    --ide-badge-hover:              #0d3a58;
+
+    /* Context menu */
+    --ide-ctx-item-hover:           rgba(0,136,255, 0.18);
+    --ide-ctx-separator:            #0d3a58;
+
+    /* Scrollbars */
+    --ide-scroll-track:             #15232D;
+    --ide-scroll-thumb:             #0d3a58;
+    --ide-scroll-thumb-hover:       #aaa;
+}

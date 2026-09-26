@@ -2,93 +2,974 @@
 <html lang="en" data-bs-theme="dark">
 
 <head>
+    <!-- Immediate Theme Restore: Khôi phục ngay theme đã lưu trước khi HTML render -->
+    <script>
+        (function () {
+            try {
+                var saved = localStorage.getItem('ide-theme');
+                if (saved) {
+                    document.documentElement.setAttribute('data-bs-theme', saved);
+                }
+            } catch (e) { }
+        })();
+    </script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>luoBTool IDE</title>
-    <link rel="icon" type="image/png" href="/static/image/logo-200x200.png">
+    <link rel="icon" type="image/png" href="../static/image/logo-200x200.png">
     <meta name="description" content="Web-based SQL IDE for SQL Server and PostgreSQL">
-    <!-- Định dạng PNG hoặc ICO -->
+
     <!-- Bootstrap 5 -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="../static/vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
 
     <!-- Font Awesome 6 -->
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="../static/vendor/fontawesome/all.min.css" rel="stylesheet">
 
     <!-- JetBrains Mono Font -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+    <!-- JetBrains Mono Font - Local Vendor -->
+    <link href="../static/vendor/fonts/jetbrains-mono-local.css" rel="stylesheet">
 
-    <!-- CodeMirror -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/theme/darcula.min.css">
 
-    <!-- IDE Styles (order matters: themes first) -->
-    <link rel="stylesheet" href="/static/css/themes.css">
-    <link rel="stylesheet" href="/static/css/app.css">
-    <link rel="stylesheet" href="/static/css/explorer.css">
-    <link rel="stylesheet" href="/static/css/editor.css">
-    <link rel="stylesheet" href="/static/css/context-menu.css">
-    <link rel="stylesheet" href="/static/css/table-designer.css">
+    <!-- Original CSS Modular Structure -->
+    <link rel="stylesheet" href="../static/css/theme-variables.css">
+    <link rel="stylesheet" href="../static/css/themes.css">
+    <link rel="stylesheet" href="../static/css/settings.css">
+    <link rel="stylesheet" href="../static/css/app.css">
+    <link rel="stylesheet" href="../static/css/explorer.css">
+    <link rel="stylesheet" href="../static/css/editor.css">
+    <link rel="stylesheet" href="../static/css/context-menu.css">
+    <link rel="stylesheet" href="../static/css/table-designer.css">
+    <link rel="stylesheet" href="../static/css/table-data-editor.css">
+    <!-- Monaco Editor CSS -->
+    <link rel="stylesheet" href="../static/vendor/monaco/vs/editor/editor.main.css">
+    <link rel="stylesheet" href="../static/css/bravo.css">
 </head>
 
 <body class="overflow-hidden vh-100 d-flex flex-column m-0 p-0">
 
-    <!-- Toolbar -->
-    {% include 'partials/toolbar.html' %}
+        <!-- Main Navbar / Toolbar -->
+    <nav class="navbar navbar-expand ide-toolbar px-2 py-0">
+        <!-- Brand -->
+        <div class="d-flex align-items-center me-3">
+            <span class="ide-brand fw-bold me-3 d-flex align-items-center">
+                <img src="../static/image/banner.png" alt="luoBTool"
+                    style="height: 26px; width: auto; object-fit: contain;" />
+            </span>
+            <ul class="navbar-nav align-items-center">
+                <li class="nav-item"><a class="nav-link px-2 py-1" href="#">File</a></li>
+                <li class="nav-item"><a class="nav-link px-2 py-1" href="#">Edit</a></li>
+                <li class="nav-item"><a class="nav-link px-2 py-1" href="#">Format</a></li>
+                <li class="nav-item"><a class="nav-link px-2 py-1" href="#" id="menu-settings">Settings</a></li>
+                <li class="nav-item"><a class="nav-link px-2 py-1" href="#">Help</a></li>
+                <li class="nav-item ms-1">
+                    <button id="ide-snippets-btn" class="nav-link px-2 py-1 border-0 bg-transparent fw-semibold"
+                        title="Quản lý SQL Snippets (Ctrl+Alt+S)">
+                        <i class="fa-solid fa-code me-1 text-info"></i>Snippets
+                    </button>
+                </li>
+
+                <!-- BRAVO launcher with window picker dropdown (positioned right after Help) -->
+                <li class="nav-item ms-2" id="ide-bravo-launcher-wrap" style="display:none;">
+                    <button id="ide-bravo-launcher" class="nav-link px-2 py-1 border-0 bg-transparent fw-semibold"
+                        title="Mở BRAVO Tool (Cửa sổ độc lập)">
+                        <i class="fa-solid fa-bolt me-1 text-warning"></i>BRAVO Tool
+                    </button>
+                </li>
+            </ul>
+        </div>
+
+        <div class="flex-grow-1"></div>
+
+        <!-- Right Actions -->
+        <div class="d-flex align-items-center gap-2">
+            <button id="ide-theme-btn" class="ide-toolbar-btn" title="Toggle Light/Dark Theme">
+                <i class="fa-solid fa-moon"></i>
+            </button>
+            <button id="ide-settings-btn" class="ide-toolbar-btn" title="Cài đặt (Settings)">
+                <i class="fa-solid fa-gear"></i>
+            </button>
+            <button class="ide-toolbar-btn ide-toolbar-btn--accent" title="Account">
+                <i class="fa-solid fa-user me-1"></i><span>Login</span>
+            </button>
+        </div>
+    </nav>
 
     <!-- Main area -->
     <div class="d-flex flex-grow-1 overflow-hidden position-relative" id="ide-main-area">
 
         <!-- Sidebar + Resizer (from sidebar.html) -->
-        {% include 'partials/sidebar.html' %}
+<!-- Sidebar / Object Explorer -->
+<div class="ide-sidebar d-flex flex-column" id="ide-sidebar" style="width: 260px;">
+    <div class="ide-sidebar-header d-flex justify-content-between align-items-center px-2 py-1">
+        <span class="ide-sidebar-header-title">
+            Object Explorer
+        </span>
+        <div class="d-flex gap-1">
+            <button id="ide-btn-connect" class="ide-toolbar-btn" title="New Connection">
+                <i class="fa-solid fa-plug"></i>
+            </button>
+            <button id="ide-btn-new-group" class="ide-toolbar-btn" title="New Group">
+                <i class="fa-solid fa-folder-plus"></i>
+            </button>
+            <button id="ide-btn-filter-db" class="ide-toolbar-btn" title="Filter Databases">
+                <i class="fa-solid fa-filter"></i>
+            </button>
+            <button id="ide-btn-refresh-tree" class="ide-toolbar-btn" title="Refresh">
+                <i class="fa-solid fa-rotate-right"></i>
+            </button>
+        </div>
+    </div>
+
+    <div class="ide-tree flex-grow-1 overflow-auto py-1">
+        <ul id="ide-tree-root" class="list-unstyled mb-0 ps-0">
+            <!-- Dynamically populated by explorer.js -->
+        </ul>
+    </div>
+</div>
+
+<!-- Sidebar Drag Resizer -->
+<div class="ide-sidebar-resizer" id="ide-sidebar-resizer" title="Drag to resize"></div>
+
+<!-- Sidebar Reopen Button (visible only when sidebar is collapsed) -->
+<button class="ide-sidebar-reopen d-none" id="ide-sidebar-reopen" aria-label="Open Object Explorer" title="Open Object Explorer">
+    <i class="fa-solid fa-angles-right"></i>
+</button>
+
 
         <!-- Editor + Results column -->
         <div class="d-flex flex-column flex-grow-1 overflow-hidden">
 
             <!-- Editor pane -->
-            {% include 'partials/editor.html' %}
+<div id="ide-editor-pane" class="d-flex flex-column overflow-hidden">
+    <!-- Action Bar (Connection context + Run controls) -->
+    <div class="ide-action-bar d-flex align-items-center px-2 gap-1">
+        <!-- Left: Context badges / Interactive Selectors -->
+        <div class="d-flex align-items-center gap-1 flex-grow-1 ide-ctx-selectors">
+            <!-- Connection Selector -->
+            <div class="dropdown d-inline-block">
+                <button class="ide-ctx-badge dropdown-toggle" type="button" id="ide-ctx-connection"
+                    data-bs-toggle="dropdown" aria-expanded="false" title="Switch Connection">
+                    <i class="fa-solid fa-plug-circle-bolt me-1 text-success"></i>
+                    <span id="ide-ctx-conn-label" class="text-truncate" style="max-width: 130px;">No connection</span>
+                </button>
+                <ul class="dropdown-menu shadow" id="ide-ctx-conn-menu" aria-labelledby="ide-ctx-connection"
+                    style="min-width: 220px; max-height: 280px; overflow-y: auto;">
+                    <!-- Populated dynamically -->
+                </ul>
+            </div>
+
+            <span class="ide-ctx-sep">›</span>
+
+            <!-- Database Selector -->
+            <div class="dropdown d-inline-block">
+                <button class="ide-ctx-badge dropdown-toggle" type="button" id="ide-ctx-database"
+                    data-bs-toggle="dropdown" aria-expanded="false" title="Switch Database">
+                    <i class="fa-solid fa-database me-1 text-info"></i>
+                    <span id="ide-ctx-db-label" class="text-truncate" style="max-width: 130px;">—</span>
+                </button>
+                <ul class="dropdown-menu shadow" id="ide-ctx-db-menu" aria-labelledby="ide-ctx-database"
+                    style="min-width: 200px; max-height: 280px; overflow-y: auto;">
+                    <!-- Populated dynamically as single-select list -->
+                </ul>
+            </div>
+
+            <span class="ide-ctx-sep">›</span>
+
+            <!-- Schema Selector -->
+            <div class="dropdown d-inline-block">
+                <button class="ide-ctx-badge dropdown-toggle" type="button" id="ide-ctx-schema"
+                    data-bs-toggle="dropdown" aria-expanded="false" title="Switch Schema">
+                    <i class="fa-solid fa-layer-group me-1 text-muted"></i>
+                    <span id="ide-ctx-schema-label" class="text-truncate" style="max-width: 110px;">—</span>
+                </button>
+                <ul class="dropdown-menu shadow" id="ide-ctx-schema-menu" aria-labelledby="ide-ctx-schema"
+                    style="min-width: 180px; max-height: 280px; overflow-y: auto;">
+                    <!-- Populated dynamically -->
+                </ul>
+            </div>
+        </div>
+
+        <!-- Divider -->
+        <span class="ide-vdivider mx-1"></span>
+
+        <!-- Right: Action buttons -->
+        <div class="d-flex align-items-center gap-1 flex-shrink-0">
+            <div class="d-flex align-items-center me-2" title="Max Rows">
+                <i class="fa-solid fa-list-ol text-muted me-1" style="font-size: 11px;"></i>
+                <select id="ide-query-limit" class="form-select form-select-sm border-secondary bg-dark text-light"
+                    style="width: 75px; height: 24px; padding: 0 4px; font-size: 11px;">
+                    <option value="100">100</option>
+                    <option value="1000" selected>1000</option>
+                    <option value="10000">10000</option>
+                    <option value="0">All</option>
+                </select>
+            </div>
+            <button id="ide-btn-run" class="ide-action-btn ide-action-btn--run" title="Execute Query (F5)">
+                <i class="fa-solid fa-play me-1"></i>Run
+            </button>
+            <button id="ide-btn-plan" class="ide-action-btn" title="Show Execution Plan">
+                <i class="fa-solid fa-diagram-project me-1"></i>Plan
+            </button>
+            <button id="ide-btn-stop" class="ide-action-btn ide-action-btn--danger" title="Cancel Query (Esc)" disabled>
+                <i class="fa-solid fa-stop me-1"></i>Stop
+            </button>
+            <span class="ide-vdivider mx-1"></span>
+            <button class="ide-action-btn" title="Import SQL file">
+                <i class="fa-solid fa-file-import me-1"></i>Import
+            </button>
+            <button class="ide-action-btn" title="Export results">
+                <i class="fa-solid fa-file-export me-1"></i>Export
+            </button>
+        </div>
+    </div>
+    <!-- Editor Tabs -->
+    <div class="ide-tabs-container d-flex align-items-end px-1">
+        <ul id="ide-tabs-bar" class="nav nav-tabs border-0 m-0 p-0 flex-nowrap" style="overflow: hidden;">
+            <!-- Tabs will be injected here by tabs.js -->
+        </ul>
+        <li id="ide-new-tab-li" class="list-unstyled d-flex align-items-center ms-1 mb-0">
+            <button id="ide-new-tab-btn" class="ide-toolbar-btn" title="New Query Tab (Ctrl+T)">
+                <i class="fa-solid fa-plus"></i>
+            </button>
+        </li>
+    </div>
+
+    <!-- Code Editor Area -->
+    <div class="ide-editor-wrap d-flex w-100 overflow-hidden position-relative">
+        <div id="editor-pane-1" class="flex-grow-1 position-relative h-100" style="width: 100%; min-width: 100px;">
+            <div id="monaco-sql-editor" style="width: 100%; height: 100%; position: absolute; inset: 0;"></div>
+            <textarea id="sql-editor" class="d-none"></textarea>
+        </div>
+        <div id="editor-resizer" class="ide-resizer-vertical d-none"
+            style="width: 5px; background: var(--ide-border); cursor: col-resize; z-index: 15; flex-shrink: 0;"></div>
+        <div id="editor-pane-2" class="flex-grow-1 position-relative h-100 d-none"
+            style="width: 50%; min-width: 100px;">
+            <div class="position-absolute end-0 top-0 p-1" style="z-index: 20;">
+                <button id="btn-close-split" type="button" class="btn btn-sm btn-outline-secondary py-0 px-2"
+                    style="font-size: 11px; line-height: 1.6; background: var(--ide-bg-panel); opacity: 0.9;"
+                    title="Close Split View" onclick="if(window.unsplitEditor) window.unsplitEditor();">
+                    <i class="fa-solid fa-xmark me-1"></i>Close Split
+                </button>
+            </div>
+            <div id="monaco-sql-editor-2" style="width: 100%; height: 100%; position: absolute; inset: 0;"></div>
+            <textarea id="sql-editor-2" class="d-none"></textarea>
+        </div>
+
+        <!-- Find & Replace Overlay -->
+        <div id="ide-find-replace-dialog" class="d-none position-absolute shadow-sm border rounded p-2"
+            style="top: 10px; right: 25px; z-index: 1000; width: 320px; background-color: var(--ide-bg-panel); font-size: 12px;">
+            <div class="d-flex align-items-start gap-1 mb-1">
+                <button id="fr-toggle-btn" class="btn btn-sm btn-link p-0 text-decoration-none text-muted"
+                    title="Toggle Replace" style="width: 20px; margin-top: 4px;">
+                    <i class="fa-solid fa-chevron-right" id="fr-toggle-icon"></i>
+                </button>
+                <div class="flex-grow-1">
+                    <div class="input-group input-group-sm mb-1">
+                        <input type="text" id="fr-find-input" class="form-control" placeholder="Find">
+                        <button class="btn btn-outline-secondary" type="button" id="fr-find-next-btn"
+                            title="Find Next (F3)">
+                            <i class="fa-solid fa-arrow-down"></i>
+                        </button>
+                        <button class="btn btn-outline-secondary" type="button" id="fr-find-prev-btn"
+                            title="Find Previous (Shift+F3)">
+                            <i class="fa-solid fa-arrow-up"></i>
+                        </button>
+                    </div>
+                    <div id="fr-replace-container" class="d-none">
+                        <div class="input-group input-group-sm mb-1">
+                            <input type="text" id="fr-replace-input" class="form-control" placeholder="Replace with">
+                            <button class="btn btn-outline-secondary" type="button" id="fr-replace-btn"
+                                title="Replace (Alt+R)">
+                                Replace
+                            </button>
+                            <button class="btn btn-outline-secondary" type="button" id="fr-replace-all-btn"
+                                title="Replace All (Alt+A)">
+                                All
+                            </button>
+                        </div>
+                    </div>
+                    <div class="d-flex align-items-center justify-content-between mt-1 fr-replace-notification">
+                        <select id="fr-scope-select" class="form-select form-select-sm d-inline-block w-auto"
+                            style="font-size: 11px; padding-top: 2px; padding-bottom: 2px;">
+                            <option value="current">Current Document</option>
+                            <option value="all">All Documents</option>
+                        </select>
+                        <span id="fr-status-text" class="text-success small"></span>
+                    </div>
+                </div>
+                <button id="fr-close-btn" class="btn btn-sm btn-link p-0 text-decoration-none text-success ms-1"
+                    title="Close (Esc)" style="width: 20px;">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- IntelliSense Dual-Panel Popup -->
+        <div id="ide-intellisense-popup" class="ide-intellisense-popup d-none position-absolute shadow-lg border rounded" style="z-index: 1050;">
+            <!-- Left panel: Suggestion list (Default width ~420px) -->
+            <div id="ide-intellisense-list-panel" class="ide-intellisense-list-panel d-flex flex-column" style="width: 420px; min-width: 280px;">
+                <div class="ide-intellisense-header px-2 py-1 border-bottom d-flex align-items-center justify-content-between" title="Click and drag to move suggestions">
+                    <div class="d-flex align-items-center flex-grow-1" style="cursor: move;">
+                        <i class="fa-solid fa-grip-vertical text-muted me-2 ide-drag-handle" title="Drag to move"></i>
+                        <span class="small fw-semibold text-muted"><i class="fa-solid fa-wand-magic-sparkles me-1 text-primary"></i>Suggestions</span>
+                    </div>
+                    <span id="ide-intellisense-count" class="badge bg-secondary-subtle text-secondary" style="font-size: 10px;">0</span>
+                </div>
+                <div id="ide-intellisense-list" class="ide-intellisense-list flex-grow-1 overflow-auto">
+                    <!-- Populated dynamically -->
+                </div>
+            </div>
+
+            <!-- Draggable Resizer Splitter -->
+            <div id="ide-intellisense-splitter" class="ide-intellisense-splitter" title="Drag to resize"></div>
+
+            <!-- Right panel: Summary & Script Details (Default width ~320px) -->
+            <div id="ide-intellisense-details-panel" class="ide-intellisense-details-panel d-flex flex-column" style="width: 320px; min-width: 200px;">
+                <ul class="nav nav-tabs ide-intellisense-tabs border-bottom px-1" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active py-1 px-2 small" id="ide-is-tab-summary-btn" data-bs-toggle="tab" data-bs-target="#ide-is-tab-summary" type="button" role="tab" style="font-size: 11px;">
+                            <i class="fa-solid fa-list-check me-1 text-info"></i>Summary
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link py-1 px-2 small" id="ide-is-tab-script-btn" data-bs-toggle="tab" data-bs-target="#ide-is-tab-script" type="button" role="tab" style="font-size: 11px;">
+                            <i class="fa-solid fa-code me-1 text-warning"></i>Script
+                        </button>
+                    </li>
+                </ul>
+                <div class="tab-content ide-intellisense-tab-content flex-grow-1 overflow-auto p-2">
+                    <div class="tab-pane fade show active h-100" id="ide-is-tab-summary" role="tabpanel">
+                        <div id="ide-is-summary-content" class="small text-muted">Select an object to view columns/parameters.</div>
+                    </div>
+                    <div class="tab-pane fade h-100" id="ide-is-tab-script" role="tabpanel">
+                        <pre id="ide-is-script-content" class="m-0 small font-monospace" style="white-space: pre-wrap; font-size: 11px; max-height: 240px; overflow-y: auto;">-- Definition script preview</pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Table Designer Area -->
+    <div id="table-designer-container" class="d-none flex-grow-1 flex-column overflow-hidden">
+        <!-- Built and managed dynamically by table-designer.js -->
+    </div>
+
+    <!-- Table Data Editor Area -->
+    <div id="table-data-editor-container" class="d-none flex-grow-1 flex-column overflow-hidden">
+        <!-- Built and managed dynamically by table-data-editor.js -->
+    </div>
+
+</div>
 
             <!-- Horizontal drag resizer (editor ↕ results) -->
             <div class="ide-resizer-horizontal"></div>
 
             <!-- Results pane -->
-            {% include 'partials/results.html' %}
+<div id="ide-result-panel" class="d-flex flex-column ide-result-panel">
+
+    <!-- Result Panel Tab Bar -->
+    <div class="d-flex align-items-center px-1 ide-result-tabs-bar">
+        <div class="d-flex align-items-end h-100 gap-0">
+            <button class="ide-result-tab active" data-view="results-grid" id="ide-rtab-result" title="Query results">
+                <i class="fa-solid fa-table-list me-1"></i>Results
+            </button>
+            <button class="ide-result-tab" data-view="results-messages" id="ide-rtab-messages" title="Execution messages">
+                <i class="fa-solid fa-message me-1"></i>Messages
+            </button>
+            <button class="ide-result-tab" data-view="results-plan" id="ide-rtab-plan" title="Execution plan">
+                <i class="fa-solid fa-diagram-project me-1"></i>Plan
+            </button>
+        </div>
+        <!-- Result status & actions (right-aligned) -->
+        <div class="ms-auto pe-2 d-flex align-items-center gap-2">
+            <button type="button" class="btn btn-xs btn-outline-secondary d-none" id="ide-btn-copy-messages" title="Sao chép toàn bộ thông báo (Copy All Messages)">
+                <i class="fa-solid fa-copy me-1"></i>Sao chép
+            </button>
+            <span id="ide-result-status" class="ide-result-status-text"></span>
+        </div>
+    </div>
+
+    <!-- Scrollable content area -->
+    <div class="flex-grow-1 overflow-hidden position-relative" id="ide-results-container">
+
+        <!-- Results Grid (default visible) -->
+        <div id="ide-results-grid-view" class="ide-result-view h-100">
+            <!-- Empty state -->
+            <div id="ide-results-empty" class="d-flex flex-column align-items-center justify-content-center h-100 text-center py-4 ide-result-empty-state">
+                <i class="fa-solid fa-play-circle mb-2 ide-result-empty-icon"></i>
+                <small>Execute a query to see results</small>
+            </div>
+            <!-- Grid (hidden until results come in) -->
+            <div id="ide-results-table-wrap" class="d-none h-100 overflow-auto">
+                <!-- Tables generated dynamically -->
+            </div>
+        </div>
+
+        <!-- Messages Panel (hidden by default) -->
+        <div id="ide-results-messages-view" class="ide-result-view d-none p-3">
+            <pre id="ide-results-messages" class="ide-messages-pre m-0"></pre>
+        </div>
+
+        <!-- Plan Panel (hidden by default) -->
+        <div id="ide-results-plan-view" class="ide-result-view d-none p-3">
+            <pre id="ide-results-plan" class="ide-messages-pre m-0"></pre>
+        </div>
+
+    </div>
+
+    <!-- Footer bar: row count + timing -->
+    <div id="ide-result-footer" class="d-none align-items-center px-3 gap-3 ide-result-footer">
+        <span id="ide-footer-rows"></span>
+        <span class="ide-vdivider" style="height: 12px;"></span>
+        <span id="ide-footer-time"></span>
+    </div>
+
+</div>
 
         </div>
     </div>
 
     <!-- Status bar -->
-    {% include 'partials/statusbar.html' %}
+<div class="ide-statusbar">
+    <!-- Left side -->
+    <div class="ide-statusbar-left">
+        <span id="ide-status-conn" title="Connection status">
+            <i class="fa-solid fa-circle-xmark me-1"></i>
+            <span>No connection</span>
+        </span>
+        <span id="ide-status-cursor">Ln 1, Col 1</span>
+    </div>
+
+    <!-- Right side -->
+    <div class="ide-statusbar-right">
+        <span id="ide-status-rows"></span>
+        <span id="ide-status-time"></span>
+        <span id="ide-status-db"></span>
+        <span id="ide-status-server"></span>
+    </div>
+</div>
+
 
     <!-- Modals -->
-    {% include 'partials/connection_modal.html' %}
-    {% include 'partials/password_modal.html' %}
-    {% include 'partials/table_design_modal.html' %}
+<!-- Connection Modal -->
+<div class="modal fade" id="connectionModal" tabindex="-1" aria-labelledby="connectionModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" style="max-width: 400px;">
+        <form class="modal-content" id="connectionForm" method="post" action="javascript:void(0);" autocomplete="off">
+            <div class="modal-header">
+                <h6 class="modal-title mb-0" id="connectionModalLabel">
+                    <i class="fa-solid fa-plug me-2" style="color: var(--ide-accent);"></i>New Connection
+                </h6>
+                <button type="button" class="btn-close btn-close-sm" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+
+            <div class="modal-body">
+                <div id="connectionFormFields">
+
+                    <div class="mb-2">
+                        <label class="ide-form-label">Connection Name</label>
+                        <input type="text" class="form-control form-control-sm" id="connName" placeholder="e.g. Dev Server" autocomplete="off">
+                    </div>
+                    
+                    <div class="mb-2">
+                        <label class="ide-form-label">Connection Group</label>
+                        <input type="text" list="connGroupList" class="form-control form-control-sm" id="connGroup" placeholder="e.g. Production (optional)" autocomplete="off">
+                        <datalist id="connGroupList"></datalist>
+                    </div>
+
+                    <div class="mb-2">
+                        <label class="ide-form-label">Database Type</label>
+                        <select class="form-select form-select-sm" id="connType">
+                            <option value="sqlserver">SQL Server</option>
+                            <option value="postgresql">PostgreSQL</option>
+                        </select>
+                    </div>
+
+                    <div class="row g-2 mb-2">
+                        <div class="col-8">
+                            <label class="ide-form-label">Host / Server</label>
+                            <input type="text" class="form-control form-control-sm" id="connHost" placeholder="localhost" autocomplete="off">
+                        </div>
+                        <div class="col-4">
+                            <label class="ide-form-label">Port</label>
+                            <input type="number" class="form-control form-control-sm" id="connPort" placeholder="1433">
+                        </div>
+                    </div>
+
+                    <div class="mb-2">
+                        <label class="ide-form-label">Default Database</label>
+                        <input type="text" class="form-control form-control-sm" id="connDb" placeholder="(optional)">
+                    </div>
+
+                    <div id="connSqlServerOptionsGroup">
+                        <div class="row g-2 mb-2">
+                            <div class="col-8">
+                                <label class="ide-form-label">ODBC Driver</label>
+                                <select class="form-select form-select-sm" id="connDriver">
+                                    <option value="ODBC Driver 18 for SQL Server">ODBC Driver 18 for SQL Server</option>
+                                    <option value="ODBC Driver 17 for SQL Server">ODBC Driver 17 for SQL Server</option>
+                                    <option value="SQL Server Native Client 11.0">SQL Server Native Client 11.0</option>
+                                    <option value="SQL Server">SQL Server</option>
+                                </select>
+                            </div>
+                            <div class="col-4">
+                                <label class="ide-form-label">Timeout (s)</label>
+                                <input type="number" class="form-control form-control-sm" id="connTimeout" placeholder="30" value="30">
+                            </div>
+                        </div>
+
+                        <div class="mb-2 form-check" style="margin-top: 4px;">
+                            <input type="checkbox" class="form-check-input" id="connWinAuth">
+                            <label class="form-check-label" for="connWinAuth" style="font-size: 12px;">Use Windows Authentication</label>
+                        </div>
+
+                        <div class="row g-2 mb-2">
+                            <div class="col-6">
+                                <div class="form-check">
+                                    <input type="checkbox" class="form-check-input" id="connEncrypt">
+                                    <label class="form-check-label" for="connEncrypt" style="font-size: 12px;" title="Encrypt connection (SSL/TLS)">Use SSL / Encrypt</label>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="form-check">
+                                    <input type="checkbox" class="form-check-input" id="connTrustCert" checked>
+                                    <label class="form-check-label" for="connTrustCert" style="font-size: 12px;" title="Trust server certificate without CA validation">Trust Certificate</label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="connCredentialsGroup">
+                        <div class="mb-2">
+                            <label class="ide-form-label">Username</label>
+                            <input type="text" name="username" class="form-control form-control-sm" id="connUser" autocomplete="off" data-lpignore="true">
+                        </div>
+                        <div class="mb-1">
+                            <label class="ide-form-label">Password</label>
+                            <div class="input-group input-group-sm">
+                                <input type="password" name="password" class="form-control form-control-sm" id="connPass" autocomplete="new-password" data-lpignore="true" spellcheck="false">
+                                <button class="btn btn-outline-secondary" type="button" id="btnToggleConnPass" title="Show/Hide password">
+                                    <i class="fa-solid fa-eye"></i>
+                                </button>
+                            </div>
+                            <div class="form-text small mt-1" style="font-size: 11px; color: var(--ide-text-dim, #888); line-height: 1.4;">
+                                <i class="fa-solid fa-shield-halved me-1 text-info"></i>
+                                Mật khẩu chỉ được lưu tạm trong bộ nhớ RAM phiên làm việc của server và không lưu vĩnh viễn trên ổ cứng vì lý do bảo mật.
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="btn btn-sm btn-secondary" id="btnTestConnection">
+                    <i class="fa-solid fa-flask me-1"></i>Test
+                </button>
+                <div class="flex-grow-1"></div>
+                <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-sm btn-primary" id="btnSaveConnection">
+                    <i class="fa-solid fa-plug me-1"></i>Connect
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Reconnect Password Modal -->
+<div class="modal fade" id="reconnectPasswordModal" tabindex="-1" aria-labelledby="reconnectPasswordModalLabel" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered" style="max-width: 440px;">
+        <form id="reconnectPasswordForm" class="modal-content ide-modal-content" method="post" action="javascript:void(0);" autocomplete="off">
+            <div class="modal-header py-2 px-3">
+                <h5 class="modal-title fs-6" id="reconnectPasswordModalLabel">
+                    <i class="fa-solid fa-key me-2 text-warning"></i>Connect to Database
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+
+            <div class="modal-body py-3 px-3">
+                <!-- Connection Information Summary Card -->
+                <div class="p-2 mb-3 rounded" style="background: var(--ide-bg-sidebar, #1e1e1e); border: 1px solid var(--ide-border, #333); font-size: 12px;">
+                    <div class="row g-1 mb-1">
+                        <div class="col-4 text-muted">Connection:</div>
+                        <div class="col-8 fw-semibold text-truncate" id="reconnectConnName">-</div>
+                    </div>
+                    <div class="row g-1 mb-1">
+                        <div class="col-4 text-muted">Server / Host:</div>
+                        <div class="col-8 fw-semibold text-truncate" id="reconnectConnHost">-</div>
+                    </div>
+                    <div class="row g-1 mb-1" id="reconnectConnPortRow" style="display: none;">
+                        <div class="col-4 text-muted">Port:</div>
+                        <div class="col-8 fw-semibold" id="reconnectConnPort">-</div>
+                    </div>
+                    <div class="row g-1">
+                        <div class="col-4 text-muted">Username:</div>
+                        <div class="col-8 fw-semibold text-truncate" id="reconnectConnUser">-</div>
+                    </div>
+                </div>
+
+                <!-- Password Input -->
+                <div class="mb-2">
+                    <label for="reconnectPassInput" class="ide-form-label mb-1">
+                        Password <span class="text-danger">*</span>
+                    </label>
+                    <div class="input-group input-group-sm">
+                        <input type="password" 
+                               name="password"
+                               class="form-control form-control-sm" 
+                               id="reconnectPassInput" 
+                               placeholder="Enter password..." 
+                               autocomplete="new-password"
+                               data-lpignore="true"
+                               spellcheck="false">
+                        <button class="btn btn-outline-secondary" 
+                                type="button" 
+                                id="btnToggleReconnectPass" 
+                                title="Show/Hide password">
+                            <i class="fa-solid fa-eye"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Security / Storage Notice -->
+                <div class="form-text small mt-2" style="font-size: 11px; color: var(--ide-text-dim, #888); line-height: 1.4;">
+                    <i class="fa-solid fa-shield-halved me-1 text-info"></i>
+                    Mật khẩu chỉ được lưu tạm trong bộ nhớ RAM phiên làm việc của server và không lưu vĩnh viễn trên ổ cứng vì lý do bảo mật.
+                </div>
+
+                <!-- Inline Error Alert -->
+                <div class="alert alert-danger py-1 px-2 mt-2 mb-0 d-none small" id="reconnectPassError" style="font-size: 12px;"></div>
+            </div>
+
+            <div class="modal-footer py-2 px-3">
+                <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-sm btn-primary" id="btnConfirmReconnect">
+                    <i class="fa-solid fa-plug me-1"></i>Connect
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Group Input Modal (New / Rename Group) -->
+<div class="modal fade" id="groupInputModal" tabindex="-1" aria-labelledby="groupInputModalLabel" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered" style="max-width: 420px;">
+        <form id="groupInputForm" class="modal-content ide-modal-content" method="post" action="javascript:void(0);" autocomplete="off">
+            <div class="modal-header py-2 px-3">
+                <h5 class="modal-title fs-6" id="groupInputModalLabel">
+                    <i class="fa-solid fa-folder-plus me-2 text-warning"></i><span id="groupInputModalTitle">Tạo nhóm mới</span>
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body py-3 px-3">
+                <div id="groupInputParentWrap" class="mb-2 text-muted small" style="display: none;">
+                    <i class="fa-solid fa-folder-tree me-1 text-warning"></i>Nhóm cha: <span id="groupInputParentName" class="fw-semibold text-info"></span>
+                </div>
+                <label for="groupInputName" class="form-label small mb-1" id="groupInputLabel">Tên nhóm:</label>
+                <input type="text" class="form-control form-control-sm ide-input" id="groupInputName" placeholder="Nhập tên nhóm..." required autocomplete="off">
+                <div id="groupInputError" class="text-danger small mt-1" style="display: none;"></div>
+            </div>
+            <div class="modal-footer py-2 px-3">
+                <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Hủy</button>
+                <button type="submit" class="btn btn-sm btn-primary" id="btnGroupInputConfirm">
+                    <i class="fa-solid fa-check me-1"></i>Xác nhận
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Group Confirm / Message Modal -->
+<div class="modal fade" id="groupConfirmModal" tabindex="-1" aria-labelledby="groupConfirmModalLabel" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered" style="max-width: 420px;">
+        <div class="modal-content ide-modal-content">
+            <div class="modal-header py-2 px-3">
+                <h5 class="modal-title fs-6" id="groupConfirmModalLabel">
+                    <i class="fa-solid fa-triangle-exclamation me-2 text-danger" id="groupConfirmModalIcon"></i><span id="groupConfirmModalTitle">Xác nhận xóa nhóm</span>
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body py-3 px-3">
+                <p class="mb-1 fw-semibold" id="groupConfirmMessage">Bạn có chắc chắn muốn xóa nhóm này?</p>
+                <div class="small text-muted" id="groupConfirmSubtext">Các kết nối trong nhóm sẽ được chuyển về Chưa phân nhóm.</div>
+            </div>
+            <div class="modal-footer py-2 px-3">
+                <button type="button" class="btn btn-sm btn-secondary" id="btnGroupConfirmCancel" data-bs-dismiss="modal">Hủy</button>
+                <button type="button" class="btn btn-sm btn-danger" id="btnGroupConfirmAction">
+                    <i class="fa-solid fa-trash me-1" id="btnGroupConfirmActionIcon"></i><span id="btnGroupConfirmActionText">Xóa</span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Settings Window Modal (matched 1:1 with _concept_/settings_template.html) -->
+<div class="modal fade" id="settingsModal" tabindex="-1" aria-labelledby="settingsModalLabel" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered settings-modal-dialog" id="settingsModalDialog">
+        <div class="modal-content p-0 border-0 bg-transparent settings-window" id="settingsWindow">
+            <header class="titlebar">
+                <div class="title-left">
+                    <div class="sliders-icon">
+                        <span></span><span></span><span></span>
+                        <i></i><i></i><i></i>
+                    </div>
+                    <span>Settings</span>
+                </div>
+
+                <div class="window-actions">
+                    <button type="button" class="copy-icon" id="settingsCopyJsonBtn" title="Sao chép JSON cài đặt (Copy Settings JSON)" aria-label="Copy JSON"></button>
+                    <button type="button" class="panel-icon" id="settingsToggleSidebarBtn" title="Ẩn/Hiện danh mục (Toggle Sidebar)" aria-label="Panel"></button>
+                    <button type="button" class="fullscreen-icon" id="settingsFullscreenBtn" title="Phóng to / Thu nhỏ (Toggle Fullscreen)" aria-label="Fullscreen"></button>
+                    <button type="button" class="close-icon" data-bs-dismiss="modal" title="Đóng (Close)" aria-label="Close"></button>
+                </div>
+            </header>
+
+            <main class="body">
+                <div class="search-row">
+                    <div class="search-box">
+                        <input type="text" id="settingsSearchInput" placeholder="Search settings" autocomplete="off">
+                        <div class="search-tools">
+                            <span class="tool sparkle" title="AI Settings"></span>
+                            <span class="tool sort-icon" title="Sort Settings"></span>
+                            <span class="tool filter-icon" title="Filter Settings"></span>
+                            <button type="button" id="settingsSearchClear" class="btn-clear-search d-none" title="Xóa tìm kiếm" style="border:none;background:transparent;cursor:pointer;font-size:14px;color:inherit;padding:0 4px;">
+                                <i class="fa-solid fa-xmark"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="tabs">
+                    <div class="tab active" data-tab="user">User</div>
+                    <div class="tab" data-tab="workspace">Workspace</div>
+                    <div class="tabs-actions ms-auto me-4 d-flex align-items-center gap-2">
+                        <button type="button" id="settingsSaveBtn" class="btn btn-sm btn-success px-3 fw-semibold" title="Lưu các thay đổi vào file">
+                            <i class="fa-solid fa-floppy-disk me-1"></i> Lưu (Save)
+                        </button>
+                        <button type="button" id="settingsResetBtn" class="btn btn-sm btn-outline-secondary" title="Khôi phục cài đặt gốc">
+                            Khôi phục mặc định
+                        </button>
+                    </div>
+                </div>
+
+                <div class="settings-area">
+                    <aside class="sidebar" id="settingsNavList">
+                        <!-- Rendered dynamically by settings.js -->
+                    </aside>
+
+                    <section class="content-scroll" id="settingsContentScroll">
+                        <div class="content" id="settingsContentArea">
+                            <!-- Rendered dynamically by settings.js -->
+                        </div>
+                    </section>
+                </div>
+            </main>
+        </div>
+    </div>
+</div>
+
+<!-- Table Design Confirmation Modal -->
+<div class="modal fade" id="table-design-confirm-modal" tabindex="-1" aria-labelledby="tdConfirmModalLabel" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content shadow-lg">
+            <div class="modal-header py-2 px-3">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="fa-solid fa-code-compare text-info"></i>
+                    <h6 class="modal-title m-0 fw-bold" id="tdConfirmModalLabel">Confirm Schema Changes</h6>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-3">
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                    <div>
+                        <span class="text-muted small">Target Table:</span>
+                        <span id="td-modal-target-table" class="fw-bold text-info ms-1"></span>
+                    </div>
+                    <div>
+                        <span class="badge bg-secondary" id="td-modal-engine-badge">SQL Server</span>
+                    </div>
+                </div>
+
+                <!-- Pre-Save Audit Section: Unmodified & Modified Components Warning -->
+                <div id="td-modal-audit-section" class="td-audit-container mb-3">
+                    <div class="td-audit-header">
+                        <div class="d-flex align-items-center gap-2">
+                            <i class="fa-solid fa-clipboard-check text-warning"></i>
+                            <span>Kiểm tra trạng thái các thành phần bảng</span>
+                        </div>
+                        <span class="badge bg-warning text-dark" id="td-modal-audit-summary-badge">Cần lưu ý kiểm tra</span>
+                    </div>
+                    <div class="small text-muted mb-2" id="td-modal-audit-notice">
+                        Cảnh báo: Hãy rà soát các thành phần chưa sửa đổi (Trigger, Foreign Key, Constraint) để đảm bảo tính toàn vẹn khi bảng thay đổi cấu trúc.
+                    </div>
+                    <div class="td-audit-list" id="td-modal-audit-list">
+                        <!-- Populated dynamically -->
+                    </div>
+                </div>
+
+                <!-- Destructive Alert Warning -->
+                <div id="td-modal-destructive-warning" class="alert alert-danger py-2 px-3 d-none mb-3" role="alert">
+                    <div class="d-flex align-items-start gap-2">
+                        <i class="fa-solid fa-triangle-exclamation fs-5 text-danger mt-1 flex-shrink-0"></i>
+                        <div>
+                            <div class="fw-bold text-danger">Warning: Destructive Changes Detected</div>
+                            <div class="small" id="td-modal-warnings-list">
+                                Dropping columns or constraints will permanently delete existing data.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mb-1 d-flex justify-content-between align-items-center">
+                    <label class="form-label small fw-semibold text-muted mb-0">
+                        <i class="fa-solid fa-scroll me-1"></i>Compare Script (DDL to be executed):
+                    </label>
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="badge bg-light text-dark border" style="font-size: 10px;"><i class="fa-solid fa-pen me-1"></i>Editable</span>
+                        <span id="td-modal-filter-status" class="badge bg-secondary" style="font-size: 10px;">Hiển thị: Tất cả</span>
+                        <button type="button" class="btn btn-sm btn-link text-decoration-none text-muted p-0 d-none" id="td-modal-btn-reset-filter" style="font-size: 11px;">
+                            <i class="fa-solid fa-rotate-left me-1"></i>Xem tất cả
+                        </button>
+                    </div>
+                </div>
+
+                <div class="border rounded overflow-hidden" style="height: 320px;">
+                    <textarea id="td-modal-diff-sql" class="d-none"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer py-2 px-3 d-flex justify-content-between">
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">
+                    <i class="fa-solid fa-xmark me-1"></i>Cancel
+                </button>
+                <button type="button" class="btn btn-sm btn-success px-3" id="td-modal-btn-apply">
+                    <i class="fa-solid fa-check me-1"></i>Apply Changes
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 
     <!-- Bootstrap 5 JS -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="../static/vendor/bootstrap/bootstrap.bundle.min.js"></script>
 
-    <!-- CodeMirror -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/mode/sql/sql.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/addon/search/searchcursor.min.js"></script>
+    <!-- Monaco Editor Engine & Languages -->
+    <script src="../static/vendor/monaco/vs/loader.js"></script>
+    <script src="../static/js/monaco-init.js"></script>
+    <script src="../static/js/monaco-sql-lang.js"></script>
+
+    <!-- Zero-Network Native IPC & Storage -->
+    <script src="../static/js/api.js"></script>
+    <script src="../static/js/clipboard-bridge.js"></script>
+    <script src="../static/js/storage.js"></script>
+    <script src="../static/js/settings.js"></script>
+    <script src="../static/js/session.js"></script>
+    <script src="../static/js/loader.js"></script>
 
     <!-- Theme manager first (restores saved theme before paint) -->
-    <script src="/static/js/theme.js"></script>
+    <script src="../static/js/theme-registry.js"></script>
+    <script src="../static/js/theme.js"></script>
 
     <!-- IDE scripts -->
-    <script src="/static/js/context-menu.js"></script>
-    <script src="/static/js/context-analyzer.js"></script>
-    <script src="/static/js/intellisense.js"></script>
-    <script src="/static/js/editor.js"></script>
-    <script src="/static/js/tabs.js"></script>
-    <script src="/static/js/explorer.js"></script>
-    <script src="/static/js/query.js"></script>
-    <script src="/static/js/connections.js"></script>
-    <script src="/static/js/table-designer.js"></script>
-    <script src="/static/js/find-replace.js"></script>
-    <script src="/static/js/app.js"></script>
+    <script src="../static/js/context-menu.js"></script>
+    <script src="../static/js/context-analyzer.js"></script>
+    <script src="../static/js/snippets-manager.js"></script>
+    <script src="../static/js/intellisense.js"></script>
+    <script src="../static/js/editor.js"></script>
+    <script src="../static/js/tabs.js"></script>
+    <script src="../static/js/explorer.js"></script>
+    <script src="../static/js/grid-result.js"></script>
+    <script src="../static/js/query.js"></script>
+    <script src="../static/js/connections.js"></script>
+    <script src="../static/js/table-designer.js"></script>
+    <script src="../static/js/table-data-editor.js"></script>
+    <script src="../static/js/find-replace.js"></script>
+    <script src="../static/js/app.js"></script>
+
+    <!-- BRAVO Tool Core & Feature Modules -->
+    <script src="../static/js/bravo/bravo-feature-registry.js"></script>
+    <script src="../static/js/bravo/bravo-window.js"></script>
+    <script src="../static/js/bravo/bravo-manager.js"></script>
+    <script src="../static/js/bravo/features/bravo-xml-monaco.js"></script>
+    <script src="../static/js/bravo/features/program-list.js"></script>
+    <script src="../static/js/bravo/features/layout-editor.js"></script>
+    <script>
+        function initBravoLauncher() {
+            if (window.BravoManager) {
+                BravoManager.init();
+            }
+        }
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initBravoLauncher);
+        } else {
+            initBravoLauncher();
+        }
+    </script>
+    <!-- Custom Popup Dialog for Settings Modal Notifications -->
+    <div class="settings-popup-backdrop d-none" id="settingsPopupBackdrop">
+        <div class="settings-popup-card" id="settingsPopupCard">
+            <div class="settings-popup-header">
+                <div class="settings-popup-title" id="settingsPopupTitle">
+                    <i class="fa-solid fa-circle-info text-info me-1"></i>
+                    <span>Thông báo</span>
+                </div>
+                <button type="button" class="settings-popup-close" id="settingsPopupCloseBtn">&times;</button>
+            </div>
+            <div class="settings-popup-body" id="settingsPopupMessage">
+                Nội dung thông báo
+            </div>
+            <div class="settings-popup-footer" id="settingsPopupFooter">
+                <button type="button" class="btn-popup btn-popup-primary" id="settingsPopupOkBtn">Đồng ý</button>
+            </div>
+        </div>
+    </div>
+
+
+    <script>
+        (function() {
+            function triggerProfiler() {
+                try {
+                    if (window.pywebview && window.pywebview.api && typeof window.pywebview.api.open_profiler_window === 'function') {
+                        if (window.AppLoader) window.AppLoader.show('Đang mở SQL Trace Profiler...');
+                        var activeConnId = null;
+                        if (window.AppExplorer && window.AppExplorer.currentConnection) {
+                            activeConnId = window.AppExplorer.currentConnection.id || window.AppExplorer.currentConnection.name;
+                        }
+                        window.pywebview.api.open_profiler_window(activeConnId);
+                        setTimeout(function() { if (window.AppLoader) window.AppLoader.hide(); }, 700);
+                    }
+                } catch(e) {
+                    if (window.AppLoader) window.AppLoader.hide();
+                    console.warn('Cannot open profiler window:', e);
+                }
+            }
+
+            document.addEventListener('DOMContentLoaded', function() {
+                var menuProf = document.getElementById('menu-tools-profiler');
+                if (menuProf) menuProf.addEventListener('click', function(e) { e.preventDefault(); triggerProfiler(); });
+
+                var btnProf = document.getElementById('ide-profiler-btn');
+                if (btnProf) btnProf.addEventListener('click', function(e) { e.preventDefault(); triggerProfiler(); });
+
+                window.addEventListener('keydown', function(e) {
+                    if ((e.ctrlKey || e.metaKey) && e.altKey && (e.key === 'p' || e.key === 'P')) {
+                        e.preventDefault();
+                        triggerProfiler();
+                    }
+                });
+            });
+        })();
+    </script>
+
+    <!-- Reusable System Loading Modal -->
+    <div class="modal fade" id="appLoadingModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+        <div class="modal-dialog modal-dialog-centered ide-loading-modal-dialog">
+            <div class="modal-content ide-loading-modal-content text-center p-4 d-flex flex-column align-items-center justify-content-center">
+                <div class="loader mb-3"></div>
+                <div id="appLoadingText" class="fw-semibold small" style="letter-spacing: 0.3px;">Đang tải...</div>
+            </div>
+        </div>
+    </div>
 </body>
 
 </html>
+

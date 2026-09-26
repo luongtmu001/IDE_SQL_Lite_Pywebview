@@ -10,6 +10,10 @@ def create_connection():
     if not data.get("type"):
         return jsonify(success=False, error="Database type is required"), 400
 
+    db_type = (data.get("type") or "").strip().lower()
+    if db_type == "group_marker" or str(data.get("name", "")).startswith("__group__"):
+        return jsonify(success=False, error="Không thể kết nối đến nhóm"), 400
+
     try:
         connection = get_connection_manager().create(
             get_owner_session_id(),
@@ -51,6 +55,8 @@ def delete_connection(connection_id):
 def check_credential():
     data = request.get_json(silent=True) or {}
     db_type = (data.get("type") or "sqlserver").lower()
+    if db_type == "group_marker" or str(data.get("name", "")).startswith("__group__"):
+        return jsonify(success=False, error="Không phải kết nối cơ sở dữ liệu"), 400
     trusted = bool(data.get("trusted_connection"))
 
     if db_type == "sqlite" or trusted:

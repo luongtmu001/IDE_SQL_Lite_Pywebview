@@ -70,28 +70,39 @@ function initExplorer() {
         window.LastFocusedTreeContext = { ...ctx };
 
         if (window.AppTabs) {
-            if (window.AppTabs.setDefaultContext) {
+            if (window.AppTabs.updateActiveTabContext) {
+                window.AppTabs.updateActiveTabContext(ctx);
+            } else if (window.AppTabs.setDefaultContext) {
                 window.AppTabs.setDefaultContext(ctx);
             }
         }
 
         document.dispatchEvent(new CustomEvent('ide-context-changed', { detail: ctx }));
+        if (typeof window.updateActionBar === 'function') {
+            window.updateActionBar();
+        }
         return ctx;
     }
 
     // ── Delegate contextmenu on explorer (suppress browser menu) ─────────────
-    rootUl.addEventListener('contextmenu', e => {
-        const item = e.target.closest('.tree-item[data-node-type]');
-        if (!item) return;
+    document.querySelector('.ide-tree').addEventListener('contextmenu', e => {
+        const item = e.target.closest('.tree-item');
         e.preventDefault();
-
-        // Selection highlight
-        document.querySelectorAll('.tree-item').forEach(el => el.classList.remove('selected'));
-        item.classList.add('selected');
-
-        const ctx = detectAndApplyTreeContext(item) || {};
-        const nd = item._nodeData || {};
-        if (window.ContextMenu) window.ContextMenu.show(nd.type || 'database', { ...nd, ...ctx }, e.clientX, e.clientY);
+        
+        let type = 'sidebar';
+        let nodeData = {};
+        
+        if (item) {
+            document.querySelectorAll('.tree-item').forEach(el => el.classList.remove('selected'));
+            item.classList.add('selected');
+            const ctx = detectAndApplyTreeContext(item) || {};
+            nodeData = { ...item._nodeData, ...ctx };
+            type = nodeData.type || 'database';
+        }
+        
+        if (window.ContextMenu) {
+            window.ContextMenu.show(type, nodeData, e.clientX, e.clientY);
+        }
     });
 
     rootUl.addEventListener('focusin', e => {
@@ -851,7 +862,15 @@ function initExplorer() {
     }
 
     // ── Add a connection to the tree ──────────────────────────────────────────
-    function addConnectionNode(connId, name, dbType, isActive = true, config = null) {
+        function addConnectionNode(connId, name, dbType, isActive = true, config = null) {
+        return addConnectionNodeToUl(rootUl, connId, name, dbType, isActive, config);
+    }
+
+    function addConnectionNodeToUl(ul, connId, name, dbType, isActive = true, config = null) {
+        if (!name || dbType === 'group_marker' || (config && config.type === 'group_marker') || String(name || '').startsWith('__group__')) {
+            console.warn('[Explorer] Cannot add group_marker as a connection node:', name);
+            return null;
+        }
         const typeLabel = dbType === 'sqlserver' ? 'SQL Server' : 'PostgreSQL';
         
         const rightEl = document.createElement('div');
@@ -924,14 +943,14 @@ function initExplorer() {
             });
         }
 
-        dbNodeCtrl = renderNode(rootUl, {
+        dbNodeCtrl = renderNode(ul, {
             name: `${name} (${typeLabel})`,
             type: 'connection',
             icon: 'server',
             iconColor: isActive ? 'var(--ide-success)' : 'var(--ide-text-dim)',
             hasChildren: isActive,
             loadCallback: isActive ? (ul => fetchDatabases(ul, connId, name, dbType)) : null,
-            nodeData: { connId, connName: name, dbType, isActive, config },
+            nodeData: { connId, connName: name, dbType, isActive, database: config ? config.database : null, config },
             rightEl: rightEl
         });
 
@@ -941,70 +960,736 @@ function initExplorer() {
                 reconnect(name, dbType, config);
             });
         }
+        return dbNodeCtrl;
     }
 
     // ── Load active connections from server on page load ──────────────────────
+    let _cachedSavedConnections = [];
+
     function getSavedConnections() {
-        const str = localStorage.getItem("ide_saved_connections");
-        return str ? JSON.parse(str) : [];
+        return _cachedSavedConnections;
     }
 
-    function saveConnectionProfile(config) {
-        const saved = getSavedConnections();
-        const idx = saved.findIndex(c => c.name === config.name && c.type === config.type);
-        if (idx >= 0) saved[idx] = config;
-        else saved.push(config);
-        localStorage.setItem("ide_saved_connections", JSON.stringify(saved));
+    async function loadSavedConnectionsFromStorage() {
+        if (window.AppStorage && typeof window.AppStorage.getSavedConnections === 'function') {
+            _cachedSavedConnections = await window.AppStorage.getSavedConnections() || [];
+        }
+        return _cachedSavedConnections;
     }
 
-    function removeConnectionProfile(name, type) {
-        const saved = getSavedConnections();
-        const filtered = saved.filter(c => !(c.name === name && c.type === type));
-        localStorage.setItem("ide_saved_connections", JSON.stringify(filtered));
+    async function saveConnectionProfile(config) {
+        if (window.AppStorage && typeof window.AppStorage.saveConnectionProfile === 'function') {
+            await window.AppStorage.saveConnectionProfile(config);
+            await loadSavedConnectionsFromStorage();
+        }
     }
 
+    async function removeConnectionProfile(name, type) {
+        if (window.AppStorage) {
+            const saved = await window.AppStorage.getSavedConnections() || [];
+            const target = saved.find(c => c.name === name && c.type === type);
+            if (target && target.id) {
+                await window.AppStorage.deleteSavedConnection(target.id);
+            }
+            await loadSavedConnectionsFromStorage();
+        }
+    }
+
+    // ── Group Modal Helpers (No native browser alert/confirm/prompt) ──────────
+    function showGroupInputModal({ title = 'Tạo nhóm mới', parentGroup = null, initialValue = '', onConfirm }) {
+        const modalEl = document.getElementById('groupInputModal');
+        if (!modalEl) {
+            const val = prompt(title, initialValue);
+            if (val && typeof onConfirm === 'function') onConfirm(val.trim());
+            return;
+        }
+
+        const titleEl = document.getElementById('groupInputModalTitle');
+        const parentWrap = document.getElementById('groupInputParentWrap');
+        const parentNameEl = document.getElementById('groupInputParentName');
+        const inputEl = document.getElementById('groupInputName');
+        const errorEl = document.getElementById('groupInputError');
+        const formEl = document.getElementById('groupInputForm');
+
+        if (titleEl) titleEl.textContent = title;
+        if (parentWrap && parentNameEl) {
+            if (parentGroup) {
+                parentWrap.style.display = 'block';
+                parentNameEl.textContent = parentGroup;
+            } else {
+                parentWrap.style.display = 'none';
+                parentNameEl.textContent = '';
+            }
+        }
+        if (inputEl) {
+            inputEl.value = initialValue || '';
+            inputEl.classList.remove('is-invalid');
+        }
+        if (errorEl) {
+            errorEl.style.display = 'none';
+            errorEl.textContent = '';
+        }
+
+        const bsModal = (typeof bootstrap !== 'undefined' && bootstrap.Modal)
+            ? bootstrap.Modal.getOrCreateInstance(modalEl)
+            : null;
+
+        if (formEl) {
+            formEl.onsubmit = (e) => {
+                e.preventDefault();
+                const val = (inputEl.value || '').trim();
+                if (!val) {
+                    if (errorEl) {
+                        errorEl.textContent = 'Vui lòng nhập tên nhóm.';
+                        errorEl.style.display = 'block';
+                    }
+                    if (inputEl) inputEl.focus();
+                    return;
+                }
+                if (val.includes('\\')) {
+                    if (errorEl) {
+                        errorEl.textContent = 'Tên nhóm không được chứa ký tự gạch chéo ngược (\\).';
+                        errorEl.style.display = 'block';
+                    }
+                    if (inputEl) inputEl.focus();
+                    return;
+                }
+
+                if (bsModal) bsModal.hide();
+                if (typeof onConfirm === 'function') {
+                    onConfirm(val);
+                }
+            };
+        }
+
+        if (bsModal) {
+            bsModal.show();
+            setTimeout(() => { if (inputEl) { inputEl.focus(); inputEl.select(); } }, 200);
+        }
+    }
+
+    function showGroupConfirmModal({
+        title = 'Xác nhận xóa nhóm',
+        message = 'Bạn có chắc chắn muốn xóa nhóm này?',
+        subtext = 'Các kết nối trong nhóm sẽ được chuyển về Chưa phân nhóm.',
+        confirmText = 'Xóa',
+        confirmVariant = 'btn-danger',
+        onConfirm
+    }) {
+        const modalEl = document.getElementById('groupConfirmModal');
+        if (!modalEl) {
+            if (confirm(`${message}\n${subtext}`) && typeof onConfirm === 'function') onConfirm();
+            return;
+        }
+
+        const titleEl = document.getElementById('groupConfirmModalTitle');
+        const iconEl = document.getElementById('groupConfirmModalIcon');
+        const msgEl = document.getElementById('groupConfirmMessage');
+        const subEl = document.getElementById('groupConfirmSubtext');
+        const actionBtn = document.getElementById('btnGroupConfirmAction');
+        const actionText = document.getElementById('btnGroupConfirmActionText');
+        const actionIcon = document.getElementById('btnGroupConfirmActionIcon');
+        const cancelBtn = document.getElementById('btnGroupConfirmCancel');
+
+        if (titleEl) titleEl.textContent = title;
+        if (iconEl) {
+            iconEl.className = confirmVariant === 'btn-danger'
+                ? 'fa-solid fa-triangle-exclamation me-2 text-danger'
+                : 'fa-solid fa-circle-info me-2 text-info';
+        }
+        if (msgEl) msgEl.textContent = message;
+        if (subEl) {
+            subEl.textContent = subtext || '';
+            subEl.style.display = subtext ? 'block' : 'none';
+        }
+        if (actionText) actionText.textContent = confirmText;
+        if (actionBtn) {
+            actionBtn.className = `btn btn-sm ${confirmVariant}`;
+            if (actionIcon) {
+                actionIcon.className = confirmVariant === 'btn-danger'
+                    ? 'fa-solid fa-trash me-1'
+                    : 'fa-solid fa-check me-1';
+            }
+            actionBtn.style.display = 'inline-block';
+        }
+        if (cancelBtn) cancelBtn.style.display = 'inline-block';
+
+        const bsModal = (typeof bootstrap !== 'undefined' && bootstrap.Modal)
+            ? bootstrap.Modal.getOrCreateInstance(modalEl)
+            : null;
+
+        if (actionBtn) {
+            actionBtn.onclick = () => {
+                if (bsModal) bsModal.hide();
+                if (typeof onConfirm === 'function') {
+                    onConfirm();
+                }
+            };
+        }
+
+        if (bsModal) bsModal.show();
+    }
+
+    function showGroupModalMessage({
+        title = 'Thông báo',
+        message = '',
+        icon = 'fa-circle-info',
+        iconColor = 'text-info'
+    }) {
+        const modalEl = document.getElementById('groupConfirmModal');
+        if (!modalEl) {
+            alert(message);
+            return;
+        }
+
+        const titleEl = document.getElementById('groupConfirmModalTitle');
+        const iconEl = document.getElementById('groupConfirmModalIcon');
+        const msgEl = document.getElementById('groupConfirmMessage');
+        const subEl = document.getElementById('groupConfirmSubtext');
+        const actionBtn = document.getElementById('btnGroupConfirmAction');
+        const actionText = document.getElementById('btnGroupConfirmActionText');
+        const actionIcon = document.getElementById('btnGroupConfirmActionIcon');
+        const cancelBtn = document.getElementById('btnGroupConfirmCancel');
+
+        if (titleEl) titleEl.textContent = title;
+        if (iconEl) iconEl.className = `fa-solid ${icon} me-2 ${iconColor}`;
+        if (msgEl) msgEl.textContent = message;
+        if (subEl) subEl.style.display = 'none';
+        if (cancelBtn) cancelBtn.style.display = 'none';
+        if (actionBtn) {
+            actionBtn.className = 'btn btn-sm btn-primary';
+            if (actionIcon) actionIcon.className = 'fa-solid fa-check me-1';
+            if (actionText) actionText.textContent = 'Đóng';
+            actionBtn.style.display = 'inline-block';
+            actionBtn.onclick = () => {
+                const bsModal = bootstrap.Modal.getInstance(modalEl);
+                if (bsModal) bsModal.hide();
+            };
+        }
+
+        const bsModal = (typeof bootstrap !== 'undefined' && bootstrap.Modal)
+            ? bootstrap.Modal.getOrCreateInstance(modalEl)
+            : null;
+        if (bsModal) bsModal.show();
+    }
+
+    window.showGroupInputModal = showGroupInputModal;
+    window.showGroupConfirmModal = showGroupConfirmModal;
+    window.showGroupModalMessage = showGroupModalMessage;
+
+    // ── Multi-level Hierarchical Group Tree Builder ───────────────────────────
+    function buildGroupHierarchy(saved) {
+        const root = {
+            name: "",
+            fullPath: "",
+            subgroups: new Map(),
+            connections: []
+        };
+
+        (saved || []).forEach(c => {
+            if (!c || typeof c !== 'object') return;
+            const rawGroup = (c.group || "").trim();
+            if (!rawGroup) {
+                if (c.type !== 'group_marker') {
+                    root.connections.push(c);
+                }
+                return;
+            }
+
+            const parts = rawGroup.split('/').map(p => p.trim()).filter(Boolean);
+            if (parts.length === 0) {
+                if (c.type !== 'group_marker') root.connections.push(c);
+                return;
+            }
+
+            let curr = root;
+            let runningPath = "";
+            for (let i = 0; i < parts.length; i++) {
+                const part = parts[i];
+                runningPath = runningPath ? `${runningPath}/${part}` : part;
+                if (!curr.subgroups.has(part)) {
+                    curr.subgroups.set(part, {
+                        name: part,
+                        fullPath: runningPath,
+                        subgroups: new Map(),
+                        connections: []
+                    });
+                }
+                curr = curr.subgroups.get(part);
+            }
+
+            if (c.type !== 'group_marker') {
+                curr.connections.push(c);
+            }
+        });
+
+        return root;
+    }
+
+    // ── Recursive Group Node Renderer with Nested Drag & Drop ────────────────
+    function showRootDropZone(show = true) {
+        const el = document.getElementById('ide-tree-root-dropzone');
+        if (el) el.style.display = show ? 'block' : 'none';
+    }
+
+    function hideRootDropZone() {
+        const el = document.getElementById('ide-tree-root-dropzone');
+        if (el) {
+            el.style.display = 'none';
+            el.classList.remove('drag-over');
+        }
+    }
+
+    function renderGroupNode(groupNode, containerUl, saved, activeMap) {
+        const li = document.createElement('li');
+        const item = document.createElement('div');
+        item.className = 'tree-item';
+        item.setAttribute('data-group', groupNode.fullPath);
+        item.setAttribute('draggable', 'true');
+        item._nodeData = { type: 'group', name: groupNode.fullPath, label: groupNode.name };
+
+        const toggle = document.createElement('i');
+        toggle.className = 'fa-solid fa-caret-down tree-toggle';
+        const iconEl = document.createElement('i');
+        iconEl.className = 'fa-solid fa-folder tree-icon';
+        iconEl.style.color = '#dcb67a';
+        const label = document.createElement('span');
+        label.className = 'tree-label';
+        label.textContent = groupNode.name;
+
+        item.append(toggle, iconEl, label);
+        li.appendChild(item);
+
+        const childUl = document.createElement('ul');
+        childUl.className = 'tree-children';
+        childUl.style.display = 'block';
+        li.appendChild(childUl);
+
+        // Click to expand/collapse
+        item.addEventListener('click', (e) => {
+            e.stopPropagation();
+            document.querySelectorAll('.tree-item').forEach(el => el.classList.remove('selected'));
+            item.classList.add('selected');
+
+            if (childUl.style.display === 'none') {
+                childUl.style.display = 'block';
+                toggle.classList.replace('fa-caret-right', 'fa-caret-down');
+            } else {
+                childUl.style.display = 'none';
+                toggle.classList.replace('fa-caret-down', 'fa-caret-right');
+            }
+        });
+
+        // Dragging THIS group
+        item.addEventListener('dragstart', (e) => {
+            e.stopPropagation();
+            e.dataTransfer.setData('text/group-path', groupNode.fullPath);
+            e.dataTransfer.setData('text/plain', 'group:' + groupNode.fullPath);
+            window._draggingGroupPath = groupNode.fullPath;
+            // Always show root dropzone when dragging any group (especially subgroups)
+            showRootDropZone(true);
+        });
+        item.addEventListener('dragend', () => {
+            hideRootDropZone();
+            setTimeout(() => {
+                window._draggingGroupPath = null;
+            }, 500);
+        });
+
+        // Dropping another group or connection ONTO this group
+        const onGroupDragOver = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            item.style.background = 'var(--ide-bg-hover)';
+        };
+        const onGroupDragLeave = (e) => {
+            item.style.background = '';
+        };
+        const onGroupDrop = async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            hideRootDropZone();
+            item.style.background = '';
+
+            const targetGroupPath = groupNode.fullPath;
+            const plain = e.dataTransfer ? e.dataTransfer.getData('text/plain') : '';
+            let srcGroupPath = e.dataTransfer ? e.dataTransfer.getData('text/group-path') : null;
+            if (!srcGroupPath && plain && plain.startsWith('group:')) {
+                srcGroupPath = plain.substring(6);
+            }
+            if (!srcGroupPath && window._draggingGroupPath) {
+                srcGroupPath = window._draggingGroupPath;
+            }
+
+            if (srcGroupPath) {
+                window._draggingGroupPath = null;
+                if (srcGroupPath === targetGroupPath) return;
+
+                // Circular nesting protection: cannot drag group into itself or its child
+                if (targetGroupPath === srcGroupPath || targetGroupPath.startsWith(srcGroupPath + '/')) {
+                    showGroupModalMessage({
+                        title: 'Không thể di chuyển nhóm',
+                        message: `Không thể di chuyển nhóm "${srcGroupPath}" vào chính nó hoặc nhóm con!`,
+                        icon: 'fa-triangle-exclamation',
+                        iconColor: 'text-warning'
+                    });
+                    return;
+                }
+
+                const baseName = srcGroupPath.split('/').pop();
+                const newGroupPath = `${targetGroupPath}/${baseName}`;
+                if (newGroupPath === srcGroupPath) return;
+
+                await moveGroupHierarchy(srcGroupPath, newGroupPath);
+                return;
+            }
+
+            // Connection drop into this group
+            let connIdToMove = e.dataTransfer ? e.dataTransfer.getData('text/conn-id') : null;
+            if (!connIdToMove && plain && !plain.startsWith('group:')) {
+                connIdToMove = plain;
+            }
+            if (!connIdToMove && window._draggingConnId) {
+                connIdToMove = window._draggingConnId;
+            }
+
+            if (connIdToMove) {
+                window._draggingConnId = null;
+                const cToMove = saved.find(s => s.id === connIdToMove);
+                if (cToMove && cToMove.group !== targetGroupPath) {
+                    cToMove.group = targetGroupPath;
+                    await saveConnectionProfile(cToMove);
+                    loadActiveConnections();
+                    if (typeof showToast === 'function') {
+                        showToast(`✓ Đã chuyển kết nối "${cToMove.name}" vào nhóm "${targetGroupPath}"`, 'success');
+                    }
+                }
+            }
+        };
+
+        item.addEventListener('dragover', onGroupDragOver);
+        item.addEventListener('dragleave', onGroupDragLeave);
+        item.addEventListener('drop', onGroupDrop);
+
+        // Also allow dropping onto childUl directly
+        childUl.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+        });
+        childUl.addEventListener('drop', onGroupDrop);
+
+        // Render child groups recursively (sorted alphabetically)
+        const sortedSubgroupKeys = Array.from(groupNode.subgroups.keys()).sort((a, b) => a.localeCompare(b));
+        for (const subKey of sortedSubgroupKeys) {
+            renderGroupNode(groupNode.subgroups.get(subKey), childUl, saved, activeMap);
+        }
+
+        // Render child connections in this group
+        groupNode.connections.forEach(c => {
+            renderConnectionItem(c, childUl, saved, activeMap);
+        });
+
+        containerUl.appendChild(li);
+    }
+
+    function renderConnectionItem(c, targetUl, saved, activeMap) {
+        if (!c || c.type === 'group_marker' || String(c.name || '').startsWith('__group__')) return;
+        const activeConn = activeMap[c.name + '::' + c.type];
+        const isActive = !!activeConn;
+        const connId = isActive ? activeConn.connection_id : null;
+        const ctrl = addConnectionNodeToUl(targetUl, connId, c.name, c.type, isActive, c);
+        if (ctrl && ctrl.item && c.id) {
+            ctrl.item.setAttribute('draggable', 'true');
+            ctrl.item.addEventListener('dragstart', (e) => {
+                e.stopPropagation();
+                e.dataTransfer.setData('text/conn-id', c.id);
+                e.dataTransfer.setData('text/plain', c.id);
+                window._draggingConnId = c.id;
+                showRootDropZone(!!c.group);
+            });
+            ctrl.item.addEventListener('dragend', () => {
+                hideRootDropZone();
+                setTimeout(() => {
+                    window._draggingConnId = null;
+                }, 500);
+            });
+        }
+    }
+
+    // ── Move Group and all its Descendant Groups & Connections ────────────────
+    async function moveGroupHierarchy(oldPath, newPath) {
+        const saved = await getSavedConnections();
+        for (const c of saved) {
+            if (c.group === oldPath) {
+                c.group = newPath;
+                if (c.type === 'group_marker') {
+                    c.name = `__group__${newPath}`;
+                }
+                await saveConnectionProfile(c);
+            } else if (c.group && c.group.startsWith(oldPath + '/')) {
+                const subSuffix = c.group.substring(oldPath.length);
+                c.group = newPath + subSuffix;
+                if (c.type === 'group_marker') {
+                    c.name = `__group__${c.group}`;
+                }
+                await saveConnectionProfile(c);
+            }
+        }
+
+        // Ensure marker exists for newPath
+        const hasMarker = saved.some(c => c.group === newPath);
+        if (!hasMarker) {
+            const dummy = {
+                id: 'group_' + Date.now(),
+                name: `__group__${newPath}`,
+                type: 'group_marker',
+                group: newPath
+            };
+            await saveConnectionProfile(dummy);
+        }
+
+        loadActiveConnections();
+        const baseName = oldPath.split('/').pop();
+        if (typeof showToast === 'function') {
+            if (newPath === baseName) {
+                showToast(`✓ Đã chuyển nhóm "${baseName}" ra thư mục gốc`, 'success');
+            } else {
+                showToast(`✓ Đã chuyển nhóm "${baseName}" vào "${newPath}"`, 'success');
+            }
+        }
+    }
+
+    // ── Drop to Root (moves group to root or connection to ungrouped) ─────────
+    async function handleDropToRoot(e) {
+        if (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+        hideRootDropZone();
+
+        const plain = e && e.dataTransfer ? e.dataTransfer.getData('text/plain') : '';
+        let srcGroupPath = e && e.dataTransfer ? e.dataTransfer.getData('text/group-path') : null;
+        if (!srcGroupPath && plain && plain.startsWith('group:')) {
+            srcGroupPath = plain.substring(6);
+        }
+        if (!srcGroupPath && window._draggingGroupPath) {
+            srcGroupPath = window._draggingGroupPath;
+        }
+
+        if (srcGroupPath) {
+            window._draggingGroupPath = null;
+            const parts = srcGroupPath.split('/').filter(Boolean);
+            const baseName = parts[parts.length - 1];
+            if (srcGroupPath !== baseName) {
+                await moveGroupHierarchy(srcGroupPath, baseName);
+            }
+            return;
+        }
+
+        let connIdToMove = e && e.dataTransfer ? e.dataTransfer.getData('text/conn-id') : null;
+        if (!connIdToMove && plain && !plain.startsWith('group:')) {
+            connIdToMove = plain;
+        }
+        if (!connIdToMove && window._draggingConnId) {
+            connIdToMove = window._draggingConnId;
+        }
+
+        if (connIdToMove) {
+            window._draggingConnId = null;
+            const saved = getSavedConnections();
+            const cToMove = saved.find(s => s.id === connIdToMove);
+            if (cToMove && cToMove.group) {
+                cToMove.group = '';
+                await saveConnectionProfile(cToMove);
+                loadActiveConnections();
+                if (typeof showToast === 'function') {
+                    showToast(`✓ Đã chuyển kết nối "${cToMove.name}" về Chưa phân nhóm`, 'success');
+                }
+            }
+        }
+    }
+
+    // ── Load active connections from server on page load ──────────────────────
     async function loadActiveConnections() {
         try {
-            const res  = await fetch('/api/connections');
-            const data = await res.json();
-            
+            await loadSavedConnectionsFromStorage();
             const activeMap = {};
-            if (data.success && data.connections?.length) {
-                data.connections.forEach(c => {
-                    const dbType = c.type || c.config?.type || 'sqlserver';
-                    const displayName = c.name || c.config?.name || c.server || c.config?.server || 'Server';
-                    activeMap[displayName + '::' + dbType] = c;
-                });
+            try {
+                const res  = await fetch('/api/connections');
+                if (res && res.ok) {
+                    const data = await res.json();
+                    if (data && data.success && Array.isArray(data.connections)) {
+                        data.connections.forEach(c => {
+                            if (!c) return;
+                            const dbType = c.type || c.config?.type || 'sqlserver';
+                            const displayName = c.name || c.config?.name || c.server || c.config?.server || 'Server';
+                            activeMap[displayName + '::' + dbType] = c;
+                        });
+                    }
+                }
+            } catch (fetchErr) {
+                console.warn('[Explorer] fetch /api/connections warning:', fetchErr);
             }
 
             const saved = getSavedConnections();
-            
-            // Also merge active connections that might not be in saved yet
+
+            // Merge active connections that might not be in saved yet
             Object.values(activeMap).forEach(c => {
+                if (!c) return;
                 const dbType = c.type || c.config?.type || 'sqlserver';
                 const displayName = c.name || c.config?.name || c.server || c.config?.server || 'Server';
-                if (!saved.find(s => s.name === displayName && s.type === dbType)) {
+                if (!saved.find(s => s && s.name === displayName && s.type === dbType)) {
                     saved.push({ name: displayName, type: dbType, ...c.config });
                 }
             });
 
             rootUl.innerHTML = '';
-            
-            saved.forEach(c => {
-                const activeConn = activeMap[c.name + '::' + c.type];
-                if (activeConn) {
-                    addConnectionNode(activeConn.connection_id, c.name, c.type, true, c);
-                } else {
-                    addConnectionNode(null, c.name, c.type, false, c);
-                }
+            rootUl.style.minHeight = '100%';
+
+            // Dedicated Root Dropzone item (shown when dragging)
+            const rootDropZone = document.createElement('li');
+            rootDropZone.id = 'ide-tree-root-dropzone';
+            rootDropZone.className = 'tree-root-dropzone';
+            rootDropZone.innerHTML = '<i class="fa-solid fa-arrow-turn-up me-1"></i><span>Thả vào đây để chuyển ra thư mục gốc (Root)</span>';
+            rootDropZone.ondragover = (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                rootDropZone.classList.add('drag-over');
+            };
+            rootDropZone.ondragleave = (e) => {
+                rootDropZone.classList.remove('drag-over');
+            };
+            rootDropZone.ondrop = (e) => {
+                handleDropToRoot(e);
+            };
+            rootUl.appendChild(rootDropZone);
+
+            // Build hierarchical tree of groups
+            const groupHierarchy = buildGroupHierarchy(saved);
+
+            // 1. Render top-level groups (alphabetical)
+            const topGroupKeys = Array.from(groupHierarchy.subgroups.keys()).sort((a, b) => a.localeCompare(b));
+            for (const gKey of topGroupKeys) {
+                renderGroupNode(groupHierarchy.subgroups.get(gKey), rootUl, saved, activeMap);
+            }
+
+            // 2. Render ungrouped connections at the root level
+            groupHierarchy.connections.forEach(c => {
+                renderConnectionItem(c, rootUl, saved, activeMap);
             });
+
+            // 3. Drop on empty background of rootUl or parent tree container
+            rootUl.ondragover = (e) => {
+                e.preventDefault();
+                if (window._draggingGroupPath && window._draggingGroupPath.includes('/')) {
+                    showRootDropZone(true);
+                }
+            };
+            rootUl.ondrop = (e) => {
+                handleDropToRoot(e);
+            };
+
+            const treeContainer = rootUl.closest('.ide-tree') || rootUl.parentElement;
+            if (treeContainer) {
+                treeContainer.ondragover = (e) => {
+                    e.preventDefault();
+                    if (window._draggingGroupPath && window._draggingGroupPath.includes('/')) {
+                        showRootDropZone(true);
+                    }
+                };
+                treeContainer.ondrop = (e) => {
+                    handleDropToRoot(e);
+                };
+            }
 
         } catch (e) {
             console.error('loadActiveConnections failed', e);
         }
     }
 
-    // ── Disconnect ────────────────────────────────────────────────────────────
+    async function createGroup(groupName) {
+        if (!groupName) return;
+        const dummy = {
+            id: 'group_' + Date.now(),
+            name: `__group__${groupName}`,
+            type: 'group_marker',
+            group: groupName
+        };
+        await saveConnectionProfile(dummy);
+        loadActiveConnections();
+    }
+
+    async function renameGroup(oldPath, newPath) {
+        if (!oldPath || !newPath || oldPath === newPath) return;
+        const saved = await getSavedConnections();
+        for (const c of saved) {
+            if (c.group === oldPath) {
+                c.group = newPath;
+                if (c.type === 'group_marker') {
+                    c.name = `__group__${newPath}`;
+                }
+                await saveConnectionProfile(c);
+            } else if (c.group && c.group.startsWith(oldPath + '/')) {
+                const subSuffix = c.group.substring(oldPath.length);
+                c.group = newPath + subSuffix;
+                if (c.type === 'group_marker') {
+                    c.name = `__group__${c.group}`;
+                }
+                await saveConnectionProfile(c);
+            }
+        }
+
+        // Ensure marker exists for newPath if it was an empty group
+        const hasMarker = saved.some(c => c.group === newPath);
+        if (!hasMarker) {
+            const dummy = {
+                id: 'group_' + Date.now(),
+                name: `__group__${newPath}`,
+                type: 'group_marker',
+                group: newPath
+            };
+            await saveConnectionProfile(dummy);
+        }
+
+        loadActiveConnections();
+        const baseName = newPath.split('/').pop();
+        if (typeof showToast === 'function') {
+            showToast(`✓ Đã đổi tên nhóm thành "${baseName}"`, 'success');
+        }
+    }
+
+    async function deleteGroup(groupName) {
+        if (!groupName) return;
+        const targetLower = (groupName || '').trim().toLowerCase();
+        const prefixLower = targetLower + '/';
+        showGroupConfirmModal({
+            title: 'Xác nhận xóa nhóm',
+            message: `Bạn có chắc muốn xóa nhóm "${groupName}"?`,
+            subtext: 'Tất cả kết nối và nhóm con bên trong sẽ được chuyển về Chưa phân nhóm.',
+            confirmText: 'Xóa nhóm',
+            confirmVariant: 'btn-danger',
+            onConfirm: async () => {
+                const saved = await getSavedConnections();
+                for (const c of saved) {
+                    const cGrp = (c.group || '').trim().toLowerCase();
+                    if (cGrp === targetLower || cGrp.startsWith(prefixLower)) {
+                        if (c.type === 'group_marker') {
+                            if (window.AppStorage && typeof window.AppStorage.deleteSavedConnection === 'function') {
+                                await window.AppStorage.deleteSavedConnection(c.id);
+                            }
+                        } else {
+                            c.group = '';
+                            await saveConnectionProfile(c);
+                        }
+                    }
+                }
+                loadActiveConnections();
+                if (typeof showToast === 'function') {
+                    showToast(`✓ Đã xóa nhóm "${groupName}"`, 'info');
+                }
+            }
+        });
+    }
     async function disconnect(connId) {
         if (!connId) return;
         try {
@@ -1030,6 +1715,10 @@ function initExplorer() {
 
     // ── Direct connection executor ───────────────────────────────────────────
     async function doConnect(name, payload, onConnected) {
+        if (!payload || payload.type === 'group_marker' || String(name || '').startsWith('__group__')) {
+            console.warn('[Explorer] Cannot connect to a group node:', name);
+            return { success: false, error: 'Cannot connect to a group node' };
+        }
         try {
             showToast(`Connecting to ${name}…`, 'info');
             const res = await fetch('/api/connections', {
@@ -1211,6 +1900,10 @@ function initExplorer() {
 
     // ── Reconnect (Check RAM cache first, prompt modal if missing) ────────────
     async function reconnect(name, dbType, config, onConnected) {
+        if (!config || config.type === 'group_marker' || dbType === 'group_marker' || String(name || '').startsWith('__group__')) {
+            console.warn('[Explorer] Cannot reconnect a group item:', name);
+            return;
+        }
         if (!config) {
             showToast('No saved config for this connection.', 'danger');
             return;
@@ -1257,6 +1950,22 @@ function initExplorer() {
         });
     }
 
+    // ── New Group button ──────────────────────────────────────────────────────
+    const newGroupBtn = document.getElementById('ide-btn-new-group');
+    if (newGroupBtn) {
+        newGroupBtn.addEventListener('click', () => {
+            showGroupInputModal({
+                title: 'Tạo nhóm mới',
+                onConfirm: async (groupName) => {
+                    await createGroup(groupName);
+                    if (typeof showToast === 'function') {
+                        showToast(`✓ Đã tạo nhóm "${groupName}"`, 'success');
+                    }
+                }
+            });
+        });
+    }
+
     // ── Sidebar Toolbar Database Filter button ────────────────────────────────
     const filterDbBtn = document.getElementById('ide-btn-filter-db');
     if (filterDbBtn) {
@@ -1295,11 +2004,16 @@ function initExplorer() {
         disconnect,
         deleteConnection,
         reconnect,
+        promptReconnectPassword,
         loadActiveConnections,
         getSavedConnections,
         saveConnectionProfile,
+        createGroup,
+        renameGroup,
+        deleteGroup,
         refreshNode: () => {},
         showDatabaseFilterModal,
         showSchemaChecklistModal
     };
 }
+window.promptReconnectPassword = promptReconnectPassword;

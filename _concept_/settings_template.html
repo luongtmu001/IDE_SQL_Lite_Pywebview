@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Settings - Text Editor</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    font-family: "Segoe UI", Arial, sans-serif;
+    color: #3f3f3f;
+    background: #fff;
+  }
+
+  .settings-window {
+    width: 100vw;
+    height: 100vh;
+    min-width: 900px;
+    min-height: 600px;
+    display: flex;
+    flex-direction: column;
+    border: 1px solid #d5d5d5;
+    border-radius: 9px;
+    overflow: hidden;
+    background: #fff;
+  }
+
+  /* Top blue title bar */
+  .titlebar {
+    height: 42px;
+    flex: 0 0 42px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 8px 0 18px;
+    color: white;
+    background: #2459d6;
+  }
+
+  .title-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 15px;
+    font-weight: 600;
+  }
+
+  .sliders-icon {
+    position: relative;
+    width: 14px;
+    height: 14px;
+  }
+  .sliders-icon span {
+    position: absolute;
+    left: 0;
+    width: 14px;
+    height: 1px;
+    background: white;
+  }
+  .sliders-icon span:nth-child(1) { top: 3px; }
+  .sliders-icon span:nth-child(2) { top: 8px; }
+  .sliders-icon span:nth-child(3) { top: 13px; }
+  .sliders-icon i {
+    position: absolute;
+    width: 4px;
+    height: 4px;
+    border: 1px solid white;
+    border-radius: 50%;
+    background: #2459d6;
+  }
+  .sliders-icon i:nth-of-type(1) { left: 3px; top: 1px; }
+  .sliders-icon i:nth-of-type(2) { left: 8px; top: 6px; }
+  .sliders-icon i:nth-of-type(3) { left: 4px; top: 11px; }
+
+  .window-actions {
+    display: flex;
+    height: 100%;
+    align-items: center;
+    gap: 15px;
+  }
+  .window-actions button {
+    border: 0;
+    background: transparent;
+    color: white;
+    width: 20px;
+    height: 26px;
+    padding: 0;
+    opacity: .95;
+    cursor: pointer;
+    position: relative;
+  }
+  .copy-icon::before {
+    content: "";
+    position: absolute;
+    width: 9px; height: 11px;
+    border: 1.5px solid white;
+    border-radius: 1px;
+    left: 2px; top: 7px;
+  }
+  .copy-icon::after {
+    content: "";
+    position: absolute;
+    width: 9px; height: 11px;
+    border: 1.5px solid white;
+    border-radius: 1px;
+    left: 6px; top: 3px;
+    background: #2459d6;
+  }
+  .panel-icon::before {
+    content: "";
+    position: absolute;
+    inset: 4px 1px;
+    border: 1.5px solid white;
+    border-radius: 1px;
+  }
+  .panel-icon::after {
+    content: "";
+    position: absolute;
+    left: 5px; top: 5px;
+    width: 1.5px; height: 16px;
+    background: white;
+  }
+  .fullscreen-icon::before {
+    content: "⛶";
+    position: absolute;
+    font-size: 23px;
+    line-height: 20px;
+    left: -1px; top: 1px;
+  }
+  .close-icon::before, .close-icon::after {
+    content: "";
+    position: absolute;
+    width: 20px;
+    height: 1.5px;
+    background: white;
+    left: 0; top: 12px;
+  }
+  .close-icon::before { transform: rotate(45deg); }
+  .close-icon::after { transform: rotate(-45deg); }
+
+  /* Main content */
+  .body {
+    min-height: 0;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .search-row {
+    height: 58px;
+    flex: 0 0 58px;
+    padding: 16px 47px 10px 29px;
+    display: flex;
+    align-items: center;
+  }
+
+  .search-box {
+    height: 33px;
+    width: 100%;
+    border: 1px solid #a9bddf;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    padding: 0 9px;
+    background: white;
+    box-shadow: 0 0 0 1px rgba(45,93,210,.03);
+  }
+
+  .search-box input {
+    border: 0;
+    outline: none;
+    flex: 1;
+    min-width: 0;
+    font-size: 14px;
+    color: #555;
+  }
+  .search-box input::placeholder { color: #8b8b8b; }
+
+  .search-tools {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-left: 10px;
+  }
+  .tool {
+    width: 20px; height: 20px;
+    position: relative;
+    opacity: .72;
+  }
+  .sparkle::before { content: "✧"; font-size: 21px; position:absolute; top:-4px; }
+  .sort-icon::before { content: "≋"; font-size: 22px; position:absolute; top:-5px; }
+  .filter-icon::before { content: ""; position:absolute; left:2px; top:2px; width:14px; height:13px; border:1.5px solid #555; border-radius:2px; clip-path: polygon(0 0,100% 0,62% 45%,62% 100%,38% 100%,38% 45%); }
+
+  .tabs {
+    height: 38px;
+    flex: 0 0 38px;
+    display: flex;
+    align-items: center;
+    padding-left: 30px;
+    gap: 8px;
+  }
+  .tab {
+    height: 27px;
+    padding: 4px 10px;
+    font-size: 14px;
+    font-weight: 600;
+    border-radius: 5px;
+    cursor: default;
+  }
+  .tab.active {
+    color: white;
+    background: #7898e5;
+  }
+
+  .settings-area {
+    min-height: 0;
+    flex: 1;
+    display: flex;
+    position: relative;
+  }
+
+  /* Left navigation */
+  .sidebar {
+    width: 251px;
+    flex: 0 0 251px;
+    padding-top: 14px;
+    position: relative;
+    border-right: 0;
+  }
+  .sidebar::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 1px;
+    height: 100%;
+    background: #ddd5c5;
+  }
+
+  .nav-section {
+    margin-left: 67px;
+    margin-bottom: 8px;
+    font-size: 15px;
+  }
+  .nav-item {
+    width: 182px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    padding-left: 1px;
+    font-size: 16px;
+    color: #444;
+    border: 1px solid transparent;
+    border-radius: 5px;
+  }
+  .nav-item.active {
+    border-color: #2764e7;
+    color: #303030;
+    font-weight: 600;
+  }
+  .chevron {
+    width: 22px;
+    margin-right: 1px;
+    font-size: 24px;
+    line-height: 0;
+    font-weight: 300;
+    transform: translateY(-1px);
+  }
+  .section-label {
+    margin-left: 67px;
+    margin-bottom: 2px;
+    color: #555;
+    font-size: 15px;
+  }
+
+  /* Main settings */
+  .content-scroll {
+    min-width: 0;
+    min-height: 0;
+    flex: 1;
+    overflow: hidden;
+    position: relative;
+    padding: 25px 48px 40px 47px;
+  }
+
+  .content {
+    max-width: 1190px;
+  }
+
+  h1 {
+    margin: 0 0 23px;
+    font-size: 36px;
+    line-height: 1;
+    font-weight: 500;
+    color: #4b4b4b;
+  }
+
+  .setting {
+    margin-bottom: 22px;
+  }
+  .setting-title {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 8px;
+    color: #505050;
+  }
+  .description {
+    font-size: 16px;
+    line-height: 1.42;
+    margin-bottom: 9px;
+    color: #484848;
+  }
+
+  .number-input {
+    width: 251px;
+    height: 35px;
+    border: 1px solid #7f9fdc;
+    border-radius: 5px;
+    padding: 6px 9px;
+    font-size: 16px;
+    outline: none;
+  }
+
+  .gray-setting {
+    background: #f4f4f4;
+    border-radius: 8px;
+    padding: 19px 18px 17px;
+    margin-top: 1px;
+    margin-bottom: 22px;
+  }
+  .gray-setting .setting-title {
+    margin-bottom: 9px;
+  }
+
+  select {
+    width: 390px;
+    height: 33px;
+    border: 1px solid #b6b6b6;
+    border-radius: 5px;
+    background: white;
+    padding: 4px 10px;
+    font-size: 15px;
+    color: #333;
+  }
+
+  .check-setting {
+    margin: 18px 0 27px;
+  }
+  .check-row {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    font-size: 16px;
+  }
+  .checkbox {
+    appearance: none;
+    width: 23px;
+    height: 23px;
+    border: 1px solid #c5c5c5;
+    border-radius: 3px;
+    background: white;
+    position: relative;
+    flex: 0 0 23px;
+  }
+  .checkbox:checked::after {
+    content: "";
+    position: absolute;
+    width: 11px;
+    height: 6px;
+    border-left: 2px solid #222;
+    border-bottom: 2px solid #222;
+    transform: rotate(-45deg);
+    left: 5px;
+    top: 5px;
+  }
+
+  /* Fake scrollbar from reference */
+  .scrollbar {
+    position: absolute;
+    right: 14px;
+    top: 3px;
+    bottom: 5px;
+    width: 10px;
+  }
+  .scrollbar-thumb {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 10px;
+    height: 26px;
+    border-radius: 8px;
+    background: #d5e0fb;
+  }
+
+  @media (max-width: 1100px) {
+    .sidebar { width: 220px; flex-basis: 220px; }
+    .nav-section, .section-label { margin-left: 48px; }
+    .content-scroll { padding-left: 35px; }
+    .description { font-size: 14px; }
+  }
+</style>
+</head>
+<body>
+<div class="settings-window">
+
+  <header class="titlebar">
+    <div class="title-left">
+      <div class="sliders-icon">
+        <span></span><span></span><span></span>
+        <i></i><i></i><i></i>
+      </div>
+      <span>Settings</span>
+    </div>
+
+    <div class="window-actions">
+      <button class="copy-icon" aria-label="Share"></button>
+      <button class="panel-icon" aria-label="Panel"></button>
+      <button class="fullscreen-icon" aria-label="Fullscreen"></button>
+      <button class="close-icon" aria-label="Close"></button>
+    </div>
+  </header>
+
+  <main class="body">
+    <div class="search-row">
+      <div class="search-box">
+        <input type="text" placeholder="Search settings">
+        <div class="search-tools">
+          <span class="tool sparkle"></span>
+          <span class="tool sort-icon"></span>
+          <span class="tool filter-icon"></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabs">
+      <div class="tab active">User</div>
+      <div class="tab">Workspace</div>
+      <button style="margin-left:auto;margin-right:46px;height:32px;border:1px solid #174c9e;background:#2f66bb;color:#fff;border-radius:5px;padding:0 12px;font-size:14px;">
+        Backup and Sync Settings
+      </button>
+    </div>
+
+    <div class="settings-area">
+      <aside class="sidebar">
+        <div class="section-label">Commonly Used</div>
+
+        <div class="nav-item active"><span class="chevron">›</span>Text Editor</div>
+        <div class="nav-item"><span class="chevron">›</span>Workbench</div>
+        <div class="nav-item"><span class="chevron">›</span>Window</div>
+        <div class="nav-item"><span class="chevron">›</span>Chat</div>
+        <div class="nav-item"><span class="chevron">›</span>Features</div>
+        <div class="nav-item"><span class="chevron">›</span>Application</div>
+        <div class="nav-item"><span class="chevron">›</span>Security</div>
+        <div class="nav-item"><span class="chevron">›</span>Extensions</div>
+      </aside>
+
+      <section class="content-scroll">
+        <div class="content">
+          <h1>Text Editor</h1>
+
+          <div class="setting">
+            <div class="setting-title">Accessibility Page Size</div>
+            <div class="description">
+              Controls the number of lines in the editor that can be read out by a screen reader at once.
+              When we detect a screen reader we automatically set the default to be 500.
+              Warning: this has a performance implication for numbers larger than the default.
+            </div>
+            <input class="number-input" value="500">
+          </div>
+
+          <div class="gray-setting">
+            <div class="setting-title">Accessibility Support</div>
+            <div class="description">Controls if the UI should run in a mode where it is optimized for screen readers.</div>
+            <select>
+              <option>auto</option>
+              <option>on</option>
+              <option>off</option>
+            </select>
+          </div>
+
+          <div class="check-setting">
+            <div class="setting-title">Allow Variable Fonts</div>
+            <label class="check-row">
+              <input class="checkbox" type="checkbox" checked>
+              <span>Controls whether to allow using variable fonts in the editor.</span>
+            </label>
+          </div>
+
+          <div class="check-setting">
+            <div class="setting-title">Allow Variable Fonts In Accessibility Mode</div>
+            <label class="check-row">
+              <input class="checkbox" type="checkbox">
+              <span>Controls whether to allow using variable fonts in the editor in the accessibility mode.</span>
+            </label>
+          </div>
+
+          <div class="check-setting">
+            <div class="setting-title">Allow Variable Line Heights</div>
+            <label class="check-row">
+              <input class="checkbox" type="checkbox" checked>
+              <span>Controls whether to allow using variable line heights in the editor.</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="scrollbar"><div class="scrollbar-thumb"></div></div>
+      </section>
+    </div>
+  </main>
+</div>
+</body>
+</html>

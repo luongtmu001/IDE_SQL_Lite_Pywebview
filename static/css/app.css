@@ -199,3 +199,30 @@ html[data-bs-theme="dark"] .btn-close { filter: invert(0.8); }
     background: var(--ide-border);
     flex-shrink: 0;
 }
+
+/* =============================================================================
+   REUSABLE SYSTEM LOADER & MODAL SPINNER (Yêu cầu hệ thống)
+   ============================================================================= */
+.loader {
+  width: 50px;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  border: 8px solid lightblue;
+  border-right-color: orange;
+  animation: l2 1s infinite linear;
+}
+@keyframes l2 {to{transform: rotate(1turn)}}
+
+.ide-loading-modal-dialog {
+  max-width: 290px !important;
+  margin: auto !important;
+}
+
+.ide-loading-modal-content {
+  background: var(--ide-bg-main, #1e1e1e) !important;
+  color: var(--ide-text-main, #d4d4d4) !important;
+  border: 1px solid var(--ide-border, #333) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.5) !important;
+}
+
