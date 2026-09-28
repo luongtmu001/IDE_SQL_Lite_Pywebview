@@ -9,8 +9,8 @@ html, body.profiler-body {
     flex-direction: column;
     background-color: var(--ide-bg-main, #1C1D23);
     color: var(--ide-text-main, #c7cfcf);
-    font-family: var(--ide-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
-    font-size: 12px;
+    font-family: var(--ide-ui-font-family, var(--ide-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif));
+    font-size: var(--ide-ui-font-size, 12px);
     user-select: none;
 }
 

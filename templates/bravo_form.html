@@ -354,6 +354,7 @@
     <script src="../static/js/storage.js"></script>
     <script src="../static/js/theme-registry.js"></script>
     <script src="../static/js/theme.js"></script>
+    <script src="../static/js/typography.js"></script>
     <script src="../static/js/session.js"></script>
     <script src="../static/js/connections.js"></script>
 
@@ -439,6 +440,9 @@
                 if (!settings) return;
                 const t = settings.appearance?.theme || settings.theme;
                 if (t && window.ThemeManager) window.ThemeManager.applyTheme(t, false);
+                const fam = settings.appearance?.uiFontFamily;
+                const sz = settings.appearance?.uiFontSize;
+                if (fam && sz && window.TypographyManager) window.TypographyManager.apply({ uiFontFamily: fam, uiFontSize: sz }, false);
             };
 
             // Signal ready to native backend so window appears smoothly with full DOM rendered

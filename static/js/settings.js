@@ -22,6 +22,15 @@
         { value: 'sans-serif', label: 'Sans-serif' }
     ];
 
+    const FONT_OPTIONS_UI = [
+        { value: 'Segoe UI', label: 'Segoe UI (Mặc định Windows)' },
+        { value: 'Inter', label: 'Inter' },
+        { value: 'Arial', label: 'Arial' },
+        { value: 'Roboto', label: 'Roboto' },
+        { value: 'Tahoma', label: 'Tahoma' },
+        { value: 'System UI', label: 'System UI (Native OS Font)' }
+    ];
+
     function getThemeOptions() {
         const reg = window.ThemeRegistry || (window.parent && window.parent.ThemeRegistry);
         if (reg && typeof reg.getAllThemes === 'function') {
@@ -180,6 +189,22 @@
                     min: 12,
                     max: 24,
                     step: 2
+                },
+                {
+                    key: 'uiFontFamily',
+                    label: 'Phông chữ giao diện IDE (UI Font Family)',
+                    desc: 'Biến cấu hình: appearance.uiFontFamily. Phông chữ hiển thị cho toàn bộ menu, thanh công cụ, sidebar và dialog (không ảnh hưởng Editor).',
+                    type: 'select',
+                    options: FONT_OPTIONS_UI
+                },
+                {
+                    key: 'uiFontSize',
+                    label: 'Cỡ chữ giao diện IDE (UI Font Size)',
+                    desc: 'Biến cấu hình: appearance.uiFontSize. Cỡ chữ giao diện người dùng (từ 10px đến 24px, mặc định 13px).',
+                    type: 'number',
+                    min: 10,
+                    max: 24,
+                    step: 1
                 }
             ]
         },
@@ -246,7 +271,9 @@
         },
         appearance: {
             theme: 'dark',
-            iconSize: 16
+            iconSize: 16,
+            uiFontFamily: 'Segoe UI',
+            uiFontSize: 13
         },
         sql: {
             maxRows: 1000,
@@ -373,11 +400,25 @@
         if (!_draftSettings) _draftSettings = {};
         _isDirty = true;
 
-        if (catKey === 'appearance' && field.key === 'theme') {
+        if (catKey === 'appearance') {
             if (!_draftSettings.appearance) _draftSettings.appearance = {};
-            _draftSettings.appearance.theme = value;
-            _draftSettings.theme = value;
-            return;
+            if (field.key === 'theme') {
+                _draftSettings.appearance.theme = value;
+                _draftSettings.theme = value;
+                if (window.ThemeManager && typeof window.ThemeManager.applyTheme === 'function') {
+                    window.ThemeManager.applyTheme(value, false);
+                }
+                return;
+            }
+            if (field.key === 'uiFontFamily' || field.key === 'uiFontSize') {
+                _draftSettings.appearance[field.key] = value;
+                const fam = _draftSettings.appearance.uiFontFamily || 'Segoe UI';
+                const sz = parseInt(_draftSettings.appearance.uiFontSize, 10) || 13;
+                if (window.TypographyManager && typeof window.TypographyManager.apply === 'function') {
+                    window.TypographyManager.apply({ uiFontFamily: fam, uiFontSize: sz }, false);
+                }
+                return;
+            }
         }
 
         if (field.subpath) {
@@ -408,6 +449,13 @@
             window.ThemeManager.applyTheme(theme, false);
         } else {
             document.documentElement.setAttribute('data-bs-theme', theme);
+        }
+
+        // 1.5. UI Typography (Skill: Global IDE UI Font & Font Size)
+        const uiFont = settings.appearance?.uiFontFamily || settings.appearance?.fontFamily || 'Segoe UI';
+        const uiFontSize = parseInt(settings.appearance?.uiFontSize || settings.appearance?.fontSize, 10) || 13;
+        if (window.TypographyManager && typeof window.TypographyManager.apply === 'function') {
+            window.TypographyManager.apply({ uiFontFamily: uiFont, uiFontSize: uiFontSize }, false);
         }
 
         // 2. Editor font & size (Truyền biến CSS và cập nhật CodeMirror)
@@ -516,6 +564,13 @@
             if (!_draftSettings.appearance) _draftSettings.appearance = {};
             _draftSettings.appearance.theme = theme;
 
+            // Ensure typography profile is properly validated and structured
+            const uiFam = _draftSettings.appearance.uiFontFamily || 'Segoe UI';
+            let uiSz = parseInt(_draftSettings.appearance.uiFontSize, 10);
+            if (isNaN(uiSz) || uiSz < 10 || uiSz > 24) uiSz = 13;
+            _draftSettings.appearance.uiFontFamily = uiFam;
+            _draftSettings.appearance.uiFontSize = uiSz;
+
             if (window.AppStorage && typeof window.AppStorage.saveSettings === 'function') {
                 const ok = await window.AppStorage.saveSettings(_draftSettings);
                 if (ok) {
@@ -525,11 +580,16 @@
                     if (window.ThemeManager && typeof window.ThemeManager.applyTheme === 'function') {
                         window.ThemeManager.applyTheme(theme, false);
                     }
+                    if (window.TypographyManager && typeof window.TypographyManager.apply === 'function') {
+                        window.TypographyManager.apply({ uiFontFamily: uiFam, uiFontSize: uiSz }, false);
+                    }
                     try {
                         localStorage.setItem('ide-settings', JSON.stringify(_settings));
+                        localStorage.setItem('ide-ui-font-family', uiFam);
+                        localStorage.setItem('ide-ui-font-size', String(uiSz));
                     } catch (_) {}
                     updateRawJsonEditor();
-                    showPopupAlert('Thành công', '✓ Đã lưu các thay đổi cài đặt thành công!', 'success');
+                    showPopupAlert('Thành công', '✓ Đã lưu các thay đổi cài đặt và profile giao diện thành công!', 'success');
                     return;
                 }
             }
@@ -996,6 +1056,12 @@
                     () => {
                         _draftSettings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
                         _isDirty = true;
+                        if (window.TypographyManager && typeof window.TypographyManager.apply === 'function') {
+                            window.TypographyManager.apply({
+                                uiFontFamily: DEFAULT_SETTINGS.appearance.uiFontFamily,
+                                uiFontSize: DEFAULT_SETTINGS.appearance.uiFontSize
+                            }, false);
+                        }
                         renderSidebar();
                         renderContent();
                         updateRawJsonEditor();

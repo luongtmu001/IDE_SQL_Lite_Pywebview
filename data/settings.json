@@ -3,7 +3,9 @@
     "appearance": {
         "theme": "github-light",
         "iconSize": 15,
-        "fontSize": 14
+        "uiFontFamily": "Segoe UI",
+        "uiFontSize": 13,
+        "fontSize": 13
     },
     "addons": {
         "bravo_tool": {

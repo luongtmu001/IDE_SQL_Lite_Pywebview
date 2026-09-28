@@ -8,6 +8,19 @@
    3. Khai báo tên theme trong file static/js/theme-registry.js.
    ============================================================================= */
 
+/* ── Global IDE UI Typography Tokens (Skill: Global IDE UI Font & Font Size) ── */
+:root {
+    --ide-ui-font-family:           -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+    --ide-ui-font-size:             13px;
+    --ide-ui-line-height:           1.45;
+
+    /* Proportional scale hierarchy */
+    --ide-font-xs:                  calc(var(--ide-ui-font-size) * 0.78);
+    --ide-font-sm:                  calc(var(--ide-ui-font-size) * 0.88);
+    --ide-font-md:                  var(--ide-ui-font-size);
+    --ide-font-lg:                  calc(var(--ide-ui-font-size) * 1.15);
+}
+
 /* ── 1. DARK THEME (Mặc định) ────────────────────────────────────────────────── */
 :root,
 html[data-bs-theme="dark"] {
