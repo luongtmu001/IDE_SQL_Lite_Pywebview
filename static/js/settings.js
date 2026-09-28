@@ -849,6 +849,9 @@
             desc.className = 'description';
             desc.textContent = field.desc;
 
+            const select = document.createElement('select');
+            select.className = 'select-input';
+
             const isUiFont = (catKey === 'appearance' && field.key === 'uiFontFamily');
             const isCodeFont = (field.key === 'fontFamily' && (catKey === 'editor' || catKey === 'grid' || catKey === 'messages'));
             const isTheme = (catKey === 'appearance' && field.key === 'theme');
