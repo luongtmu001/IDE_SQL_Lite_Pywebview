@@ -508,32 +508,43 @@
             window.TypographyManager.apply({ uiFontFamily: uiFont, uiFontSize: uiFontSize }, false);
         }
 
-        // 2. Editor font & size (Truyền biến CSS và cập nhật CodeMirror)
+        // 2. Editor font & size (Truyền biến CSS và cập nhật Monaco/CodeMirror)
         const editorFont = settings.editor?.fontFamily || 'Consolas';
-        const editorSize = settings.editor?.fontSize || 14;
+        const editorSize = Number(settings.editor?.fontSize) || 14;
         document.documentElement.style.setProperty('--ide-editor-font-family', editorFont);
         document.documentElement.style.setProperty('--ide-editor-font-size', editorSize + 'px');
 
-        if (window.AppEditor) {
-            const wrap = window.AppEditor.getWrapperElement ? window.AppEditor.getWrapperElement() : null;
+        const updateEditorInstance = (edWrapper) => {
+            if (!edWrapper) return;
+            const wrap = edWrapper.getWrapperElement ? edWrapper.getWrapperElement() : null;
             if (wrap) {
                 wrap.style.fontFamily = editorFont;
                 wrap.style.fontSize = editorSize + 'px';
-                if (typeof window.AppEditor.refresh === 'function') window.AppEditor.refresh();
+                if (typeof edWrapper.refresh === 'function') edWrapper.refresh();
             }
-            if (typeof window.AppEditor.setOption === 'function') {
-                if (settings.editor?.wordWrap !== undefined) window.AppEditor.setOption('lineWrapping', Boolean(settings.editor.wordWrap));
-                if (settings.editor?.tabSize !== undefined) window.AppEditor.setOption('tabSize', Number(settings.editor.tabSize) || 4);
-                if (settings.editor?.insertSpaces !== undefined) window.AppEditor.setOption('indentWithTabs', !settings.editor.insertSpaces);
+            if (typeof edWrapper.setOption === 'function') {
+                if (settings.editor?.wordWrap !== undefined) edWrapper.setOption('lineWrapping', Boolean(settings.editor.wordWrap));
+                if (settings.editor?.tabSize !== undefined) edWrapper.setOption('tabSize', Number(settings.editor.tabSize) || 4);
+                if (settings.editor?.insertSpaces !== undefined) edWrapper.setOption('indentWithTabs', !settings.editor.insertSpaces);
+                edWrapper.setOption('fontFamily', editorFont);
+                edWrapper.setOption('fontSize', editorSize);
             }
-        }
-        if (window.AppEditor2) {
-            const wrap2 = window.AppEditor2.getWrapperElement ? window.AppEditor2.getWrapperElement() : null;
-            if (wrap2) {
-                wrap2.style.fontFamily = editorFont;
-                wrap2.style.fontSize = editorSize + 'px';
-                if (typeof window.AppEditor2.refresh === 'function') window.AppEditor2.refresh();
+            if (typeof edWrapper.updateOptions === 'function') {
+                edWrapper.updateOptions({
+                    fontFamily: editorFont,
+                    fontSize: editorSize,
+                    lineHeight: Math.round(editorSize * (19 / 13)),
+                    wordWrap: settings.editor?.wordWrap ? 'on' : 'off',
+                    minimap: { enabled: Boolean(settings.editor?.minimap) }
+                });
             }
+        };
+
+        if (window.AppEditor) updateEditorInstance(window.AppEditor);
+        if (window.AppEditor2) updateEditorInstance(window.AppEditor2);
+
+        if (typeof monaco !== 'undefined' && monaco.editor && typeof monaco.editor.remeasureFonts === 'function') {
+            try { monaco.editor.remeasureFonts(); } catch (_) {}
         }
 
         // 3. Grid Result font & size (Truyền biến CSS cho bảng kết quả)
@@ -858,6 +869,7 @@
 
             function populateFontSelect(targetSelect, val, isUi) {
                 targetSelect.innerHTML = '';
+                targetSelect.dataset.systemFontsLoaded = 'false';
 
                 // 1. Recommended Fonts Group
                 const recGroup = document.createElement('optgroup');
@@ -869,9 +881,6 @@
                     const optEl = document.createElement('option');
                     optEl.value = opt.value;
                     optEl.textContent = opt.label;
-                    if (opt.value && opt.value !== 'monospace' && opt.value !== 'System UI') {
-                        optEl.style.fontFamily = `"${opt.value}", sans-serif`;
-                    }
                     if (String(opt.value).toLowerCase() === String(val || '').toLowerCase()) {
                         optEl.selected = true;
                         valFound = true;
@@ -880,89 +889,117 @@
                 });
                 targetSelect.appendChild(recGroup);
 
-                // 2. System Fonts from the computer
-                const sysFonts = _systemFonts || global._cachedSystemFonts;
-                if (sysFonts && Array.isArray(sysFonts.all) && sysFonts.all.length > 0) {
+                // If current val is not in recommended, add it as active option right away
+                if (!valFound && val) {
+                    const customOpt = document.createElement('option');
+                    customOpt.value = val;
+                    customOpt.textContent = `${val} (Đang dùng)`;
+                    customOpt.selected = true;
+                    targetSelect.insertBefore(customOpt, targetSelect.firstChild);
+                    valFound = true;
+                }
+
+                // Lazy load trigger option at the bottom
+                const lazyOpt = document.createElement('option');
+                lazyOpt.value = '__LAZY_LOAD__';
+                lazyOpt.textContent = '🔽 Tải danh sách phông máy tính... (Click to load all)';
+                lazyOpt.style.fontStyle = 'italic';
+                lazyOpt.style.color = '#007acc';
+                targetSelect.appendChild(lazyOpt);
+
+                // Lazy load function
+                const loadSystemFontsLazy = async () => {
+                    if (targetSelect.dataset.systemFontsLoaded === 'true' || targetSelect.dataset.systemFontsLoaded === 'loading') {
+                        return;
+                    }
+                    targetSelect.dataset.systemFontsLoaded = 'loading';
+
+                    const sysFonts = _systemFonts || global._cachedSystemFonts || await fetchSystemFonts();
+                    if (!sysFonts || !Array.isArray(sysFonts.all) || sysFonts.all.length === 0) {
+                        targetSelect.dataset.systemFontsLoaded = 'failed';
+                        return;
+                    }
+
+                    // Remove placeholder option if exists
+                    const placeholder = targetSelect.querySelector('option[value="__LAZY_LOAD__"]');
+                    if (placeholder) placeholder.remove();
+
+                    const curVal = targetSelect.value && targetSelect.value !== '__LAZY_LOAD__' ? targetSelect.value : val;
                     const recSet = new Set(recList.map(r => r.value.toLowerCase()));
+                    const frag = document.createDocumentFragment();
 
                     if (isUi) {
                         const sysGroup = document.createElement('optgroup');
-                        sysGroup.label = `💻 Phông chữ trên máy tính (System Fonts - ${sysFonts.all.length} phông)`;
-                        sysFonts.all.forEach(fontName => {
-                            if (recSet.has(fontName.toLowerCase())) return;
+                        sysGroup.label = `💻 Phông chữ trên máy tính (${sysFonts.all.length} phông)`;
+                        for (let i = 0; i < sysFonts.all.length; i++) {
+                            const fontName = sysFonts.all[i];
+                            if (recSet.has(fontName.toLowerCase())) continue;
                             const optEl = document.createElement('option');
                             optEl.value = fontName;
                             optEl.textContent = fontName;
-                            optEl.style.fontFamily = `"${fontName}", sans-serif`;
-                            if (String(fontName).toLowerCase() === String(val || '').toLowerCase()) {
+                            if (String(fontName).toLowerCase() === String(curVal).toLowerCase()) {
                                 optEl.selected = true;
-                                valFound = true;
                             }
                             sysGroup.appendChild(optEl);
-                        });
-                        targetSelect.appendChild(sysGroup);
+                        }
+                        frag.appendChild(sysGroup);
                     } else {
-                        // Monospace group first
+                        // Monospace first
                         const monoList = (sysFonts.monospace && sysFonts.monospace.length > 0) ? sysFonts.monospace : [];
                         if (monoList.length > 0) {
                             const monoGroup = document.createElement('optgroup');
                             monoGroup.label = `💻 Phông đơn cách trên máy (Monospace - ${monoList.length} phông)`;
-                            monoList.forEach(fontName => {
-                                if (recSet.has(fontName.toLowerCase())) return;
+                            for (let i = 0; i < monoList.length; i++) {
+                                const fontName = monoList[i];
+                                if (recSet.has(fontName.toLowerCase())) continue;
                                 const optEl = document.createElement('option');
                                 optEl.value = fontName;
                                 optEl.textContent = fontName;
-                                optEl.style.fontFamily = `"${fontName}", monospace`;
-                                if (String(fontName).toLowerCase() === String(val || '').toLowerCase()) {
+                                if (String(fontName).toLowerCase() === String(curVal).toLowerCase()) {
                                     optEl.selected = true;
-                                    valFound = true;
                                 }
                                 monoGroup.appendChild(optEl);
-                            });
-                            targetSelect.appendChild(monoGroup);
+                            }
+                            frag.appendChild(monoGroup);
                         }
 
-                        // Other system fonts group
+                        // Other system fonts
                         const monoSet = new Set(monoList.map(m => m.toLowerCase()));
                         const otherGroup = document.createElement('optgroup');
-                        otherGroup.label = `Tất cả phông khác trên máy (All Other Fonts)`;
-                        sysFonts.all.forEach(fontName => {
-                            if (recSet.has(fontName.toLowerCase()) || monoSet.has(fontName.toLowerCase())) return;
+                        otherGroup.label = `Tất cả phông khác trên máy`;
+                        for (let i = 0; i < sysFonts.all.length; i++) {
+                            const fontName = sysFonts.all[i];
+                            if (recSet.has(fontName.toLowerCase()) || monoSet.has(fontName.toLowerCase())) continue;
                             const optEl = document.createElement('option');
                             optEl.value = fontName;
                             optEl.textContent = fontName;
-                            optEl.style.fontFamily = `"${fontName}", sans-serif`;
-                            if (String(fontName).toLowerCase() === String(val || '').toLowerCase()) {
+                            if (String(fontName).toLowerCase() === String(curVal).toLowerCase()) {
                                 optEl.selected = true;
-                                valFound = true;
                             }
                             otherGroup.appendChild(optEl);
-                        });
-                        targetSelect.appendChild(otherGroup);
+                        }
+                        frag.appendChild(otherGroup);
                     }
-                }
 
-                // If current val is not found, prepend it
-                if (!valFound && val) {
-                    const customOpt = document.createElement('option');
-                    customOpt.value = val;
-                    customOpt.textContent = `${val} (Hiện tại)`;
-                    customOpt.style.fontFamily = `"${val}", sans-serif`;
-                    customOpt.selected = true;
-                    targetSelect.insertBefore(customOpt, targetSelect.firstChild);
-                }
+                    targetSelect.appendChild(frag);
+                    targetSelect.dataset.systemFontsLoaded = 'true';
+                    if (curVal && curVal !== '__LAZY_LOAD__') {
+                        targetSelect.value = curVal;
+                    }
+                };
+
+                targetSelect._triggerLazyFontLoad = loadSystemFontsLazy;
+                targetSelect.addEventListener('focus', loadSystemFontsLazy, { once: true });
+                targetSelect.addEventListener('mousedown', loadSystemFontsLazy, { once: true });
+                targetSelect.addEventListener('keydown', (e) => {
+                    if (e.key === 'ArrowDown' || e.key === ' ' || e.key === 'Enter') {
+                        loadSystemFontsLazy();
+                    }
+                }, { once: true });
             }
 
             if (isUiFont || isCodeFont) {
                 populateFontSelect(select, currentVal, isUiFont);
-                if (!_systemFonts && !global._cachedSystemFonts) {
-                    fetchSystemFonts().then(fonts => {
-                        if (fonts && select.isConnected) {
-                            const valBefore = select.value || currentVal;
-                            populateFontSelect(select, valBefore, isUiFont);
-                        }
-                    });
-                }
             } else if (isTheme) {
                 const options = getThemeOptions();
                 options.forEach(opt => {
@@ -988,6 +1025,13 @@
             }
 
             select.onchange = () => {
+                if (select.value === '__LAZY_LOAD__') {
+                    select.value = currentVal || '';
+                    if (typeof select._triggerLazyFontLoad === 'function') {
+                        select._triggerLazyFontLoad();
+                    }
+                    return;
+                }
                 setDraftValue(catKey, field, select.value);
             };
 

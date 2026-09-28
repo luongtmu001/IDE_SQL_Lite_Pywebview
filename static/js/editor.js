@@ -353,7 +353,9 @@
                 } else if (opt === 'lineWrapping') {
                     ed.updateOptions({ wordWrap: val ? 'on' : 'off' });
                 } else if (opt === 'fontSize') {
-                    ed.updateOptions({ fontSize: Number(val) || 13 });
+                    const sz = Number(val) || 13;
+                    const expectedLineHeight = Math.round(sz * (19 / 13));
+                    ed.updateOptions({ fontSize: sz, lineHeight: expectedLineHeight });
                     remeasureMonacoFonts();
                 } else if (opt === 'fontFamily') {
                     ed.updateOptions({ fontFamily: val });
@@ -482,14 +484,47 @@
             ? window.MonacoInit.getMonacoTheme(curTheme)
             : ((curTheme === 'light' || curTheme === 'win-nt' || curTheme === 'win-xp' || curTheme.toLowerCase().includes('light')) ? 'ide-light' : 'ide-dark');
 
+        let initialFontFamily = "'JetBrains Mono', Consolas, 'Courier New', monospace";
+        let initialFontSize = 14;
+        let initialWordWrap = 'off';
+        let initialMinimap = true;
+        let initialTabSize = 4;
+        let initialInsertSpaces = true;
+
+        try {
+            const raw = localStorage.getItem('ide-settings');
+            if (raw) {
+                const s = JSON.parse(raw);
+                if (s && s.editor) {
+                    if (s.editor.fontFamily) initialFontFamily = s.editor.fontFamily;
+                    if (s.editor.fontSize) initialFontSize = Number(s.editor.fontSize) || 14;
+                    if (s.editor.wordWrap !== undefined) initialWordWrap = s.editor.wordWrap ? 'on' : 'off';
+                    if (s.editor.minimap !== undefined) initialMinimap = Boolean(s.editor.minimap);
+                    if (s.editor.tabSize !== undefined) initialTabSize = Number(s.editor.tabSize) || 4;
+                    if (s.editor.insertSpaces !== undefined) initialInsertSpaces = Boolean(s.editor.insertSpaces);
+                }
+            }
+        } catch (_) {}
+
+        try {
+            const cssFont = getComputedStyle(document.documentElement).getPropertyValue('--ide-editor-font-family').trim();
+            if (cssFont && (!initialFontFamily || initialFontFamily.includes('JetBrains Mono, Consolas'))) {
+                initialFontFamily = cssFont;
+            }
+            const cssSize = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--ide-editor-font-size'), 10);
+            if (!isNaN(cssSize) && cssSize > 0) {
+                initialFontSize = cssSize;
+            }
+        } catch (_) {}
+
         const model = monaco.editor.createModel(initialValue || '', 'sql');
 
         const editor = monaco.editor.create(containerEl, {
             model: model,
             theme: themeName,
-            fontSize: 13,
-            lineHeight: 19,
-            fontFamily: "'JetBrains Mono', Consolas, 'Courier New', monospace",
+            fontSize: initialFontSize,
+            lineHeight: Math.round(initialFontSize * (19 / 13)),
+            fontFamily: initialFontFamily,
             fontLigatures: false,
             letterSpacing: 0,
             lineNumbers: 'on',
@@ -502,8 +537,8 @@
             autoClosingBrackets: 'always',
             autoClosingQuotes: 'always',
             autoIndent: 'full',
-            tabSize: 4,
-            insertSpaces: true,
+            tabSize: initialTabSize,
+            insertSpaces: initialInsertSpaces,
             renderWhitespace: 'none',
             renderControlCharacters: false,
             renderLineHighlight: 'line',
@@ -512,8 +547,8 @@
             mouseWheelZoom: true,
             contextmenu: true,
             fixedOverflowWidgets: true,
-            minimap: { enabled: true },
-            wordWrap: 'off',
+            minimap: { enabled: initialMinimap },
+            wordWrap: initialWordWrap,
             // Disable native suggest widget so #ide-intellisense-popup manages autocompletion:
             quickSuggestions: false,
             suggestOnTriggerCharacters: false,
@@ -1117,6 +1152,48 @@
             window.AppEditor.setOption('theme', themeName);
         }
         remeasureMonacoFonts();
+    });
+
+    // ── 6.5. Listen to Settings Changes (Font, Size, Tab, Wrap, etc.) ─────────
+    function applySettingsToEditors(settings) {
+        if (!settings || !settings.editor) return;
+        const edConfig = settings.editor;
+        const fontFam = edConfig.fontFamily;
+        const fontSz = Number(edConfig.fontSize);
+        const opts = {};
+        if (fontFam) opts.fontFamily = fontFam;
+        if (fontSz && !isNaN(fontSz)) {
+            opts.fontSize = fontSz;
+            opts.lineHeight = Math.round(fontSz * (19 / 13));
+        }
+        if (edConfig.wordWrap !== undefined) opts.wordWrap = edConfig.wordWrap ? 'on' : 'off';
+        if (edConfig.minimap !== undefined) opts.minimap = { enabled: Boolean(edConfig.minimap) };
+
+        [_primaryEditor, _secondaryEditor].forEach(ed => {
+            if (!ed) return;
+            ed.updateOptions(opts);
+            const m = ed.getModel();
+            if (m) {
+                if (edConfig.tabSize !== undefined) m.updateOptions({ tabSize: Number(edConfig.tabSize) || 4 });
+                if (edConfig.insertSpaces !== undefined) m.updateOptions({ insertSpaces: Boolean(edConfig.insertSpaces) });
+            }
+        });
+        remeasureMonacoFonts();
+    }
+
+    document.addEventListener('ide-settings-updated', (e) => {
+        if (e.detail && e.detail.settings) {
+            applySettingsToEditors(e.detail.settings);
+        }
+    });
+
+    window.addEventListener('storage', (e) => {
+        if (e.key === 'ide-settings' && e.newValue) {
+            try {
+                const parsed = JSON.parse(e.newValue);
+                applySettingsToEditors(parsed);
+            } catch (_) {}
+        }
     });
 
     // ── 7. Global Syntax Check Helper ─────────────────────────────────────────
