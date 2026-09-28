@@ -342,6 +342,13 @@
         if (window.MonacoSqlLanguage && typeof window.MonacoSqlLanguage.register === 'function') {
             window.MonacoSqlLanguage.register();
         }
+        try {
+            const curTheme = document.documentElement.getAttribute('data-bs-theme') || 'dark';
+            const mTheme = getMonacoTheme(curTheme);
+            if (typeof monaco !== 'undefined' && monaco.editor) {
+                monaco.editor.setTheme(mTheme);
+            }
+        } catch (_) {}
         while (_readyCallbacks.length > 0) {
             const cb = _readyCallbacks.shift();
             try { cb(); } catch (e) { console.error('[MonacoInit] Callback error:', e); }

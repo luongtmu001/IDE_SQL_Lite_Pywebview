@@ -35,10 +35,23 @@
             { separator: true },
             { id: 'script-create', label: 'Script as CREATE', icon: 'fa-code' },
             { id: 'script-alter', label: 'Script as ALTER', icon: 'fa-pen-to-square' },
+            { id: 'view-definition', label: 'View Definition', icon: 'fa-eye' },
             { separator: true },
             { id: 'refresh', label: 'Refresh', icon: 'fa-rotate-right' },
             { separator: true },
             { id: 'drop', label: 'Drop View', icon: 'fa-circle-minus', danger: true },
+        ],
+        materialized_view: [
+            { id: 'select-top', label: 'Select Top 1000', icon: 'fa-table-list' },
+            { separator: true },
+            { id: 'script-create', label: 'Script as CREATE', icon: 'fa-code' },
+            { id: 'script-alter', label: 'Script as ALTER', icon: 'fa-pen-to-square' },
+            { id: 'view-definition', label: 'View Definition', icon: 'fa-eye' },
+            { id: 'refresh-matview', label: 'Refresh Data', icon: 'fa-arrows-rotate' },
+            { separator: true },
+            { id: 'refresh', label: 'Refresh', icon: 'fa-rotate-right' },
+            { separator: true },
+            { id: 'drop', label: 'Drop Materialized View', icon: 'fa-circle-minus', danger: true },
         ],
         procedure: [
             { id: 'execute', label: 'Execute', icon: 'fa-play' },
@@ -158,14 +171,22 @@
                 }
                 break;
             case 'open-profiler':
+                const profilerTargetConn = nodeData.connId || nodeData.name || window.LastFocusedTreeContext?.connectionId;
+                const profilerTargetType = nodeData.dbType || window.LastFocusedTreeContext?.dbType;
                 if (window.pywebview && window.pywebview.api && typeof window.pywebview.api.open_profiler_window === 'function') {
                     if (window.AppLoader) window.AppLoader.show('Đang mở SQL Trace Profiler...');
-                    window.pywebview.api.open_profiler_window(nodeData.connId || nodeData.name, nodeData.dbType);
+                    window.pywebview.api.open_profiler_window(profilerTargetConn, profilerTargetType);
                     setTimeout(() => { if (window.AppLoader) window.AppLoader.hide(); }, 700);
                 }
                 break;
+            case 'refresh-matview':
+                {
+                    const sql = `REFRESH MATERIALIZED VIEW "${schema || 'public'}"."${name}";`;
+                    openScriptInNewTab(sql, `REFRESH_${name}`, nodeData, true);
+                }
+                break;
             case 'disconnect':
-                if (window.AppExplorer) window.AppExplorer.disconnect(connId);
+                if (window.AppExplorer) window.AppExplorer.disconnect(connId || nodeData?.connectionId || nodeData?.id);
                 break;
             case 'new-connection': {
                 const connBtn = document.getElementById('ide-btn-connect');
@@ -271,7 +292,9 @@
             connectionName: nodeData.connName || window.ActiveConnectionName,
             database:       nodeData.database || window.ActiveDatabase,
             schema:         nodeData.schema   || window.ActiveSchema,
-            dbType:         nodeData.dbType   || window.ActiveDbType
+            dbType:         nodeData.dbType   || window.ActiveDbType,
+            nodeType:       nodeData.type     || null,
+            config:         nodeData.config   || null
         });
 
         if (autoExecute && window.AppQuery) {
@@ -295,14 +318,27 @@
             if (data.definition) {
                 let sql = data.definition;
                 if (mode === 'script-alter') {
-                    if (/^\s*CREATE\s+TRIGGER\b/im.test(sql)) {
-                        sql = sql.replace(/^\s*CREATE\s+TRIGGER\b/im, 'ALTER TRIGGER');
-                    } else if (/^\s*CREATE\s+OR\s+REPLACE\s+TRIGGER\b/im.test(sql)) {
-                        sql = sql.replace(/^\s*CREATE\s+OR\s+REPLACE\s+TRIGGER\b/im, 'ALTER TRIGGER');
-                    } else if (dbType === 'postgresql') {
-                        sql = `-- In PostgreSQL, triggers are altered by modifying the trigger function or DROP/CREATE:\n${sql}`;
+                    const isPg = (dbType === 'postgresql' || window.ActiveDbType === 'postgresql');
+                    if (type === 'trigger') {
+                        if (/^\s*CREATE\s+TRIGGER\b/im.test(sql)) {
+                            sql = sql.replace(/^\s*CREATE\s+TRIGGER\b/im, 'ALTER TRIGGER');
+                        } else if (/^\s*CREATE\s+OR\s+REPLACE\s+TRIGGER\b/im.test(sql)) {
+                            sql = sql.replace(/^\s*CREATE\s+OR\s+REPLACE\s+TRIGGER\b/im, 'ALTER TRIGGER');
+                        } else if (isPg) {
+                            sql = `-- In PostgreSQL, triggers are altered by modifying the trigger function or DROP/CREATE:\n${sql}`;
+                        }
+                    } else if (isPg) {
+                        // In PostgreSQL: views, functions, and procedures use CREATE OR REPLACE
+                        if (type === 'materialized_view' || type === 'materialized_views') {
+                            sql = `-- To alter a materialized view definition in PostgreSQL, DROP and recreate:\nDROP MATERIALIZED VIEW IF EXISTS "${schema || 'public'}"."${name}";\n\n${sql}`;
+                        }
                     } else {
-                        sql = sql.replace(/^\s*CREATE\s+/im, 'ALTER ');
+                        // SQL Server / others
+                        if (/^\s*CREATE\s+OR\s+REPLACE\b/im.test(sql)) {
+                            sql = sql.replace(/^\s*CREATE\s+OR\s+REPLACE\b/im, 'CREATE OR ALTER');
+                        } else if (/^\s*CREATE\b/im.test(sql)) {
+                            sql = sql.replace(/^\s*CREATE\b/im, 'ALTER');
+                        }
                     }
                 }
                 openScriptInNewTab(sql, `${titlePrefix}${name}`, nodeData, false);

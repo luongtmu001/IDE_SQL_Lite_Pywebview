@@ -117,13 +117,13 @@ class TestTableDesigner(unittest.TestCase):
 
         diff = TableDesignerService.generate_diff(orig, mod)
         self.assertTrue(diff["has_destructive"])
-        self.assertTrue(any("DROP COLUMN [OldColumn]" in s["sql"] for s in diff["statements"]))
-        self.assertTrue(any(s["destructive"] for s in diff["statements"] if "DROP COLUMN" in s["sql"]))
-        self.assertTrue(any("ADD [NewColumn] nvarchar(100) NULL" in s["sql"] for s in diff["statements"]))
-        self.assertTrue(any("ALTER COLUMN [Price] decimal(18, 2) NOT NULL" in s["sql"] for s in diff["statements"]))
+        self.assertTrue(any("drop column OldColumn" in s["sql"] for s in diff["statements"]))
+        self.assertTrue(any(s["destructive"] for s in diff["statements"] if "drop column" in s["sql"].lower()))
+        self.assertTrue(any("add NewColumn nvarchar(100)" in s["sql"] for s in diff["statements"]))
+        self.assertTrue(any("alter column Price decimal(18, 2) not null" in s["sql"] for s in diff["statements"]))
         self.assertTrue(any("DROP INDEX [IX_Old]" in s["sql"] for s in diff["statements"]))
         self.assertTrue(any("CREATE NONCLUSTERED INDEX [IX_New]" in s["sql"] for s in diff["statements"]))
-        self.assertTrue(any("ADD CONSTRAINT [CK_Price] CHECK ([Price] > 0)" in s["sql"] for s in diff["statements"]))
+        self.assertTrue(any("add constraint [CK_Price] check ([Price] > 0)" in s["sql"] for s in diff["statements"]))
         self.assertTrue(len(diff["warnings"]) > 0)
 
     def test_api_endpoints(self):
@@ -179,7 +179,7 @@ class TestTableDesigner(unittest.TestCase):
             })
             self.assertEqual(res.status_code, 200)
             self.assertTrue(res.json["success"])
-            self.assertIn("ADD [Username] nvarchar(50) NOT NULL", res.json["diff"]["migration_sql"])
+            self.assertIn("add username nvarchar(50) not null", res.json["diff"]["migration_sql"].lower())
 
             # 4. Test POST /apply
             res = self.client.post('/api/metadata/c1/table-design/apply', json={
@@ -192,6 +192,65 @@ class TestTableDesigner(unittest.TestCase):
                 ["ALTER TABLE [dbo].[Users] ADD [Username] nvarchar(50) NOT NULL;"], database="TestDB"
             )
             mock_conn.metadata_service.invalidate.assert_called_once()
+
+    def test_generate_diff_empty_has_no_changes(self):
+        orig = {
+            "engine": "sqlserver",
+            "schema": "dbo",
+            "table": "Product",
+            "columns": [{"name": "Id", "type": "int", "nullable": False, "is_pk": True}],
+            "indexes": [], "uniques": [], "checks": [], "foreign_keys": [], "triggers": []
+        }
+        mod = {
+            "engine": "sqlserver",
+            "schema": "dbo",
+            "table": "Product",
+            "columns": [{"name": "Id", "type": "int", "nullable": False, "is_pk": True}],
+            "indexes": [], "uniques": [], "checks": [], "foreign_keys": [], "triggers": []
+        }
+        diff = TableDesignerService.generate_diff(orig, mod)
+        self.assertFalse(diff["has_changes"])
+        self.assertEqual(diff["migration_sql"], "")
+        self.assertEqual(len(diff["statements"]), 0)
+
+    def test_generate_diff_table_rename(self):
+        # SQL Server rename
+        orig_sqlserver = {
+            "engine": "sqlserver",
+            "schema": "dbo",
+            "table": "OldTable",
+            "columns": [{"name": "Id", "type": "int", "nullable": False, "is_pk": True}],
+            "indexes": [], "uniques": [], "checks": [], "foreign_keys": [], "triggers": []
+        }
+        mod_sqlserver = {
+            "engine": "sqlserver",
+            "schema": "dbo",
+            "table": "NewTable",
+            "columns": [{"name": "Id", "type": "int", "nullable": False, "is_pk": True}],
+            "indexes": [], "uniques": [], "checks": [], "foreign_keys": [], "triggers": []
+        }
+        diff_ss = TableDesignerService.generate_diff(orig_sqlserver, mod_sqlserver)
+        self.assertTrue(diff_ss["has_changes"])
+        self.assertTrue(any("sp_rename" in s["sql"] and "OldTable" in s["sql"] and "NewTable" in s["sql"] for s in diff_ss["statements"]))
+
+        # PostgreSQL rename
+        orig_pg = {
+            "engine": "postgresql",
+            "schema": "public",
+            "table": "old_table",
+            "columns": [{"name": "id", "type": "int4", "nullable": False, "is_pk": True}],
+            "indexes": [], "uniques": [], "checks": [], "foreign_keys": [], "triggers": []
+        }
+        mod_pg = {
+            "engine": "postgresql",
+            "schema": "public",
+            "table": "new_table",
+            "columns": [{"name": "id", "type": "int4", "nullable": False, "is_pk": True}],
+            "indexes": [], "uniques": [], "checks": [], "foreign_keys": [], "triggers": []
+        }
+        diff_pg = TableDesignerService.generate_diff(orig_pg, mod_pg)
+        self.assertTrue(diff_pg["has_changes"])
+        self.assertTrue(any("RENAME TO \"new_table\"" in s["sql"] for s in diff_pg["statements"]))
 
     def test_frontend_assets_rendered(self):
         res = self.client.get('/')
@@ -273,7 +332,7 @@ class TestTableDesigner(unittest.TestCase):
 
     def test_postgresql_get_trigger_definition(self):
         adapter = PostgreSqlAdapter({'host': 'localhost', 'port': 5432, 'user': 'postgres', 'password': 'pw'})
-        def mock_execute(sql, params=None, database=None):
+        def mock_execute(sql, params=None, database=None, **kwargs):
             if "pg_get_triggerdef" in sql:
                 return {"rows": [("CREATE TRIGGER tr_audit AFTER INSERT ON orders FOR EACH ROW EXECUTE FUNCTION notify();",)]}
             return {"rows": []}

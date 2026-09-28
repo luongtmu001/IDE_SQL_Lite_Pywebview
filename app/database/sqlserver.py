@@ -17,6 +17,7 @@ def serialize_cell(val):
     return str(val)
 
 class SqlServerAdapter(DatabaseAdapter):
+    db_type = "sqlserver"
 
     def connect(self):
         if pyodbc is None:
@@ -158,7 +159,7 @@ class SqlServerAdapter(DatabaseAdapter):
             self.connection.close()
             self.connection = None
 
-    def execute(self, sql, params=None, limit=None, database=None):
+    def execute(self, sql, params=None, limit=None, database=None, schema=None, **kwargs):
         cursor = self.connection.cursor()
 
         try:

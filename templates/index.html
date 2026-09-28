@@ -40,6 +40,9 @@
     <link rel="stylesheet" href="../static/css/context-menu.css">
     <link rel="stylesheet" href="../static/css/table-designer.css">
     <link rel="stylesheet" href="../static/css/table-data-editor.css">
+    <!-- CodeMirror (for Table Designer SQL preview, live diff, and triggers) -->
+    <link rel="stylesheet" href="../static/vendor/codemirror/codemirror.min.css">
+    <link rel="stylesheet" href="../static/vendor/codemirror/darcula.min.css">
     <!-- Monaco Editor CSS -->
     <link rel="stylesheet" href="../static/vendor/monaco/vs/editor/editor.main.css">
     <link rel="stylesheet" href="../static/css/bravo.css">
@@ -169,6 +172,9 @@
                 </button>
                 <ul class="dropdown-menu shadow" id="ide-ctx-db-menu" aria-labelledby="ide-ctx-database"
                     style="min-width: 200px; max-height: 280px; overflow-y: auto;">
+                    <li class="p-1 border-bottom d-none" id="ide-ctx-db-search-wrap">
+                        <input type="text" id="ide-ctx-db-search" class="form-control form-control-sm" placeholder="Search database...">
+                    </li>
                     <!-- Populated dynamically as single-select list -->
                 </ul>
             </div>
@@ -179,7 +185,7 @@
             <div class="dropdown d-inline-block">
                 <button class="ide-ctx-badge dropdown-toggle" type="button" id="ide-ctx-schema"
                     data-bs-toggle="dropdown" aria-expanded="false" title="Switch Schema">
-                    <i class="fa-solid fa-layer-group me-1 text-muted"></i>
+                    <i class="fa-solid fa-layer-group me-1 text-warning"></i>
                     <span id="ide-ctx-schema-label" class="text-truncate" style="max-width: 110px;">—</span>
                 </button>
                 <ul class="dropdown-menu shadow" id="ide-ctx-schema-menu" aria-labelledby="ide-ctx-schema"
@@ -364,6 +370,49 @@
             <!-- Horizontal drag resizer (editor ↕ results) -->
             <div class="ide-resizer-horizontal"></div>
 
+            <!-- Editor Status Bar (SSMS style - zoom, issues, ln/col, crlf, utf-8) -->
+            <div id="ide-editor-status-bar" class="ide-editor-status-bar d-flex align-items-center justify-content-between px-2 user-select-none">
+                <div class="d-flex align-items-center gap-2">
+                    <!-- Zoom Combo Box -->
+                    <div class="ide-editor-zoom-wrap dropdown position-relative">
+                        <div class="ide-editor-zoom-box">
+                            <input type="text" id="ide-sb-zoom-input" class="ide-sb-zoom-input" value="100 %" title="Zoom % (Nhập số hoặc chọn mốc)" aria-label="Editor Zoom">
+                            <button type="button" class="ide-sb-zoom-btn dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown" aria-expanded="false" title="Chọn mức Zoom">
+                                <span class="visually-hidden">Toggle Zoom</span>
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-start ide-sb-zoom-menu shadow">
+                                <li><button class="dropdown-item" type="button" data-zoom="400">400 %</button></li>
+                                <li><button class="dropdown-item" type="button" data-zoom="300">300 %</button></li>
+                                <li><button class="dropdown-item" type="button" data-zoom="200">200 %</button></li>
+                                <li><button class="dropdown-item" type="button" data-zoom="150">150 %</button></li>
+                                <li><button class="dropdown-item" type="button" data-zoom="125">125 %</button></li>
+                                <li><button class="dropdown-item" type="button" data-zoom="100">100 %</button></li>
+                                <li><button class="dropdown-item" type="button" data-zoom="75">75 %</button></li>
+                                <li><button class="dropdown-item" type="button" data-zoom="50">50 %</button></li>
+                                <li><button class="dropdown-item" type="button" data-zoom="20">20 %</button></li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <!-- Editor Issues / Errors -->
+                    <div id="ide-sb-issues" class="ide-sb-issues" title="No syntax issues found">
+                        <i class="fa-solid fa-circle-check text-success"></i>
+                        <span id="ide-sb-issues-text">No issues found</span>
+                    </div>
+                </div>
+
+                <!-- Right Side: Ln/Col, Tab/Space, CRLF, UTF-8 -->
+                <div class="d-flex align-items-center">
+                    <span id="ide-sb-cursor" class="ide-sb-item" title="Line, Column (Selection)">Ln: 1, Ch: 1</span>
+                    <span class="ide-sb-sep">|</span>
+                    <span id="ide-sb-indent" class="ide-sb-item clickable" title="Click to toggle Spaces/Tabs">SPACES: 4</span>
+                    <span class="ide-sb-sep">|</span>
+                    <span id="ide-sb-eol" class="ide-sb-item clickable" title="Click to toggle CRLF/LF">CRLF</span>
+                    <span class="ide-sb-sep">|</span>
+                    <span id="ide-sb-encoding" class="ide-sb-item" title="File Encoding">UTF-8</span>
+                </div>
+            </div>
+
             <!-- Results pane -->
 <div id="ide-result-panel" class="d-flex flex-column ide-result-panel">
 
@@ -495,9 +544,28 @@
                         </div>
                     </div>
 
-                    <div class="mb-2">
-                        <label class="ide-form-label">Default Database</label>
-                        <input type="text" class="form-control form-control-sm" id="connDb" placeholder="(optional)">
+                    <div class="row g-2 mb-2">
+                        <div class="col-6">
+                            <label class="ide-form-label d-flex align-items-center justify-content-between">
+                                <span>Default Database</span>
+                                <a href="javascript:void(0);" id="btnFetchDbs" class="small text-decoration-none text-info" style="font-size: 11px;" title="Tải danh sách Database từ server">
+                                    <i class="fa-solid fa-rotate me-1"></i>Load
+                                </a>
+                            </label>
+                            <input type="text" class="form-control form-control-sm" id="connDb" placeholder="(optional)" list="connDbList" autocomplete="off">
+                            <datalist id="connDbList"></datalist>
+                        </div>
+                        <div class="col-6">
+                            <label class="ide-form-label d-flex align-items-center justify-content-between">
+                                <span>Default Schema</span>
+                                <a href="javascript:void(0);" id="btnFetchSchemas" class="small text-decoration-none text-info" style="font-size: 11px;" title="Kết nối server để tải danh sách Schema">
+                                    <i class="fa-solid fa-rotate me-1"></i>Load
+                                </a>
+                            </label>
+                            <select class="form-select form-select-sm" id="connSchema">
+                                <option value="">(Tất cả / Mặc định)</option>
+                            </select>
+                        </div>
                     </div>
 
                     <div id="connSqlServerOptionsGroup">
@@ -833,6 +901,7 @@
                 </div>
 
                 <div class="border rounded overflow-hidden" style="height: 320px;">
+                    <div id="td-modal-diff-editor" style="width: 100%; height: 100%;"></div>
                     <textarea id="td-modal-diff-sql" class="d-none"></textarea>
                 </div>
             </div>
@@ -851,6 +920,11 @@
 
     <!-- Bootstrap 5 JS -->
     <script src="../static/vendor/bootstrap/bootstrap.bundle.min.js"></script>
+
+    <!-- CodeMirror Engine (used by Table Designer) -->
+    <script src="../static/vendor/codemirror/codemirror.min.js"></script>
+    <script src="../static/vendor/codemirror/sql.min.js"></script>
+    <script src="../static/vendor/codemirror/searchcursor.min.js"></script>
 
     <!-- Monaco Editor Engine & Languages -->
     <script src="../static/vendor/monaco/vs/loader.js"></script>
@@ -930,11 +1004,11 @@
                 try {
                     if (window.pywebview && window.pywebview.api && typeof window.pywebview.api.open_profiler_window === 'function') {
                         if (window.AppLoader) window.AppLoader.show('Đang mở SQL Trace Profiler...');
-                        var activeConnId = null;
-                        if (window.AppExplorer && window.AppExplorer.currentConnection) {
-                            activeConnId = window.AppExplorer.currentConnection.id || window.AppExplorer.currentConnection.name;
-                        }
-                        window.pywebview.api.open_profiler_window(activeConnId);
+                        var activeConnId = window.LastFocusedTreeContext?.connectionId
+                            || (window.AppExplorer && window.AppExplorer.currentConnection ? (window.AppExplorer.currentConnection.id || window.AppExplorer.currentConnection.name) : null)
+                            || window.ActiveConnectionId;
+                        var activeDbType = window.LastFocusedTreeContext?.dbType || window.ActiveDbType;
+                        window.pywebview.api.open_profiler_window(activeConnId, activeDbType);
                         setTimeout(function() { if (window.AppLoader) window.AppLoader.hide(); }, 700);
                     }
                 } catch(e) {

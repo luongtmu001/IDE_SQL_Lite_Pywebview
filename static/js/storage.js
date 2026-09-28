@@ -9,18 +9,31 @@
 (function (global) {
     'use strict';
 
+    let _cachedApi = null;
     async function ensureApi() {
+        if (_cachedApi) return _cachedApi;
         if (window.pywebview && window.pywebview.api) {
-            return window.pywebview.api;
+            _cachedApi = window.pywebview.api;
+            return _cachedApi;
+        }
+        if (typeof window.waitForPywebview === 'function') {
+            const api = await window.waitForPywebview();
+            if (api) {
+                _cachedApi = api;
+                return _cachedApi;
+            }
         }
         return new Promise((resolve) => {
             const onReady = () => {
                 window.removeEventListener('pywebviewready', onReady);
-                resolve(window.pywebview.api);
+                _cachedApi = window.pywebview?.api || null;
+                resolve(_cachedApi);
             };
             window.addEventListener('pywebviewready', onReady);
-            // Fallback timeout
-            setTimeout(() => resolve(window.pywebview?.api || null), 1500);
+            setTimeout(() => {
+                _cachedApi = window.pywebview?.api || null;
+                resolve(_cachedApi);
+            }, 1000);
         });
     }
 

@@ -1,8 +1,9 @@
 {
-    "theme": "shades-of-purple",
+    "theme": "github-light",
     "appearance": {
-        "theme": "shades-of-purple",
-        "iconSize": 15
+        "theme": "github-light",
+        "iconSize": 15,
+        "fontSize": 14
     },
     "addons": {
         "bravo_tool": {
@@ -11,7 +12,7 @@
     },
     "editor": {
         "fontFamily": "JetBrains Mono",
-        "fontSize": 14,
+        "fontSize": 15,
         "tabSize": 4,
         "insertSpaces": true,
         "wordWrap": false,

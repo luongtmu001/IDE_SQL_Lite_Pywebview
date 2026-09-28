@@ -41,7 +41,9 @@ Method 1
 Chọn Backend đang được cài đặt trên máy chủ BRAVO
 
 Method 2
-Kết nối từ xa thông qua thông tin Backend
+Kết nối từ xa thông qua thông tin Backend (gồm 2 phương thức
+1. 1 backend: Nhập thông tin backend để lắng nghe thay đổi vào csdl
+2. nhiều backend => sử dụng redis cache. Nhập thông tin redis cache
 
 Method 3
 Kết nối trực tiếp tới PostgreSQL thông qua cùng mạng
@@ -81,6 +83,10 @@ PostgreSQL Event Infrastructure
 Thông tin Redis phải được cấu hình riêng.
 
 ---
+
+# 2.1: Giai diện
+
+Tham khảo thiết kế trong link: D:\Luong\NB_Personal\Python\IDE-SQL-Lite_New_Pyweb\_concept_\Profiler
 
 # 3. Kiến trúc tổng thể
 
@@ -252,7 +258,7 @@ nếu Backend có thể được phát hiện từ môi trường cài đặt.
 
 ## 7.1. Backend Discovery
 
-Hệ thống phải có cơ chế phát hiện Backend.
+Hệ thống phải có cơ chế phát hiện Backend. Cụ thể là IIS của windown. Hiển thị selection để chọn
 
 Có thể dựa trên:
 
@@ -271,23 +277,7 @@ Không được hard-code một đường dẫn hoặc port duy nhất.
 
 ## 7.2. Backend List
 
-Nếu máy chủ có nhiều Backend:
-
-```text
-┌──────────────────────────────────────────────┐
-│ Available BRAVO Backends                     │
-├──────────────────────────────────────────────┤
-│ ○ Backend A                                  │
-│   Port: 8001                                 │
-│   Status: Running                            │
-│                                              │
-│ ○ Backend B                                  │
-│   Port: 8002                                 │
-│   Status: Running                            │
-└──────────────────────────────────────────────┘
-```
-
-Người dùng chọn Backend cần sử dụng.
+Nếu máy chủ có nhiều Backend: Sẽ nhập thông tin redis cache để bắt sự kiện postgress
 
 ---
 
@@ -416,10 +406,10 @@ Một số hệ thống BRAVO có thể sử dụng mô hình:
 IDE
  │
  ▼
-Backend 1
+Backend 1 (LAN)
  │
  ▼
-Backend 2 / Event Service
+Backend 2 (WAN)
  │
  ▼
 Redis

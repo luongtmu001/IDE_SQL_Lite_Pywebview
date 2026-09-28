@@ -31,6 +31,23 @@ function initQuery() {
     // ── Per-tab state ─────────────────────────────────────────────────────────
     // columnWidths[tabId][colName] = widthPx
     const tabColumnWidths = {};
+    const tabGridContainers = {}; // tabId -> DOM container for rendered results grid
+
+    // Clean up cached grid when a tab is closed
+    document.addEventListener('ide-tab-closed', (e) => {
+        const tabId = e.detail && e.detail.tabId;
+        if (!tabId) return;
+        delete tabColumnWidths[tabId];
+        if (tabGridContainers[tabId]) {
+            const oldTables = tabGridContainers[tabId].querySelectorAll('table.ide-results-table');
+            oldTables.forEach(tbl => {
+                const inst = window.GridResultManager ? window.GridResultManager.getInstance(tbl) : null;
+                if (inst) inst.destroy();
+            });
+            tabGridContainers[tabId].remove();
+            delete tabGridContainers[tabId];
+        }
+    });
 
     // ── Result panel state ────────────────────────────────────────────────────
     const resultPanelState = {
@@ -80,8 +97,17 @@ function initQuery() {
             connLabel = document.getElementById('ide-ctx-conn-label');
         }
 
-        if (dbLabel)   dbLabel.textContent   = dbText;
-        if (schemaLabel) schemaLabel.textContent = schText;
+        if (dbLabel) {
+            dbLabel.textContent = dbText;
+        } else if (btnDb) {
+            btnDb.innerHTML = `<i class="fa-solid fa-database me-1 text-info"></i><span id="ide-ctx-db-label" class="text-truncate" style="max-width: 130px;">${dbText}</span>`;
+        }
+
+        if (schemaLabel) {
+            schemaLabel.textContent = schText;
+        } else if (btnSchema) {
+            btnSchema.innerHTML = `<i class="fa-solid fa-layer-group me-1 text-warning"></i><span id="ide-ctx-schema-label" class="text-truncate" style="max-width: 110px;">${schText}</span>`;
+        }
 
         if (btnConn) {
             btnConn.title = `Switch Connection (Current: ${connText})`;
@@ -95,6 +121,18 @@ function initQuery() {
 
     // ── Centralized Connection Context Activator ──────────────────────────────
     async function activateConnectionContext(connId, connName, dbType, preferredDb = null, preferredSchema = null) {
+        // If preferredSchema is not provided, look up from saved connections
+        if (!preferredSchema) {
+            let savedList = [];
+            if (window.AppExplorer && typeof window.AppExplorer.getSavedConnections === 'function') {
+                savedList = window.AppExplorer.getSavedConnections() || [];
+            }
+            const foundProfile = savedList.find(s => s && s.type === (dbType || 'postgresql') && (s.name === connName || s.connection_id === connId));
+            if (foundProfile && foundProfile.schema) {
+                preferredSchema = foundProfile.schema;
+            }
+        }
+
         // 1. Immediately update global state & UI so ide-ctx-connection updates without waiting for network
         window.ActiveConnectionId   = connId;
         window.ActiveConnectionName = connName;
@@ -145,7 +183,10 @@ function initQuery() {
                 const sData = await sRes.json();
                 if (sData.success && Array.isArray(sData.items) && sData.items.length > 0) {
                     const sNames = sData.items.map(s => typeof s === 'string' ? s : (s.name || ''));
-                    if (preferredSchema && sNames.includes(preferredSchema)) {
+                    const matched = preferredSchema ? sNames.find(s => s.toLowerCase() === preferredSchema.toLowerCase()) : null;
+                    if (matched) {
+                        newCtx.schema = matched;
+                    } else if (preferredSchema) {
                         newCtx.schema = preferredSchema;
                     } else if (newCtx.dbType === 'postgresql' && sNames.includes('public')) {
                         newCtx.schema = 'public';
@@ -165,7 +206,7 @@ function initQuery() {
         }
 
         if (!newCtx.schema) {
-            newCtx.schema = newCtx.dbType === 'postgresql' ? 'public' : 'dbo';
+            newCtx.schema = preferredSchema || (newCtx.dbType === 'postgresql' ? 'public' : 'dbo');
         }
 
         if (newCtx.database) window.ActiveDatabase = newCtx.database;
@@ -305,14 +346,14 @@ function initQuery() {
 
                                 if (c.isActive && c.connId) {
                                     showToast(`Switching to ${c.name}…`, 'info');
-                                    await activateConnectionContext(c.connId, c.name, c.type, c.config?.database);
+                                    await activateConnectionContext(c.connId, c.name, c.type, c.config?.database, c.config?.schema);
                                     showToast(`Switched connection to ${c.name}`, 'success');
                                 } else {
                                     showToast(`Connecting to ${c.name}…`, 'info');
                                     if (window.AppExplorer && window.AppExplorer.reconnect) {
                                         window.AppExplorer.reconnect(c.name, c.type, c.config, async (newConn) => {
                                             const newId = newConn.connection_id || newConn.id;
-                                            await activateConnectionContext(newId, c.name, c.type, c.config?.database);
+                                            await activateConnectionContext(newId, c.name, c.type, c.config?.database, c.config?.schema);
                                             showToast(`✓ Connected and switched to ${c.name}`, 'success');
                                         });
                                     }
@@ -439,12 +480,27 @@ function initQuery() {
 
                             // Single selection: set active database and default schema (dbo for sqlserver, public for postgresql)
                             let defaultSchema = dbType === 'postgresql' ? 'public' : 'dbo';
+                            let preferredSch = null;
+                            if (dbType === 'postgresql') {
+                                if (window.AppExplorer && typeof window.AppExplorer.getSavedConnections === 'function') {
+                                    const savedList = window.AppExplorer.getSavedConnections() || [];
+                                    const profile = savedList.find(s => s && s.type === dbType && (s.name === currentConnName || s.connection_id === connId));
+                                    if (profile && profile.schema && (!profile.database || profile.database === dbName)) {
+                                        preferredSch = profile.schema;
+                                    }
+                                }
+                            }
                             try {
                                 const sRes = await fetch(`/api/metadata/${connId}/schemas?database=${encodeURIComponent(dbName)}`);
                                 const sData = await sRes.json();
                                 if (sData.success && Array.isArray(sData.items) && sData.items.length > 0) {
                                     const sNames = sData.items.map(s => typeof s === 'string' ? s : (s.name || ''));
-                                    if (dbType === 'postgresql' && sNames.includes('public')) {
+                                    const matched = preferredSch ? sNames.find(s => s.toLowerCase() === preferredSch.toLowerCase()) : null;
+                                    if (matched) {
+                                        defaultSchema = matched;
+                                    } else if (preferredSch) {
+                                        defaultSchema = preferredSch;
+                                    } else if (dbType === 'postgresql' && sNames.includes('public')) {
                                         defaultSchema = 'public';
                                     } else if (dbType === 'sqlserver' && sNames.includes('dbo')) {
                                         defaultSchema = 'dbo';
@@ -641,6 +697,8 @@ function initQuery() {
 
     // ── Restore Tab Results ───────────────────────────────────────────────────
     function restoreTabResults(state) {
+        const tabId = window.AppTabs ? window.AppTabs.getActiveTabId() : null;
+
         if (!state) {
             clearResults();
             if (messagesEl) messagesEl.innerHTML = '';
@@ -663,14 +721,29 @@ function initQuery() {
         
         if (planEl) planEl.textContent = state.planText || '';
 
-        clearResults();
         const hasData = state.resultData && state.resultData.results && state.resultData.results.some(r => r.columns && r.columns.length > 0);
         setResultsTabVisible(hasData);
 
         if (hasData) {
-            renderGrid(state.resultData, state.resultData.durationMs || 0);
-            switchResultView(state.activeView || 'results-grid');
+            // Check if tab grid DOM container is already cached
+            if (tabId && tabGridContainers[tabId]) {
+                emptyEl.classList.add('d-none');
+                tableWrap.classList.remove('d-none');
+                Object.keys(tabGridContainers).forEach(id => {
+                    if (tabGridContainers[id]) {
+                        tabGridContainers[id].classList.toggle('d-none', id !== tabId);
+                    }
+                });
+                footer.classList.remove('d-none');
+                footer.classList.add('d-flex');
+                if (window.updateResultFooter) window.updateResultFooter();
+                switchResultView(state.activeView || 'results-grid');
+            } else {
+                renderGrid(state.resultData, state.resultData.durationMs || 0);
+                switchResultView(state.activeView || 'results-grid');
+            }
         } else {
+            clearResults();
             setStatus('');
             switchResultView(state.activeView || 'results-messages');
         }
@@ -713,8 +786,24 @@ function initQuery() {
         const connId   = (tabState && tabState.connectionId) || window.ActiveConnectionId;
         const dbName   = (tabState && tabState.database)     || window.ActiveDatabase;
         const dbType   = (tabState && tabState.dbType)       || window.ActiveDbType;
+        const schema   = (tabState && tabState.schema)       || window.ActiveSchema || (window.LastFocusedTreeContext && window.LastFocusedTreeContext.schema);
 
         if (!connId) {
+            // Check if tab has a connName that can be reconnected
+            if (tabState && tabState.connectionName && window.AppExplorer && typeof window.AppExplorer.reconnect === 'function') {
+                const savedList = window.AppExplorer.getSavedConnections ? window.AppExplorer.getSavedConnections() : [];
+                const profile = savedList.find(s => s && s.name === tabState.connectionName && s.type === tabState.dbType);
+                if (profile) {
+                    window.AppExplorer.reconnect(tabState.connectionName, tabState.dbType, profile, async (newConn) => {
+                        const newId = newConn.connection_id || newConn.id;
+                        tabState.connectionId = newId;
+                        window.ActiveConnectionId = newId;
+                        if (window.updateActionBar) window.updateActionBar();
+                        executeQuery();
+                    });
+                    return;
+                }
+            }
             showMessage('No connection selected.\nPlease click a database in the Object Explorer first.', 'error');
             setResultsTabVisible(false);
             switchResultView('results-messages');
@@ -740,7 +829,8 @@ function initQuery() {
                     connection_id: connId,
                     sql: sql,
                     limit: parsedLimit,
-                    database: dbName || null
+                    database: dbName || null,
+                    schema: schema || null
                 })
             });
 
@@ -899,7 +989,30 @@ function initQuery() {
 
         emptyEl.classList.add('d-none');
         tableWrap.classList.remove('d-none');
-        tableWrap.innerHTML = ''; // Clear container
+
+        // Hide any other cached tab containers
+        Object.keys(tabGridContainers).forEach(id => {
+            if (tabGridContainers[id]) tabGridContainers[id].classList.add('d-none');
+        });
+
+        // Remove old container for this tab if any
+        if (tabId && tabGridContainers[tabId]) {
+            const oldTables = tabGridContainers[tabId].querySelectorAll('table.ide-results-table');
+            oldTables.forEach(tbl => {
+                const inst = window.GridResultManager ? window.GridResultManager.getInstance(tbl) : null;
+                if (inst) inst.destroy();
+            });
+            tabGridContainers[tabId].remove();
+            delete tabGridContainers[tabId];
+        }
+
+        const tabContainer = document.createElement('div');
+        tabContainer.className = 'ide-tab-grid-wrap w-100 h-100 d-flex flex-column';
+        if (tabId) {
+            tabContainer.dataset.tabId = tabId;
+            tabGridContainers[tabId] = tabContainer;
+        }
+        tableWrap.appendChild(tabContainer);
 
         const resultsList = (data.results || []).filter(r => r.columns && r.columns.length > 0);
         if (resultsList.length === 0) {
@@ -999,20 +1112,29 @@ function initQuery() {
                 resizer.title = 'Kéo để thay đổi độ rộng cột';
                 th.appendChild(resizer);
 
-                // Resizer drag
+                // Resizer drag with requestAnimationFrame to prevent forced synchronous layout
                 let startX, startW;
+                let pendingResize = false;
+                let latestWidth = 0;
+
                 resizer.addEventListener('pointerdown', e => {
                     e.stopPropagation();
                     startX = e.clientX;
                     startW = th.offsetWidth;
+                    latestWidth = startW;
                     resizer.classList.add('dragging');
                     document.body.style.cursor = 'col-resize';
                     document.body.style.userSelect = 'none';
 
                     const onMove = mv => {
-                        const newW = Math.max(minW, startW + (mv.clientX - startX));
-                        th.style.width = newW + 'px';
-                        if (tabId) savedWidths[colKey] = newW;
+                        latestWidth = Math.max(minW, startW + (mv.clientX - startX));
+                        if (tabId) savedWidths[colKey] = latestWidth;
+                        if (pendingResize) return;
+                        pendingResize = true;
+                        requestAnimationFrame(() => {
+                            pendingResize = false;
+                            th.style.width = latestWidth + 'px';
+                        });
                     };
                     const onUp = () => {
                         resizer.classList.remove('dragging');
@@ -1020,6 +1142,7 @@ function initQuery() {
                         document.body.style.userSelect = '';
                         document.removeEventListener('pointermove', onMove);
                         document.removeEventListener('pointerup', onUp);
+                        th.style.width = latestWidth + 'px';
                     };
                     document.addEventListener('pointermove', onMove);
                     document.addEventListener('pointerup', onUp);
@@ -1030,49 +1153,53 @@ function initQuery() {
             thead.appendChild(headerTr);
             table.appendChild(thead);
 
-            // Rows
-            resSet.rows.forEach((row, idx) => {
-                const tr = document.createElement('tr');
-
-                const rnTd = document.createElement('td');
-                rnTd.className = 'ide-row-number';
-                rnTd.textContent = idx + 1;
-                tr.appendChild(rnTd);
-
-                row.forEach(val => {
-                    const td = document.createElement('td');
-                    if (val === null || val === undefined) {
-                        td.innerHTML = '<span class="ide-null-value">NULL</span>';
-                        td.classList.add('ide-null-cell');
-                    } else if (typeof val === 'number') {
-                        td.textContent = val;
-                        td.className = 'ide-num-value';
-                    } else if (typeof val === 'boolean') {
-                        // Supports PostgreSQL boolean (true/false) as well as SQL Server bit
+            // Fast cell formatter helper for data values (PostgreSQL boolean, JSON, etc.)
+            function formatGridCell(td, val) {
+                if (val === null || val === undefined) {
+                    td.innerHTML = '<span class="ide-null-value">NULL</span>';
+                    td.classList.add('ide-null-cell');
+                } else if (typeof val === 'number') {
+                    td.textContent = val;
+                    td.className = 'ide-num-value';
+                } else if (typeof val === 'boolean') {
+                    // Supports PostgreSQL boolean (true/false) as well as SQL Server bit
+                    td.textContent = String(val);
+                    td.className = 'ide-bool-value';
+                } else if (typeof val === 'object') {
+                    // PostgreSQL JSON, JSONB, arrays, etc.
+                    try {
+                        td.textContent = JSON.stringify(val);
+                    } catch (e) {
                         td.textContent = String(val);
-                        td.className = 'ide-bool-value';
-                    } else if (typeof val === 'object') {
-                        // PostgreSQL JSON, JSONB, arrays, etc.
-                        try {
-                            td.textContent = JSON.stringify(val);
-                        } catch (e) {
-                            td.textContent = String(val);
-                        }
-                    } else {
-                        td.textContent = val;
                     }
-                    tr.appendChild(td);
-                });
-                tbody.appendChild(tr);
-            });
+                } else {
+                    td.textContent = val;
+                }
+            }
+
             table.appendChild(tbody);
             tableScroll.appendChild(table);
             pane.appendChild(tableScroll);
-            tableWrap.appendChild(pane);
+            tabContainer.appendChild(pane);
 
-            // Gắn GridResultManager cho cell selection, phím tắt, filter và context menu
+            // Gắn GridResultManager cho cell selection, phím tắt, filter, context menu và virtual row rendering
             if (window.GridResultManager) {
                 window.GridResultManager.attach(table, resSet, index);
+            } else {
+                // Fallback row population if GridResultManager is not loaded
+                resSet.rows.forEach((row, idx) => {
+                    const tr = document.createElement('tr');
+                    const rnTd = document.createElement('td');
+                    rnTd.className = 'ide-row-number';
+                    rnTd.textContent = idx + 1;
+                    tr.appendChild(rnTd);
+                    row.forEach(val => {
+                        const td = document.createElement('td');
+                        formatGridCell(td, val);
+                        tr.appendChild(td);
+                    });
+                    tbody.appendChild(tr);
+                });
             }
 
             // Insert splitter between panes
@@ -1109,7 +1236,7 @@ function initQuery() {
                     document.addEventListener('pointerup', onPointerUp);
                 });
 
-                tableWrap.appendChild(splitter);
+                tabContainer.appendChild(splitter);
             }
         });
 
@@ -1117,16 +1244,24 @@ function initQuery() {
         function updateResultFooter() {
             let shownTotal = 0;
             let hiddenTotal = 0;
-            const panes = tableWrap.querySelectorAll('.ide-grid-pane');
-            panes.forEach(p => {
-                const trs = p.querySelectorAll('tbody tr');
-                trs.forEach(tr => {
-                    if (tr.classList.contains('ide-row-filtered-out')) {
-                        hiddenTotal++;
-                    } else {
-                        shownTotal++;
-                    }
-                });
+            const currentContainer = (tabId && tabGridContainers[tabId]) ? tabGridContainers[tabId] : tableWrap;
+            const tables = currentContainer.querySelectorAll('table.ide-results-table');
+            tables.forEach(tbl => {
+                const inst = window.GridResultManager ? window.GridResultManager.getInstance(tbl) : null;
+                if (inst) {
+                    const shown = inst.getVisibleRowCount();
+                    shownTotal += shown;
+                    hiddenTotal += (inst.totalRows - shown);
+                } else {
+                    const trs = tbl.querySelectorAll('tbody tr');
+                    trs.forEach(tr => {
+                        if (tr.classList.contains('ide-row-filtered-out')) {
+                            hiddenTotal++;
+                        } else {
+                            shownTotal++;
+                        }
+                    });
+                }
             });
 
             if (hiddenTotal > 0) {
@@ -1147,12 +1282,16 @@ function initQuery() {
 
     // ── Helpers ───────────────────────────────────────────────────────────────
     function clearResults() {
-        tableWrap.innerHTML = '';
+        const tabId = window.AppTabs ? window.AppTabs.getActiveTabId() : null;
+        if (tabId && tabGridContainers[tabId]) {
+            tabGridContainers[tabId].classList.add('d-none');
+        }
         emptyEl.classList.remove('d-none');
         tableWrap.classList.add('d-none');
         footer.classList.add('d-none');
         footer.classList.remove('d-flex');
     }
+    window.renderGrid = renderGrid;
 
     // ── Helper: Clean client-side driver & tuple noise ────────────────────────
     function cleanClientMessage(text) {

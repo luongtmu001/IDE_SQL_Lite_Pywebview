@@ -335,8 +335,39 @@
     height: 100% !important;
     width: 100%;
     overflow: auto;
-    background-color: var(--ide-bg-editor, #18191E);
+    background-color: var(--ide-bg-editor, #18191E) !important;
     position: relative;
+    overflow-anchor: none !important;
+}
+
+.tde-grid-table,
+.tde-grid-table tbody {
+    overflow-anchor: none !important;
+    background-color: var(--ide-bg-editor, #18191E) !important;
+}
+
+.tde-virtual-spacer-top,
+.tde-virtual-spacer-bottom {
+    padding: 0 !important;
+    margin: 0 !important;
+    border: none !important;
+    background-color: var(--ide-bg-editor, #18191E) !important;
+    pointer-events: none !important;
+    line-height: 0 !important;
+    font-size: 0 !important;
+    overflow-anchor: none !important;
+}
+
+.tde-virtual-spacer-top td,
+.tde-virtual-spacer-bottom td {
+    padding: 0 !important;
+    margin: 0 !important;
+    border: none !important;
+    background-color: var(--ide-bg-editor, #18191E) !important;
+    line-height: 0 !important;
+    font-size: 0 !important;
+    pointer-events: none !important;
+    overflow-anchor: none !important;
 }
 
 .tde-grid-table {
@@ -348,22 +379,32 @@
     font-size: 12px;
     user-select: none;
     -webkit-user-select: none;
+    background-color: var(--ide-bg-editor, #18191E) !important;
+}
+
+.tde-grid-table tr {
+    background-color: var(--ide-bg-editor, #18191E);
+}
+
+.tde-grid-table thead {
+    position: sticky;
+    top: 0;
+    z-index: 15;
 }
 
 .tde-grid-table th {
-    background-color: var(--ide-grid-header-bg, #202228);
+    background-color: var(--ide-grid-header-bg, #202228) !important;
     color: var(--ide-text-main, #c7cfcf);
     font-weight: 600;
     padding: 3px 6px 3px 8px;
     border-right: 1px solid var(--ide-border, #3c3f41);
     border-bottom: 1px solid var(--ide-border, #3c3f41);
-    position: sticky;
-    top: 0;
-    z-index: 5;
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 15 !important;
     white-space: nowrap;
     user-select: none;
     -webkit-user-select: none;
-    position: relative;
     box-sizing: border-box;
     overflow: hidden;
 }
@@ -450,9 +491,11 @@
     min-width: 32px;
     max-width: 32px;
     text-align: center;
-    background-color: var(--ide-grid-header-bg, #202228);
-    left: 0;
-    z-index: 6;
+    background-color: var(--ide-grid-header-bg, #202228) !important;
+    position: sticky !important;
+    top: 0 !important;
+    left: 0 !important;
+    z-index: 30 !important;
     border-right: 1px solid var(--ide-border, #3c3f41);
 }
 

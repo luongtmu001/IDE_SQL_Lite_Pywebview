@@ -52,12 +52,64 @@ function initTabs() {
         const tabTitle = opts.title || `Query ${tabCounter}`;
         const icon = opts.icon || (tabType === 'designer' ? 'fa-drafting-compass' : 'fa-table-list');
 
-        // Prefer explicit options, then current global/focused context, then saved defaultContext
-        const connId = opts.connectionId !== undefined ? opts.connectionId : (window.ActiveConnectionId !== undefined && window.ActiveConnectionId !== null ? window.ActiveConnectionId : defaultContext.connectionId);
-        const connName = opts.connectionName !== undefined ? opts.connectionName : (window.ActiveConnectionName || defaultContext.connectionName);
-        const db = opts.database !== undefined ? opts.database : (window.ActiveDatabase || defaultContext.database);
-        const sch = opts.schema !== undefined ? opts.schema : (window.ActiveSchema || defaultContext.schema);
-        const typ = opts.dbType !== undefined ? opts.dbType : (window.ActiveDbType || defaultContext.dbType);
+        // Prefer explicit options, then last focused tree node context, then current global context, then saved defaultContext
+        const focusedCtx = window.LastFocusedTreeContext || {};
+        const hasExplicitConn = opts.connectionId !== undefined || opts.connectionName !== undefined;
+        const hasFocusedConn = Boolean(focusedCtx.connectionName || focusedCtx.connectionId);
+
+        let connId, connName, db, typ, sch;
+
+        if (hasExplicitConn) {
+            connId   = opts.connectionId !== undefined ? opts.connectionId : defaultContext.connectionId;
+            connName = opts.connectionName !== undefined ? opts.connectionName : defaultContext.connectionName;
+            db       = opts.database !== undefined ? opts.database : defaultContext.database;
+            typ      = opts.dbType !== undefined ? opts.dbType : defaultContext.dbType;
+            sch      = opts.schema !== undefined ? opts.schema : defaultContext.schema;
+        } else if (hasFocusedConn) {
+            connId   = focusedCtx.connectionId || null;
+            connName = focusedCtx.connectionName || null;
+            db       = focusedCtx.database || null;
+            typ      = focusedCtx.dbType || null;
+            sch      = focusedCtx.schema || null;
+
+            // If connId was null but the focused connection name is already active globally, adopt the active connection id
+            if (!connId && connName && window.ActiveConnectionName === connName && (!typ || window.ActiveDbType === typ) && window.ActiveConnectionId) {
+                connId = window.ActiveConnectionId;
+            }
+        } else {
+            connId   = window.ActiveConnectionId !== undefined && window.ActiveConnectionId !== null ? window.ActiveConnectionId : defaultContext.connectionId;
+            connName = window.ActiveConnectionName || defaultContext.connectionName;
+            db       = window.ActiveDatabase || defaultContext.database;
+            typ      = window.ActiveDbType || defaultContext.dbType;
+            sch      = window.ActiveSchema || defaultContext.schema;
+        }
+
+        // PostgreSQL-specific resolution for default schema:
+        // When adding a new text editor tab for PostgreSQL, if schema resolved to null/undefined or 'public',
+        // check if a default schema was declared for this connection (unless user explicitly selected a 'schema' node).
+        if (typ === 'postgresql') {
+            const isExplicitSchemaSelect = opts.nodeType === 'schema' || (focusedCtx.nodeType === 'schema' && opts.schema === undefined);
+            if (!isExplicitSchemaSelect) {
+                let declaredSchema = opts.config?.schema || focusedCtx.config?.schema;
+                if (!declaredSchema && window.AppExplorer && typeof window.AppExplorer.getSavedConnections === 'function') {
+                    const saved = window.AppExplorer.getSavedConnections() || [];
+                    const profile = saved.find(s => s && s.type === 'postgresql' && (s.name === connName || s.connection_id === connId));
+                    if (profile) {
+                        if (profile.schema) declaredSchema = profile.schema;
+                        if (!db && profile.database) db = profile.database;
+                    }
+                }
+                if (!declaredSchema && window.AppExplorer && typeof window.AppExplorer.getSchemaFilter === 'function') {
+                    const sf = window.AppExplorer.getSchemaFilter(connId, db);
+                    if (Array.isArray(sf) && sf.length > 0 && sf[0]) {
+                        declaredSchema = sf[0];
+                    }
+                }
+                if (declaredSchema && (!sch || sch === 'public')) {
+                    sch = declaredSchema;
+                }
+            }
+        }
 
         tabsData.set(tabId, {
             tabType:        tabType,
@@ -205,6 +257,7 @@ function initTabs() {
         }
 
         tabsData.delete(tabId);
+        document.dispatchEvent(new CustomEvent('ide-tab-closed', { detail: { tabId } }));
         tabEl.remove();
 
         if (typeof showToast === 'function') {

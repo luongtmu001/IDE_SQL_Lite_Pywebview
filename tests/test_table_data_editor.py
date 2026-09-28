@@ -1,6 +1,6 @@
 import unittest
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 from app.services.table_data_editor_service import TableDataEditorService
 
 
@@ -59,6 +59,33 @@ class TestTableDataEditor(unittest.TestCase):
         self.assertIn("WHERE \"status\" = 'active'", sql)
         self.assertIn('ORDER BY "created_at" DESC', sql)
         self.assertIn('LIMIT 50', sql)
+
+    def test_real_adapter_db_type_and_query_postgres(self):
+        """Verify real adapter classes have db_type and generate correct postgres query without brackets."""
+        from app.database.postgresql import PostgreSqlAdapter
+        from app.database.sqlserver import SqlServerAdapter
+
+        pg_adapter = PostgreSqlAdapter({"type": "postgresql"})
+        ss_adapter = SqlServerAdapter({"type": "sqlserver"})
+
+        self.assertEqual(pg_adapter.db_type, "postgresql")
+        self.assertEqual(ss_adapter.db_type, "sqlserver")
+
+        # Mock execute and metadata for pg_adapter
+        with patch.object(pg_adapter, 'execute') as mock_exec, \
+             patch.object(TableDataEditorService, 'get_metadata') as mock_meta:
+            mock_meta.return_value = {"columns": [{"name": "id"}, {"name": "jobid"}]}
+            mock_exec.return_value = {"success": True, "rows": [], "columns": ["id", "jobid"], "row_count": 0}
+
+            res = TableDataEditorService.fetch_data(
+                pg_adapter, "testdb", "dbo", "b00class", top_n=200
+            )
+            # Must NOT use TOP or square brackets
+            self.assertNotIn("TOP (200)", res["sql"])
+            self.assertNotIn("[id]", res["sql"])
+            self.assertIn('LIMIT 200', res["sql"])
+            self.assertIn('"id", "jobid"', res["sql"])
+            self.assertIn('FROM "dbo"."b00class"', res["sql"])
 
     def test_update_row_sqlserver(self):
         """Test UPDATE statement generation and execution for SQL Server."""
@@ -1044,6 +1071,80 @@ class TestTableDataEditor(unittest.TestCase):
         self.assertIn("renderNextBatch", js)
         self.assertIn("valuesList.addEventListener('scroll'", js)
         self.assertIn("activeFilteredList.slice(renderedCount, renderedCount + PAGE_SIZE)", js)
+
+    def test_composite_constraint_handling_and_titlebar_sync(self):
+        """Verify:
+        1. getUniqueSpecsForDuplicate identifies composite keys and preserves field groupings.
+        2. triggerDuplicateRow and handlePaste set type 'DUPLICATE_COPY' with composite columns and cIdxList.
+        3. startCellEditing constructs complete rowValues for new rows and clears composite constraint errors.
+        4. DWM titlebar synchronization has RedrawWindow and retry timers.
+        """
+        js_path = Path(__file__).resolve().parent.parent / "static" / "js" / "table-data-editor.js"
+        theme_js_path = Path(__file__).resolve().parent.parent / "static" / "js" / "theme.js"
+        main_py_path = Path(__file__).resolve().parent.parent / "main.py"
+        dwm_py_path = Path(__file__).resolve().parent.parent / "app" / "utils" / "dwm.py"
+
+        with open(js_path, "r", encoding="utf-8") as f:
+            js = f.read()
+        with open(theme_js_path, "r", encoding="utf-8") as f:
+            theme_js = f.read()
+        with open(main_py_path, "r", encoding="utf-8") as f:
+            main_py = f.read()
+        with open(dwm_py_path, "r", encoding="utf-8") as f:
+            dwm_py = f.read()
+
+        # 1. Composite specs helper
+        self.assertIn("function getUniqueSpecsForDuplicate(session)", js)
+        self.assertIn("getUniqueSpecsForDuplicate(session)", js)
+
+        # 2. Both duplicate and paste set composite DUPLICATE_COPY
+        self.assertIn("spec.fields.length > 1", js)
+        self.assertIn("Bộ cột khóa duy nhất", js)
+
+        # 3. Complete rowValues in startCellEditing
+        self.assertIn("if (session.rows[rIdx] && session.rows[rIdx][i] !== undefined", js)
+        self.assertIn("rowValues[c] = session.rows[rIdx][i];", js)
+
+        # 4. Clears all cells in composite constraint
+        self.assertIn("info.cIdxList.forEach(ci =>", js)
+        self.assertIn("cTd.classList.remove('tde-cell-error');", js)
+
+        # 5. DWM RedrawWindow and Main Window retry timers
+        self.assertIn("RedrawWindow", dwm_py)
+        self.assertIn("_sync_titlebar", main_py)
+        self.assertIn("threading.Timer(0.1, _sync_titlebar).start()", main_py)
+        self.assertIn("setTimeout", theme_js)
+
+    def test_sticky_headers_and_theme_registry_and_tab_switch_perf(self):
+        """Test sticky headers in CSS, theme-registry loading in DWM, and tab activation performance."""
+        css_path = Path(__file__).resolve().parent.parent / 'static' / 'css' / 'table-data-editor.css'
+        js_path = Path(__file__).resolve().parent.parent / 'static' / 'js' / 'table-data-editor.js'
+        dwm_path = Path(__file__).resolve().parent.parent / 'app' / 'utils' / 'dwm.py'
+
+        css = css_path.read_text(encoding='utf-8')
+        js = js_path.read_text(encoding='utf-8')
+        dwm_py = dwm_path.read_text(encoding='utf-8')
+
+        # 1. Sticky column headers in CSS
+        self.assertIn(".tde-grid-table thead", css)
+        self.assertIn("position: sticky !important;\n    top: 0 !important;\n    z-index: 15 !important;", css)
+        self.assertIn("position: sticky !important;\n    top: 0 !important;\n    left: 0 !important;\n    z-index: 30 !important;", css)
+
+        # 2. DWM presets load all 26 themes from theme-registry.js
+        from app.utils.dwm import THEME_TITLEBAR_PRESETS
+        self.assertIn('github-light-colorblind-beta-light', THEME_TITLEBAR_PRESETS)
+        preset = THEME_TITLEBAR_PRESETS['github-light-colorblind-beta-light']
+        self.assertEqual(preset['bg'], '#ffffff')
+        self.assertEqual(preset['is_dark'], False)
+
+        # 3. DWM color validation prevents unparsed strings from becoming black (0)
+        self.assertIn("is_valid_bg", dwm_py)
+        self.assertIn("0xFFFFFFFF", dwm_py)
+
+        # 4. Tab switch optimization in table-data-editor.js
+        self.assertIn("container.dataset.activeTabId === tabId", js)
+        self.assertIn("container.dataset.activeTabId = session.tabId;", js)
+        self.assertIn("!force && startVirtual === this.startVirtual && endVirtual === this.endVirtual", js)
 
 
 if __name__ == '__main__':

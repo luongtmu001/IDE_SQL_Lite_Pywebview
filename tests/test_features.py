@@ -51,7 +51,8 @@ def test_features():
             mock_conn.query_service.execute.assert_called_with(
                 'CREATE OR ALTER PROCEDURE dbo.usp_test AS BEGIN SELECT 1 END',
                 limit=0,
-                database='TestDb'
+                database='TestDb',
+                schema=None
             )
             print('[PASS] Limit 0 and database passed to execute without prepending USE')
 

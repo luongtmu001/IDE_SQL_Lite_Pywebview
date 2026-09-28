@@ -66,6 +66,35 @@ THEME_TITLEBAR_PRESETS = {
     }
 }
 
+def _load_presets_from_registry():
+    """Tự động đồng bộ toàn bộ bảng màu Titlebar từ static/js/theme-registry.js."""
+    try:
+        from pathlib import Path
+        base_dir = Path(__file__).resolve().parent.parent.parent
+        js_file = base_dir / "static" / "js" / "theme-registry.js"
+        if js_file.exists():
+            content = js_file.read_text(encoding="utf-8")
+            items = re.findall(
+                r'\{\s*id:\s*[\x27\x22]([^\x27\x22]+)[\x27\x22].*?'
+                r'isDark:\s*(true|false).*?'
+                r'titlebarBg:\s*[\x27\x22]([^\x27\x22]+)[\x27\x22].*?'
+                r'titlebarText:\s*[\x27\x22]([^\x27\x22]+)[\x27\x22].*?'
+                r'border:\s*[\x27\x22]([^\x27\x22]+)[\x27\x22]',
+                content,
+                re.DOTALL
+            )
+            for tid, is_dark_str, bg, text, border in items:
+                THEME_TITLEBAR_PRESETS[tid] = {
+                    "bg": bg,
+                    "text": text,
+                    "border": border,
+                    "is_dark": (is_dark_str == "true")
+                }
+    except Exception as exc:
+        logger.debug(f"[DWM] Could not load theme-registry.js: {exc}")
+
+_load_presets_from_registry()
+
 
 def hex_to_colorref(color_str: str) -> int:
     """Chuyển đổi '#RRGGBB', '#RGB' hoặc 'rgb(r, g, b)' sang Win32 COLORREF (0x00BBGGRR)."""
@@ -237,9 +266,19 @@ def apply_dwm_titlebar_theme(
         if is_dark is None:
             is_dark = preset.get("is_dark")
 
+    # Kiểm tra tính hợp lệ của mã màu bg (tránh chuyển đổi chuỗi tên theme chưa biết thành 0x000000 - màu đen)
+    is_valid_bg = False
+    if bg:
+        s_bg = str(bg).strip()
+        if (s_bg.startswith("#") and len(s_bg) in (4, 7)) or s_bg.lower().startswith("rgb"):
+            is_valid_bg = True
+        else:
+            logger.debug(f"[DWM] '{bg}' is not a valid hex/rgb color string. Skipping custom caption color.")
+            bg = None
+
     # Tự động tính toán độ sáng tối nếu chưa được chỉ định
     if is_dark is None:
-        is_dark = is_dark_color(bg) if bg else True
+        is_dark = is_dark_color(bg) if is_valid_bg else True
 
     # Xác định HWND cửa sổ
     hwnd = get_window_hwnd(window_or_hwnd, title=title)
@@ -264,8 +303,16 @@ def apply_dwm_titlebar_theme(
             )
 
             # Màu nền thanh tiêu đề (Caption Color)
-            if bg:
+            if bg and is_valid_bg:
                 caption_color = ctypes.c_int(hex_to_colorref(bg))
+                dwmapi.DwmSetWindowAttribute(
+                    hwnd,
+                    DWMWA_CAPTION_COLOR,
+                    ctypes.byref(caption_color),
+                    ctypes.sizeof(caption_color)
+                )
+            elif is_dark is False:
+                caption_color = ctypes.c_int(0xFFFFFFFF)
                 dwmapi.DwmSetWindowAttribute(
                     hwnd,
                     DWMWA_CAPTION_COLOR,
@@ -324,6 +371,11 @@ def apply_dwm_titlebar_theme(
             0,
             SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED
         )
+        try:
+            # RDW_INVALIDATE (0x0001) | RDW_FRAME (0x0400) | RDW_UPDATENOW (0x0100)
+            user32.RedrawWindow(hwnd, None, None, 0x0001 | 0x0400 | 0x0100)
+        except Exception:
+            pass
         return True
 
     except Exception as exc:

@@ -103,10 +103,6 @@
 #monaco-sql-editor-2 .monaco-editor .inputarea,
 #monaco-sql-editor-2 .monaco-editor .lines-content {
     font-family: 'JetBrains Mono', Consolas, 'Courier New', monospace !important;
-    font-size: 13px !important;
-    line-height: 19px !important;
-    letter-spacing: 0px !important;
-    word-spacing: 0px !important;
     font-variant-ligatures: none !important;
     font-feature-settings: "liga" 0, "calt" 0 !important;
     text-rendering: optimizeLegibility !important;
@@ -378,6 +374,147 @@
     color: var(--ide-text-muted);
 }
 
+/* ── Editor Status Bar (SSMS Style) ────────────────────────────────────────── */
+.ide-editor-status-bar {
+    background: var(--ide-bg-toolbar, var(--ide-bg-panel, #252830));
+    border-top: 1px solid var(--ide-border);
+    border-bottom: 1px solid var(--ide-border);
+    height: 25px;
+    min-height: 25px;
+    max-height: 25px;
+    flex-shrink: 0;
+    font-size: 11px;
+    color: var(--ide-text-muted, #9da5b4);
+    box-sizing: border-box;
+    z-index: 10;
+}
+
+.ide-editor-zoom-wrap {
+    display: inline-flex;
+    align-items: center;
+}
+
+.ide-editor-zoom-box {
+    display: inline-flex;
+    align-items: center;
+    height: 20px;
+}
+
+.ide-sb-zoom-input {
+    width: 48px;
+    height: 20px;
+    padding: 0 4px;
+    font-size: 11px;
+    text-align: center;
+    background: var(--ide-bg-editor, #1e1e1e);
+    color: var(--ide-text-main, #d4d4d4);
+    border: 1px solid var(--ide-border, #3c3f41);
+    border-right: none;
+    border-top-left-radius: 3px;
+    border-bottom-left-radius: 3px;
+    outline: none;
+    transition: border-color 0.15s;
+}
+
+.ide-sb-zoom-input:focus {
+    border-color: var(--ide-accent, #007acc);
+    color: var(--ide-text-active, #ffffff);
+}
+
+.ide-sb-zoom-btn {
+    height: 20px;
+    padding: 0 5px;
+    font-size: 9px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--ide-bg-panel, #2b2d35);
+    color: var(--ide-text-muted, #9da5b4);
+    border: 1px solid var(--ide-border, #3c3f41);
+    border-top-right-radius: 3px;
+    border-bottom-right-radius: 3px;
+    cursor: pointer;
+}
+
+.ide-sb-zoom-btn:hover {
+    background: var(--ide-hover-bg, rgba(255, 255, 255, 0.08));
+    color: var(--ide-text-main, #ffffff);
+}
+
+.ide-sb-zoom-menu {
+    background: var(--ide-bg-panel, #252830) !important;
+    border: 1px solid var(--ide-border, #3c3f41) !important;
+    padding: 3px 0 !important;
+    border-radius: 4px !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35) !important;
+    min-width: 85px !important;
+    z-index: 1060 !important;
+}
+
+.ide-sb-zoom-menu .dropdown-item {
+    font-size: 11px !important;
+    padding: 3px 10px !important;
+    color: var(--ide-text-main, #cccccc) !important;
+    cursor: pointer !important;
+}
+
+.ide-sb-zoom-menu .dropdown-item:hover {
+    background: var(--ide-accent, #007acc) !important;
+    color: #ffffff !important;
+}
+
+.ide-sb-issues {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 2px 7px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 11px;
+    color: var(--ide-text-main, #d4d4d4);
+    transition: background 0.15s;
+    user-select: none;
+}
+
+.ide-sb-issues:hover {
+    background: var(--ide-hover-bg, rgba(255, 255, 255, 0.08));
+}
+
+.ide-sb-issues.has-errors {
+    color: var(--ide-danger, #ff5c5c);
+    font-weight: 600;
+}
+
+.ide-sb-issues.has-warnings {
+    color: var(--ide-warning, #ffc107);
+}
+
+.ide-sb-item {
+    padding: 2px 5px;
+    font-size: 11px;
+    color: var(--ide-text-muted, #9da5b4);
+    white-space: nowrap;
+    user-select: none;
+}
+
+.ide-sb-item.clickable {
+    cursor: pointer;
+    border-radius: 3px;
+    transition: background 0.15s, color 0.15s;
+}
+
+.ide-sb-item.clickable:hover {
+    background: var(--ide-hover-bg, rgba(255, 255, 255, 0.08));
+    color: var(--ide-text-active, #ffffff);
+}
+
+.ide-sb-sep {
+    color: var(--ide-border, #444);
+    opacity: 0.6;
+    margin: 0 2px;
+    user-select: none;
+}
+
 #ide-result-panel,
 .ide-result-panel {
     background: var(--ide-bg-result);
@@ -439,6 +576,36 @@
     position: relative;
     width: 100%;
     height: 100%;
+    overflow-anchor: none !important;
+}
+
+.ide-results-table,
+.ide-results-table tbody {
+    overflow-anchor: none !important;
+}
+
+.ide-virtual-spacer-top,
+.ide-virtual-spacer-bottom {
+    padding: 0 !important;
+    margin: 0 !important;
+    border: none !important;
+    background: transparent !important;
+    pointer-events: none !important;
+    line-height: 0 !important;
+    font-size: 0 !important;
+    overflow-anchor: none !important;
+}
+
+.ide-virtual-spacer-top td,
+.ide-virtual-spacer-bottom td {
+    padding: 0 !important;
+    margin: 0 !important;
+    border: none !important;
+    background: transparent !important;
+    line-height: 0 !important;
+    font-size: 0 !important;
+    pointer-events: none !important;
+    overflow-anchor: none !important;
 }
 
 .ide-result-filter-bar {
@@ -656,13 +823,26 @@ html[data-bs-theme="light"] .ide-th-filter-btn.ide-filter-active {
     color: var(--ide-text-main);
 }
 
-.ide-results-table tbody tr:nth-child(even) {
+.ide-results-table tbody tr {
+    height: 26px;
+    max-height: 26px;
+    box-sizing: border-box;
+}
+
+.ide-results-table tbody tr td {
+    height: 26px;
+    box-sizing: border-box;
+}
+
+.ide-results-table tbody tr.ide-row-alt,
+.ide-results-table tbody tr:nth-child(even):not(.ide-virtual-spacer-top):not(.ide-virtual-spacer-bottom) {
     background: var(--ide-grid-row-alt);
 }
 
-.ide-results-table tbody tr:hover {
+.ide-results-table tbody tr:hover:not(.ide-virtual-spacer-top):not(.ide-virtual-spacer-bottom) {
     background: var(--ide-grid-row-hover);
 }
+
 
 .ide-row-number {
     color: var(--ide-text-dim);

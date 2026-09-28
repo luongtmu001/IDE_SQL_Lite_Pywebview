@@ -258,6 +258,22 @@ class TableDesignerService:
         table = modified.get("table") or (original and original.get("table")) or "Untitled"
         tbl_name = cls._format_table_name(schema, table, engine)
 
+        # Clean unquoted table identifier for alter table statements
+        if engine == "postgresql":
+            clean_tbl = table.strip('"')
+            clean_sch = (schema or "public").strip('"')
+            if clean_sch and clean_sch.lower() != "public":
+                alt_tbl_name = f"{clean_sch}.{clean_tbl}"
+            else:
+                alt_tbl_name = clean_tbl
+        else:
+            clean_tbl = table.strip('[]')
+            clean_sch = (schema or "dbo").strip('[]')
+            if clean_sch and clean_sch.lower() != "dbo":
+                alt_tbl_name = f"{clean_sch}.{clean_tbl}"
+            else:
+                alt_tbl_name = clean_tbl
+
         statements = []
         warnings = []
 
@@ -302,6 +318,21 @@ class TableDesignerService:
         orig_cols = {c["name"]: c for c in original.get("columns", [])}
         mod_cols = {c["name"]: c for c in modified.get("columns", [])}
 
+        # 0. Table Rename
+        orig_tbl_raw = str(original.get("table") or "").strip().strip('\"[]')
+        mod_tbl_raw = str(modified.get("table") or "").strip().strip('\"[]')
+        if orig_tbl_raw and mod_tbl_raw and orig_tbl_raw.lower() != mod_tbl_raw.lower():
+            if engine == "sqlserver":
+                rename_sql = f"EXEC sp_rename @objname = N'[{clean_sch}].[{orig_tbl_raw}]', @newname = N'{mod_tbl_raw}', @objtype = N'OBJECT';"
+            else:
+                rename_sql = f'ALTER TABLE "{clean_sch}"."{orig_tbl_raw}" RENAME TO "{mod_tbl_raw}";'
+            statements.append({
+                "sql": rename_sql,
+                "destructive": False,
+                "description": f"Rename table from {orig_tbl_raw} to {mod_tbl_raw}",
+                "type": "tables"
+            })
+
         # Track clustered index state in SQL Server (Error 8112 prevention)
         has_clustered = False
         if engine == "sqlserver":
@@ -310,28 +341,34 @@ class TableDesignerService:
         # 1. Dropped Columns (Destructive)
         for col_name, ocol in orig_cols.items():
             if col_name not in mod_cols:
-                q_col = cls._quote_ident(col_name, engine)
-                sql = f"ALTER TABLE {tbl_name} DROP COLUMN {q_col};"
+                clean_col = col_name.strip('\"[]')
+                sql = f"alter table {alt_tbl_name}\n    drop column {clean_col};"
                 statements.append({
                     "sql": sql,
                     "destructive": True,
-                    "description": f"Drop column {q_col}",
+                    "description": f"Drop column {clean_col}",
                     "type": "tables"
                 })
-                warnings.append(f"Column {q_col} will be dropped and its data permanently deleted.")
+                warnings.append(f"Column {clean_col} will be dropped and its data permanently deleted.")
 
-        # 2. Added Columns
+        # 2. Added Columns (Formatted per user sample: alter table <table>\n    add <column_name> <type>;)
         for col_name, mcol in mod_cols.items():
             if col_name not in orig_cols:
-                col_def = cls.generate_column_def(mcol, engine)
-                if engine == "sqlserver":
-                    sql = f"ALTER TABLE {tbl_name} ADD {col_def};"
-                else:
-                    sql = f"ALTER TABLE {tbl_name} ADD COLUMN {col_def};"
+                clean_col = col_name.strip('\"[]')
+                type_str = cls.format_column_type(mcol, engine).lower()
+                
+                parts = [f"    add {clean_col} {type_str}"]
+                default_val = (mcol.get("default_value") or "").strip()
+                if default_val:
+                    parts.append(f"default {default_val}")
+                if mcol.get("is_pk") or not mcol.get("nullable", True):
+                    parts.append("not null")
+
+                sql = f"alter table {alt_tbl_name}\n{' '.join(parts)};"
                 statements.append({
                     "sql": sql,
                     "destructive": False,
-                    "description": f"Add column {cls._quote_ident(col_name, engine)}",
+                    "description": f"Add column {clean_col}",
                     "type": "tables"
                 })
 
@@ -344,35 +381,35 @@ class TableDesignerService:
                 null_changed = (bool(mcol.get("nullable")) != bool(ocol.get("nullable")))
                 def_changed = (str(mcol.get("default_value")).strip() != str(ocol.get("default_value")).strip())
 
-                q_col = cls._quote_ident(col_name, engine)
+                clean_col = col_name.strip('\"[]')
                 if type_changed or null_changed:
                     if engine == "sqlserver":
-                        type_str = cls.format_column_type(mcol, engine)
-                        null_str = "NULL" if mcol.get("nullable", True) else "NOT NULL"
-                        sql = f"ALTER TABLE {tbl_name} ALTER COLUMN {q_col} {type_str} {null_str};"
+                        type_str = cls.format_column_type(mcol, engine).lower()
+                        null_str = "null" if mcol.get("nullable", True) else "not null"
+                        sql = f"alter table {alt_tbl_name}\n    alter column {clean_col} {type_str} {null_str};"
                         statements.append({
                             "sql": sql,
                             "destructive": False,
-                            "description": f"Alter column {q_col} type/nullability",
+                            "description": f"Alter column {clean_col} type/nullability",
                             "type": "tables"
                         })
                     else:
-                        type_str = cls.format_column_type(mcol, engine)
+                        type_str = cls.format_column_type(mcol, engine).lower()
                         if type_changed:
-                            sql = f"ALTER TABLE {tbl_name} ALTER COLUMN {q_col} TYPE {type_str} USING {q_col}::{type_str};"
+                            sql = f"alter table {alt_tbl_name}\n    alter column {clean_col} type {type_str} using {clean_col}::{type_str};"
                             statements.append({
                                 "sql": sql,
                                 "destructive": False,
-                                "description": f"Alter column {q_col} data type to {type_str}",
+                                "description": f"Alter column {clean_col} data type to {type_str}",
                                 "type": "tables"
                             })
                         if null_changed:
-                            null_action = "DROP NOT NULL" if mcol.get("nullable", True) else "SET NOT NULL"
-                            sql = f"ALTER TABLE {tbl_name} ALTER COLUMN {q_col} {null_action};"
+                            null_action = "drop not null" if mcol.get("nullable", True) else "set not null"
+                            sql = f"alter table {alt_tbl_name}\n    alter column {clean_col} {null_action};"
                             statements.append({
                                 "sql": sql,
                                 "destructive": False,
-                                "description": f"Alter column {q_col} nullability",
+                                "description": f"Alter column {clean_col} nullability",
                                 "type": "tables"
                             })
 
@@ -387,22 +424,22 @@ class TableDesignerService:
 
                     if engine == "sqlserver":
                         if new_def:
-                            df_name = cls._quote_ident(f"DF_{table}_{col_name}", engine)
+                            df_name = cls._quote_ident(f"DF_{clean_tbl}_{clean_col}", engine)
                             statements.append({
-                                "sql": f"ALTER TABLE {tbl_name} ADD CONSTRAINT {df_name} DEFAULT {new_def} FOR {q_col};",
+                                "sql": f"alter table {alt_tbl_name}\n    add constraint {df_name} default {new_def} for {clean_col};",
                                 "destructive": False,
-                                "description": f"Set default value for {q_col}",
+                                "description": f"Set default value for {clean_col}",
                                 "type": "tables"
                             })
                     else:
                         if new_def:
-                            sql = f"ALTER TABLE {tbl_name} ALTER COLUMN {q_col} SET DEFAULT {new_def};"
+                            sql = f"alter table {alt_tbl_name}\n    alter column {clean_col} set default {new_def};"
                         else:
-                            sql = f"ALTER TABLE {tbl_name} ALTER COLUMN {q_col} DROP DEFAULT;"
+                            sql = f"alter table {alt_tbl_name}\n    alter column {clean_col} drop default;"
                         statements.append({
                             "sql": sql,
                             "destructive": False,
-                            "description": f"Change default value for {q_col}",
+                            "description": f"Change default value for {clean_col}",
                             "type": "tables"
                         })
 
@@ -413,7 +450,7 @@ class TableDesignerService:
             pk_name = cls._quote_ident(f"PK_{table}", engine)
             if orig_pk:
                 statements.append({
-                    "sql": f"ALTER TABLE {tbl_name} DROP CONSTRAINT {pk_name};",
+                    "sql": f"alter table {alt_tbl_name}\n    drop constraint {pk_name};",
                     "destructive": True,
                     "description": f"Drop primary key {pk_name}",
                     "type": "constraints"
@@ -423,7 +460,7 @@ class TableDesignerService:
                 q_cols = ", ".join(cls._quote_ident(c, engine) for c in mod_pk)
                 clustered = " CLUSTERED" if engine == "sqlserver" else ""
                 statements.append({
-                    "sql": f"ALTER TABLE {tbl_name} ADD CONSTRAINT {pk_name} PRIMARY KEY{clustered} ({q_cols});",
+                    "sql": f"alter table {alt_tbl_name}\n    add constraint {pk_name} primary key{clustered} ({q_cols});",
                     "destructive": False,
                     "description": f"Add primary key on ({q_cols})",
                     "type": "constraints"
@@ -436,7 +473,7 @@ class TableDesignerService:
             if u_name not in mod_uqs:
                 q_uq = cls._quote_ident(u_name, engine)
                 statements.append({
-                    "sql": f"ALTER TABLE {tbl_name} DROP CONSTRAINT {q_uq};",
+                    "sql": f"alter table {alt_tbl_name}\n    drop constraint {q_uq};",
                     "destructive": True,
                     "description": f"Drop unique constraint {q_uq}",
                     "type": "constraints"
@@ -450,7 +487,7 @@ class TableDesignerService:
                     has_clustered = True
                 clustered = " CLUSTERED" if is_clustered else ""
                 statements.append({
-                    "sql": f"ALTER TABLE {tbl_name} ADD CONSTRAINT {q_uq} UNIQUE{clustered} ({cols});",
+                    "sql": f"alter table {alt_tbl_name}\n    add constraint {q_uq} unique{clustered} ({cols});",
                     "destructive": False,
                     "description": f"Add unique constraint {q_uq}",
                     "type": "constraints"
@@ -463,7 +500,7 @@ class TableDesignerService:
             if c_name not in mod_chks:
                 q_chk = cls._quote_ident(c_name, engine)
                 statements.append({
-                    "sql": f"ALTER TABLE {tbl_name} DROP CONSTRAINT {q_chk};",
+                    "sql": f"alter table {alt_tbl_name}\n    drop constraint {q_chk};",
                     "destructive": True,
                     "description": f"Drop check constraint {q_chk}",
                     "type": "constraints"
@@ -474,7 +511,7 @@ class TableDesignerService:
                 clause = chk.get("check_clause", "")
                 if clause:
                     statements.append({
-                        "sql": f"ALTER TABLE {tbl_name} ADD CONSTRAINT {q_chk} CHECK ({clause});",
+                        "sql": f"alter table {alt_tbl_name}\n    add constraint {q_chk} check ({clause});",
                         "destructive": False,
                         "description": f"Add check constraint {q_chk}",
                         "type": "constraints"
@@ -487,7 +524,7 @@ class TableDesignerService:
             if f_name not in mod_fks:
                 q_fk = cls._quote_ident(f_name, engine)
                 statements.append({
-                    "sql": f"ALTER TABLE {tbl_name} DROP CONSTRAINT {q_fk};",
+                    "sql": f"alter table {alt_tbl_name}\n    drop constraint {q_fk};",
                     "destructive": True,
                     "description": f"Drop foreign key constraint {q_fk}",
                     "type": "constraints"
@@ -500,11 +537,11 @@ class TableDesignerService:
                 ref_tbl = fk.get("ref_table", "")
                 ref_cols = ", ".join(cls._quote_ident(c, engine) for c in fk.get("ref_fields", []))
                 ref_full = cls._format_table_name(ref_schema, ref_tbl, engine)
-                fk_sql = f"ALTER TABLE {tbl_name} ADD CONSTRAINT {q_fk} FOREIGN KEY ({local_cols}) REFERENCES {ref_full} ({ref_cols})"
+                fk_sql = f"alter table {alt_tbl_name}\n    add constraint {q_fk} foreign key ({local_cols}) references {ref_full} ({ref_cols})"
                 if fk.get("on_delete") and fk["on_delete"].upper() != "NO ACTION":
-                    fk_sql += f" ON DELETE {fk['on_delete'].upper()}"
+                    fk_sql += f" on delete {fk['on_delete'].lower()}"
                 if fk.get("on_update") and fk["on_update"].upper() != "NO ACTION":
-                    fk_sql += f" ON UPDATE {fk['on_update'].upper()}"
+                    fk_sql += f" on update {fk['on_update'].lower()}"
                 fk_sql += ";"
                 statements.append({
                     "sql": fk_sql,
@@ -591,7 +628,7 @@ class TableDesignerService:
 
         # Build unified migration SQL string
         if not statements:
-            migration_sql = "-- No schema changes detected.\n"
+            migration_sql = ""
         elif engine == "sqlserver":
             migration_sql = "\n\nGO\n\n".join(s["sql"] for s in statements) + "\n\nGO\n"
         else:
@@ -600,6 +637,7 @@ class TableDesignerService:
         return {
             "statements": statements,
             "migration_sql": migration_sql,
+            "has_changes": bool(statements),
             "warnings": warnings,
             "has_destructive": any(s["destructive"] for s in statements)
         }

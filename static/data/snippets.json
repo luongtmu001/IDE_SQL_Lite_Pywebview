@@ -1,638 +1,645 @@
 [
-  {
-    "id": "18aeff82-0e48-4ef0-8cea-788f6249d9f0",
-    "prefix": "af",
-    "description": "ALTER FUNCTION fragment",
-    "body": "ALTER FUNCTION "
-  },
-  {
-    "id": "b5b257fc-be35-4c84-b125-d7a76aba8876",
-    "prefix": "ap",
-    "description": "ALTER PROCEDURE fragment",
-    "body": "ALTER PROCEDURE "
-  },
-  {
-    "id": "1ed78ec8-513d-4281-ad42-c1ed3c6fb2b4",
-    "prefix": "at",
-    "description": "ALTER TABLE fragment",
-    "body": "ALTER TABLE "
-  },
-  {
-    "id": "091119cf-6dc2-4928-95d6-e8dbcd9bca4b",
-    "prefix": "ata",
-    "description": "Add column",
-    "body": "ALTER TABLE $table_name$ ADD [$column_name$] $SELECTIONEND$INT$SELECTIONSTART$ --NULL|NOT NULL",
-    "placeholders": [
-      {
-        "name": "table_name",
-        "defaultValue": "[schema].[table_name]"
-      },
-      {
-        "name": "column_name",
-        "defaultValue": ""
-      }
-    ]
-  },
-  {
-    "id": "33a178a6-eb94-40a1-9048-314a443bc62a",
-    "prefix": "atac",
-    "description": "Modify column",
-    "body": "ALTER TABLE $table_name$ ALTER COLUMN ",
-    "placeholders": [
-      {
-        "name": "table_name",
-        "defaultValue": "[schema].[table_name]"
-      }
-    ]
-  },
-  {
-    "id": "fcc88bfd-b428-427e-be29-ae724d34ce60",
-    "prefix": "atd",
-    "description": "Drop column",
-    "body": "ALTER TABLE $table_name$ DROP COLUMN ",
-    "placeholders": [
-      {
-        "name": "table_name",
-        "defaultValue": "[schema].[table_name]"
-      }
-    ]
-  },
-  {
-    "id": "72e76b8b-7c61-4d30-88a9-45e139fe3f2d",
-    "prefix": "atdc",
-    "description": "Drop constraint",
-    "body": "ALTER TABLE $table_name$ DROP CONSTRAINT ",
-    "placeholders": [
-      {
-        "name": "table_name",
-        "defaultValue": "[schema].[table_name]"
-      }
-    ]
-  },
-  {
-    "id": "22112b0d-10b0-4ae6-97f7-4376ea5ecee8",
-    "prefix": "atdt",
-    "description": "Disable trigger",
-    "body": "ALTER TABLE $table_name$ DISABLE TRIGGER ",
-    "placeholders": [
-      {
-        "name": "table_name",
-        "defaultValue": "[schema].[table_name]"
-      }
-    ]
-  },
-  {
-    "id": "ac3e61ce-0d27-46dc-9fe8-5e8861fef8d3",
-    "prefix": "atdta",
-    "description": "Disable all triggers on table",
-    "body": "ALTER TABLE $SELECTIONEND$[schema].[table_name]$SELECTIONSTART$ DISABLE TRIGGER ALL"
-  },
-  {
-    "id": "88607971-d169-4d4d-9bff-7b8e4417ac28",
-    "prefix": "atet",
-    "description": "Enable trigger",
-    "body": "ALTER TABLE $table_name$ ENABLE TRIGGER ",
-    "placeholders": [
-      {
-        "name": "table_name",
-        "defaultValue": "[schema].[table_name]"
-      }
-    ]
-  },
-  {
-    "id": "73aa0a91-b9d1-4074-a5f5-42e74379cd69",
-    "prefix": "ateta",
-    "description": "Enable all triggers on table",
-    "body": "ALTER TABLE $CURSOR$ ENABLE TRIGGER ALL"
-  },
-  {
-    "id": "00a13a0b-40be-4a35-b12b-84437d372457",
-    "prefix": "be",
-    "description": "BEGIN...END block",
-    "body": "BEGIN\r\n    $SELECTEDTEXT$$CURSOR$\r\nEND"
-  },
-  {
-    "id": "bde5787c-b1bc-4701-b6c6-3d5d6100917f",
-    "prefix": "bt",
-    "description": "Begin transaction",
-    "body": "BEGIN TRANSACTION "
-  },
-  {
-    "id": "54e4712e-0441-4d46-8b26-aa0a1c1441ed",
-    "prefix": "cci",
-    "description": "Create non-unique clustered index",
-    "body": "CREATE CLUSTERED INDEX $index_name$\r\nON $owner$ ( $column$ )\r\n--WITH PAD_INDEX\r\n--    | FILLFACTOR = fillfactor\r\n--    | IGNORE_DUP_KEY\r\n--    | DROP_EXISTING\r\n--    | STATISTICS_NORECOMPUTE\r\n--    | SORT_IN_TEMPDB, .. as required\r\n-- ON filegroup\r\nGO\r\n",
-    "placeholders": [
-      {
-        "name": "owner",
-        "defaultValue": "[schema].[owner_name]"
-      },
-      {
-        "name": "column",
-        "defaultValue": ""
-      },
-      {
-        "name": "index_name",
-        "defaultValue": ""
-      }
-    ]
-  },
-  {
-    "id": "b8cd50cb-58a1-4e69-bbd9-2219b6bf5ab4",
-    "prefix": "cdb",
-    "description": "Create database",
-    "body": "CREATE DATABASE $database_name$\r\nON\r\nPRIMARY ( -- or use FILEGROUP filegroup_name\r\n  NAME = $database_name$_data,\r\n  FILENAME = '$database_name$.mdf'\r\n) --, and repeat as required\r\nLOG ON\r\n(\r\n  NAME = $database_name$_log,\r\n  FILENAME = '$database_name$.ldf'\r\n) --, and repeat as required\r\n--COLLATE collation_name\r\n--WITH\r\n--  DB_CHAINING ON/OFF\r\n--  TRUSTWORTHY ON/OFF\r\n--FOR LOAD\r\n--FOR ATTACH\r\n--WITH\r\n--  ENABLE_BROKER\r\n--  NEW_BROKER\r\n--  ERROR_BROKER_CONVERSATIONS\r\n--FOR ATTACH_REBUILD_LOG\r\nGO\r\n",
-    "placeholders": [
-      {
-        "name": "database_name",
-        "defaultValue": ""
-      }
-    ]
-  },
-  {
-    "id": "7df8c58a-a94a-447a-b612-bebf90dd9556",
-    "prefix": "cdbsnap",
-    "description": "Create database snapshot",
-    "body": "CREATE DATABASE $database_name$ \r\nON \r\n    (\r\n    NAME = $database_name$_data,\r\n    FILENAME = '$database_name$.ss'\r\n    )\r\nAS SNAPSHOT OF $source_database$\r\nGO",
-    "placeholders": [
-      {
-        "name": "source_database",
-        "defaultValue": ""
-      },
-      {
-        "name": "database_name",
-        "defaultValue": ""
-      }
-    ]
-  },
-  {
-    "id": "32030e32-c4bc-475b-87b8-3aa8f6843741",
-    "prefix": "chk",
-    "description": "Creates an extended event session, runs the code you want to test, extracts the output and then stops the session",
-    "body": "/**\r\nCopyright (c) Red Gate Software Ltd 2018\r\nAll rights Reserved. Use of this code is subject to the terms of a license agreement with Red Gate Software Limited.\r\n\r\nFor more info, see https://www.red-gate.com/hub/product-learning/sql-prompt/testing-performance-individual-sql-statements-within-batch-using-sql-prompt\r\n**/\r\n\r\nIF EXISTS --if the session already exists, then delete it. We are assuming you've changed something\r\n  (\r\n  SELECT * FROM sys.server_event_sessions\r\n    WHERE server_event_sessions.name = 'CheckingSQLStatements'\r\n  )\r\n  DROP EVENT SESSION CheckingSQLStatements ON SERVER;\r\nGO\r\nCREATE EVENT SESSION CheckingSQLStatements --call it what you wish, of course\r\nON SERVER\r\n  ADD EVENT sqlserver.sql_statement_completed --we just have one event\r\n    (ACTION (sqlserver.database_name, sqlserver.sql_text, sqlserver.plan_handle)-- and these global vars\r\n     WHERE (sqlserver.like_i_sql_unicode_string(sqlserver.sql_text, N'--Test these queries%'))\r\n\t --we just want the batch and nothing else so we put an identifying string at the start\r\n    )\r\n  ADD TARGET package0.ring_buffer \r\n  --we don't need a more permanent record or a bucket count\r\nWITH (STARTUP_STATE = OFF);\r\nGO\r\nALTER EVENT SESSION CheckingSQLStatements ON SERVER STATE = START;\r\n--V-----The Batch being tested starts here ------V\r\nGO --don't change this next line without changing the WHERE clause above\r\n--Test these queries\r\n-------------------------------------------------------------------\r\n\r\n$SELECTEDTEXT$\r\n\r\n------------------------------------------------------------------\r\ngo\r\nDECLARE @Target_Data XML =\r\n          (\r\n          SELECT TOP 1 Cast(xet.target_data AS XML) AS targetdata\r\n            FROM sys.dm_xe_session_targets AS xet\r\n              INNER JOIN sys.dm_xe_sessions AS xes\r\n                ON xes.address = xet.event_session_address\r\n            WHERE xes.name = 'CheckingSQLStatements'\r\n              AND xet.target_name = 'ring_buffer'\r\n          );\r\nSELECT \r\nCONVERT(datetime2,\r\n        SwitchOffset(CONVERT(datetimeoffset,the.event_data.value('(@timestamp)[1]', 'datetime2')),\r\n\t\tDateName(TzOffset, SYSDATETIMEOFFSET()))) AS datetime_local,\r\nCONVERT(DECIMAL(6,3),round(the.event_data.value('(data[@name=\"duration\"]/value)[1]', 'bigint')/1000000.0,3,1))  AS duration,\r\nthe.event_data.value('(data[@name=\"statement\"]/value)[1]', 'nvarchar(max)') AS [statement],\r\n--the.event_data.value('(action[@name=\"sql_text\"]/value)[1]', 'nvarchar(max)') AS sql_text,\r\n--the.event_data.value('(action[@name=\"database_name\"]/value)[1]', 'nvarchar(80)') AS [database_name],\r\nqp.query_plan,\r\nthe.event_data.value('(data[@name=\"cpu_time\"]/value)[1]', 'bigint') AS [cpu_time(microsSecs)],\r\nthe.event_data.value('(data[@name=\"physical_reads\"]/value)[1]', 'bigint') AS physical_reads,\r\nthe.event_data.value('(data[@name=\"logical_reads\"]/value)[1]', 'bigint') AS logical_reads,\r\nthe.event_data.value('(data[@name=\"writes\"]/value)[1]', 'bigint') AS writes,\r\nthe.event_data.value('(data[@name=\"row_count\"]/value)[1]', 'bigint') AS row_count\r\n--the.event_data.value('(data[@name=\"last_row_count\"]/value)[1]', 'int') AS last_row_count,\r\n--the.event_data.value('(data[@name=\"line_number\"]/value)[1]', 'int') AS line_number,\r\n--the.event_data.value('(data[@name=\"offset\"]/value)[1]', 'int') AS offset,\r\n--the.event_data.value('(data[@name=\"offset_end\"]/value)[1]', 'int') AS offset_end,\r\n\r\nFROM @Target_Data.nodes('//RingBufferTarget/event') AS the (event_data)\r\n  CROSS APPLY sys.dm_exec_query_plan(\r\n   Convert(varbinary(64),--convert to valid plan handle\r\n          '0x' + the.event_data.value('(action[@name=\"plan_handle\"]/value)[1]', 'nvarchar(max)')\r\n\t\t  ,1)) as qp\r\n\r\nALTER EVENT SESSION CheckingSQLStatements ON SERVER STATE = STOP;"
-  },
-  {
-    "id": "39ece5db-009a-48f4-b645-c99047eafb8b",
-    "prefix": "citf",
-    "description": "Create inline table-valued function",
-    "body": "CREATE FUNCTION $function_name$\r\n    (@parameter_name AS INT)\r\nRETURNS TABLE\r\n--WITH ENCRYPTION|SCHEMABINDING, ...\r\nAS\r\nRETURN ( $SELECTEDTEXT$$CURSOR$ )\r\nGO\r\n",
-    "placeholders": [
-      {
-        "name": "function_name",
-        "defaultValue": "[schema].[function_name]"
-      }
-    ]
-  },
-  {
-    "id": "9581e022-0ba4-437d-9edd-12a72f61c346",
-    "prefix": "cj",
-    "description": "CROSS JOIN fragment",
-    "body": "CROSS JOIN "
-  },
-  {
-    "id": "151a93cb-641e-4f5a-8bec-b383af1d234a",
-    "prefix": "cl",
-    "description": "CREATE SQL Server login",
-    "body": "CREATE LOGIN $CURSOR$ /* Add WITH or FROM (below) as appropriate */\r\n--WITH\r\n--  PASSWORD = 'password' /* HASHED */ /* MUST CHANGE */\r\n--  SID = sid\r\n--  DEFAULT_DATABASE = database\r\n--  DEFAULT_LANGUAGE = language\r\n--  CHECK_EXPIRATION = ON | OFF\r\n--  CHECK_POLICY = ON | OFF\r\n--  CREDENTIAL = credential_name\r\n--FROM\r\n--  WINDOWS\r\n--    WITH\r\n--      DEFAULT_DATABASE = database\r\n--      DEFAULT_LANGUAGE = language\r\n--  CERTIFICATE certificate_name\r\n--  ASYMMETRIC KEY key_name\r\nGO\r\n"
-  },
-  {
-    "id": "6468ce9d-0d26-4cea-8735-4834b5fde986",
-    "prefix": "clrp",
-    "description": "Create CLR stored procedure",
-    "body": "--SET QUOTED_IDENTIFIER ON|OFF\r\n--SET ANSI_NULLS ON|OFF\r\n--GO\r\n\r\nCREATE PROCEDURE $procedure_name$\r\n(\r\n    @parameter_name AS INT\r\n)\r\n-- WITH EXECUTE AS CALLER|SELF|OWNER| 'user_name'\r\nAS EXTERNAL NAME $external_name$\r\nGO\r\n\r\n--SET QUOTED_IDENTIFIER ON|OFF\r\n--SET ANSI_NULLS ON|OFF\r\n--GO",
-    "placeholders": [
-      {
-        "name": "external_name",
-        "defaultValue": "[assembly].[class].[method]"
-      },
-      {
-        "name": "procedure_name",
-        "defaultValue": "[schema].[procedure_name]"
-      }
-    ]
-  },
-  {
-    "id": "05e4404e-406f-4583-91be-42790ad88186",
-    "prefix": "cni",
-    "description": "Create non-unique nonclustered index",
-    "body": "CREATE NONCLUSTERED INDEX $index_name$\r\nON $owner$ ( $column_name$ )\r\n--WITH PAD_INDEX\r\n--    | FILLFACTOR = fillfactor\r\n--    | IGNORE_DUP_KEY\r\n--    | DROP_EXISTING\r\n--    | STATISTICS_NORECOMPUTE\r\n--    | SORT_IN_TEMPDB, .. as required\r\n-- ON filegroup\r\nGO\r\n",
-    "placeholders": [
-      {
-        "name": "owner",
-        "defaultValue": "[schema].[owner_name]"
-      },
-      {
-        "name": "column_name",
-        "defaultValue": ""
-      },
-      {
-        "name": "index_name",
-        "defaultValue": ""
-      }
-    ]
-  },
-  {
-    "id": "85c105c7-92a7-43a8-852c-850d7c16444b",
-    "prefix": "cp",
-    "description": "Create stored procedure",
-    "body": "--SET QUOTED_IDENTIFIER ON|OFF\r\n--SET ANSI_NULLS ON|OFF\r\n--GO\r\nCREATE PROCEDURE $procedure_name$\r\n    @parameter_name AS INT\r\n-- WITH ENCRYPTION, RECOMPILE, EXECUTE AS CALLER|SELF|OWNER| 'user_name'\r\nAS\r\nBEGIN\r\n    $CURSOR$\r\nEND\r\nGO\r\n--SET QUOTED_IDENTIFIER ON|OFF\r\n--SET ANSI_NULLS ON|OFF\r\n--GO",
-    "placeholders": [
-      {
-        "name": "procedure_name",
-        "defaultValue": "[schema].[procedure_name]"
-      }
-    ]
-  },
-  {
-    "id": "9ffe74a7-b688-4252-b91e-0d0cb2f64a1a",
-    "prefix": "csf",
-    "description": "Create scalar function",
-    "body": "CREATE FUNCTION $function_name$\r\n    (@parameter_name AS INT)\r\nRETURNS INT\r\n--WITH ENCRYPTION|SCHEMABINDING, ...\r\nAS\r\nBEGIN\r\n    RETURN $SELECTEDTEXT$$CURSOR$\r\nEND\r\nGO\r\n",
-    "placeholders": [
-      {
-        "name": "function_name",
-        "defaultValue": "[schema].[function_name]"
-      }
-    ]
-  },
-  {
-    "id": "2512de07-161f-4230-9c42-906c13cafffd",
-    "prefix": "ct",
-    "description": "Create table",
-    "body": "CREATE TABLE $table_name$\r\n(\r\n    $CURSOR$\r\n)",
-    "placeholders": [
-      {
-        "name": "table_name",
-        "defaultValue": "[schema].[table_name]"
-      }
-    ]
-  },
-  {
-    "id": "31e3fffa-cdf7-4b4d-9992-dc62c3c343e8",
-    "prefix": "cte",
-    "description": "WITH cte fragment",
-    "body": "\r\n        WITH $cte_name$ AS\r\n(\r\n$SELECTEDTEXT$\r\n)\r\nSELECT $CURSOR$\r\nFROM $cte_name$",
-    "placeholders": [
-      {
-        "name": "cte_name",
-        "defaultValue": ""
-      }
-    ]
-  },
-  {
-    "id": "10996b58-8ce4-4930-92c5-26ebd65de7f2",
-    "prefix": "ctf",
-    "description": "Create multi-statement table-valued function",
-    "body": "CREATE FUNCTION $function_name$\r\n    (@parameter_name AS INT)\r\nRETURNS @return_variable TABLE (/* table type definition */)\r\n--WITH ENCRYPTION|SCHEMABINDING, ...\r\nAS\r\nBEGIN\r\n    RETURN $CURSOR$\r\nEND\r\nGO\r\n",
-    "placeholders": [
-      {
-        "name": "function_name",
-        "defaultValue": "[schema].[function_name]"
-      }
-    ]
-  },
-  {
-    "id": "b474fcee-9d4d-4e53-bf3b-c3c13968b8ae",
-    "prefix": "ctr",
-    "description": "Commit transaction",
-    "body": "COMMIT TRANSACTION "
-  },
-  {
-    "id": "271e6052-f6b0-4cb1-bfd4-ce0e31a71e4a",
-    "prefix": "cu",
-    "description": "Create database user",
-    "body": "CREATE USER $CURSOR$\r\nFOR /* FROM */ LOGIN /* login_name */\r\n--\tCERTIFICATE certificate_name\r\n--\tASYMMETRIC KEY key_name\r\n--\tWITHOUT LOGIN\r\n--\tWITH DEFAULT_SCHEMA = schema_name\r\nGO\r\n"
-  },
-  {
-    "id": "ed3cca81-9d8f-42bd-9382-66ace2ee1079",
-    "prefix": "cuci",
-    "description": "Create unique clustered index",
-    "body": "CREATE UNIQUE CLUSTERED INDEX $index_name$\r\nON $owner$ ( $column$ )\r\n--WITH PAD_INDEX\r\n--    | FILLFACTOR = fillfactor\r\n--    | IGNORE_DUP_KEY\r\n--    | DROP_EXISTING\r\n--    | STATISTICS_NORECOMPUTE\r\n--    | SORT_IN_TEMPDB, .. as required\r\n-- ON filegroup\r\nGO\r\n",
-    "placeholders": [
-      {
-        "name": "owner",
-        "defaultValue": "[schema].[owner_name]"
-      },
-      {
-        "name": "column",
-        "defaultValue": ""
-      },
-      {
-        "name": "index_name",
-        "defaultValue": ""
-      }
-    ]
-  },
-  {
-    "id": "107704f7-f560-4747-82a7-e32ab7165792",
-    "prefix": "cuni",
-    "description": "Create unique nonclustered index",
-    "body": "CREATE UNIQUE NONCLUSTERED INDEX $index_name$\r\nON $owner$ ( $column$ )\r\n--WITH PAD_INDEX\r\n--    | FILLFACTOR = fillfactor\r\n--    | IGNORE_DUP_KEY\r\n--    | DROP_EXISTING\r\n--    | STATISTICS_NORECOMPUTE\r\n--    | SORT_IN_TEMPDB, .. as required\r\n-- ON filegroup\r\nGO\r\n",
-    "placeholders": [
-      {
-        "name": "owner",
-        "defaultValue": "[schema].[index_name]"
-      },
-      {
-        "name": "column",
-        "defaultValue": ""
-      },
-      {
-        "name": "index_name",
-        "defaultValue": ""
-      }
-    ]
-  },
-  {
-    "id": "87985702-8054-4145-901d-3a8fa4cf15f3",
-    "prefix": "curff",
-    "description": "Fast-forward read-only cursor",
-    "body": "/* declare variables */\r\nDECLARE @variable INT\r\n\r\nDECLARE $cursor_name$ CURSOR FAST_FORWARD READ_ONLY FOR $select_statement$\r\n\r\nOPEN $cursor_name$\r\n\r\nFETCH NEXT FROM $cursor_name$ INTO @variable\r\n\r\nWHILE @@FETCH_STATUS = 0\r\nBEGIN\r\n    $CURSOR$\r\n\r\n    FETCH NEXT FROM $cursor_name$ INTO @variable\r\nEND\r\n\r\nCLOSE $cursor_name$\r\nDEALLOCATE $cursor_name$",
-    "placeholders": [
-      {
-        "name": "cursor_name",
-        "defaultValue": ""
-      },
-      {
-        "name": "select_statement",
-        "defaultValue": ""
-      }
-    ]
-  },
-  {
-    "id": "a5cf41f9-4880-4e69-b18c-fe955abf8040",
-    "prefix": "cv",
-    "description": "Create view",
-    "body": "CREATE VIEW $view_name$\r\n--WITH ENCRYPTION, SCHEMABINDING, VIEW_METADATA\r\nAS\r\n    $SELECTEDTEXT$$CURSOR$\r\n-- WITH CHECK OPTION\r\nGO\r\n",
-    "placeholders": [
-      {
-        "name": "view_name",
-        "defaultValue": "[schema].[view_name]"
-      }
-    ]
-  },
-  {
-    "id": "0625c7e3-1482-46dd-b86f-805b99b2fc67",
-    "prefix": "dd",
-    "description": "Drop database",
-    "body": "DROP DATABASE "
-  },
-  {
-    "id": "fb56373f-8dba-4b07-9b58-5b1636614a96",
-    "prefix": "df",
-    "description": "DELETE FROM fragment",
-    "body": "DELETE FROM $table_name$ WHERE $CURSOR$",
-    "placeholders": [
-      {
-        "name": "table_name",
-        "defaultValue": "[schema].[table_name]"
-      }
-    ]
-  },
-  {
-    "id": "dbe3f2e8-bee1-434a-88f2-5a41c7209d59",
-    "prefix": "dfn",
-    "description": "Drop function",
-    "body": "DROP FUNCTION "
-  },
-  {
-    "id": "9dbd9cfe-90f6-46c6-8e1d-ad573c46dd7b",
-    "prefix": "di",
-    "description": "Drop index",
-    "body": "DROP INDEX "
-  },
-  {
-    "id": "e215f7f3-2a9e-4e4d-8150-5208c9a23901",
-    "prefix": "dl",
-    "description": "Drop login",
-    "body": "DROP LOGIN "
-  },
-  {
-    "id": "ac269954-050f-4cd5-9b37-4f2796bcfbbf",
-    "prefix": "dp",
-    "description": "Drop stored procedure",
-    "body": "DROP PROCEDURE "
-  },
-  {
-    "id": "56608974-e36a-4988-ba80-2d389f2acbdb",
-    "prefix": "dt",
-    "description": "Drop table",
-    "body": "DROP TABLE "
-  },
-  {
-    "id": "53b50210-7ff6-4351-aa11-1d6484e2c0b1",
-    "prefix": "du",
-    "description": "Drop user",
-    "body": "DROP USER "
-  },
-  {
-    "id": "0ef57143-3a5c-4248-ac98-3395b29e8fcd",
-    "prefix": "dv",
-    "description": "Drop view",
-    "body": "DROP VIEW "
-  },
-  {
-    "id": "5dc71137-e57c-46b5-9ea3-ed5922de472b",
-    "prefix": "eata",
-    "description": "Add column (enhanced edition)",
-    "body": "/**\r\nCopyright (c) Red Gate Software Ltd 2018\r\nAll rights Reserved. Use of this code is subject to the terms of a license agreement with Red Gate Software Limited.\r\n\r\nFor more info, see https://www.red-gate.com/hub/product-learning/sql-prompt/customizing-sql-prompt-built-snippets-better-ata-snippet\r\n**/\r\n\r\nUSE <database, sysname, $DBNAME$>\r\nGO\r\n \r\n-- Add a new column to the table\r\nALTER TABLE <Name of the Schema, sysname, dbo>.<Table name, sysname, $SELECTEDTEXT$>\r\n    ADD <Name of the new column, sysname, MyColumn> <datatype of this column,, datetime> <NULL or NOT NULL (allow nulls?),, NULL> -- <What is this column for?, sysname, unknown>\r\nGO\r\nEXEC sys.sp_addextendedproperty \r\n@name = N'MS_Description', \r\n@value = N'<What is this column for?, sysname, unknown>', \r\n@level0type = N'SCHEMA', @level0name = <Name of the Schema, sysname, dbo>, \r\n@level1type = N'TABLE',  @level1name = <Table name, sysname, $SELECTEDTEXT$>,\r\n@level2type = N'COLUMN', @level2name = <Name of the new column, sysname, MyColumn>;"
-  },
-  {
-    "id": "80bf88c6-ed6c-4dcf-adf6-fba3a01750fc",
-    "prefix": "err",
-    "description": "@@ERROR function call",
-    "body": "@@ERROR"
-  },
-  {
-    "id": "856f11ab-65ea-4297-8bc7-8f5ecd39d16e",
-    "prefix": "fj",
-    "description": "FULL JOIN fragment",
-    "body": "FULL JOIN "
-  },
-  {
-    "id": "0c9a0fe9-a4cd-4365-9734-4d30cb65b9d7",
-    "prefix": "foff",
-    "description": "Disable formatting from this point onwards",
-    "body": "--SQL Prompt Formatting Off"
-  },
-  {
-    "id": "12312b5b-8ece-4735-8a36-bdb1a82114f4",
-    "prefix": "foj",
-    "description": "FULL OUTER JOIN fragment",
-    "body": "FULL OUTER JOIN "
-  },
-  {
-    "id": "780e6624-5566-4b6d-9675-88170a6c3524",
-    "prefix": "fon",
-    "description": "Enable formatting from this point onwards",
-    "body": "--SQL Prompt Formatting On"
-  },
-  {
-    "id": "6a01be4b-c4a1-4178-a93d-e2cb072cdb34",
-    "prefix": "gb",
-    "description": "GROUP BY fragment",
-    "body": "GROUP BY "
-  },
-  {
-    "id": "4699fb96-d88a-4178-a40d-3b06c33f91d5",
-    "prefix": "ifs",
-    "description": "IF fragment",
-    "body": "IF $condition$\r\nBEGIN\r\n    $SELECTEDTEXT$$CURSOR$\r\nEND",
-    "placeholders": [
-      {
-        "name": "condition",
-        "defaultValue": "1 = 1"
-      }
-    ]
-  },
-  {
-    "id": "c321b9f3-94b1-4bcf-9b78-e58e66f158d8",
-    "prefix": "ii",
-    "description": "INSERT INTO fragment",
-    "body": "INSERT INTO "
-  },
-  {
-    "id": "de718173-b489-4bae-aa0b-892d909e28de",
-    "prefix": "ij",
-    "description": "INNER JOIN fragment",
-    "body": "INNER JOIN "
-  },
-  {
-    "id": "09dd6be2-64ac-4c23-985d-a662cfed0b24",
-    "prefix": "is",
-    "description": "INFORMATION_SCHEMA fragment",
-    "body": "INFORMATION_SCHEMA"
-  },
-  {
-    "id": "79d76e6d-b4eb-4b91-adb6-25cd817d83f2",
-    "prefix": "lj",
-    "description": "LEFT JOIN fragment",
-    "body": "LEFT JOIN "
-  },
-  {
-    "id": "a7bd038a-4c8e-4928-9b91-b57348f6cb84",
-    "prefix": "loj",
-    "description": "LEFT OUTER JOIN fragment",
-    "body": "LEFT OUTER JOIN "
-  },
-  {
-    "id": "2d4a5e2d-ac19-4bfd-b76d-b091dbef5bfa",
-    "prefix": "mro",
-    "description": "Retrieve 20 most recently created objects",
-    "body": "\r\n        -- NOTE: 'sys.objects'/'create_date' is only available in SQL Server 2005+. Replace with 'sysobjects'/'crdate' in SQL Server 2000.\r\nSELECT TOP (20) [name], [type], create_date\r\nFROM sys.objects\r\nORDER BY create_date DESC"
-  },
-  {
-    "id": "46e1710a-d822-4594-b78c-5b549a879512",
-    "prefix": "ob",
-    "description": "ORDER BY fragment",
-    "body": "ORDER BY "
-  },
-  {
-    "id": "c6a6c2ce-c957-4975-815b-be011282902a",
-    "prefix": "rj",
-    "description": "RIGHT JOIN fragment",
-    "body": "RIGHT JOIN "
-  },
-  {
-    "id": "e49f8ec4-c77f-4c4c-8d60-956d6735997b",
-    "prefix": "roj",
-    "description": "RIGHT OUTER JOIN fragment",
-    "body": "RIGHT OUTER JOIN "
-  },
-  {
-    "id": "e3948575-3378-4672-a79f-9a0b7a25cf1f",
-    "prefix": "rt",
-    "description": "Rollback transaction",
-    "body": "ROLLBACK TRANSACTION "
-  },
-  {
-    "id": "dd98f545-6c2c-441b-807a-7a0eeaac27a3",
-    "prefix": "san",
-    "description": "Change the current ANSI_NULLS setting",
-    "body": "SET ANSI_NULLS ON"
-  },
-  {
-    "id": "b883f8ff-57d1-4be1-a4a1-3fa19589cb75",
-    "prefix": "scf",
-    "description": "Count number of records returned by query",
-    "body": "SELECT COUNT(*) FROM "
-  },
-  {
-    "id": "dbe705db-2c1a-402e-82f9-6018972f54a0",
-    "prefix": "sph",
-    "description": "Execute sp_help",
-    "body": "EXEC sp_help"
-  },
-  {
-    "id": "f4d5b757-3c5c-43b1-9fbe-3c09200d8954",
-    "prefix": "spt",
-    "description": "Execute sp_helptext",
-    "body": "EXEC sp_helptext"
-  },
-  {
-    "id": "83b9f026-63f0-48ac-a4b5-2e4cf224ce09",
-    "prefix": "sqi",
-    "description": "Change the current QUOTED_IDENTIFIER setting",
-    "body": "SET QUOTED_IDENTIFIER ON"
-  },
-  {
-    "id": "8d81a2e6-1355-4edf-afa6-7d9faa0a4d35",
-    "prefix": "ssf",
-    "description": "SELECT * FROM fragment",
-    "body": "SELECT * FROM "
-  },
-  {
-    "id": "571ecae7-9f6a-4ad4-9e87-c2139244a087",
-    "prefix": "st100",
-    "description": "SELECT top 100 rows",
-    "body": "SELECT TOP (100) * FROM "
-  },
-  {
-    "id": "0d6125e5-3daf-415f-9342-ccfefa14763e",
-    "prefix": "sxa",
-    "description": "Change the current XACT_ABORT setting",
-    "body": "SET XACT_ABORT OFF"
-  },
-  {
-    "id": "460a45fc-dcfe-4df4-b001-5fb9363e6249",
-    "prefix": "tc",
-    "description": "TRY ... CATCH fragment",
-    "body": "BEGIN TRY\r\n    $SELECTEDTEXT$\r\nEND TRY\r\nBEGIN CATCH\r\n    $CURSOR$\r\nEND CATCH"
-  },
-  {
-    "id": "94a22b32-2f6e-48eb-a815-908a02f95d1b",
-    "prefix": "timings",
-    "description": "Wraps a simple timings test harness around the selected code",
-    "body": "/**\r\nCopyright (c) Red Gate Software Ltd 2017\r\nAll rights Reserved. Use of this code is subject to the terms of a license agreement with Red Gate Software Limited.\r\n\r\nFor more info, see https://www.red-gate.com/hub/product-learning/sql-prompt/record-t-sql-execution-times-using-sql-prompt-snippet\r\n**/\r\n\r\nDECLARE @log table\r\n(\r\n    TheOrder     int IDENTITY(1, 1),\r\n    WhatHappened varchar(200),\r\n    WhenItDid    datetime2 DEFAULT GETDATE()\r\n)\r\n----start of timing\r\nINSERT INTO @log(WhatHappened)\r\nSELECT 'Starting $routine$' --place at the start\r\n \r\n$SELECTEDTEXT$$CURSOR$\r\n \r\n--where the routine you want to time ends\r\nINSERT INTO @log(WhatHappened)\r\nSELECT '$routine$ took '\r\nSELECT ending.WhatHappened, DATEDIFF(ms, starting.WhenItDid, ending.WhenItDid)\r\nFROM   @log starting\r\n       INNER JOIN @log ending\r\n           ON ending.TheOrder = starting.TheOrder + 1\r\n--list out all the timings",
-    "placeholders": [
-      {
-        "name": "routine",
-        "defaultValue": ""
-      }
-    ]
-  },
-  {
-    "id": "7cb4ea61-17f1-401d-90d5-cc9ab7d67d99",
-    "prefix": "tvc",
-    "description": "Automatically create a table variable (or temp table) in which to store the results of (for example) executing a stored procedure, function or query",
-    "body": "/**\r\nCopyright (c) Red Gate Software Ltd 2021\r\nAll rights Reserved. Use of this code is subject to the terms of a license agreement with Red Gate Software Limited.\r\n\r\nThis is a temporary batch for creating such things as table variables, temporary tables or anything else that needs a column list.\r\nFor more info, see https://www.red-gate.com/hub/product-learning/sql-prompt/building-reusable-table-build-scripts-using-sql-prompt\r\n**/\r\n\r\nDeclare @TheExpression NVARCHAR(MAX)=\r\nN'$SELECTEDTEXT$'\r\n\r\nSELECT 'DECLARE @$NameOfVariable$ table ('+\r\n  Stuff ((SELECT ',\r\n    '+QuoteName(Coalesce(DetectDuplicateNames.name+'_'+Convert(VARCHAR(5),f.column_ordinal),f.name))\r\n     + ' '+ System_type_name + CASE WHEN is_nullable = 0 THEN ' NOT' ELSE ''END+' NULL'\r\n   --+ CASE WHEN collation_name IS NULL THEN '' ELSE ' COLLATE '+collation_name END\r\n   AS ThePath\r\n  FROM sys.dm_exec_describe_first_result_set\r\n  (@TheExpression, NULL, 1) AS f\r\n  -- use  sys.sp_describe_first_result_set for a batch\r\n  LEFT OUTER JOIN \r\n    (SELECT name AS name FROM sys.dm_exec_describe_first_result_set\r\n      (@TheExpression, NULL, 0) WHERE is_hidden=0 \r\n     GROUP BY name HAVING Count(*)>1) AS DetectDuplicateNames\r\n  ON DetectDuplicateNames.name=f.name\r\n  WHERE f.is_hidden=0\r\nORDER BY column_ordinal\r\nFOR XML PATH (''), TYPE).value('.', 'varchar(max)'),1,1,'')+')'",
-    "placeholders": [
-      {
-        "name": "NameOfVariable",
-        "defaultValue": "MyTableVariable"
-      }
-    ]
-  },
-  {
-    "id": "9a70621b-1394-46c8-bcf5-09cb7aca37c3",
-    "prefix": "w2",
-    "description": "Execute sp_who2",
-    "body": "EXEC sp_who2"
-  },
-  {
-    "id": "ef87da80-82e7-4725-a988-e3434520afde",
-    "prefix": "xpfd",
-    "description": "Retrieve free space on all fixed drives",
-    "body": "EXEC master..xp_fixeddrives"
-  }
+    {
+        "id": "18aeff82-0e48-4ef0-8cea-788f6249d9f0",
+        "prefix": "af",
+        "description": "ALTER FUNCTION fragment",
+        "body": "ALTER FUNCTION "
+    },
+    {
+        "id": "b5b257fc-be35-4c84-b125-d7a76aba8876",
+        "prefix": "ap",
+        "description": "ALTER PROCEDURE fragment",
+        "body": "ALTER PROCEDURE "
+    },
+    {
+        "id": "1ed78ec8-513d-4281-ad42-c1ed3c6fb2b4",
+        "prefix": "at",
+        "description": "ALTER TABLE fragment",
+        "body": "ALTER TABLE "
+    },
+    {
+        "id": "091119cf-6dc2-4928-95d6-e8dbcd9bca4b",
+        "prefix": "ata",
+        "description": "Add column",
+        "body": "ALTER TABLE $table_name$ ADD [$column_name$] $SELECTIONEND$INT$SELECTIONSTART$ --NULL|NOT NULL",
+        "placeholders": [
+            {
+                "name": "table_name",
+                "defaultValue": "[schema].[table_name]"
+            },
+            {
+                "name": "column_name",
+                "defaultValue": ""
+            }
+        ]
+    },
+    {
+        "id": "33a178a6-eb94-40a1-9048-314a443bc62a",
+        "prefix": "atac",
+        "description": "Modify column",
+        "body": "ALTER TABLE $table_name$ ALTER COLUMN ",
+        "placeholders": [
+            {
+                "name": "table_name",
+                "defaultValue": "[schema].[table_name]"
+            }
+        ]
+    },
+    {
+        "id": "fcc88bfd-b428-427e-be29-ae724d34ce60",
+        "prefix": "atd",
+        "description": "Drop column",
+        "body": "ALTER TABLE $table_name$ DROP COLUMN ",
+        "placeholders": [
+            {
+                "name": "table_name",
+                "defaultValue": "[schema].[table_name]"
+            }
+        ]
+    },
+    {
+        "id": "72e76b8b-7c61-4d30-88a9-45e139fe3f2d",
+        "prefix": "atdc",
+        "description": "Drop constraint",
+        "body": "ALTER TABLE $table_name$ DROP CONSTRAINT ",
+        "placeholders": [
+            {
+                "name": "table_name",
+                "defaultValue": "[schema].[table_name]"
+            }
+        ]
+    },
+    {
+        "id": "22112b0d-10b0-4ae6-97f7-4376ea5ecee8",
+        "prefix": "atdt",
+        "description": "Disable trigger",
+        "body": "ALTER TABLE $table_name$ DISABLE TRIGGER ",
+        "placeholders": [
+            {
+                "name": "table_name",
+                "defaultValue": "[schema].[table_name]"
+            }
+        ]
+    },
+    {
+        "id": "ac3e61ce-0d27-46dc-9fe8-5e8861fef8d3",
+        "prefix": "atdta",
+        "description": "Disable all triggers on table",
+        "body": "ALTER TABLE $SELECTIONEND$[schema].[table_name]$SELECTIONSTART$ DISABLE TRIGGER ALL"
+    },
+    {
+        "id": "88607971-d169-4d4d-9bff-7b8e4417ac28",
+        "prefix": "atet",
+        "description": "Enable trigger",
+        "body": "ALTER TABLE $table_name$ ENABLE TRIGGER ",
+        "placeholders": [
+            {
+                "name": "table_name",
+                "defaultValue": "[schema].[table_name]"
+            }
+        ]
+    },
+    {
+        "id": "73aa0a91-b9d1-4074-a5f5-42e74379cd69",
+        "prefix": "ateta",
+        "description": "Enable all triggers on table",
+        "body": "ALTER TABLE $CURSOR$ ENABLE TRIGGER ALL"
+    },
+    {
+        "id": "00a13a0b-40be-4a35-b12b-84437d372457",
+        "prefix": "be",
+        "description": "BEGIN...END block",
+        "body": "BEGIN\r\n    $SELECTEDTEXT$$CURSOR$\r\nEND"
+    },
+    {
+        "id": "bde5787c-b1bc-4701-b6c6-3d5d6100917f",
+        "prefix": "bt",
+        "description": "Begin transaction",
+        "body": "BEGIN TRANSACTION "
+    },
+    {
+        "id": "54e4712e-0441-4d46-8b26-aa0a1c1441ed",
+        "prefix": "cci",
+        "description": "Create non-unique clustered index",
+        "body": "CREATE CLUSTERED INDEX $index_name$\r\nON $owner$ ( $column$ )\r\n--WITH PAD_INDEX\r\n--    | FILLFACTOR = fillfactor\r\n--    | IGNORE_DUP_KEY\r\n--    | DROP_EXISTING\r\n--    | STATISTICS_NORECOMPUTE\r\n--    | SORT_IN_TEMPDB, .. as required\r\n-- ON filegroup\r\nGO\r\n",
+        "placeholders": [
+            {
+                "name": "owner",
+                "defaultValue": "[schema].[owner_name]"
+            },
+            {
+                "name": "column",
+                "defaultValue": ""
+            },
+            {
+                "name": "index_name",
+                "defaultValue": ""
+            }
+        ]
+    },
+    {
+        "id": "b8cd50cb-58a1-4e69-bbd9-2219b6bf5ab4",
+        "prefix": "cdb",
+        "description": "Create database",
+        "body": "CREATE DATABASE $database_name$\r\nON\r\nPRIMARY ( -- or use FILEGROUP filegroup_name\r\n  NAME = $database_name$_data,\r\n  FILENAME = '$database_name$.mdf'\r\n) --, and repeat as required\r\nLOG ON\r\n(\r\n  NAME = $database_name$_log,\r\n  FILENAME = '$database_name$.ldf'\r\n) --, and repeat as required\r\n--COLLATE collation_name\r\n--WITH\r\n--  DB_CHAINING ON/OFF\r\n--  TRUSTWORTHY ON/OFF\r\n--FOR LOAD\r\n--FOR ATTACH\r\n--WITH\r\n--  ENABLE_BROKER\r\n--  NEW_BROKER\r\n--  ERROR_BROKER_CONVERSATIONS\r\n--FOR ATTACH_REBUILD_LOG\r\nGO\r\n",
+        "placeholders": [
+            {
+                "name": "database_name",
+                "defaultValue": ""
+            }
+        ]
+    },
+    {
+        "id": "7df8c58a-a94a-447a-b612-bebf90dd9556",
+        "prefix": "cdbsnap",
+        "description": "Create database snapshot",
+        "body": "CREATE DATABASE $database_name$ \r\nON \r\n    (\r\n    NAME = $database_name$_data,\r\n    FILENAME = '$database_name$.ss'\r\n    )\r\nAS SNAPSHOT OF $source_database$\r\nGO",
+        "placeholders": [
+            {
+                "name": "source_database",
+                "defaultValue": ""
+            },
+            {
+                "name": "database_name",
+                "defaultValue": ""
+            }
+        ]
+    },
+    {
+        "id": "32030e32-c4bc-475b-87b8-3aa8f6843741",
+        "prefix": "chk",
+        "description": "Creates an extended event session, runs the code you want to test, extracts the output and then stops the session",
+        "body": "/**\r\nCopyright (c) Red Gate Software Ltd 2018\r\nAll rights Reserved. Use of this code is subject to the terms of a license agreement with Red Gate Software Limited.\r\n\r\nFor more info, see https://www.red-gate.com/hub/product-learning/sql-prompt/testing-performance-individual-sql-statements-within-batch-using-sql-prompt\r\n**/\r\n\r\nIF EXISTS --if the session already exists, then delete it. We are assuming you've changed something\r\n  (\r\n  SELECT * FROM sys.server_event_sessions\r\n    WHERE server_event_sessions.name = 'CheckingSQLStatements'\r\n  )\r\n  DROP EVENT SESSION CheckingSQLStatements ON SERVER;\r\nGO\r\nCREATE EVENT SESSION CheckingSQLStatements --call it what you wish, of course\r\nON SERVER\r\n  ADD EVENT sqlserver.sql_statement_completed --we just have one event\r\n    (ACTION (sqlserver.database_name, sqlserver.sql_text, sqlserver.plan_handle)-- and these global vars\r\n     WHERE (sqlserver.like_i_sql_unicode_string(sqlserver.sql_text, N'--Test these queries%'))\r\n\t --we just want the batch and nothing else so we put an identifying string at the start\r\n    )\r\n  ADD TARGET package0.ring_buffer \r\n  --we don't need a more permanent record or a bucket count\r\nWITH (STARTUP_STATE = OFF);\r\nGO\r\nALTER EVENT SESSION CheckingSQLStatements ON SERVER STATE = START;\r\n--V-----The Batch being tested starts here ------V\r\nGO --don't change this next line without changing the WHERE clause above\r\n--Test these queries\r\n-------------------------------------------------------------------\r\n\r\n$SELECTEDTEXT$\r\n\r\n------------------------------------------------------------------\r\ngo\r\nDECLARE @Target_Data XML =\r\n          (\r\n          SELECT TOP 1 Cast(xet.target_data AS XML) AS targetdata\r\n            FROM sys.dm_xe_session_targets AS xet\r\n              INNER JOIN sys.dm_xe_sessions AS xes\r\n                ON xes.address = xet.event_session_address\r\n            WHERE xes.name = 'CheckingSQLStatements'\r\n              AND xet.target_name = 'ring_buffer'\r\n          );\r\nSELECT \r\nCONVERT(datetime2,\r\n        SwitchOffset(CONVERT(datetimeoffset,the.event_data.value('(@timestamp)[1]', 'datetime2')),\r\n\t\tDateName(TzOffset, SYSDATETIMEOFFSET()))) AS datetime_local,\r\nCONVERT(DECIMAL(6,3),round(the.event_data.value('(data[@name=\"duration\"]/value)[1]', 'bigint')/1000000.0,3,1))  AS duration,\r\nthe.event_data.value('(data[@name=\"statement\"]/value)[1]', 'nvarchar(max)') AS [statement],\r\n--the.event_data.value('(action[@name=\"sql_text\"]/value)[1]', 'nvarchar(max)') AS sql_text,\r\n--the.event_data.value('(action[@name=\"database_name\"]/value)[1]', 'nvarchar(80)') AS [database_name],\r\nqp.query_plan,\r\nthe.event_data.value('(data[@name=\"cpu_time\"]/value)[1]', 'bigint') AS [cpu_time(microsSecs)],\r\nthe.event_data.value('(data[@name=\"physical_reads\"]/value)[1]', 'bigint') AS physical_reads,\r\nthe.event_data.value('(data[@name=\"logical_reads\"]/value)[1]', 'bigint') AS logical_reads,\r\nthe.event_data.value('(data[@name=\"writes\"]/value)[1]', 'bigint') AS writes,\r\nthe.event_data.value('(data[@name=\"row_count\"]/value)[1]', 'bigint') AS row_count\r\n--the.event_data.value('(data[@name=\"last_row_count\"]/value)[1]', 'int') AS last_row_count,\r\n--the.event_data.value('(data[@name=\"line_number\"]/value)[1]', 'int') AS line_number,\r\n--the.event_data.value('(data[@name=\"offset\"]/value)[1]', 'int') AS offset,\r\n--the.event_data.value('(data[@name=\"offset_end\"]/value)[1]', 'int') AS offset_end,\r\n\r\nFROM @Target_Data.nodes('//RingBufferTarget/event') AS the (event_data)\r\n  CROSS APPLY sys.dm_exec_query_plan(\r\n   Convert(varbinary(64),--convert to valid plan handle\r\n          '0x' + the.event_data.value('(action[@name=\"plan_handle\"]/value)[1]', 'nvarchar(max)')\r\n\t\t  ,1)) as qp\r\n\r\nALTER EVENT SESSION CheckingSQLStatements ON SERVER STATE = STOP;"
+    },
+    {
+        "id": "39ece5db-009a-48f4-b645-c99047eafb8b",
+        "prefix": "citf",
+        "description": "Create inline table-valued function",
+        "body": "CREATE FUNCTION $function_name$\r\n    (@parameter_name AS INT)\r\nRETURNS TABLE\r\n--WITH ENCRYPTION|SCHEMABINDING, ...\r\nAS\r\nRETURN ( $SELECTEDTEXT$$CURSOR$ )\r\nGO\r\n",
+        "placeholders": [
+            {
+                "name": "function_name",
+                "defaultValue": "[schema].[function_name]"
+            }
+        ]
+    },
+    {
+        "id": "9581e022-0ba4-437d-9edd-12a72f61c346",
+        "prefix": "cj",
+        "description": "CROSS JOIN fragment",
+        "body": "CROSS JOIN "
+    },
+    {
+        "id": "151a93cb-641e-4f5a-8bec-b383af1d234a",
+        "prefix": "cl",
+        "description": "CREATE SQL Server login",
+        "body": "CREATE LOGIN $CURSOR$ /* Add WITH or FROM (below) as appropriate */\r\n--WITH\r\n--  PASSWORD = 'password' /* HASHED */ /* MUST CHANGE */\r\n--  SID = sid\r\n--  DEFAULT_DATABASE = database\r\n--  DEFAULT_LANGUAGE = language\r\n--  CHECK_EXPIRATION = ON | OFF\r\n--  CHECK_POLICY = ON | OFF\r\n--  CREDENTIAL = credential_name\r\n--FROM\r\n--  WINDOWS\r\n--    WITH\r\n--      DEFAULT_DATABASE = database\r\n--      DEFAULT_LANGUAGE = language\r\n--  CERTIFICATE certificate_name\r\n--  ASYMMETRIC KEY key_name\r\nGO\r\n"
+    },
+    {
+        "id": "6468ce9d-0d26-4cea-8735-4834b5fde986",
+        "prefix": "clrp",
+        "description": "Create CLR stored procedure",
+        "body": "--SET QUOTED_IDENTIFIER ON|OFF\r\n--SET ANSI_NULLS ON|OFF\r\n--GO\r\n\r\nCREATE PROCEDURE $procedure_name$\r\n(\r\n    @parameter_name AS INT\r\n)\r\n-- WITH EXECUTE AS CALLER|SELF|OWNER| 'user_name'\r\nAS EXTERNAL NAME $external_name$\r\nGO\r\n\r\n--SET QUOTED_IDENTIFIER ON|OFF\r\n--SET ANSI_NULLS ON|OFF\r\n--GO",
+        "placeholders": [
+            {
+                "name": "external_name",
+                "defaultValue": "[assembly].[class].[method]"
+            },
+            {
+                "name": "procedure_name",
+                "defaultValue": "[schema].[procedure_name]"
+            }
+        ]
+    },
+    {
+        "id": "05e4404e-406f-4583-91be-42790ad88186",
+        "prefix": "cni",
+        "description": "Create non-unique nonclustered index",
+        "body": "CREATE NONCLUSTERED INDEX $index_name$\r\nON $owner$ ( $column_name$ )\r\n--WITH PAD_INDEX\r\n--    | FILLFACTOR = fillfactor\r\n--    | IGNORE_DUP_KEY\r\n--    | DROP_EXISTING\r\n--    | STATISTICS_NORECOMPUTE\r\n--    | SORT_IN_TEMPDB, .. as required\r\n-- ON filegroup\r\nGO\r\n",
+        "placeholders": [
+            {
+                "name": "owner",
+                "defaultValue": "[schema].[owner_name]"
+            },
+            {
+                "name": "column_name",
+                "defaultValue": ""
+            },
+            {
+                "name": "index_name",
+                "defaultValue": ""
+            }
+        ]
+    },
+    {
+        "id": "85c105c7-92a7-43a8-852c-850d7c16444b",
+        "prefix": "cp",
+        "description": "Create stored procedure",
+        "body": "--SET QUOTED_IDENTIFIER ON|OFF\r\n--SET ANSI_NULLS ON|OFF\r\n--GO\r\nCREATE PROCEDURE $procedure_name$\r\n    @parameter_name AS INT\r\n-- WITH ENCRYPTION, RECOMPILE, EXECUTE AS CALLER|SELF|OWNER| 'user_name'\r\nAS\r\nBEGIN\r\n    $CURSOR$\r\nEND\r\nGO\r\n--SET QUOTED_IDENTIFIER ON|OFF\r\n--SET ANSI_NULLS ON|OFF\r\n--GO",
+        "placeholders": [
+            {
+                "name": "procedure_name",
+                "defaultValue": "[schema].[procedure_name]"
+            }
+        ]
+    },
+    {
+        "id": "snip_mukatokn5zlh",
+        "prefix": "crv",
+        "description": "CREATE OR REPLACE VIEW",
+        "body": "CREATE OR REPLACE VIEW",
+        "placeholders": []
+    },
+    {
+        "id": "9ffe74a7-b688-4252-b91e-0d0cb2f64a1a",
+        "prefix": "csf",
+        "description": "Create scalar function",
+        "body": "CREATE FUNCTION $function_name$\r\n    (@parameter_name AS INT)\r\nRETURNS INT\r\n--WITH ENCRYPTION|SCHEMABINDING, ...\r\nAS\r\nBEGIN\r\n    RETURN $SELECTEDTEXT$$CURSOR$\r\nEND\r\nGO\r\n",
+        "placeholders": [
+            {
+                "name": "function_name",
+                "defaultValue": "[schema].[function_name]"
+            }
+        ]
+    },
+    {
+        "id": "2512de07-161f-4230-9c42-906c13cafffd",
+        "prefix": "ct",
+        "description": "Create table",
+        "body": "CREATE TABLE $table_name$\r\n(\r\n    $CURSOR$\r\n)",
+        "placeholders": [
+            {
+                "name": "table_name",
+                "defaultValue": "[schema].[table_name]"
+            }
+        ]
+    },
+    {
+        "id": "31e3fffa-cdf7-4b4d-9992-dc62c3c343e8",
+        "prefix": "cte",
+        "description": "WITH cte fragment",
+        "body": "\r\n        WITH $cte_name$ AS\r\n(\r\n$SELECTEDTEXT$\r\n)\r\nSELECT $CURSOR$\r\nFROM $cte_name$",
+        "placeholders": [
+            {
+                "name": "cte_name",
+                "defaultValue": ""
+            }
+        ]
+    },
+    {
+        "id": "10996b58-8ce4-4930-92c5-26ebd65de7f2",
+        "prefix": "ctf",
+        "description": "Create multi-statement table-valued function",
+        "body": "CREATE FUNCTION $function_name$\r\n    (@parameter_name AS INT)\r\nRETURNS @return_variable TABLE (/* table type definition */)\r\n--WITH ENCRYPTION|SCHEMABINDING, ...\r\nAS\r\nBEGIN\r\n    RETURN $CURSOR$\r\nEND\r\nGO\r\n",
+        "placeholders": [
+            {
+                "name": "function_name",
+                "defaultValue": "[schema].[function_name]"
+            }
+        ]
+    },
+    {
+        "id": "b474fcee-9d4d-4e53-bf3b-c3c13968b8ae",
+        "prefix": "ctr",
+        "description": "Commit transaction",
+        "body": "COMMIT TRANSACTION "
+    },
+    {
+        "id": "271e6052-f6b0-4cb1-bfd4-ce0e31a71e4a",
+        "prefix": "cu",
+        "description": "Create database user",
+        "body": "CREATE USER $CURSOR$\r\nFOR /* FROM */ LOGIN /* login_name */\r\n--\tCERTIFICATE certificate_name\r\n--\tASYMMETRIC KEY key_name\r\n--\tWITHOUT LOGIN\r\n--\tWITH DEFAULT_SCHEMA = schema_name\r\nGO\r\n"
+    },
+    {
+        "id": "ed3cca81-9d8f-42bd-9382-66ace2ee1079",
+        "prefix": "cuci",
+        "description": "Create unique clustered index",
+        "body": "CREATE UNIQUE CLUSTERED INDEX $index_name$\r\nON $owner$ ( $column$ )\r\n--WITH PAD_INDEX\r\n--    | FILLFACTOR = fillfactor\r\n--    | IGNORE_DUP_KEY\r\n--    | DROP_EXISTING\r\n--    | STATISTICS_NORECOMPUTE\r\n--    | SORT_IN_TEMPDB, .. as required\r\n-- ON filegroup\r\nGO\r\n",
+        "placeholders": [
+            {
+                "name": "owner",
+                "defaultValue": "[schema].[owner_name]"
+            },
+            {
+                "name": "column",
+                "defaultValue": ""
+            },
+            {
+                "name": "index_name",
+                "defaultValue": ""
+            }
+        ]
+    },
+    {
+        "id": "107704f7-f560-4747-82a7-e32ab7165792",
+        "prefix": "cuni",
+        "description": "Create unique nonclustered index",
+        "body": "CREATE UNIQUE NONCLUSTERED INDEX $index_name$\r\nON $owner$ ( $column$ )\r\n--WITH PAD_INDEX\r\n--    | FILLFACTOR = fillfactor\r\n--    | IGNORE_DUP_KEY\r\n--    | DROP_EXISTING\r\n--    | STATISTICS_NORECOMPUTE\r\n--    | SORT_IN_TEMPDB, .. as required\r\n-- ON filegroup\r\nGO\r\n",
+        "placeholders": [
+            {
+                "name": "owner",
+                "defaultValue": "[schema].[index_name]"
+            },
+            {
+                "name": "column",
+                "defaultValue": ""
+            },
+            {
+                "name": "index_name",
+                "defaultValue": ""
+            }
+        ]
+    },
+    {
+        "id": "87985702-8054-4145-901d-3a8fa4cf15f3",
+        "prefix": "curff",
+        "description": "Fast-forward read-only cursor",
+        "body": "/* declare variables */\r\nDECLARE @variable INT\r\n\r\nDECLARE $cursor_name$ CURSOR FAST_FORWARD READ_ONLY FOR $select_statement$\r\n\r\nOPEN $cursor_name$\r\n\r\nFETCH NEXT FROM $cursor_name$ INTO @variable\r\n\r\nWHILE @@FETCH_STATUS = 0\r\nBEGIN\r\n    $CURSOR$\r\n\r\n    FETCH NEXT FROM $cursor_name$ INTO @variable\r\nEND\r\n\r\nCLOSE $cursor_name$\r\nDEALLOCATE $cursor_name$",
+        "placeholders": [
+            {
+                "name": "cursor_name",
+                "defaultValue": ""
+            },
+            {
+                "name": "select_statement",
+                "defaultValue": ""
+            }
+        ]
+    },
+    {
+        "id": "a5cf41f9-4880-4e69-b18c-fe955abf8040",
+        "prefix": "cv",
+        "description": "Create view",
+        "body": "CREATE VIEW $view_name$\r\n--WITH ENCRYPTION, SCHEMABINDING, VIEW_METADATA\r\nAS\r\n    $SELECTEDTEXT$$CURSOR$\r\n-- WITH CHECK OPTION\r\nGO\r\n",
+        "placeholders": [
+            {
+                "name": "view_name",
+                "defaultValue": "[schema].[view_name]"
+            }
+        ]
+    },
+    {
+        "id": "0625c7e3-1482-46dd-b86f-805b99b2fc67",
+        "prefix": "dd",
+        "description": "Drop database",
+        "body": "DROP DATABASE "
+    },
+    {
+        "id": "fb56373f-8dba-4b07-9b58-5b1636614a96",
+        "prefix": "df",
+        "description": "DELETE FROM fragment",
+        "body": "DELETE FROM $table_name$ WHERE $CURSOR$",
+        "placeholders": [
+            {
+                "name": "table_name",
+                "defaultValue": "[schema].[table_name]"
+            }
+        ]
+    },
+    {
+        "id": "dbe3f2e8-bee1-434a-88f2-5a41c7209d59",
+        "prefix": "dfn",
+        "description": "Drop function",
+        "body": "DROP FUNCTION "
+    },
+    {
+        "id": "9dbd9cfe-90f6-46c6-8e1d-ad573c46dd7b",
+        "prefix": "di",
+        "description": "Drop index",
+        "body": "DROP INDEX "
+    },
+    {
+        "id": "e215f7f3-2a9e-4e4d-8150-5208c9a23901",
+        "prefix": "dl",
+        "description": "Drop login",
+        "body": "DROP LOGIN "
+    },
+    {
+        "id": "ac269954-050f-4cd5-9b37-4f2796bcfbbf",
+        "prefix": "dp",
+        "description": "Drop stored procedure",
+        "body": "DROP PROCEDURE "
+    },
+    {
+        "id": "56608974-e36a-4988-ba80-2d389f2acbdb",
+        "prefix": "dt",
+        "description": "Drop table",
+        "body": "DROP TABLE "
+    },
+    {
+        "id": "53b50210-7ff6-4351-aa11-1d6484e2c0b1",
+        "prefix": "du",
+        "description": "Drop user",
+        "body": "DROP USER "
+    },
+    {
+        "id": "0ef57143-3a5c-4248-ac98-3395b29e8fcd",
+        "prefix": "dv",
+        "description": "Drop view",
+        "body": "DROP VIEW "
+    },
+    {
+        "id": "5dc71137-e57c-46b5-9ea3-ed5922de472b",
+        "prefix": "eata",
+        "description": "Add column (enhanced edition)",
+        "body": "/**\r\nCopyright (c) Red Gate Software Ltd 2018\r\nAll rights Reserved. Use of this code is subject to the terms of a license agreement with Red Gate Software Limited.\r\n\r\nFor more info, see https://www.red-gate.com/hub/product-learning/sql-prompt/customizing-sql-prompt-built-snippets-better-ata-snippet\r\n**/\r\n\r\nUSE <database, sysname, $DBNAME$>\r\nGO\r\n \r\n-- Add a new column to the table\r\nALTER TABLE <Name of the Schema, sysname, dbo>.<Table name, sysname, $SELECTEDTEXT$>\r\n    ADD <Name of the new column, sysname, MyColumn> <datatype of this column,, datetime> <NULL or NOT NULL (allow nulls?),, NULL> -- <What is this column for?, sysname, unknown>\r\nGO\r\nEXEC sys.sp_addextendedproperty \r\n@name = N'MS_Description', \r\n@value = N'<What is this column for?, sysname, unknown>', \r\n@level0type = N'SCHEMA', @level0name = <Name of the Schema, sysname, dbo>, \r\n@level1type = N'TABLE',  @level1name = <Table name, sysname, $SELECTEDTEXT$>,\r\n@level2type = N'COLUMN', @level2name = <Name of the new column, sysname, MyColumn>;"
+    },
+    {
+        "id": "80bf88c6-ed6c-4dcf-adf6-fba3a01750fc",
+        "prefix": "err",
+        "description": "@@ERROR function call",
+        "body": "@@ERROR"
+    },
+    {
+        "id": "856f11ab-65ea-4297-8bc7-8f5ecd39d16e",
+        "prefix": "fj",
+        "description": "FULL JOIN fragment",
+        "body": "FULL JOIN "
+    },
+    {
+        "id": "0c9a0fe9-a4cd-4365-9734-4d30cb65b9d7",
+        "prefix": "foff",
+        "description": "Disable formatting from this point onwards",
+        "body": "--SQL Prompt Formatting Off"
+    },
+    {
+        "id": "12312b5b-8ece-4735-8a36-bdb1a82114f4",
+        "prefix": "foj",
+        "description": "FULL OUTER JOIN fragment",
+        "body": "FULL OUTER JOIN "
+    },
+    {
+        "id": "780e6624-5566-4b6d-9675-88170a6c3524",
+        "prefix": "fon",
+        "description": "Enable formatting from this point onwards",
+        "body": "--SQL Prompt Formatting On"
+    },
+    {
+        "id": "6a01be4b-c4a1-4178-a93d-e2cb072cdb34",
+        "prefix": "gb",
+        "description": "GROUP BY fragment",
+        "body": "GROUP BY "
+    },
+    {
+        "id": "4699fb96-d88a-4178-a40d-3b06c33f91d5",
+        "prefix": "ifs",
+        "description": "IF fragment",
+        "body": "IF $condition$\r\nBEGIN\r\n    $SELECTEDTEXT$$CURSOR$\r\nEND",
+        "placeholders": [
+            {
+                "name": "condition",
+                "defaultValue": "1 = 1"
+            }
+        ]
+    },
+    {
+        "id": "c321b9f3-94b1-4bcf-9b78-e58e66f158d8",
+        "prefix": "ii",
+        "description": "INSERT INTO fragment",
+        "body": "INSERT INTO "
+    },
+    {
+        "id": "de718173-b489-4bae-aa0b-892d909e28de",
+        "prefix": "ij",
+        "description": "INNER JOIN fragment",
+        "body": "INNER JOIN "
+    },
+    {
+        "id": "09dd6be2-64ac-4c23-985d-a662cfed0b24",
+        "prefix": "is",
+        "description": "INFORMATION_SCHEMA fragment",
+        "body": "INFORMATION_SCHEMA"
+    },
+    {
+        "id": "79d76e6d-b4eb-4b91-adb6-25cd817d83f2",
+        "prefix": "lj",
+        "description": "LEFT JOIN fragment",
+        "body": "LEFT JOIN "
+    },
+    {
+        "id": "a7bd038a-4c8e-4928-9b91-b57348f6cb84",
+        "prefix": "loj",
+        "description": "LEFT OUTER JOIN fragment",
+        "body": "LEFT OUTER JOIN "
+    },
+    {
+        "id": "2d4a5e2d-ac19-4bfd-b76d-b091dbef5bfa",
+        "prefix": "mro",
+        "description": "Retrieve 20 most recently created objects",
+        "body": "\r\n        -- NOTE: 'sys.objects'/'create_date' is only available in SQL Server 2005+. Replace with 'sysobjects'/'crdate' in SQL Server 2000.\r\nSELECT TOP (20) [name], [type], create_date\r\nFROM sys.objects\r\nORDER BY create_date DESC"
+    },
+    {
+        "id": "46e1710a-d822-4594-b78c-5b549a879512",
+        "prefix": "ob",
+        "description": "ORDER BY fragment",
+        "body": "ORDER BY "
+    },
+    {
+        "id": "c6a6c2ce-c957-4975-815b-be011282902a",
+        "prefix": "rj",
+        "description": "RIGHT JOIN fragment",
+        "body": "RIGHT JOIN "
+    },
+    {
+        "id": "e49f8ec4-c77f-4c4c-8d60-956d6735997b",
+        "prefix": "roj",
+        "description": "RIGHT OUTER JOIN fragment",
+        "body": "RIGHT OUTER JOIN "
+    },
+    {
+        "id": "e3948575-3378-4672-a79f-9a0b7a25cf1f",
+        "prefix": "rt",
+        "description": "Rollback transaction",
+        "body": "ROLLBACK TRANSACTION "
+    },
+    {
+        "id": "dd98f545-6c2c-441b-807a-7a0eeaac27a3",
+        "prefix": "san",
+        "description": "Change the current ANSI_NULLS setting",
+        "body": "SET ANSI_NULLS ON"
+    },
+    {
+        "id": "b883f8ff-57d1-4be1-a4a1-3fa19589cb75",
+        "prefix": "scf",
+        "description": "Count number of records returned by query",
+        "body": "SELECT COUNT(*) FROM "
+    },
+    {
+        "id": "dbe705db-2c1a-402e-82f9-6018972f54a0",
+        "prefix": "sph",
+        "description": "Execute sp_help",
+        "body": "EXEC sp_help"
+    },
+    {
+        "id": "f4d5b757-3c5c-43b1-9fbe-3c09200d8954",
+        "prefix": "spt",
+        "description": "Execute sp_helptext",
+        "body": "EXEC sp_helptext"
+    },
+    {
+        "id": "83b9f026-63f0-48ac-a4b5-2e4cf224ce09",
+        "prefix": "sqi",
+        "description": "Change the current QUOTED_IDENTIFIER setting",
+        "body": "SET QUOTED_IDENTIFIER ON"
+    },
+    {
+        "id": "8d81a2e6-1355-4edf-afa6-7d9faa0a4d35",
+        "prefix": "ssf",
+        "description": "SELECT * FROM fragment",
+        "body": "SELECT * FROM "
+    },
+    {
+        "id": "571ecae7-9f6a-4ad4-9e87-c2139244a087",
+        "prefix": "st100",
+        "description": "SELECT top 100 rows",
+        "body": "SELECT TOP (100) * FROM "
+    },
+    {
+        "id": "0d6125e5-3daf-415f-9342-ccfefa14763e",
+        "prefix": "sxa",
+        "description": "Change the current XACT_ABORT setting",
+        "body": "SET XACT_ABORT OFF"
+    },
+    {
+        "id": "460a45fc-dcfe-4df4-b001-5fb9363e6249",
+        "prefix": "tc",
+        "description": "TRY ... CATCH fragment",
+        "body": "BEGIN TRY\r\n    $SELECTEDTEXT$\r\nEND TRY\r\nBEGIN CATCH\r\n    $CURSOR$\r\nEND CATCH"
+    },
+    {
+        "id": "94a22b32-2f6e-48eb-a815-908a02f95d1b",
+        "prefix": "timings",
+        "description": "Wraps a simple timings test harness around the selected code",
+        "body": "/**\r\nCopyright (c) Red Gate Software Ltd 2017\r\nAll rights Reserved. Use of this code is subject to the terms of a license agreement with Red Gate Software Limited.\r\n\r\nFor more info, see https://www.red-gate.com/hub/product-learning/sql-prompt/record-t-sql-execution-times-using-sql-prompt-snippet\r\n**/\r\n\r\nDECLARE @log table\r\n(\r\n    TheOrder     int IDENTITY(1, 1),\r\n    WhatHappened varchar(200),\r\n    WhenItDid    datetime2 DEFAULT GETDATE()\r\n)\r\n----start of timing\r\nINSERT INTO @log(WhatHappened)\r\nSELECT 'Starting $routine$' --place at the start\r\n \r\n$SELECTEDTEXT$$CURSOR$\r\n \r\n--where the routine you want to time ends\r\nINSERT INTO @log(WhatHappened)\r\nSELECT '$routine$ took '\r\nSELECT ending.WhatHappened, DATEDIFF(ms, starting.WhenItDid, ending.WhenItDid)\r\nFROM   @log starting\r\n       INNER JOIN @log ending\r\n           ON ending.TheOrder = starting.TheOrder + 1\r\n--list out all the timings",
+        "placeholders": [
+            {
+                "name": "routine",
+                "defaultValue": ""
+            }
+        ]
+    },
+    {
+        "id": "7cb4ea61-17f1-401d-90d5-cc9ab7d67d99",
+        "prefix": "tvc",
+        "description": "Automatically create a table variable (or temp table) in which to store the results of (for example) executing a stored procedure, function or query",
+        "body": "/**\r\nCopyright (c) Red Gate Software Ltd 2021\r\nAll rights Reserved. Use of this code is subject to the terms of a license agreement with Red Gate Software Limited.\r\n\r\nThis is a temporary batch for creating such things as table variables, temporary tables or anything else that needs a column list.\r\nFor more info, see https://www.red-gate.com/hub/product-learning/sql-prompt/building-reusable-table-build-scripts-using-sql-prompt\r\n**/\r\n\r\nDeclare @TheExpression NVARCHAR(MAX)=\r\nN'$SELECTEDTEXT$'\r\n\r\nSELECT 'DECLARE @$NameOfVariable$ table ('+\r\n  Stuff ((SELECT ',\r\n    '+QuoteName(Coalesce(DetectDuplicateNames.name+'_'+Convert(VARCHAR(5),f.column_ordinal),f.name))\r\n     + ' '+ System_type_name + CASE WHEN is_nullable = 0 THEN ' NOT' ELSE ''END+' NULL'\r\n   --+ CASE WHEN collation_name IS NULL THEN '' ELSE ' COLLATE '+collation_name END\r\n   AS ThePath\r\n  FROM sys.dm_exec_describe_first_result_set\r\n  (@TheExpression, NULL, 1) AS f\r\n  -- use  sys.sp_describe_first_result_set for a batch\r\n  LEFT OUTER JOIN \r\n    (SELECT name AS name FROM sys.dm_exec_describe_first_result_set\r\n      (@TheExpression, NULL, 0) WHERE is_hidden=0 \r\n     GROUP BY name HAVING Count(*)>1) AS DetectDuplicateNames\r\n  ON DetectDuplicateNames.name=f.name\r\n  WHERE f.is_hidden=0\r\nORDER BY column_ordinal\r\nFOR XML PATH (''), TYPE).value('.', 'varchar(max)'),1,1,'')+')'",
+        "placeholders": [
+            {
+                "name": "NameOfVariable",
+                "defaultValue": "MyTableVariable"
+            }
+        ]
+    },
+    {
+        "id": "9a70621b-1394-46c8-bcf5-09cb7aca37c3",
+        "prefix": "w2",
+        "description": "Execute sp_who2",
+        "body": "EXEC sp_who2"
+    },
+    {
+        "id": "ef87da80-82e7-4725-a988-e3434520afde",
+        "prefix": "xpfd",
+        "description": "Retrieve free space on all fixed drives",
+        "body": "EXEC master..xp_fixeddrives"
+    }
 ]

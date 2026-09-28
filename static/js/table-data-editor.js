@@ -207,6 +207,7 @@
     function renderSessionUI(session) {
         const container = document.getElementById('table-data-editor-container');
         if (!container) return;
+        container.dataset.activeTabId = session.tabId;
 
         const isCritVisible = session.panesVisible.criteria;
         const isSqlVisible = session.panesVisible.sql;
@@ -521,35 +522,68 @@
         return Boolean(colMeta?.default_value && String(colMeta.default_value).trim().length > 0);
     }
 
-    // Helper: Identify all columns that have UNIQUE properties (uniques, unique indexes, manual PKs)
-    // and exclude auto-generated columns (identity, sequence, computed)
-    function getUniqueColumnsForDuplicate(session) {
+    // Helper: Identify all UNIQUE constraint specifications (manual PKs, unique constraints, unique indexes)
+    // with composite column groupings preserved.
+    function getUniqueSpecsForDuplicate(session) {
         if (!session?.metadata) return [];
         const meta = session.metadata;
-        const uniqueColNames = new Set();
+        const specs = [];
 
+        const isAutoCol = (colName) => {
+            const cLower = String(colName).trim().toLowerCase();
+            return isIdentityColumn(session, cLower) || isSequenceColumn(session, cLower) || isComputedColumn(session, cLower);
+        };
+
+        // 1. Manual PKs (excluding identity, sequence, computed)
+        const manualPkCols = (meta.pk_columns || []).filter(c => !isAutoCol(c));
+        if (manualPkCols.length > 0) {
+            specs.push({
+                name: `PK_${session.table || 'table'}`,
+                fields: manualPkCols,
+                is_pk: true
+            });
+        }
+
+        // 2. Explicit Unique Constraints
         (meta.uniques || []).forEach(uq => {
-            (uq.fields || []).forEach(f => uniqueColNames.add(String(f).trim().toLowerCase()));
+            const validFields = (uq.fields || []).filter(f => !isAutoCol(f));
+            if (validFields.length > 0) {
+                specs.push({
+                    name: uq.name || uq.constraint_name || `UQ_${validFields.join('_')}`,
+                    fields: validFields,
+                    is_pk: false
+                });
+            }
         });
 
+        // 3. Unique Indexes (skip if already covered by unique constraint with same fields)
         (meta.unique_indexes || []).forEach(ui => {
-            (ui.fields || []).forEach(f => uniqueColNames.add(String(f).trim().toLowerCase()));
-        });
-
-        // Manual PKs (not identity, not sequence) also have unique constraints
-        (meta.pk_columns || []).forEach(pk => {
-            const pkLower = String(pk).trim().toLowerCase();
-            if (!isIdentityColumn(session, pkLower) && !isSequenceColumn(session, pkLower)) {
-                uniqueColNames.add(pkLower);
+            const validFields = (ui.fields || []).filter(f => !isAutoCol(f));
+            if (validFields.length > 0) {
+                const alreadyExists = specs.some(s => {
+                    const s1 = new Set(s.fields.map(f => String(f).toLowerCase()));
+                    const s2 = new Set(validFields.map(f => String(f).toLowerCase()));
+                    return s1.size === s2.size && [...s1].every(x => s2.has(x));
+                });
+                if (!alreadyExists) {
+                    specs.push({
+                        name: ui.name || `UIDX_${validFields.join('_')}`,
+                        fields: validFields,
+                        is_pk: false
+                    });
+                }
             }
         });
 
-        return (session.columns || []).filter(col => {
-            if (isIdentityColumn(session, col) || isSequenceColumn(session, col) || isComputedColumn(session, col)) {
-                return false;
-            }
-            return uniqueColNames.has(String(col).trim().toLowerCase());
-        });
+        return specs;
+    }
+
+    // Helper: Identify all individual columns that have UNIQUE properties (uniques, unique indexes, manual PKs)
+    function getUniqueColumnsForDuplicate(session) {
+        const specs = getUniqueSpecsForDuplicate(session);
+        const uniqueColNames = new Set();
+        specs.forEach(s => (s.fields || []).forEach(f => uniqueColNames.add(String(f).trim().toLowerCase())));
+        return (session.columns || []).filter(col => uniqueColNames.has(String(col).trim().toLowerCase()));
     }
 
     // rowErrors helpers — multi-constraint per row: Map<rowIdx, Map<constraintKey, errorInfo>>
@@ -651,7 +685,15 @@
         session.redoStack.push(currentSnap);
         const snap = session.undoStack.pop();
         applyUndoSnapshot(session, snap);
-        renderSessionUI(session);
+        const container = document.getElementById('table-data-editor-container');
+        if (session.virtualGrid && container && container.querySelector('#tde-grid-table')) {
+            session.virtualGrid.refresh();
+            updateFooterNavState(session, container);
+            updateActiveHighlight(session, container);
+            updateDirtyBadge(session);
+        } else {
+            renderSessionUI(session);
+        }
         if (window.AppTabs) window.AppTabs.setTabDirty(session.tabId, session.dirtyRows.size > 0);
         if (typeof showToast === 'function') showToast(`Đã Undo. Còn ${session.undoStack.length} bước.`, 'secondary');
     }
@@ -673,7 +715,15 @@
         session.undoStack.push(currentSnap);
         const snap = session.redoStack.pop();
         applyUndoSnapshot(session, snap);
-        renderSessionUI(session);
+        const container = document.getElementById('table-data-editor-container');
+        if (session.virtualGrid && container && container.querySelector('#tde-grid-table')) {
+            session.virtualGrid.refresh();
+            updateFooterNavState(session, container);
+            updateActiveHighlight(session, container);
+            updateDirtyBadge(session);
+        } else {
+            renderSessionUI(session);
+        }
         if (window.AppTabs) window.AppTabs.setTabDirty(session.tabId, session.dirtyRows.size > 0);
         if (typeof showToast === 'function') showToast(`Đã Redo. Còn ${session.redoStack.length} bước.`, 'secondary');
     }
@@ -718,11 +768,417 @@
         return Math.max(minW, Math.min(Math.ceil(maxW), 280));
     }
 
-    // ── 5. Render Data Grid HTML ──────────────────────────────────────────────
+    // ── 5. Virtual Data Grid & Row Rendering ──────────────────────────────────
+    function populateGridRow(session, tr, rIdx, columns) {
+        if (!tr) return;
+        const isTemplate = (rIdx === session.rows.length);
+        const r = isTemplate ? null : session.rows[rIdx];
+
+        const isDirty = !isTemplate && Boolean(session.dirtyRows?.has(rIdx));
+        const dirtyInfo = !isTemplate ? session.dirtyRows?.get(rIdx) : null;
+        const isDeleted = Boolean(dirtyInfo?.isDeleted);
+        const isNew = Boolean(dirtyInfo?.isNew || isTemplate);
+        const isCurrentActive = (rIdx === session.activeRowIndex);
+        const rowErr = session.rowErrors?.get(rIdx);
+        const firstRowErrObj = rowErrorsGet(session, rIdx);
+        const isSelected = Boolean(session.selectedRowIndices && session.selectedRowIndices.has(rIdx));
+
+        tr.dataset.rowIdx = String(rIdx);
+
+        const rowClasses = [];
+        if (isCurrentActive) rowClasses.push('active');
+        if (isSelected) rowClasses.push('tde-row-selected');
+        if (isDirty) rowClasses.push('tde-row-dirty');
+        if (isDeleted) rowClasses.push('tde-row-deleted');
+        if (isNew) rowClasses.push('tde-row-new');
+        if (rowErr) rowClasses.push('tde-row-error');
+        tr.className = rowClasses.join(' ');
+
+        // Row header indicator
+        const rowHead = tr.children[0];
+        if (rowHead) {
+            rowHead.dataset.rowIdx = String(rIdx);
+            if (isTemplate) {
+                rowHead.className = 'tde-rowhead-cell text-success font-monospace fw-bold';
+                rowHead.title = 'Thêm dòng mới';
+                rowHead.innerHTML = rowErr
+                    ? `<i class="fa-solid fa-circle-exclamation text-danger" title="${esc(firstRowErrObj?.error || firstRowErrObj?.message)}" style="font-size: 10px;"></i>`
+                    : '*';
+            } else {
+                rowHead.className = 'tde-rowhead-cell';
+                rowHead.title = '';
+                if (rowErr) {
+                    rowHead.innerHTML = `<i class="fa-solid fa-circle-exclamation text-danger" title="${esc(firstRowErrObj?.error || firstRowErrObj?.message)}" style="font-size: 10px;"></i>`;
+                } else if (isCurrentActive) {
+                    rowHead.innerHTML = '<i class="fa-solid fa-play text-primary" style="font-size: 8px;"></i>';
+                } else if (isDeleted) {
+                    rowHead.innerHTML = '<i class="fa-solid fa-trash text-danger" style="font-size: 8px;"></i>';
+                } else if (isNew) {
+                    rowHead.innerHTML = '<i class="fa-solid fa-plus text-success" style="font-size: 8px;"></i>';
+                } else if (isDirty) {
+                    rowHead.innerHTML = '<i class="fa-solid fa-pen text-warning" style="font-size: 8px;"></i>';
+                } else {
+                    rowHead.innerHTML = '';
+                }
+            }
+        }
+
+        const rowErrCols = rowErrorCols(session, rIdx);
+
+        // Column cells
+        for (let cIdx = 0; cIdx < columns.length; cIdx++) {
+            const td = tr.children[cIdx + 1];
+            if (!td) continue;
+
+            // If cell is actively being edited on this exact row and col, preserve active input
+            if (td.classList.contains('tde-cell-editing') || td.querySelector('.tde-cell-input')) {
+                if (Number(td.dataset.rowIdx) === rIdx && Number(td.dataset.colIdx) === cIdx) {
+                    continue;
+                }
+            }
+
+            const col = columns[cIdx];
+            const val = isTemplate ? null : (r ? r[cIdx] : null);
+            const isCellDirty = !isTemplate && isDirty && dirtyInfo?.changes && (col in dirtyInfo.changes);
+            const isNull = (val === null || val === undefined);
+            const isCellActive = (isCurrentActive && session.activeColIndex === cIdx);
+            const isCellError = rowErrCols.has(cIdx);
+            const isIdent = isIdentityColumn(session, col);
+            const isComp = isComputedColumn(session, col);
+            const isSeq = isSequenceColumn(session, col);
+            const minW = getColumnHeaderMinWidth(session, col);
+            const w = session.colWidths?.[col] || minW;
+
+            td.style.width = w + 'px';
+            td.style.minWidth = minW + 'px';
+            td.style.maxWidth = w + 'px';
+
+            const cellClasses = [];
+            if (isCellActive) cellClasses.push('tde-cell-active');
+            if (isCellError) cellClasses.push('tde-cell-error');
+
+            td.dataset.rowIdx = String(rIdx);
+            td.dataset.colIdx = String(cIdx);
+            td.dataset.colName = col;
+            if (isNew) {
+                td.setAttribute('data-is-new', 'true');
+            } else {
+                td.removeAttribute('data-is-new');
+            }
+
+            let displayContent = '';
+            let cellTitle = '';
+
+            if (isTemplate) {
+                if (isIdent) {
+                    displayContent = '<span class="tde-auto-tag">&lt;Auto&gt;</span>';
+                    cellClasses.push('tde-cell-readonly', 'tde-cell-auto');
+                    cellTitle = 'Cột Identity (Tự tăng)';
+                } else if (isComp) {
+                    displayContent = '<span class="tde-computed-tag">&lt;Computed&gt;</span>';
+                    cellClasses.push('tde-cell-readonly', 'tde-cell-computed');
+                    cellTitle = 'Cột Computed (Tính toán)';
+                } else if (isSeq) {
+                    displayContent = '<span class="tde-sequence-tag">&lt;Seq&gt;</span>';
+                    cellClasses.push('tde-cell-null', 'text-muted');
+                    cellTitle = 'Cột Sequence — để trống để tự sinh, hoặc nhập giá trị tùy chỉnh';
+                } else {
+                    displayContent = 'NULL';
+                    cellClasses.push('tde-cell-null', 'text-muted');
+                }
+
+                if (isCellError && firstRowErrObj) {
+                    displayContent += `<span class="tde-cell-error-badge" title="${esc(firstRowErrObj.error || firstRowErrObj.message)}">!</span>`;
+                    cellTitle = esc(firstRowErrObj.error || firstRowErrObj.message);
+                }
+            } else if (isNew && isIdent) {
+                displayContent = '<span class="tde-auto-tag">&lt;Auto&gt;</span>';
+                cellClasses.push('tde-cell-readonly', 'tde-cell-auto');
+                cellTitle = 'Cột Identity (Tự tăng - CSDL tự sinh khi lưu)';
+            } else if (isNew && isComp) {
+                displayContent = '<span class="tde-computed-tag">&lt;Computed&gt;</span>';
+                cellClasses.push('tde-cell-readonly', 'tde-cell-computed');
+                cellTitle = 'Cột Computed (Tính toán - CSDL tự tính khi lưu)';
+            } else {
+                if (isIdent || isComp) {
+                    cellClasses.push('tde-cell-readonly');
+                }
+                if (isSeq && isNull && isNew) {
+                    displayContent = '<span class="tde-sequence-tag">&lt;Seq&gt;</span>';
+                    cellTitle = 'Cột Sequence — để trống để CSDL tự sinh, hoặc nhập giá trị tùy chỉnh';
+                } else {
+                    if (isNull) {
+                        cellClasses.push('tde-cell-null');
+                        displayContent = 'NULL';
+                    } else {
+                        displayContent = (val === '' ? '' : esc(val));
+                    }
+                }
+                if (isCellDirty) cellClasses.push('tde-cell-dirty');
+
+                const errMsg = isCellError && firstRowErrObj ? esc(firstRowErrObj.error || firstRowErrObj.message) : '';
+                cellTitle = isCellError
+                    ? errMsg
+                    : (isCellDirty
+                        ? 'Đã sửa. Giá trị gốc: ' + esc(dirtyInfo.originalRow ? dirtyInfo.originalRow[cIdx] : 'NULL')
+                        : (isIdent ? esc(val ?? 'NULL') + ' (Identity - Chỉ đọc)'
+                            : isComp ? esc(val ?? 'NULL') + ' (Computed - Chỉ đọc)'
+                            : isSeq ? esc(val ?? 'NULL') + ' (Sequence - Có thể sửa)'
+                            : esc(val ?? 'NULL')));
+
+                if (isCellError && firstRowErrObj) {
+                    displayContent += `<span class="tde-cell-error-badge" title="${esc(firstRowErrObj.error || firstRowErrObj.message)}">!</span>`;
+                }
+            }
+
+            td.className = cellClasses.join(' ');
+            td.innerHTML = displayContent;
+            td.title = cellTitle;
+        }
+    }
+
+    class TdeVirtualGrid {
+        constructor(session, gridTable, gridWrap) {
+            this.session = session;
+            this.gridTable = gridTable;
+            this.gridWrap = gridWrap;
+            this.tbody = gridTable.querySelector('tbody') || gridTable.appendChild(document.createElement('tbody'));
+            this.tbody.innerHTML = '';
+
+            this.rowHeight = 24;
+            this.POOL_SIZE = 70;
+            this.buffer = 15;
+            this.rowPool = [];
+            this.startVirtual = 0;
+            this.endVirtual = 0;
+            this.isRendering = false;
+            this.isScheduled = false;
+            this.lastScrollTop = 0;
+            this.rafId = null;
+
+            this._initPool();
+
+            this.onScroll = () => {
+                const scrollTop = this.gridWrap.scrollTop;
+                // If scrolling faster than buffer rows, do immediate sync render to avoid unrendered gap
+                if (Math.abs(scrollTop - this.lastScrollTop) > this.buffer * this.rowHeight) {
+                    this.lastScrollTop = scrollTop;
+                    this.render(false);
+                    return;
+                }
+                this.lastScrollTop = scrollTop;
+                if (this.isScheduled) return;
+                this.isScheduled = true;
+                this.rafId = requestAnimationFrame(() => {
+                    this.isScheduled = false;
+                    this.render(false);
+                });
+            };
+            this.gridWrap.addEventListener('scroll', this.onScroll, { passive: true });
+        }
+
+        _createPoolRow() {
+            const columns = this.session.columns || [];
+            const tr = document.createElement('tr');
+            tr.style.display = 'none';
+
+            const rowHead = document.createElement('td');
+            rowHead.className = 'tde-rowhead-cell';
+            tr.appendChild(rowHead);
+
+            for (let c = 0; c < columns.length; c++) {
+                const col = columns[c];
+                const minW = getColumnHeaderMinWidth(this.session, col);
+                const w = this.session.colWidths?.[col] || minW;
+                const td = document.createElement('td');
+                td.style.width = w + 'px';
+                td.style.minWidth = minW + 'px';
+                td.style.maxWidth = w + 'px';
+                tr.appendChild(td);
+            }
+            return tr;
+        }
+
+        _ensurePoolSize(neededSize) {
+            while (this.rowPool.length < neededSize) {
+                const tr = this._createPoolRow();
+                this.tbody.insertBefore(tr, this.bottomSpacer);
+                this.rowPool.push(tr);
+            }
+        }
+
+        _initPool() {
+            const columns = this.session.columns || [];
+            const totalCols = columns.length + 1; // +1 for row header
+
+            // Top spacer
+            this.topSpacer = document.createElement('tr');
+            this.topSpacer.className = 'tde-virtual-spacer-top';
+            this.topSpacer.style.height = '0px';
+            this.topSpacerTd = document.createElement('td');
+            this.topSpacerTd.colSpan = totalCols;
+            this.topSpacerTd.style.height = '0px';
+            this.topSpacer.appendChild(this.topSpacerTd);
+            this.tbody.appendChild(this.topSpacer);
+
+            // Row pool
+            for (let i = 0; i < this.POOL_SIZE; i++) {
+                const tr = this._createPoolRow();
+                this.tbody.appendChild(tr);
+                this.rowPool.push(tr);
+            }
+
+            // Bottom spacer
+            this.bottomSpacer = document.createElement('tr');
+            this.bottomSpacer.className = 'tde-virtual-spacer-bottom';
+            this.bottomSpacer.style.height = '0px';
+            this.bottomSpacerTd = document.createElement('td');
+            this.bottomSpacerTd.colSpan = totalCols;
+            this.bottomSpacerTd.style.height = '0px';
+            this.bottomSpacer.appendChild(this.bottomSpacerTd);
+            this.tbody.appendChild(this.bottomSpacer);
+        }
+
+        destroy() {
+            if (this.rafId) {
+                cancelAnimationFrame(this.rafId);
+                this.rafId = null;
+            }
+            this.isScheduled = false;
+            if (this.onScroll && this.gridWrap) {
+                this.gridWrap.removeEventListener('scroll', this.onScroll);
+            }
+        }
+
+        getVirtualCount() {
+            const dataCount = this.session.filteredRowIndices
+                ? this.session.filteredRowIndices.length
+                : (this.session.rows ? this.session.rows.length : 0);
+            return dataCount + 1; // +1 for template row '*'
+        }
+
+        getVirtualIndex(actualRIdx) {
+            const dataCount = this.session.filteredRowIndices
+                ? this.session.filteredRowIndices.length
+                : (this.session.rows ? this.session.rows.length : 0);
+            if (actualRIdx === this.session.rows.length) {
+                return dataCount;
+            }
+            if (this.session.filteredRowIndices) {
+                const idx = this.session.filteredRowIndices.indexOf(actualRIdx);
+                return idx >= 0 ? idx : 0;
+            }
+            return actualRIdx;
+        }
+
+        getActualRowIndex(vIdx) {
+            const dataCount = this.session.filteredRowIndices
+                ? this.session.filteredRowIndices.length
+                : (this.session.rows ? this.session.rows.length : 0);
+            if (vIdx >= dataCount) {
+                return this.session.rows.length; // template row '*'
+            }
+            if (this.session.filteredRowIndices) {
+                return this.session.filteredRowIndices[vIdx];
+            }
+            return vIdx;
+        }
+
+        render(force = false) {
+            if (this.isRendering) return;
+            this.isRendering = true;
+
+            try {
+                const totalVirtual = this.getVirtualCount();
+                const scrollTop = this.gridWrap.scrollTop;
+                const clientHeight = this.gridWrap.clientHeight || 500;
+
+                // Dynamically measure actual DOM row height if first row is visible
+                if (this.rowPool[0] && this.rowPool[0].style.display !== 'none' && this.rowPool[0].offsetHeight > 10) {
+                    this.rowHeight = this.rowPool[0].offsetHeight;
+                }
+
+                const visibleRows = Math.ceil(clientHeight / this.rowHeight);
+                const buffer = this.buffer;
+
+                let startVirtual = Math.floor(scrollTop / this.rowHeight) - buffer;
+                if (startVirtual < 0) startVirtual = 0;
+
+                let endVirtual = startVirtual + visibleRows + (buffer * 2);
+                if (endVirtual > totalVirtual) {
+                    endVirtual = totalVirtual;
+                    startVirtual = Math.max(0, endVirtual - (visibleRows + buffer * 2));
+                }
+
+                if (!force && startVirtual === this.startVirtual && endVirtual === this.endVirtual) {
+                    return;
+                }
+
+                const countToRender = Math.max(0, endVirtual - startVirtual);
+                this._ensurePoolSize(countToRender);
+
+                const topHeight = startVirtual * this.rowHeight;
+                const bottomHeight = Math.max(0, (totalVirtual - (startVirtual + countToRender)) * this.rowHeight);
+
+                this.topSpacer.style.height = topHeight + 'px';
+                this.topSpacerTd.style.height = topHeight + 'px';
+                this.topSpacer.style.display = topHeight > 0 ? '' : 'none';
+                this.bottomSpacer.style.height = bottomHeight + 'px';
+                this.bottomSpacerTd.style.height = bottomHeight + 'px';
+                this.bottomSpacer.style.display = bottomHeight > 0 ? '' : 'none';
+
+                const columns = this.session.columns || [];
+
+                for (let i = 0; i < this.rowPool.length; i++) {
+                    const tr = this.rowPool[i];
+                    if (i < countToRender) {
+                        const vIdx = startVirtual + i;
+                        const actualRIdx = this.getActualRowIndex(vIdx);
+                        populateGridRow(this.session, tr, actualRIdx, columns);
+                        tr.style.display = '';
+                    } else {
+                        tr.style.display = 'none';
+                    }
+                }
+
+                this.startVirtual = startVirtual;
+                this.endVirtual = endVirtual;
+            } finally {
+                this.isRendering = false;
+            }
+        }
+
+        refresh() {
+            this.render(true);
+        }
+
+        scrollToRow(actualRIdx) {
+            const vIdx = this.getVirtualIndex(actualRIdx);
+            const targetTop = vIdx * this.rowHeight;
+            this.gridWrap.scrollTop = targetTop;
+            this.render(true);
+        }
+
+        ensureRowVisible(actualRIdx) {
+            const vIdx = this.getVirtualIndex(actualRIdx);
+            const rowTop = vIdx * this.rowHeight;
+            const rowBottom = rowTop + this.rowHeight;
+            const currentTop = this.gridWrap.scrollTop;
+            const currentBottom = currentTop + this.gridWrap.clientHeight;
+
+            if (rowTop < currentTop) {
+                this.gridWrap.scrollTop = rowTop;
+                this.render(true);
+            } else if (rowBottom > currentBottom) {
+                this.gridWrap.scrollTop = Math.max(0, rowBottom - this.gridWrap.clientHeight);
+                this.render(true);
+            }
+        }
+    }
+
+    // ── 5. Render Data Grid Skeleton HTML ─────────────────────────────────────
     function renderDataGrid(session) {
         const columns = session.columns || [];
-        const rows = session.rows || [];
-        const activeRow = session.activeRowIndex;
 
         session.colWidths = session.colWidths || {};
         columns.forEach((col, cIdx) => {
@@ -782,188 +1238,8 @@
         html += `
                     </tr>
                 </thead>
-                <tbody>
-        `;
-
-        rows.forEach((r, rIdx) => {
-            const isDirty = session.dirtyRows.has(rIdx);
-            const dirtyInfo = session.dirtyRows.get(rIdx);
-            const isDeleted = Boolean(dirtyInfo?.isDeleted);
-            const isNew = Boolean(dirtyInfo?.isNew);
-            const isCurrentActive = (rIdx === activeRow);
-            const rowErr = session.rowErrors?.get(rIdx);
-
-            const firstRowErrObj = rowErrorsGet(session, rIdx);
-            let rowIndicator = '';
-            if (rowErr) {
-                rowIndicator = `<i class="fa-solid fa-circle-exclamation text-danger" title="${esc(firstRowErrObj?.error)}" style="font-size: 10px;"></i>`;
-            } else if (isCurrentActive) {
-                rowIndicator = '<i class="fa-solid fa-play text-primary" style="font-size: 8px;"></i>';
-            } else if (isDeleted) {
-                rowIndicator = '<i class="fa-solid fa-trash text-danger" style="font-size: 8px;"></i>';
-            } else if (isNew) {
-                rowIndicator = '<i class="fa-solid fa-plus text-success" style="font-size: 8px;"></i>';
-            } else if (isDirty) {
-                rowIndicator = '<i class="fa-solid fa-pen text-warning" style="font-size: 8px;"></i>';
-            }
-
-            const isSelected = session.selectedRowIndices && session.selectedRowIndices.has(rIdx);
-            const rowClasses = [];
-            if (isCurrentActive) rowClasses.push('active');
-            if (isSelected) rowClasses.push('tde-row-selected');
-            if (isDirty) rowClasses.push('tde-row-dirty');
-            if (isDeleted) rowClasses.push('tde-row-deleted');
-            if (isNew) rowClasses.push('tde-row-new');
-            if (rowErr) rowClasses.push('tde-row-error');
-
-            html += `
-                <tr data-row-idx="${rIdx}" class="${rowClasses.join(' ')}">
-                    <td class="tde-rowhead-cell" data-row-idx="${rIdx}">${rowIndicator}</td>
-            `;
-
-            const rowErrCols = rowErrorCols(session, rIdx);
-            const firstRowErr = rowErrorsGet(session, rIdx);
-
-            columns.forEach((col, cIdx) => {
-                const val = r[cIdx];
-                const isCellDirty = isDirty && dirtyInfo?.changes && (col in dirtyInfo.changes);
-                const isNull = (val === null || val === undefined);
-                const isCellActive = (isCurrentActive && session.activeColIndex === cIdx);
-                const isCellError = rowErrCols.has(cIdx);
-                const isIdent = isIdentityColumn(session, col);
-                const isComp = isComputedColumn(session, col);
-                const isSeq = isSequenceColumn(session, col);
-                const minW = getColumnHeaderMinWidth(session, col);
-                const w = session.colWidths[col] || minW;
-                const tdStyle = `width: ${w}px; min-width: ${minW}px; max-width: ${w}px;`;
-
-                const cellClasses = [];
-                if (isCellActive) cellClasses.push('tde-cell-active');
-                if (isCellError) cellClasses.push('tde-cell-error');
-
-                let displayContent = '';
-                let cellTitle = '';
-
-                if (isNew && isIdent) {
-                    displayContent = '<span class="tde-auto-tag">&lt;Auto&gt;</span>';
-                    cellClasses.push('tde-cell-readonly', 'tde-cell-auto');
-                    cellTitle = 'Cột Identity (Tự tăng - CSDL tự sinh khi lưu)';
-                } else if (isNew && isComp) {
-                    displayContent = '<span class="tde-computed-tag">&lt;Computed&gt;</span>';
-                    cellClasses.push('tde-cell-readonly', 'tde-cell-computed');
-                    cellTitle = 'Cột Computed (Tính toán - CSDL tự tính khi lưu)';
-                } else {
-                    if (isIdent || isComp) {
-                        cellClasses.push('tde-cell-readonly');
-                    }
-                    // Sequence icon hint on existing rows
-                    if (isSeq && isNull && isNew) {
-                        displayContent = '<span class="tde-sequence-tag">&lt;Seq&gt;</span>';
-                        cellTitle = 'Cột Sequence — để trống để CSDL tự sinh, hoặc nhập giá trị tùy chỉnh';
-                    } else {
-                        if (isNull) {
-                            cellClasses.push('tde-cell-null');
-                            displayContent = 'NULL';
-                        } else {
-                            displayContent = (val === '' ? '' : esc(val));
-                        }
-                    }
-                    if (isCellDirty) cellClasses.push('tde-cell-dirty');
-
-                    const errMsg = isCellError && firstRowErr ? esc(firstRowErr.error) : '';
-                    cellTitle = isCellError
-                        ? errMsg
-                        : (isCellDirty
-                            ? 'Đã sửa. Giá trị gốc: ' + esc(dirtyInfo.originalRow ? dirtyInfo.originalRow[cIdx] : 'NULL')
-                            : (isIdent ? esc(val ?? 'NULL') + ' (Identity - Chỉ đọc)'
-                                : isComp ? esc(val ?? 'NULL') + ' (Computed - Chỉ đọc)'
-                                : isSeq ? esc(val ?? 'NULL') + ' (Sequence - Có thể sửa)'
-                                : esc(val ?? 'NULL')));
-                }
-
-                if (isCellError && firstRowErr) {
-                    displayContent += `<span class="tde-cell-error-badge" title="${esc(firstRowErr.error)}">!</span>`;
-                }
-
-                html += `
-                    <td class="${cellClasses.join(' ')}" 
-                        data-row-idx="${rIdx}" data-col-idx="${cIdx}" data-col-name="${esc(col)}" ${isNew ? 'data-is-new="true"' : ''}
-                        style="${tdStyle}"
-                        title="${cellTitle}">
-                        ${displayContent}
-                    </td>
-                `;
-            });
-
-            html += `</tr>`;
-        });
-
-        // Blank template row at bottom (*)
-        const isNewRowSelected = session.selectedRowIndices && session.selectedRowIndices.has(rows.length);
-        const hasNewRowErr = rowErrorsHas(session, rows.length);
-        const firstNewRowErr = rowErrorsGet(session, rows.length);
-        const newRowErrCols = rowErrorCols(session, rows.length);
-        let starIndicator = hasNewRowErr
-            ? `<i class="fa-solid fa-circle-exclamation text-danger" title="${esc(firstNewRowErr?.error)}" style="font-size: 10px;"></i>`
-            : '*';
-
-        html += `
-            <tr data-row-idx="${rows.length}" class="tde-row-new ${activeRow === rows.length ? 'active' : ''} ${isNewRowSelected ? 'tde-row-selected' : ''} ${hasNewRowErr ? 'tde-row-error' : ''}">
-                <td class="tde-rowhead-cell text-success font-monospace fw-bold" data-row-idx="${rows.length}" title="Thêm dòng mới">${starIndicator}</td>
-        `;
-
-        columns.forEach((col, cIdx) => {
-            const isIdent = isIdentityColumn(session, col);
-            const isComp = isComputedColumn(session, col);
-            const isSeq = isSequenceColumn(session, col);
-            const isCellActive = (activeRow === rows.length && session.activeColIndex === cIdx);
-            const isCellError = newRowErrCols.has(cIdx);
-            const minW = getColumnHeaderMinWidth(session, col);
-            const w = session.colWidths[col] || minW;
-            const tdStyle = `width: ${w}px; min-width: ${minW}px; max-width: ${w}px;`;
-
-            const cellClasses = [];
-            if (isCellActive) cellClasses.push('tde-cell-active');
-            if (isCellError) cellClasses.push('tde-cell-error');
-
-            let displayContent = '';
-            let cellTitle = '';
-            if (isIdent) {
-                displayContent = '<span class="tde-auto-tag">&lt;Auto&gt;</span>';
-                cellClasses.push('tde-cell-readonly', 'tde-cell-auto');
-                cellTitle = 'Cột Identity (Tự tăng)';
-            } else if (isComp) {
-                displayContent = '<span class="tde-computed-tag">&lt;Computed&gt;</span>';
-                cellClasses.push('tde-cell-readonly', 'tde-cell-computed');
-                cellTitle = 'Cột Computed (Tính toán)';
-            } else if (isSeq) {
-                displayContent = '<span class="tde-sequence-tag">&lt;Seq&gt;</span>';
-                cellClasses.push('tde-cell-null', 'text-muted');
-                cellTitle = 'Cột Sequence — để trống để tự sinh, hoặc nhập giá trị tùy chỉnh';
-            } else {
-                displayContent = 'NULL';
-                cellClasses.push('tde-cell-null', 'text-muted');
-            }
-
-            if (isCellError && firstNewRowErr) {
-                displayContent += `<span class="tde-cell-error-badge" title="${esc(firstNewRowErr.error)}">!</span>`;
-                cellTitle = esc(firstNewRowErr.error);
-            }
-
-            html += `
-                <td class="${cellClasses.join(' ')}" 
-                    data-row-idx="${rows.length}" data-col-idx="${cIdx}" data-col-name="${esc(col)}" data-is-new="true"
-                    style="${tdStyle}"
-                    title="${cellTitle}">
-                    ${displayContent}
-                </td>
-            `;
-        });
-
-        html += `
-                </tr>
-            </tbody>
-        </table>
+                <tbody></tbody>
+            </table>
         `;
         return html;
     }
@@ -973,7 +1249,7 @@
         const total = session.totalRows;
         const current = total > 0 ? (session.activeRowIndex + 1) : 0;
         const errCount = session.rowErrors ? session.rowErrors.size : 0;
-        const dirtyCount = session.dirtyRows.size;
+        const dirtyCount = session.dirtyRows ? session.dirtyRows.size : 0;
         const undoCount = session.undoStack ? session.undoStack.length : 0;
 
         return `
@@ -982,21 +1258,56 @@
                     <button class="tde-nav-btn" id="tde-nav-first" title="First Row" ${current <= 1 ? 'disabled' : ''}><i class="fa-solid fa-backward-step"></i></button>
                     <button class="tde-nav-btn" id="tde-nav-prev" title="Previous Row" ${current <= 1 ? 'disabled' : ''}><i class="fa-solid fa-caret-left"></i></button>
                     <input type="text" class="tde-nav-input" id="tde-nav-current" value="${current}">
-                    <span>of ${total}</span>
+                    <span id="tde-nav-of-total">of ${total}</span>
                     <button class="tde-nav-btn" id="tde-nav-next" title="Next Row" ${current >= total ? 'disabled' : ''}><i class="fa-solid fa-caret-right"></i></button>
                     <button class="tde-nav-btn" id="tde-nav-last" title="Last Row" ${current >= total ? 'disabled' : ''}><i class="fa-solid fa-forward-step"></i></button>
                     <span class="tde-vdivider"></span>
                     <button class="tde-nav-btn" id="tde-nav-new" title="New Row (*) (Ctrl+N)"><i class="fa-solid fa-asterisk text-success"></i></button>
                 </div>
 
-                <div class="d-flex align-items-center gap-3">
+                <div class="d-flex align-items-center gap-3" id="tde-footer-stats">
                     ${dirtyCount > 0 ? `<span class="badge bg-warning text-dark" title="${dirtyCount} dòng chưa lưu"><i class="fa-solid fa-pen me-1"></i>${dirtyCount} chưa lưu</span>` : ''}
                     ${errCount > 0 ? `<span class="badge bg-danger" title="${errCount} dòng đang có lỗi constraint"><i class="fa-solid fa-circle-exclamation me-1"></i>${errCount} lỗi</span>` : ''}
                     ${undoCount > 0 ? `<span class="badge bg-secondary" style="cursor:pointer" id="tde-undo-badge" title="${undoCount} hành động có thể Undo (Ctrl+Z)"><i class="fa-solid fa-rotate-left me-1"></i>${undoCount} undo</span>` : ''}
-                    <span>${total} dòng</span>
+                    <span id="tde-footer-total-rows">${total} dòng</span>
                 </div>
             </div>
         `;
+    }
+
+    function updateFooterNavState(session, container) {
+        if (!container) container = document.getElementById('table-data-editor-container');
+        if (!container) return;
+
+        const total = session.totalRows;
+        const current = total > 0 ? (session.activeRowIndex + 1) : 0;
+        const errCount = session.rowErrors ? session.rowErrors.size : 0;
+        const dirtyCount = session.dirtyRows ? session.dirtyRows.size : 0;
+        const undoCount = session.undoStack ? session.undoStack.length : 0;
+
+        const btnFirst = container.querySelector('#tde-nav-first');
+        if (btnFirst) btnFirst.disabled = (current <= 1);
+        const btnPrev = container.querySelector('#tde-nav-prev');
+        if (btnPrev) btnPrev.disabled = (current <= 1);
+        const inputCurr = container.querySelector('#tde-nav-current');
+        if (inputCurr && document.activeElement !== inputCurr) inputCurr.value = current;
+        const ofTotal = container.querySelector('#tde-nav-of-total');
+        if (ofTotal) ofTotal.textContent = `of ${total}`;
+        const btnNext = container.querySelector('#tde-nav-next');
+        if (btnNext) btnNext.disabled = (current >= total);
+        const btnLast = container.querySelector('#tde-nav-last');
+        if (btnLast) btnLast.disabled = (current >= total);
+
+        const statsWrap = container.querySelector('#tde-footer-stats');
+        if (statsWrap) {
+            statsWrap.innerHTML = `
+                ${dirtyCount > 0 ? `<span class="badge bg-warning text-dark" title="${dirtyCount} dòng chưa lưu"><i class="fa-solid fa-pen me-1"></i>${dirtyCount} chưa lưu</span>` : ''}
+                ${errCount > 0 ? `<span class="badge bg-danger" title="${errCount} dòng đang có lỗi constraint"><i class="fa-solid fa-circle-exclamation me-1"></i>${errCount} lỗi</span>` : ''}
+                ${undoCount > 0 ? `<span class="badge bg-secondary" style="cursor:pointer" id="tde-undo-badge" title="${undoCount} hành động có thể Undo (Ctrl+Z)"><i class="fa-solid fa-rotate-left me-1"></i>${undoCount} undo</span>` : ''}
+                <span id="tde-footer-total-rows">${total} dòng</span>
+            `;
+            statsWrap.querySelector('#tde-undo-badge')?.addEventListener('click', () => triggerUndo(session));
+        }
     }
 
     // ── 7. Wire UI Events ─────────────────────────────────────────────────────
@@ -1396,6 +1707,13 @@
         const gridTable = container.querySelector('#tde-grid-table');
         if (!gridTable || !gridWrap) return;
 
+        if (session.virtualGrid) {
+            session.virtualGrid.destroy();
+            session.virtualGrid = null;
+        }
+        session.virtualGrid = new TdeVirtualGrid(session, gridTable, gridWrap);
+        session.virtualGrid.render(true);
+
         // Protect inline editing cell: Clicking empty space of the editing cell stays in edit mode without blurring or committing
         gridTable.addEventListener('mousedown', (e) => {
             const td = e.target.closest('td');
@@ -1719,34 +2037,38 @@
         const columns = session.columns || [];
         let hiddenCount = 0;
 
-        const trs = container.querySelectorAll('#tde-grid-table tbody tr[data-row-idx]');
-        trs.forEach(tr => {
-            const rIdx = Number(tr.dataset.rowIdx);
-            // Do not hide template new row (*)
-            if (rIdx >= rows.length) return;
+        if (filterKeys.length === 0) {
+            session.filteredRowIndices = null;
+        } else {
+            const filteredIndices = [];
+            for (let rIdx = 0; rIdx < rows.length; rIdx++) {
+                const rowData = rows[rIdx];
+                if (!rowData) continue;
 
-            const rowData = rows[rIdx];
-            if (!rowData) return;
+                let match = true;
+                for (const colName of filterKeys) {
+                    const cIdx = columns.indexOf(colName);
+                    if (cIdx === -1) continue;
+                    const filterRule = session.columnFilters[colName];
+                    const val = rowData[cIdx];
+                    if (!checkFilterMatch(val, filterRule)) {
+                        match = false;
+                        break;
+                    }
+                }
 
-            let match = true;
-            for (const colName of filterKeys) {
-                const cIdx = columns.indexOf(colName);
-                if (cIdx === -1) continue;
-                const filterRule = session.columnFilters[colName];
-                const val = rowData[cIdx];
-                if (!checkFilterMatch(val, filterRule)) {
-                    match = false;
-                    break;
+                if (match) {
+                    filteredIndices.push(rIdx);
+                } else {
+                    hiddenCount++;
                 }
             }
+            session.filteredRowIndices = filteredIndices;
+        }
 
-            if (match) {
-                tr.classList.remove('tde-row-filtered-out');
-            } else {
-                tr.classList.add('tde-row-filtered-out');
-                hiddenCount++;
-            }
-        });
+        if (session.virtualGrid) {
+            session.virtualGrid.render(true);
+        }
 
         updateFilterStatusBanner(session, container, filterKeys, hiddenCount);
     }
@@ -2605,6 +2927,11 @@
         session.activeColIndex = targetCIdx;
         session.selectedRowIndices = new Set([targetRIdx]);
         session.isRowHeaderSelected = false;
+
+        if (session.virtualGrid) {
+            session.virtualGrid.ensureRowVisible(targetRIdx);
+        }
+
         updateActiveHighlight(session, container);
 
         const targetTd = container.querySelector(`#tde-grid-table tr[data-row-idx="${targetRIdx}"] td[data-col-idx="${targetCIdx}"]`);
@@ -2976,6 +3303,11 @@
                     if (isTemplateRow) {
                         rowValues[colName] = finalVal;
                     } else if (isNewRow) {
+                        session.columns.forEach((c, i) => {
+                            if (session.rows[rIdx] && session.rows[rIdx][i] !== undefined && session.rows[rIdx][i] !== null) {
+                                rowValues[c] = session.rows[rIdx][i];
+                            }
+                        });
                         const dirtyNew = session.dirtyRows.get(rIdx);
                         if (dirtyNew?.changes) Object.assign(rowValues, dirtyNew.changes);
                         rowValues[colName] = finalVal;
@@ -3053,11 +3385,31 @@
                     return;
                 }
 
-                // If now valid, remove server-side errors touching this cell
+                // If now valid, remove server-side errors touching this cell or any composite constraint containing this column
                 if (session.rowErrors?.has(rIdx)) {
-                    for (const [key, info] of session.rowErrors.get(rIdx)) {
-                        if (!key.startsWith('NOT_NULL::') && (info.cIdx === cIdx || (info.cIdxList || []).includes(cIdx) || info.colName === colName)) {
-                            rowErrorsDeleteConstraint(session, rIdx, key);
+                    for (const [key, info] of [...session.rowErrors.get(rIdx).entries()]) {
+                        if (!key.startsWith('NOT_NULL::')) {
+                            const touchesCell = (
+                                info.cIdx === cIdx ||
+                                (info.cIdxList || []).includes(cIdx) ||
+                                info.colName === colName ||
+                                (info.columns || []).some(col => String(col).trim().toLowerCase() === String(colName).trim().toLowerCase())
+                            );
+                            if (touchesCell) {
+                                rowErrorsDeleteConstraint(session, rIdx, key);
+                                // Also remove error visual from all cells in this constraint
+                                const tr = td.closest('tr') || container?.querySelector(`#tde-grid-table tr[data-row-idx="${rIdx}"]`);
+                                if (tr && info.cIdxList) {
+                                    info.cIdxList.forEach(ci => {
+                                        const cTd = tr.querySelector(`td[data-col-idx="${ci}"]`);
+                                        if (cTd) {
+                                            cTd.classList.remove('tde-cell-error');
+                                            cTd.querySelector('.tde-cell-error-badge')?.remove();
+                                            cTd.removeAttribute('title');
+                                        }
+                                    });
+                                }
+                            }
                         }
                     }
                 }
@@ -3098,7 +3450,14 @@
                     session.totalRows = session.rows.length;
                     session.activeRowIndex = newIdx;
 
-                    renderSessionUI(session);
+                    const container = document.getElementById('table-data-editor-container');
+                    if (session.virtualGrid && container && container.querySelector('#tde-grid-table')) {
+                        session.virtualGrid.refresh();
+                        updateFooterNavState(session, container);
+                        updateDirtyBadge(session);
+                    } else {
+                        renderSessionUI(session);
+                    }
                     if (window.AppTabs) window.AppTabs.setTabDirty(session.tabId, true);
                     updateDirtyBadge(session);
                     selectCell(session, newIdx, cIdx);
@@ -3700,19 +4059,27 @@
             });
 
             // Requirement 3: Highlight unique cells in RED without blocking popup
-            uniqueCols.forEach(uCol => {
-                const uCIdx = session.columns.indexOf(uCol);
-                if (uCIdx >= 0 && gridRowArray[uCIdx] !== null && gridRowArray[uCIdx] !== '') {
-                    const constraintKey = `DUPLICATE_COPY::${uCol}`;
+            const uniqueSpecs = getUniqueSpecsForDuplicate(session);
+            uniqueSpecs.forEach(spec => {
+                const cIdxList = spec.fields.map(f => session.columns.indexOf(f)).filter(i => i >= 0);
+                const allFilled = cIdxList.length > 0 && cIdxList.every(ci => gridRowArray[ci] !== null && gridRowArray[ci] !== '');
+                if (allFilled) {
+                    const isSingle = spec.fields.length === 1;
+                    const constraintKey = isSingle ? `DUPLICATE_COPY::${spec.fields[0]}` : `DUPLICATE_COPY::${spec.name || spec.fields.join('__')}`;
+                    const isComposite = spec.fields.length > 1;
                     const errInfo = {
-                        colName: uCol,
-                        cIdx: uCIdx,
-                        cIdxList: [uCIdx],
-                        error: `Cột "${uCol}" có tính chất UNIQUE (trùng lặp). Vui lòng nhập giá trị mới.`,
-                        constraint_type: 'UNIQUE KEY',
-                        columns: [uCol],
+                        type: 'DUPLICATE_COPY',
+                        constraint_name: spec.name,
+                        constraint_type: spec.is_pk ? 'PRIMARY KEY' : 'UNIQUE KEY',
+                        colName: spec.fields[0],
+                        columns: spec.fields,
+                        cIdxList: cIdxList,
+                        cIdx: cIdxList[0],
+                        error: isComposite
+                            ? `Bộ cột khóa duy nhất [${spec.fields.join(', ')}] bị trùng lặp. Vui lòng điều chỉnh giá trị.`
+                            : `Cột "${spec.fields[0]}" có tính chất UNIQUE (trùng lặp). Vui lòng nhập giá trị mới.`,
                         isNewRow: true,
-                        originalVal: gridRowArray[uCIdx]
+                        originalVal: gridRowArray[cIdxList[0]]
                     };
                     rowErrorsSet(session, newIdx, constraintKey, errInfo);
                 }
@@ -3725,7 +4092,17 @@
         session.activeRowIndex = session.rows.length - 1;
         session.selectedRowIndices = new Set(validIndices);
         session.isRowHeaderSelected = false;
-        renderSessionUI(session);
+
+        const container = document.getElementById('table-data-editor-container');
+        if (session.virtualGrid && container && container.querySelector('#tde-grid-table')) {
+            session.virtualGrid.refresh();
+            session.virtualGrid.scrollToRow(session.activeRowIndex);
+            updateFooterNavState(session, container);
+            updateActiveHighlight(session, container);
+            updateDirtyBadge(session);
+        } else {
+            renderSessionUI(session);
+        }
         if (window.AppTabs) window.AppTabs.setTabDirty(session.tabId, true);
         updateDirtyBadge(session);
 
@@ -3762,15 +4139,25 @@
         session.totalRows = session.rows.length;
         session.activeRowIndex = newIdx;
 
-        renderSessionUI(session);
+        const container = document.getElementById('table-data-editor-container');
+        if (session.virtualGrid && container && container.querySelector('#tde-grid-table')) {
+            session.virtualGrid.refresh();
+            session.virtualGrid.scrollToRow(newIdx);
+            updateFooterNavState(session, container);
+            updateDirtyBadge(session);
+        } else {
+            renderSessionUI(session);
+        }
         if (window.AppTabs) window.AppTabs.setTabDirty(session.tabId, true);
 
         // Scroll to the newly added row and start cell editing
-        const container = document.getElementById('table-data-editor-container');
         if (!container) return;
+        if (session.virtualGrid) {
+            session.virtualGrid.scrollToRow(newIdx);
+        }
         const newTr = container.querySelector(`tr[data-row-idx="${newIdx}"]`);
         if (newTr) {
-            newTr.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+            newTr.scrollIntoView({ block: 'nearest' });
             const editableTds = Array.from(newTr.querySelectorAll('td:not(.tde-rowhead-cell)'));
             const firstEditableTd = editableTds.find(td => {
                 const colName = td.dataset.colName;
@@ -3836,20 +4223,27 @@
             });
 
             // Requirement 3: Highlight unique cells in RED without blocking popup
-            uniqueCols.forEach(uCol => {
-                const uCIdx = session.columns.indexOf(uCol);
-                if (uCIdx >= 0 && duplicatedRow[uCIdx] !== null && duplicatedRow[uCIdx] !== '') {
-                    const constraintKey = `DUPLICATE_COPY::${uCol}`;
+            const uniqueSpecs = getUniqueSpecsForDuplicate(session);
+            uniqueSpecs.forEach(spec => {
+                const cIdxList = spec.fields.map(f => session.columns.indexOf(f)).filter(i => i >= 0);
+                const allFilled = cIdxList.length > 0 && cIdxList.every(ci => duplicatedRow[ci] !== null && duplicatedRow[ci] !== '');
+                if (allFilled) {
+                    const isSingle = spec.fields.length === 1;
+                    const constraintKey = isSingle ? `DUPLICATE_COPY::${spec.fields[0]}` : `DUPLICATE_COPY::${spec.name || spec.fields.join('__')}`;
+                    const isComposite = spec.fields.length > 1;
                     const errInfo = {
                         type: 'DUPLICATE_COPY',
-                        colName: uCol,
-                        cIdx: uCIdx,
-                        cIdxList: [uCIdx],
-                        error: `Cột "${uCol}" có tính chất UNIQUE (trùng lặp). Vui lòng nhập giá trị mới.`,
-                        constraint_type: 'UNIQUE KEY',
-                        columns: [uCol],
+                        constraint_name: spec.name,
+                        constraint_type: spec.is_pk ? 'PRIMARY KEY' : 'UNIQUE KEY',
+                        colName: spec.fields[0],
+                        columns: spec.fields,
+                        cIdxList: cIdxList,
+                        cIdx: cIdxList[0],
+                        error: isComposite
+                            ? `Bộ cột khóa duy nhất [${spec.fields.join(', ')}] bị trùng lặp. Vui lòng điều chỉnh giá trị.`
+                            : `Cột "${spec.fields[0]}" có tính chất UNIQUE (trùng lặp). Vui lòng nhập giá trị mới.`,
                         isNewRow: true,
-                        originalVal: duplicatedRow[uCIdx]
+                        originalVal: duplicatedRow[cIdxList[0]]
                     };
                     rowErrorsSet(session, newIdx, constraintKey, errInfo);
                 }
@@ -3862,7 +4256,17 @@
         session.activeRowIndex = session.rows.length - 1;
         session.selectedRowIndices = new Set(newIndices);
         session.isRowHeaderSelected = false;
-        renderSessionUI(session);
+
+        const container = document.getElementById('table-data-editor-container');
+        if (session.virtualGrid && container && container.querySelector('#tde-grid-table')) {
+            session.virtualGrid.refresh();
+            session.virtualGrid.scrollToRow(session.activeRowIndex);
+            updateFooterNavState(session, container);
+            updateActiveHighlight(session, container);
+            updateDirtyBadge(session);
+        } else {
+            renderSessionUI(session);
+        }
         if (window.AppTabs) window.AppTabs.setTabDirty(session.tabId, true);
         updateDirtyBadge(session);
 
@@ -4293,7 +4697,15 @@
         session.selectedRowIndices = new Set([session.activeRowIndex]);
 
         if (window.AppTabs) window.AppTabs.setTabDirty(session.tabId, session.dirtyRows.size > 0);
-        renderSessionUI(session);
+        const container = document.getElementById('table-data-editor-container');
+        if (session.virtualGrid && container && container.querySelector('#tde-grid-table')) {
+            session.virtualGrid.refresh();
+            updateFooterNavState(session, container);
+            updateActiveHighlight(session, container);
+            updateDirtyBadge(session);
+        } else {
+            renderSessionUI(session);
+        }
 
         if (typeof showToast === 'function') {
             if (unsavedCount > 0) showToast(`Đã xóa ${unsavedCount} dòng mới chưa lưu`, 'secondary');
@@ -4753,11 +5165,16 @@
         session.isRowHeaderSelected = false;
         const container = document.getElementById('table-data-editor-container');
         if (!container) return;
+
+        if (session.virtualGrid) {
+            session.virtualGrid.scrollToRow(rIdx);
+        }
+
         updateActiveHighlight(session, container);
 
         // Scroll row into view
         const tr = container.querySelector(`tr[data-row-idx="${rIdx}"]`);
-        if (tr) tr.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        if (tr) tr.scrollIntoView({ block: 'nearest' });
 
         const navInput = container.querySelector('#tde-nav-current');
         if (navInput) navInput.value = (rIdx < session.rows.length) ? (rIdx + 1) : session.rows.length;
@@ -4777,10 +5194,16 @@
         const gridTable = container.querySelector('#tde-grid-table');
         if (!gridTable) return;
 
-        // 1. Update row active & selected classes on all rows
-        const allTrs = gridTable.querySelectorAll('tbody tr');
+        // 1. Update row active & selected classes on visible pool rows (only ~45 elements)
+        const allTrs = (session.virtualGrid && session.virtualGrid.rowPool)
+            ? session.virtualGrid.rowPool
+            : gridTable.querySelectorAll('tbody tr:not(.tde-virtual-spacer-top):not(.tde-virtual-spacer-bottom)');
+
         allTrs.forEach(tr => {
+            if (tr.style.display === 'none') return;
             const r = Number(tr.dataset.rowIdx);
+            if (isNaN(r)) return;
+
             const isAct = (r === session.activeRowIndex);
             const isSel = Boolean(session.selectedRowIndices && session.selectedRowIndices.has(r));
             tr.classList.toggle('active', isAct);
@@ -4858,6 +5281,10 @@
             session.selectedRowIndices = new Set([r]);
             session.lastClickedRowIndex = r;
             session.isRowHeaderSelected = false;
+        }
+
+        if (session.virtualGrid) {
+            session.virtualGrid.ensureRowVisible(r);
         }
 
         updateActiveHighlight(session, container);
@@ -4975,14 +5402,33 @@
     function activateTab(tabId) {
         activeTabId = tabId;
         const session = sessions.get(tabId);
-        if (session) {
-            renderSessionUI(session);
+        if (!session) return;
+
+        const container = document.getElementById('table-data-editor-container');
+        if (!container) return;
+
+        // Tối ưu hiệu năng: Nếu container đang chứa chính xác DOM của tab này (ví dụ chuyển từ Query tab sang),
+        // KHÔNG hủy DOM và vẽ lại từ đầu, chỉ cần làm tươi virtual grid và trạng thái dòng chọn.
+        if (container.dataset.activeTabId === tabId && container.querySelector('#tde-grid-table')) {
+            if (session.virtualGrid) {
+                session.virtualGrid.refresh();
+            }
+            updateActiveHighlight(session, container);
+            updateFooterNavState(session, container);
+            updateDirtyBadge(session);
+            return;
         }
+
+        renderSessionUI(session);
     }
 
     function closeTab(tabId) {
         const session = sessions.get(tabId);
         if (session) {
+            if (session.virtualGrid) {
+                session.virtualGrid.destroy();
+                session.virtualGrid = null;
+            }
             if (session._docKeyDownHandler) {
                 document.removeEventListener('keydown', session._docKeyDownHandler);
                 session._docKeyDownHandler = null;
@@ -4993,6 +5439,11 @@
             }
         }
         sessions.delete(tabId);
+        const container = document.getElementById('table-data-editor-container');
+        if (container && container.dataset.activeTabId === tabId) {
+            container.dataset.activeTabId = '';
+            container.innerHTML = '';
+        }
         if (activeTabId === tabId) {
             activeTabId = null;
         }

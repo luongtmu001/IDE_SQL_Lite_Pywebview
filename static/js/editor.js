@@ -509,6 +509,7 @@
             renderLineHighlight: 'line',
             scrollBeyondLastLine: false,
             automaticLayout: true,
+            mouseWheelZoom: true,
             contextmenu: true,
             fixedOverflowWidgets: true,
             minimap: { enabled: true },
@@ -673,7 +674,46 @@
             }
         });
 
-        // Synchronize on content change to update tab state dirty status
+        // ── Synchronize Zoom & Line-Height ─────────────────────────────────────
+        editor.onDidChangeConfiguration(e => {
+            if (e.hasChanged(monaco.editor.EditorOption.fontSize)) {
+                const curFontSize = editor.getOption(monaco.editor.EditorOption.fontSize);
+                const expectedLineHeight = Math.round(curFontSize * (19 / 13));
+                if (editor.getOption(monaco.editor.EditorOption.lineHeight) !== expectedLineHeight) {
+                    editor.updateOptions({ lineHeight: expectedLineHeight });
+                }
+                if (window.EditorStatusBar) {
+                    window.EditorStatusBar.updateZoomDisplay(curFontSize);
+                }
+            }
+        });
+
+        // ── Wire Status Bar Realtime Trackers ──────────────────────────────────
+        editor.onDidChangeCursorPosition(() => {
+            if (window.EditorStatusBar && window.EditorStatusBar.getActiveEditor() === editor) {
+                window.EditorStatusBar.updateCursor(editor);
+            }
+        });
+
+        editor.onDidChangeCursorSelection(() => {
+            if (window.EditorStatusBar && window.EditorStatusBar.getActiveEditor() === editor) {
+                window.EditorStatusBar.updateCursor(editor);
+            }
+        });
+
+        editor.onDidFocusEditorText(() => {
+            if (window.EditorStatusBar) {
+                window.EditorStatusBar.setActiveEditor(editor);
+            }
+        });
+
+        editor.onDidChangeModel(() => {
+            if (window.EditorStatusBar && window.EditorStatusBar.getActiveEditor() === editor) {
+                window.EditorStatusBar.updateAll(editor);
+            }
+        });
+
+        // Synchronize on content change to update tab state dirty status & status bar
         editor.onDidChangeModelContent(() => {
             const val = editor.getValue();
             if (window.AppTabs && window.AppTabs.getActiveTabState) {
@@ -682,12 +722,262 @@
                     state.content = val;
                 }
             }
+            if (window.EditorStatusBar && window.EditorStatusBar.getActiveEditor() === editor) {
+                window.EditorStatusBar.updateCursor(editor);
+                window.EditorStatusBar.updateEOL(editor);
+            }
+        });
+
+        editor.onDidChangeModelOptions(() => {
+            if (window.EditorStatusBar && window.EditorStatusBar.getActiveEditor() === editor) {
+                window.EditorStatusBar.updateIndent(editor);
+            }
         });
 
         return editor;
     }
 
-    // ── 4. Main Editor Initialization ─────────────────────────────────────────
+    // ── 4. Editor Status Bar Controller (SSMS Style) ──────────────────────────
+    const EditorStatusBar = {
+        _activeEditor: null,
+        _isInitialized: false,
+
+        init() {
+            if (this._isInitialized) return;
+            this._isInitialized = true;
+            this._bindUIEvents();
+            if (_primaryEditor) {
+                this.setActiveEditor(_primaryEditor);
+            }
+        },
+
+        setActiveEditor(editor) {
+            if (!editor) return;
+            this._activeEditor = editor;
+            this.updateAll(editor);
+        },
+
+        getActiveEditor() {
+            return this._activeEditor || _primaryEditor;
+        },
+
+        updateZoomDisplay(fontSize) {
+            const ed = this.getActiveEditor();
+            const curFontSize = fontSize || (ed ? ed.getOption(monaco.editor.EditorOption.fontSize) : 13);
+            const pct = Math.round((curFontSize / 13) * 100);
+            const input = document.getElementById('ide-sb-zoom-input');
+            if (input && document.activeElement !== input) {
+                input.value = `${pct} %`;
+            }
+        },
+
+        applyZoom(pct) {
+            const ed = this.getActiveEditor();
+            if (!ed) return;
+            const validPct = Math.max(20, Math.min(400, Math.round(pct)));
+            const newFontSize = Math.max(6, Math.min(80, Math.round(13 * (validPct / 100))));
+            const newLineHeight = Math.round(newFontSize * (19 / 13));
+            ed.updateOptions({
+                fontSize: newFontSize,
+                lineHeight: newLineHeight
+            });
+            const input = document.getElementById('ide-sb-zoom-input');
+            if (input) {
+                input.value = `${validPct} %`;
+            }
+            remeasureMonacoFonts();
+        },
+
+        updateCursor(editor) {
+            const ed = editor || this.getActiveEditor();
+            const cursorEl = document.getElementById('ide-sb-cursor');
+            if (!cursorEl || !ed) return;
+            const pos = ed.getPosition() || { lineNumber: 1, column: 1 };
+            const sel = ed.getSelection();
+            let text = `Ln: ${pos.lineNumber}, Ch: ${pos.column}`;
+            if (sel && !sel.isEmpty()) {
+                const model = ed.getModel();
+                if (model) {
+                    const selText = model.getValueInRange(sel);
+                    text += ` (${selText.length} selected)`;
+                }
+            }
+            cursorEl.textContent = text;
+        },
+
+        updateIssues(editor) {
+            const ed = editor || this.getActiveEditor();
+            const issuesEl = document.getElementById('ide-sb-issues');
+            if (!issuesEl || !ed || !ed.getModel()) return;
+
+            const model = ed.getModel();
+            const markers = (typeof monaco !== 'undefined' && monaco.editor && typeof monaco.editor.getModelMarkers === 'function')
+                ? monaco.editor.getModelMarkers({ resource: model.uri })
+                : [];
+
+            const errors = markers.filter(m => m.severity === monaco.MarkerSeverity.Error);
+            const warnings = markers.filter(m => m.severity === monaco.MarkerSeverity.Warning);
+
+            if (errors.length === 0 && warnings.length === 0) {
+                issuesEl.className = 'ide-sb-issues';
+                issuesEl.innerHTML = '<i class="fa-solid fa-circle-check text-success"></i><span id="ide-sb-issues-text">No issues found</span>';
+                issuesEl.title = 'No syntax issues found';
+            } else if (errors.length > 0) {
+                issuesEl.className = 'ide-sb-issues has-errors';
+                issuesEl.innerHTML = `<i class="fa-solid fa-circle-xmark text-danger"></i><span id="ide-sb-issues-text">${errors.length} issue${errors.length > 1 ? 's' : ''} found</span>`;
+                issuesEl.title = errors.map(e => `Line ${e.startLineNumber}: ${e.message}`).join('\n');
+            } else {
+                issuesEl.className = 'ide-sb-issues has-warnings';
+                issuesEl.innerHTML = `<i class="fa-solid fa-triangle-exclamation text-warning"></i><span id="ide-sb-issues-text">${warnings.length} warning${warnings.length > 1 ? 's' : ''}</span>`;
+                issuesEl.title = warnings.map(w => `Line ${w.startLineNumber}: ${w.message}`).join('\n');
+            }
+        },
+
+        updateIndent(editor) {
+            const ed = editor || this.getActiveEditor();
+            const indentEl = document.getElementById('ide-sb-indent');
+            if (!indentEl || !ed || !ed.getModel()) return;
+            const opts = ed.getModel().getOptions();
+            if (opts && opts.insertSpaces) {
+                indentEl.textContent = `SPACES: ${opts.tabSize || 4}`;
+            } else {
+                indentEl.textContent = 'TABS';
+            }
+        },
+
+        updateEOL(editor) {
+            const ed = editor || this.getActiveEditor();
+            const eolEl = document.getElementById('ide-sb-eol');
+            if (!eolEl || !ed || !ed.getModel()) return;
+            const eol = ed.getModel().getEOL();
+            eolEl.textContent = (eol === '\r\n') ? 'CRLF' : 'LF';
+        },
+
+        updateAll(editor) {
+            const ed = editor || this.getActiveEditor();
+            if (!ed) return;
+            this.updateZoomDisplay();
+            this.updateCursor(ed);
+            this.updateIssues(ed);
+            this.updateIndent(ed);
+            this.updateEOL(ed);
+        },
+
+        _bindUIEvents() {
+            // Zoom input
+            const zoomInput = document.getElementById('ide-sb-zoom-input');
+            if (zoomInput) {
+                const commitZoom = () => {
+                    const raw = zoomInput.value.replace(/[^0-9]/g, '');
+                    const val = parseInt(raw, 10);
+                    if (!isNaN(val)) {
+                        EditorStatusBar.applyZoom(val);
+                    } else {
+                        EditorStatusBar.updateZoomDisplay();
+                    }
+                };
+                zoomInput.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') {
+                        commitZoom();
+                        zoomInput.blur();
+                    } else if (e.key === 'Escape') {
+                        EditorStatusBar.updateZoomDisplay();
+                        zoomInput.blur();
+                    }
+                });
+                zoomInput.addEventListener('change', commitZoom);
+                zoomInput.addEventListener('focus', () => {
+                    zoomInput.select();
+                });
+            }
+
+            // Zoom dropdown presets
+            document.querySelectorAll('.ide-sb-zoom-menu [data-zoom]').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const val = parseInt(btn.getAttribute('data-zoom'), 10);
+                    if (!isNaN(val)) {
+                        EditorStatusBar.applyZoom(val);
+                    }
+                });
+            });
+
+            // Issues click to navigate to first error
+            const issuesEl = document.getElementById('ide-sb-issues');
+            if (issuesEl) {
+                issuesEl.addEventListener('click', () => {
+                    const ed = EditorStatusBar.getActiveEditor();
+                    if (!ed || !ed.getModel()) return;
+                    const model = ed.getModel();
+                    const markers = (typeof monaco !== 'undefined' && monaco.editor && typeof monaco.editor.getModelMarkers === 'function')
+                        ? monaco.editor.getModelMarkers({ resource: model.uri })
+                        : [];
+                    const target = markers.find(m => m.severity === monaco.MarkerSeverity.Error) || markers[0];
+                    if (target) {
+                        ed.revealPositionInCenter({ lineNumber: target.startLineNumber, column: target.startColumn });
+                        ed.setPosition({ lineNumber: target.startLineNumber, column: target.startColumn });
+                        ed.focus();
+                    }
+                });
+            }
+
+            // Indent toggle (Spaces vs Tabs)
+            const indentEl = document.getElementById('ide-sb-indent');
+            if (indentEl) {
+                indentEl.addEventListener('click', () => {
+                    const ed = EditorStatusBar.getActiveEditor();
+                    if (!ed || !ed.getModel()) return;
+                    const model = ed.getModel();
+                    const curOpts = model.getOptions();
+                    const nextInsertSpaces = !curOpts.insertSpaces;
+                    model.updateOptions({ insertSpaces: nextInsertSpaces, tabSize: 4 });
+                    EditorStatusBar.updateIndent(ed);
+                });
+            }
+
+            // EOL toggle (CRLF vs LF)
+            const eolEl = document.getElementById('ide-sb-eol');
+            if (eolEl) {
+                eolEl.addEventListener('click', () => {
+                    const ed = EditorStatusBar.getActiveEditor();
+                    if (!ed || !ed.getModel()) return;
+                    const model = ed.getModel();
+                    const curEOL = model.getEOL();
+                    const nextEOL = (curEOL === '\r\n') ? '\n' : '\r\n';
+                    model.setEOL(nextEOL === '\r\n' ? monaco.editor.EndOfLineSequence.CRLF : monaco.editor.EndOfLineSequence.LF);
+                    EditorStatusBar.updateEOL(ed);
+                });
+            }
+
+            // Global markers listener
+            if (typeof monaco !== 'undefined' && monaco.editor && typeof monaco.editor.onDidChangeMarkers === 'function') {
+                monaco.editor.onDidChangeMarkers(() => {
+                    EditorStatusBar.updateIssues();
+                });
+            }
+
+            // Listen for tab switch to update or toggle status bar
+            document.addEventListener('ide-tab-switched', (e) => {
+                const state = e.detail?.state;
+                const statusBar = document.getElementById('ide-editor-status-bar');
+                if (statusBar) {
+                    if (state && (state.tabType === 'designer' || state.tabType === 'data-editor')) {
+                        statusBar.classList.add('d-none');
+                    } else {
+                        statusBar.classList.remove('d-none');
+                        setTimeout(() => {
+                            if (_primaryEditor) {
+                                EditorStatusBar.updateAll(_primaryEditor);
+                            }
+                        }, 20);
+                    }
+                }
+            });
+        }
+    };
+    window.EditorStatusBar = EditorStatusBar;
+
+    // ── 5. Main Editor Initialization ─────────────────────────────────────────
     window.initEditor = function () {
         // Return AppEditor wrapper immediately so callers never get null
         window.AppEditor = createAppEditorWrapper(() => _primaryEditor, 'monaco-sql-editor');
@@ -714,6 +1004,10 @@
 
             _primaryEditor = createMonacoInstance(targetEl, _bufferedValue);
             window.AppEditor._bindPendingListeners(_primaryEditor);
+
+            // Connect Editor Status Bar
+            EditorStatusBar.init();
+            EditorStatusBar.setActiveEditor(_primaryEditor);
 
             // Connect IntelliSense controller
             if (window.AppIntelliSense && typeof window.AppIntelliSense.attachEditor === 'function') {

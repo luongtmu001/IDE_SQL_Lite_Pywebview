@@ -859,6 +859,9 @@ class BravoApi:
                 self._window.show()
             except Exception:
                 pass
+            import threading
+            for delay in (0.05, 0.2, 0.5):
+                threading.Timer(delay, lambda: self.apply_titlebar_theme()).start()
         return {"success": True}
 
     def apply_titlebar_theme(self, bg_hex=None, text_hex=None, border_hex=None, is_dark=None):
@@ -870,6 +873,18 @@ class BravoApi:
                 pass
 
         try:
+            if not bg_hex and getattr(self, '_current_titlebar_theme', None):
+                t = self._current_titlebar_theme
+                bg_hex = t.get("bg")
+                text_hex = text_hex or t.get("text")
+                border_hex = border_hex or t.get("border")
+                if is_dark is None:
+                    is_dark = t.get("is_dark")
+
+            if not bg_hex:
+                settings = _load_settings_file()
+                bg_hex = settings.get("appearance", {}).get("theme") or settings.get("theme", "dark")
+
             if bg_hex in THEME_TITLEBAR_PRESETS:
                 preset = THEME_TITLEBAR_PRESETS[bg_hex]
                 bg_hex = preset["bg"]
@@ -2025,6 +2040,59 @@ class BravoApi:
         self.cm.clear_cached_password(config)
         return {"success": True}
 
+    def fetch_connection_metadata(self, config):
+        try:
+            cfg = dict(config or {})
+            if not cfg.get("password") and not cfg.get("trusted_connection") and (cfg.get("type") or "").lower() != "sqlite":
+                saved = _read_json(CONNECTIONS_FILE, [])
+                target = None
+                prof_id = cfg.get("id")
+                if prof_id:
+                    for p in saved:
+                        if p.get("id") == prof_id:
+                            target = p
+                            break
+                if not target and cfg.get("name"):
+                    c_name = str(cfg.get("name")).strip().lower()
+                    c_type = str(cfg.get("type", "")).strip().lower()
+                    for p in saved:
+                        if str(p.get("name")).strip().lower() == c_name and str(p.get("type", "")).strip().lower() == c_type:
+                            target = p
+                            break
+                if not target and (cfg.get("server") or cfg.get("host")):
+                    c_srv = str(cfg.get("server") or cfg.get("host")).strip().lower()
+                    c_port = str(cfg.get("port") or "")
+                    for p in saved:
+                        e_srv = str(p.get("server") or p.get("host") or "").strip().lower()
+                        e_port = str(p.get("port") or "")
+                        if e_srv == c_srv and e_port == c_port:
+                            target = p
+                            break
+
+                if target and target.get("password"):
+                    cfg["password"] = decrypt_password(target["password"])
+
+            temp_conn = self.cm.create(self.owner_session_id, cfg)
+            try:
+                db_name = cfg.get("database") or None
+                databases = []
+                schemas = []
+                try:
+                    raw_dbs = temp_conn.metadata_service.list_databases()
+                    databases = [d.get("name", d) if isinstance(d, dict) else str(d) for d in raw_dbs]
+                except Exception:
+                    pass
+                try:
+                    raw_schemas = temp_conn.metadata_service.list_schemas(db_name)
+                    schemas = [s.get("name", s) if isinstance(s, dict) else str(s) for s in raw_schemas]
+                except Exception:
+                    pass
+                return {"success": True, "databases": databases, "schemas": schemas}
+            finally:
+                self.cm.close(self.owner_session_id, temp_conn.connection_id)
+        except Exception as exc:
+            return {"success": False, "error": str(exc)}
+
     def _get_connection(self, connection_id):
         with self.cm._lock:
             conn = self.cm._connections.get(connection_id)
@@ -2054,6 +2122,7 @@ class BravoApi:
             return {"success": True, "items": items}
         except Exception as exc:
             return {"success": False, "error": str(exc)}
+
 
     def create_session(self, config=None, connection_id=None, window_id=None):
         wid = window_id or str(uuid.uuid4())
@@ -2742,10 +2811,10 @@ class MainApi(BravoApi):
             return {"success": False, "error": str(exc)}
 
     # Query Execution API
-    def execute_query(self, connection_id, sql, limit=1000, database=None):
+    def execute_query(self, connection_id, sql, limit=1000, database=None, schema=None):
         try:
             conn = self._get_connection(connection_id)
-            result = conn.query_service.execute(sql, limit=limit, database=database)
+            result = conn.query_service.execute(sql, limit=limit, database=database, schema=schema)
             return {"success": True, **result}
         except Exception as exc:
             return {"success": False, "error": str(exc)}
@@ -2843,9 +2912,25 @@ def main():
             splash_closed = True
             try:
                 window.show()
-                apply_dwm_titlebar_theme(window, bg=cur_theme, title="luoBTool IDE")
             except Exception:
                 pass
+
+            def _sync_titlebar():
+                try:
+                    main_api.apply_titlebar_theme(cur_theme)
+                except Exception:
+                    pass
+                try:
+                    apply_dwm_titlebar_theme(window, bg=cur_theme, title="luoBTool IDE")
+                except Exception:
+                    pass
+
+            _sync_titlebar()
+            import threading
+            threading.Timer(0.1, _sync_titlebar).start()
+            threading.Timer(0.35, _sync_titlebar).start()
+            threading.Timer(0.7, _sync_titlebar).start()
+
             try:
                 splash_win.hide()
             except Exception:
@@ -2855,7 +2940,7 @@ def main():
                     splash_win.destroy()
                 except Exception:
                     pass
-            import threading
+                _sync_titlebar()
             threading.Timer(0.5, _destroy_splash).start()
 
     def on_min_splash_timer():

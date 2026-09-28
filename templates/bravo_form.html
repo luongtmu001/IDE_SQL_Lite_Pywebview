@@ -166,9 +166,28 @@
                         </div>
                     </div>
 
-                    <div class="mb-2">
-                        <label class="ide-form-label">Default Database</label>
-                        <input type="text" class="form-control form-control-sm" id="connDb" placeholder="(optional)">
+                    <div class="row g-2 mb-2">
+                        <div class="col-6">
+                            <label class="ide-form-label d-flex align-items-center justify-content-between">
+                                <span>Default Database</span>
+                                <a href="javascript:void(0);" id="btnFetchDbs" class="small text-decoration-none text-info" style="font-size: 11px;" title="Tải danh sách Database từ server">
+                                    <i class="fa-solid fa-rotate me-1"></i>Load
+                                </a>
+                            </label>
+                            <input type="text" class="form-control form-control-sm" id="connDb" placeholder="(optional)" list="connDbList" autocomplete="off">
+                            <datalist id="connDbList"></datalist>
+                        </div>
+                        <div class="col-6">
+                            <label class="ide-form-label d-flex align-items-center justify-content-between">
+                                <span>Default Schema</span>
+                                <a href="javascript:void(0);" id="btnFetchSchemas" class="small text-decoration-none text-info" style="font-size: 11px;" title="Kết nối server để tải danh sách Schema">
+                                    <i class="fa-solid fa-rotate me-1"></i>Load
+                                </a>
+                            </label>
+                            <select class="form-select form-select-sm" id="connSchema">
+                                <option value="">(Tất cả / Mặc định)</option>
+                            </select>
+                        </div>
                     </div>
 
                     <div id="connSqlServerOptionsGroup">

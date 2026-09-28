@@ -152,7 +152,8 @@
 .td-tab-pane {
     display: none;
     flex-direction: column;
-    flex-grow: 1;
+    flex: 1 1 0;
+    min-height: 0;
     overflow: hidden;
 }
 
@@ -369,8 +370,21 @@ html[data-bs-theme="light"] .td-select:focus {
 }
 
 .td-trigger-cm-wrap {
-    flex-grow: 1;
+    flex: 1 1 0;
+    min-height: 0;
+    position: relative;
+    width: 100%;
     overflow: hidden;
+}
+
+.td-trigger-def-editor {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    height: 100%;
 }
 
 .td-trigger-cm-wrap .CodeMirror {
@@ -395,11 +409,22 @@ html[data-bs-theme="light"] .td-select:focus {
 
 /* SQL Preview Area */
 .td-preview-wrap {
-    flex-grow: 1;
+    flex: 1 1 0;
+    min-height: 0;
     overflow: hidden;
     display: flex;
     flex-direction: column;
     background: var(--ide-bg-editor, #18191E);
+    position: relative;
+    width: 100%;
+    height: 100%;
+}
+
+.td-sql-preview-editor {
+    flex: 1 1 0;
+    min-height: 0;
+    position: relative;
+    width: 100%;
 }
 
 .td-preview-wrap .CodeMirror {
@@ -651,14 +676,43 @@ html[data-bs-theme="light"] .td-select:focus {
     user-select: none;
 }
 
-.td-live-sql-cm-wrap {
-    flex: 1;
+.td-tab-session-pane {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    height: 100%;
+    flex: 1 1 0;
+    min-height: 0;
     overflow: hidden;
+}
+
+.td-live-sql-cm-wrap {
+    flex: 1 1 0;
+    min-height: 0;
     position: relative;
+    width: 100%;
+    overflow: hidden;
+}
+
+.td-live-sql-editor {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    height: 100%;
+}
+
+#td-modal-diff-editor {
+    width: 100%;
+    height: 100%;
+    min-height: 300px;
 }
 
 .td-live-sql-cm-wrap .CodeMirror {
     height: 100% !important;
     font-size: 12px;
 }
+
 

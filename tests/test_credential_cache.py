@@ -140,9 +140,34 @@ class TestCredentialCache(unittest.TestCase):
         self.assertIn(b'id="reconnectPasswordModal"', res.data)
         self.assertIn(b'id="btnToggleReconnectPass"', res.data)
         self.assertIn(b'id="btnToggleConnPass"', res.data)
+        # Verify default schema and fetch buttons in HTML
+        self.assertIn(b'id="connSchema"', res.data)
+        self.assertIn(b'id="btnFetchDbs"', res.data)
+        self.assertIn(b'id="btnFetchSchemas"', res.data)
         # Verify security warning note
         html_text = res.data.decode("utf-8")
         self.assertIn("Mật khẩu chỉ được lưu tạm", html_text)
+
+    def test_fetch_metadata_endpoint(self):
+        with patch.object(self.app.extensions["connection_manager"], "create") as mock_create, \
+             patch.object(self.app.extensions["connection_manager"], "close") as mock_close:
+            mock_conn = MagicMock()
+            mock_conn.connection_id = "temp_conn_123"
+            mock_conn.metadata_service.list_databases.return_value = ["master", "model", "Bravo10Setup_Data"]
+            mock_conn.metadata_service.list_schemas.return_value = ["dbo", "guest", "cdc"]
+            mock_create.return_value = mock_conn
+
+            res = self.client.post("/api/connections/fetch-metadata", json={
+                "type": "sqlserver",
+                "server": "localhost",
+                "database": "Bravo10Setup_Data"
+            })
+            self.assertEqual(res.status_code, 200)
+            data = res.get_json()
+            self.assertTrue(data.get("success"))
+            self.assertIn("Bravo10Setup_Data", data.get("databases", []))
+            self.assertIn("dbo", data.get("schemas", []))
+            mock_close.assert_called_once()
 
 if __name__ == "__main__":
     unittest.main()

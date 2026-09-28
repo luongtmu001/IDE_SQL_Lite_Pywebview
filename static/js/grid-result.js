@@ -111,6 +111,174 @@
         return maxLen > 255 ? 'VARCHAR(MAX)' : `VARCHAR(${Math.max(50, Math.ceil(maxLen * 1.5))})`;
     }
 
+    // ── VirtualGridRenderer ──────────────────────────────────────────────────
+    class VirtualGridRenderer {
+        constructor(gridInstance) {
+            this.grid = gridInstance;
+            this.table = gridInstance.table;
+            this.scrollContainer = this.table.closest('.ide-grid-table-scroll') || this.table.parentElement;
+            this.tbody = this.table.querySelector('tbody');
+            if (!this.tbody) {
+                this.tbody = document.createElement('tbody');
+                this.table.appendChild(this.tbody);
+            }
+            this.rowHeight = 26; // Fixed 26px matching editor.css
+            this.buffer = 10;
+
+            this.rowPool = [];
+            this.startIndex = 0;
+            this.endIndex = 0;
+            this.isScheduled = false;
+
+            this.topSpacer = null;
+            this.topSpacerTd = null;
+            this.bottomSpacer = null;
+            this.bottomSpacerTd = null;
+
+            this.initSpacers();
+            this.initScrollListener();
+            this.initResizeObserver();
+        }
+
+        initSpacers() {
+            this.tbody.innerHTML = '';
+            const colSpan = this.grid.totalCols + 1;
+
+            this.topSpacer = document.createElement('tr');
+            this.topSpacer.className = 'ide-virtual-spacer-top';
+            this.topSpacer.style.height = '0px';
+            this.topSpacerTd = document.createElement('td');
+            this.topSpacerTd.colSpan = colSpan;
+            this.topSpacerTd.style.height = '0px';
+            this.topSpacer.appendChild(this.topSpacerTd);
+            this.tbody.appendChild(this.topSpacer);
+
+            this.bottomSpacer = document.createElement('tr');
+            this.bottomSpacer.className = 'ide-virtual-spacer-bottom';
+            this.bottomSpacer.style.height = '0px';
+            this.bottomSpacerTd = document.createElement('td');
+            this.bottomSpacerTd.colSpan = colSpan;
+            this.bottomSpacerTd.style.height = '0px';
+            this.bottomSpacer.appendChild(this.bottomSpacerTd);
+            this.tbody.appendChild(this.bottomSpacer);
+        }
+
+        initScrollListener() {
+            this._onScroll = () => {
+                if (this.isScheduled) return;
+                this.isScheduled = true;
+                requestAnimationFrame(() => {
+                    this.isScheduled = false;
+                    this.render(false);
+                });
+            };
+            if (this.scrollContainer) {
+                this.scrollContainer.addEventListener('scroll', this._onScroll, { passive: true });
+            }
+        }
+
+        initResizeObserver() {
+            if (window.ResizeObserver && this.scrollContainer) {
+                this._resizeObserver = new ResizeObserver(() => {
+                    if (this.isScheduled) return;
+                    this.isScheduled = true;
+                    requestAnimationFrame(() => {
+                        this.isScheduled = false;
+                        this.render(true);
+                    });
+                });
+                this._resizeObserver.observe(this.scrollContainer);
+            }
+        }
+
+        render(force = false) {
+            const totalDisplayRows = this.grid.getDisplayRowCount();
+            if (totalDisplayRows === 0) {
+                this.topSpacer.style.height = '0px';
+                this.topSpacerTd.style.height = '0px';
+                this.bottomSpacer.style.height = '0px';
+                this.bottomSpacerTd.style.height = '0px';
+                this.rowPool.forEach(tr => { tr.style.display = 'none'; });
+                this.startIndex = 0;
+                this.endIndex = 0;
+                return;
+            }
+
+            // Sync measured row height from DOM if available
+            if (this.rowPool.length > 0 && this.rowPool[0].offsetHeight > 0) {
+                const actualH = this.rowPool[0].offsetHeight;
+                if (actualH >= 20 && actualH <= 40 && actualH !== this.rowHeight) {
+                    this.rowHeight = actualH;
+                }
+            }
+
+            const scrollTop = this.scrollContainer ? this.scrollContainer.scrollTop : 0;
+            const viewportH = (this.scrollContainer && this.scrollContainer.clientHeight > 0) ? this.scrollContainer.clientHeight : 400;
+
+            const visibleCount = Math.ceil(viewportH / this.rowHeight);
+            let startIndex = Math.max(0, Math.floor(scrollTop / this.rowHeight) - this.buffer);
+            let endIndex = Math.min(totalDisplayRows, startIndex + visibleCount + this.buffer * 2);
+
+            if (!force && startIndex === this.startIndex && endIndex === this.endIndex) {
+                return;
+            }
+
+            this.startIndex = startIndex;
+            this.endIndex = endIndex;
+
+            const topH = startIndex * this.rowHeight;
+            const bottomH = Math.max(0, (totalDisplayRows - endIndex) * this.rowHeight);
+
+            this.topSpacer.style.height = `${topH}px`;
+            this.topSpacerTd.style.height = `${topH}px`;
+            this.topSpacer.style.display = topH > 0 ? '' : 'none';
+
+            this.bottomSpacer.style.height = `${bottomH}px`;
+            this.bottomSpacerTd.style.height = `${bottomH}px`;
+            this.bottomSpacer.style.display = bottomH > 0 ? '' : 'none';
+
+            const neededRows = endIndex - startIndex;
+
+            // Expand pool if needed
+            while (this.rowPool.length < neededRows) {
+                const tr = document.createElement('tr');
+                const rnTd = document.createElement('td');
+                rnTd.className = 'ide-row-number';
+                tr.appendChild(rnTd);
+
+                for (let c = 0; c < this.grid.totalCols; c++) {
+                    const td = document.createElement('td');
+                    tr.appendChild(td);
+                }
+                this.tbody.insertBefore(tr, this.bottomSpacer);
+                this.rowPool.push(tr);
+            }
+
+            // Hide unused rows
+            for (let i = neededRows; i < this.rowPool.length; i++) {
+                this.rowPool[i].style.display = 'none';
+            }
+
+            // Populate visible rows
+            for (let i = 0; i < neededRows; i++) {
+                const tr = this.rowPool[i];
+                tr.style.display = '';
+                const displayRowIdx = startIndex + i;
+                this.grid.updateRowCells(tr, displayRowIdx);
+            }
+        }
+
+        destroy() {
+            if (this.scrollContainer && this._onScroll) {
+                this.scrollContainer.removeEventListener('scroll', this._onScroll);
+            }
+            if (this._resizeObserver) {
+                this._resizeObserver.disconnect();
+            }
+            this.rowPool = [];
+        }
+    }
+
     // ── GridResultInstance ───────────────────────────────────────────────────
     class GridResultInstance {
         constructor(table, resSet, gridIndex) {
@@ -133,6 +301,8 @@
             // Filter state
             this.columnFilters = {};
             this.filterBar = this.pane ? this.pane.querySelector('.ide-result-filter-bar') : null;
+            this.filteredRowIndices = null; // null means all rows visible; Array of original row indices
+            this.filteredRowSet = null;     // Set of visible indices for O(1) checks
 
             // Find state
             this.searchOverlay = null;
@@ -142,43 +312,15 @@
             // Aggregates overlay
             this.aggregatesPanel = null;
 
+            // Virtual renderer
+            this.renderer = null;
+
             this.init();
         }
 
         init() {
             this.table.tabIndex = 0; // Allow keyboard focus
             this.table.style.outline = 'none';
-
-            // Tag table cells
-            const tbody = this.table.querySelector('tbody');
-            if (tbody) {
-                const trList = tbody.querySelectorAll('tr');
-                trList.forEach((tr, rIdx) => {
-                    const tdList = tr.querySelectorAll('td');
-                    tdList.forEach((td, cIdx) => {
-                        if (cIdx === 0) {
-                            // Row number cell
-                            td.dataset.row = rIdx;
-                            td.addEventListener('mousedown', (e) => this.onRowHeaderMouseDown(e, rIdx));
-                            td.addEventListener('mouseenter', (e) => this.onRowHeaderMouseEnter(e, rIdx));
-                        } else {
-                            // Data cell
-                            const dataColIdx = cIdx - 1;
-                            td.dataset.row = rIdx;
-                            td.dataset.col = dataColIdx;
-
-                            // Mark NULL cells for specialized styling
-                            const val = this.rows[rIdx] ? this.rows[rIdx][dataColIdx] : null;
-                            if (val === null || val === undefined) {
-                                td.classList.add('ide-null-cell');
-                            }
-
-                            td.addEventListener('mousedown', (e) => this.onCellMouseDown(e, rIdx, dataColIdx));
-                            td.addEventListener('mouseenter', (e) => this.onCellMouseEnter(e, rIdx, dataColIdx));
-                        }
-                    });
-                });
-            }
 
             // Top-left header click (Select All)
             const tlHeader = this.table.querySelector('th.ide-row-number');
@@ -189,6 +331,10 @@
                     this.selectAll();
                 });
             }
+
+            // High-performance Event Delegation on table element (0 listeners per cell)
+            this.table.addEventListener('mousedown', (e) => this.onTableMouseDown(e));
+            this.table.addEventListener('mouseover', (e) => this.onTableMouseOver(e));
 
             // Document mouse up to terminate dragging
             this._docMouseUp = () => {
@@ -206,6 +352,10 @@
             // Setup column filtering
             this.setupFilterEvents();
 
+            // Initialize Virtual Row Renderer
+            this.renderer = new VirtualGridRenderer(this);
+            this.renderer.render(true);
+
             // Default selection: select cell (0, 0) if data exists
             if (this.totalRows > 0 && this.totalCols > 0) {
                 this.setSelection(0, 0, 0, 0);
@@ -214,10 +364,172 @@
 
         destroy() {
             document.removeEventListener('mouseup', this._docMouseUp);
+            if (this.renderer) {
+                this.renderer.destroy();
+                this.renderer = null;
+            }
             if (this.searchOverlay) this.searchOverlay.remove();
             if (this.aggregatesPanel) this.aggregatesPanel.remove();
             const existingPopover = document.getElementById('ide-col-filter-popover');
             if (existingPopover) existingPopover.remove();
+        }
+
+        // ── Virtual Index Mapping & Row Cell Rendering ────────────────────────
+        getDisplayRowCount() {
+            return this.filteredRowIndices ? this.filteredRowIndices.length : this.totalRows;
+        }
+
+        getDataRowIndex(displayRowIdx) {
+            if (!this.filteredRowIndices) return displayRowIdx;
+            return this.filteredRowIndices[displayRowIdx] !== undefined ? this.filteredRowIndices[displayRowIdx] : displayRowIdx;
+        }
+
+        isRowFilteredOut(dataRowIdx) {
+            if (this.filteredRowSet) {
+                return !this.filteredRowSet.has(dataRowIdx);
+            }
+            const tr = this.table.querySelector(`tbody tr[data-row="${dataRowIdx}"]`);
+            return tr ? tr.classList.contains('ide-row-filtered-out') : false;
+        }
+
+        getVisibleRowCount() {
+            return this.getDisplayRowCount();
+        }
+
+        updateRowCells(tr, displayRowIdx) {
+            const dataRowIdx = this.getDataRowIndex(displayRowIdx);
+            const rowData = this.rows[dataRowIdx];
+            tr.dataset.displayRow = displayRowIdx;
+            tr.dataset.row = dataRowIdx;
+
+            // Alternating row background
+            if (displayRowIdx % 2 === 1) {
+                tr.classList.add('ide-row-alt');
+            } else {
+                tr.classList.remove('ide-row-alt');
+            }
+
+            const bb = this.getBoundingBox();
+            const lead = this.leadCell;
+            const isLeadRow = lead && lead.row === dataRowIdx;
+            const isRowInRange = this.anchorCell && dataRowIdx >= bb.minRow && dataRowIdx <= bb.maxRow;
+
+            // Row number cell
+            const rnTd = tr.firstElementChild;
+            if (rnTd) {
+                rnTd.textContent = dataRowIdx + 1;
+                rnTd.dataset.row = dataRowIdx;
+                if (isRowInRange) {
+                    rnTd.classList.add('row-selected');
+                } else {
+                    rnTd.classList.remove('row-selected');
+                }
+            }
+
+            // Columns
+            for (let c = 0; c < this.totalCols; c++) {
+                const td = tr.cells[c + 1];
+                if (!td) continue;
+
+                td.dataset.row = dataRowIdx;
+                td.dataset.col = c;
+
+                const val = rowData ? rowData[c] : null;
+
+                if (val === null || val === undefined) {
+                    td.innerHTML = '<span class="ide-null-value">NULL</span>';
+                    td.className = 'ide-null-cell';
+                } else if (typeof val === 'number') {
+                    td.textContent = val;
+                    td.className = 'ide-num-value';
+                } else if (typeof val === 'boolean') {
+                    td.textContent = String(val);
+                    td.className = 'ide-bool-value';
+                } else if (typeof val === 'object') {
+                    td.className = '';
+                    try {
+                        td.textContent = JSON.stringify(val);
+                    } catch (_) {
+                        td.textContent = String(val);
+                    }
+                } else {
+                    td.textContent = val;
+                    td.className = '';
+                }
+
+                const inColRange = this.anchorCell && c >= bb.minCol && c <= bb.maxCol;
+                if (isRowInRange && inColRange) {
+                    td.classList.add('selected');
+                } else {
+                    td.classList.remove('selected');
+                }
+
+                if (isLeadRow && lead.col === c) {
+                    td.classList.add('active-cell');
+                } else {
+                    td.classList.remove('active-cell');
+                }
+
+                // Search highlight
+                if (this.currentMatchIdx >= 0 && this.matchedCells && this.matchedCells[this.currentMatchIdx]) {
+                    const cur = this.matchedCells[this.currentMatchIdx];
+                    if (cur.r === dataRowIdx && cur.c === c) {
+                        td.classList.add('search-matched-current');
+                    }
+                }
+            }
+        }
+
+        // ── Event Delegation Handlers ─────────────────────────────────────────
+        onTableMouseDown(e) {
+            this.table.focus();
+            const td = e.target.closest('td');
+            if (!td || !this.table.contains(td)) return;
+
+            if (e.button === 2) {
+                // Right-click: if not inside current selection, select it
+                if (!td.classList.contains('ide-row-number')) {
+                    const r = parseInt(td.dataset.row, 10);
+                    const c = parseInt(td.dataset.col, 10);
+                    if (!isNaN(r) && !isNaN(c) && !this.isCellInSelection(r, c)) {
+                        this.setSelection(r, c, r, c);
+                    }
+                }
+                return;
+            }
+
+            if (e.button === 0) {
+                e.preventDefault();
+                if (window.getSelection) {
+                    window.getSelection().removeAllRanges();
+                }
+
+                if (td.classList.contains('ide-row-number')) {
+                    const r = parseInt(td.dataset.row, 10);
+                    if (!isNaN(r)) this.onRowHeaderMouseDown(e, r);
+                } else {
+                    const r = parseInt(td.dataset.row, 10);
+                    const c = parseInt(td.dataset.col, 10);
+                    if (!isNaN(r) && !isNaN(c)) this.onCellMouseDown(e, r, c);
+                }
+            }
+        }
+
+        onTableMouseOver(e) {
+            if (!this.isMouseDown) return;
+            const td = e.target.closest('td');
+            if (!td || !this.table.contains(td)) return;
+
+            if (this.isSelectingRows) {
+                const r = parseInt(td.dataset.row, 10);
+                if (!isNaN(r)) this.onRowHeaderMouseEnter(e, r);
+            } else {
+                if (!td.classList.contains('ide-row-number')) {
+                    const r = parseInt(td.dataset.row, 10);
+                    const c = parseInt(td.dataset.col, 10);
+                    if (!isNaN(r) && !isNaN(c)) this.onCellMouseEnter(e, r, c);
+                }
+            }
         }
 
         // ── Column Filter Management ─────────────────────────────────────────
@@ -363,32 +675,37 @@
             });
 
             const colNames = this.columns.map(c => typeof c === 'string' ? c : (c.name || String(c)));
-            let hiddenCount = 0;
 
-            const trList = this.table.querySelectorAll('tbody tr');
-            trList.forEach((tr, rIdx) => {
-                const rowData = this.rows[rIdx];
-                if (!rowData) return;
+            if (filterKeys.length === 0) {
+                this.filteredRowIndices = null;
+                this.filteredRowSet = null;
+            } else {
+                const matching = [];
+                for (let rIdx = 0; rIdx < this.totalRows; rIdx++) {
+                    const rowData = this.rows[rIdx];
+                    if (!rowData) continue;
 
-                let match = true;
-                for (const colName of filterKeys) {
-                    const cIdx = colNames.indexOf(colName);
-                    if (cIdx === -1) continue;
-                    const filterRule = this.columnFilters[colName];
-                    const val = rowData[cIdx];
-                    if (!this.checkFilterMatch(val, filterRule)) {
-                        match = false;
-                        break;
+                    let match = true;
+                    for (const colName of filterKeys) {
+                        const cIdx = colNames.indexOf(colName);
+                        if (cIdx === -1) continue;
+                        const filterRule = this.columnFilters[colName];
+                        const val = rowData[cIdx];
+                        if (!this.checkFilterMatch(val, filterRule)) {
+                            match = false;
+                            break;
+                        }
+                    }
+                    if (match) {
+                        matching.push(rIdx);
                     }
                 }
+                this.filteredRowIndices = matching;
+                this.filteredRowSet = new Set(matching);
+            }
 
-                if (match) {
-                    tr.classList.remove('ide-row-filtered-out');
-                } else {
-                    tr.classList.add('ide-row-filtered-out');
-                    hiddenCount++;
-                }
-            });
+            const shownCount = this.getDisplayRowCount();
+            const hiddenCount = this.totalRows - shownCount;
 
             // Update filter bar banner
             if (this.filterBar) {
@@ -401,10 +718,17 @@
                     const summaryEl = this.filterBar.querySelector('.ide-result-filter-summary');
                     if (summaryEl) {
                         const colsStr = filterKeys.map(c => `<b>[${escapeHtml(c)}]</b>`).join(', ');
-                        const shownCount = this.totalRows - hiddenCount;
                         summaryEl.innerHTML = `Đang lọc theo cột ${colsStr}: hiển thị <b>${shownCount}</b> / ${this.totalRows} dòng (ẩn <b>${hiddenCount}</b> dòng)`;
                     }
                 }
+            }
+
+            // Re-render virtual rows with updated count & reset scroll position
+            if (this.renderer) {
+                if (this.renderer.scrollContainer) {
+                    this.renderer.scrollContainer.scrollTop = 0;
+                }
+                this.renderer.render(true);
             }
 
             // Sync footer count
@@ -836,38 +1160,43 @@
                 }
             });
 
-            // Update body cells
-            const trList = this.table.querySelectorAll('tbody tr');
-            trList.forEach((tr, rIdx) => {
-                const rnTd = tr.querySelector('td.ide-row-number');
-                if (rnTd) {
-                    if (rIdx >= bb.minRow && rIdx <= bb.maxRow) {
-                        rnTd.classList.add('row-selected');
-                    } else {
-                        rnTd.classList.remove('row-selected');
-                    }
-                }
+            // Update visible rows in the virtual row pool only (super fast, < 0.1ms)
+            if (this.renderer && this.renderer.rowPool) {
+                this.renderer.rowPool.forEach(tr => {
+                    if (tr.style.display === 'none') return;
+                    const rIdx = parseInt(tr.dataset.row, 10);
+                    if (isNaN(rIdx)) return;
 
-                const tdList = tr.querySelectorAll('td');
-                tdList.forEach((td, cIdx) => {
-                    if (cIdx === 0) return;
-                    const dataColIdx = cIdx - 1;
-                    const inRange = (rIdx >= bb.minRow && rIdx <= bb.maxRow && dataColIdx >= bb.minCol && dataColIdx <= bb.maxCol);
-                    const isActive = (lead && rIdx === lead.row && dataColIdx === lead.col);
-
-                    if (inRange) {
-                        td.classList.add('selected');
-                    } else {
-                        td.classList.remove('selected');
+                    const rnTd = tr.firstElementChild;
+                    if (rnTd && rnTd.classList.contains('ide-row-number')) {
+                        if (this.anchorCell && rIdx >= bb.minRow && rIdx <= bb.maxRow) {
+                            rnTd.classList.add('row-selected');
+                        } else {
+                            rnTd.classList.remove('row-selected');
+                        }
                     }
 
-                    if (isActive) {
-                        td.classList.add('active-cell');
-                    } else {
-                        td.classList.remove('active-cell');
+                    for (let c = 0; c < this.totalCols; c++) {
+                        const td = tr.cells[c + 1];
+                        if (!td) continue;
+
+                        const inRange = (this.anchorCell && rIdx >= bb.minRow && rIdx <= bb.maxRow && c >= bb.minCol && c <= bb.maxCol);
+                        const isActive = (lead && rIdx === lead.row && c === lead.col);
+
+                        if (inRange) {
+                            td.classList.add('selected');
+                        } else {
+                            td.classList.remove('selected');
+                        }
+
+                        if (isActive) {
+                            td.classList.add('active-cell');
+                        } else {
+                            td.classList.remove('active-cell');
+                        }
                     }
                 });
-            });
+            }
         }
 
         // ── Mouse interactions ───────────────────────────────────────────────
@@ -981,17 +1310,23 @@
                 let newCol = this.leadCell.col;
 
                 if (e.key === 'ArrowUp') {
-                    while (newRow > 0) {
-                        newRow--;
-                        const tr = this.table.querySelector(`tbody tr:nth-child(${newRow + 1})`);
-                        if (!tr || !tr.classList.contains('ide-row-filtered-out')) break;
+                    let target = newRow;
+                    while (target > 0) {
+                        target--;
+                        if (!this.isRowFilteredOut(target)) {
+                            newRow = target;
+                            break;
+                        }
                     }
                 }
                 if (e.key === 'ArrowDown') {
-                    while (newRow < this.totalRows - 1) {
-                        newRow++;
-                        const tr = this.table.querySelector(`tbody tr:nth-child(${newRow + 1})`);
-                        if (!tr || !tr.classList.contains('ide-row-filtered-out')) break;
+                    let target = newRow;
+                    while (target < this.totalRows - 1) {
+                        target++;
+                        if (!this.isRowFilteredOut(target)) {
+                            newRow = target;
+                            break;
+                        }
                     }
                 }
                 if (e.key === 'ArrowLeft') newCol = Math.max(0, newCol - 1);
@@ -1009,11 +1344,46 @@
         }
 
         scrollCellIntoView(r, c) {
-            const td = this.table.querySelector(`tbody tr:nth-child(${r + 1}) td:nth-child(${c + 2})`);
-            if (td && td.scrollIntoViewIfNeeded) {
-                td.scrollIntoViewIfNeeded(false);
-            } else if (td) {
-                td.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+            if (!this.renderer || !this.renderer.scrollContainer) {
+                const td = this.table.querySelector(`tbody tr[data-row="${r}"] td[data-col="${c}"]`);
+                if (td && td.scrollIntoViewIfNeeded) td.scrollIntoViewIfNeeded(false);
+                else if (td) td.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+                return;
+            }
+            const sc = this.renderer.scrollContainer;
+
+            // Find display index for row r
+            let displayIdx = r;
+            if (this.filteredRowIndices) {
+                displayIdx = this.filteredRowIndices.indexOf(r);
+                if (displayIdx === -1) return; // Row is filtered out
+            }
+
+            const targetTop = displayIdx * this.renderer.rowHeight;
+            const targetBottom = targetTop + this.renderer.rowHeight;
+            const viewTop = sc.scrollTop;
+            const viewBottom = sc.scrollTop + sc.clientHeight;
+
+            if (targetTop < viewTop) {
+                sc.scrollTop = targetTop;
+            } else if (targetBottom > viewBottom) {
+                sc.scrollTop = targetBottom - sc.clientHeight;
+            }
+
+            // Horizontal scroll
+            const thList = this.table.querySelectorAll('thead th');
+            const th = thList[c + 1];
+            if (th) {
+                const thLeft = th.offsetLeft;
+                const thRight = thLeft + th.offsetWidth;
+                const scrollLeft = sc.scrollLeft;
+                const scrollRight = sc.scrollLeft + sc.clientWidth;
+
+                if (thLeft < scrollLeft) {
+                    sc.scrollLeft = thLeft;
+                } else if (thRight > scrollRight) {
+                    sc.scrollLeft = thRight - sc.clientWidth;
+                }
             }
         }
 
@@ -1025,8 +1395,7 @@
 
             const selectedRowsData = [];
             for (let r = bb.minRow; r <= bb.maxRow; r++) {
-                const tr = this.table.querySelector(`tbody tr:nth-child(${r + 1})`);
-                if (tr && tr.classList.contains('ide-row-filtered-out')) {
+                if (this.isRowFilteredOut(r)) {
                     continue; // Skip rows hidden by filters
                 }
                 const row = this.rows[r] || [];
@@ -1314,7 +1683,7 @@
                     </table>
                     <script>
                         window.onload = function() { window.print(); }
-                    </script>
+                    <\/script>
                 </body>
                 </html>
             `);
@@ -1363,21 +1732,19 @@
                     return;
                 }
 
-                const tbody = this.table.querySelector('tbody');
-                if (!tbody) return;
-
-                const trList = tbody.querySelectorAll('tr');
-                trList.forEach((tr, rIdx) => {
-                    const tdList = tr.querySelectorAll('td');
-                    tdList.forEach((td, cIdx) => {
-                        if (cIdx === 0) return;
-                        const text = (td.textContent || '').toLowerCase();
+                // Logical search on this.rows directly
+                for (let rIdx = 0; rIdx < this.totalRows; rIdx++) {
+                    if (this.isRowFilteredOut(rIdx)) continue;
+                    const rowData = this.rows[rIdx];
+                    if (!rowData) continue;
+                    for (let cIdx = 0; cIdx < this.totalCols; cIdx++) {
+                        const val = rowData[cIdx];
+                        const text = (val === null || val === undefined) ? '' : String(val).toLowerCase();
                         if (text.includes(query)) {
-                            td.classList.add('search-matched');
-                            this.matchedCells.push({ r: rIdx, c: cIdx - 1, td });
+                            this.matchedCells.push({ r: rIdx, c: cIdx });
                         }
-                    });
-                });
+                    }
+                }
 
                 countEl.textContent = `${this.matchedCells.length > 0 ? 1 : 0}/${this.matchedCells.length}`;
                 if (this.matchedCells.length > 0) {
@@ -1413,24 +1780,26 @@
         }
 
         clearSearchHighlight() {
-            this.table.querySelectorAll('td.search-matched, td.search-matched-current').forEach(td => {
-                td.classList.remove('search-matched', 'search-matched-current');
-            });
+            this.matchedCells = [];
+            this.currentMatchIdx = -1;
+            if (this.renderer) {
+                this.renderer.render(true);
+            }
         }
 
         jumpToMatch(idx) {
-            if (this.matchedCells.length === 0) return;
+            if (!this.matchedCells || this.matchedCells.length === 0) return;
             if (idx < 0) idx = this.matchedCells.length - 1;
             if (idx >= this.matchedCells.length) idx = 0;
 
-            this.table.querySelectorAll('td.search-matched-current').forEach(td => td.classList.remove('search-matched-current'));
-
             this.currentMatchIdx = idx;
             const match = this.matchedCells[idx];
-            match.td.classList.add('search-matched-current');
 
             this.setSelection(match.r, match.c, match.r, match.c);
             this.scrollCellIntoView(match.r, match.c);
+            if (this.renderer) {
+                this.renderer.render(true);
+            }
 
             const countEl = this.searchOverlay?.querySelector('#gridSearchCount');
             if (countEl) countEl.textContent = `${idx + 1}/${this.matchedCells.length}`;

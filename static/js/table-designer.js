@@ -4,28 +4,96 @@
 (function () {
     const designerSessions = new Map(); // tabId -> sessionState
     let activeSession = null;
-    let modalDiffCm = null;
+    let modalDiffEditor = null;
+    let modalDiffCm = null; // backward-compat fallback
     let modalInstance = null;
 
     // Supported Collations and Types cache
     const typesCache = new Map(); // connId -> typesInfo
 
-    function getCodeMirrorTheme() {
-        return document.documentElement.getAttribute('data-bs-theme') === 'light' ? 'default' : 'darcula';
+    function getMonacoTheme() {
+        const activeTheme = document.documentElement.getAttribute('data-bs-theme') || 'dark';
+        if (window.MonacoInit && typeof window.MonacoInit.getMonacoTheme === 'function') {
+            return window.MonacoInit.getMonacoTheme(activeTheme);
+        }
+        return (activeTheme === 'light' || activeTheme === 'win-nt' || activeTheme === 'win-xp' || activeTheme.includes('light')) ? 'ide-light' : 'ide-dark';
     }
 
-    // Dynamic theme change sync for CodeMirror instances
+    function createMonacoEditor(containerEl, options = {}) {
+        if (!containerEl || typeof monaco === 'undefined' || !monaco.editor) {
+            return null;
+        }
+        const defaultOptions = {
+            value: options.value || '',
+            language: 'sql',
+            theme: getMonacoTheme(),
+            automaticLayout: true,
+            mouseWheelZoom: true,
+            readOnly: !!options.readOnly,
+            fontSize: 12,
+            fontFamily: "'JetBrains Mono', Consolas, 'Courier New', monospace",
+            lineNumbers: options.lineNumbers !== undefined ? options.lineNumbers : 'on',
+            minimap: { enabled: false },
+            scrollBeyondLastLine: false,
+            wordWrap: options.wordWrap || 'on',
+            folding: true,
+            renderLineHighlight: 'all',
+            overviewRulerBorder: false,
+            hideCursorInOverviewRuler: true
+        };
+        try {
+            const ed = monaco.editor.create(containerEl, Object.assign({}, defaultOptions, options));
+            setTimeout(() => { if (ed && typeof ed.layout === 'function') ed.layout(); }, 30);
+            return ed;
+        } catch (err) {
+            console.warn('[TableDesigner] Monaco init error, falling back:', err);
+            return null;
+        }
+    }
+
+    function getCodeMirrorTheme() {
+        const activeTheme = document.documentElement.getAttribute('data-bs-theme') || 'dark';
+        return (activeTheme === 'light' || activeTheme === 'win-nt' || activeTheme === 'win-xp' || activeTheme.includes('light')) ? 'default' : 'darcula';
+    }
+
+    // Dynamic theme change sync for Monaco and legacy instances
     document.addEventListener('ide-theme-changed', (e) => {
-        const theme = e.detail?.theme === 'light' ? 'default' : 'darcula';
-        if (modalDiffCm) {
-            modalDiffCm.setOption('theme', theme);
+        const themeName = e.detail?.theme;
+        let monacoTheme = 'ide-dark';
+        if (window.MonacoInit && typeof window.MonacoInit.getMonacoTheme === 'function') {
+            monacoTheme = window.MonacoInit.getMonacoTheme(themeName);
+        } else {
+            monacoTheme = (themeName === 'light' || themeName === 'win-nt' || themeName === 'win-xp' || (themeName && themeName.includes('light'))) ? 'ide-light' : 'ide-dark';
+        }
+
+        if (modalDiffEditor && typeof modalDiffEditor.updateOptions === 'function') {
+            modalDiffEditor.updateOptions({ theme: monacoTheme });
+        }
+        const cmTheme = (themeName === 'light' || themeName === 'win-nt' || themeName === 'win-xp' || (themeName && themeName.includes('light'))) ? 'default' : 'darcula';
+        if (modalDiffCm && typeof modalDiffCm.setOption === 'function') {
+            modalDiffCm.setOption('theme', cmTheme);
         }
         for (const session of designerSessions.values()) {
-            if (session.triggerCm) session.triggerCm.setOption('theme', theme);
-            if (session.previewCm) session.previewCm.setOption('theme', theme);
-            if (session.liveSqlCm) session.liveSqlCm.setOption('theme', theme);
+            if (session.triggerCm && typeof session.triggerCm.setOption === 'function') session.triggerCm.setOption('theme', cmTheme);
+            if (session.previewCm && typeof session.previewCm.setOption === 'function') session.previewCm.setOption('theme', cmTheme);
+            if (session.liveSqlCm && typeof session.liveSqlCm.setOption === 'function') session.liveSqlCm.setOption('theme', cmTheme);
+            if (session.triggerEditor && typeof session.triggerEditor.updateOptions === 'function') session.triggerEditor.updateOptions({ theme: monacoTheme });
+            if (session.previewEditor && typeof session.previewEditor.updateOptions === 'function') session.previewEditor.updateOptions({ theme: monacoTheme });
+            if (session.liveSqlEditor && typeof session.liveSqlEditor.updateOptions === 'function') session.liveSqlEditor.updateOptions({ theme: monacoTheme });
         }
     });
+
+    function getOrCreateSessionPane(container, tabId) {
+        if (!container) return null;
+        let pane = container.querySelector(`.td-tab-session-pane[data-tab-id="${tabId}"]`);
+        if (!pane) {
+            pane = document.createElement('div');
+            pane.className = 'td-tab-session-pane';
+            pane.dataset.tabId = tabId;
+            container.appendChild(pane);
+        }
+        return pane;
+    }
 
     function clone(obj) {
         return JSON.parse(JSON.stringify(obj || {}));
@@ -62,13 +130,24 @@
             dbType: dbType
         });
 
-        // Show loading state
+        // Show loading state inside the dedicated session pane
         const container = document.getElementById('table-designer-container');
+        let pane = null;
         if (container) {
-            container.innerHTML = `
-                <div class="d-flex flex-column align-items-center justify-content-center h-100 text-muted">
+            pane = getOrCreateSessionPane(container, tabId);
+            container.querySelectorAll('.td-tab-session-pane').forEach(p => {
+                if (p !== pane) p.classList.add('d-none');
+            });
+            Array.from(container.children).forEach(child => {
+                if (!child.classList.contains('td-tab-session-pane')) {
+                    child.remove();
+                }
+            });
+            pane.classList.remove('d-none');
+            pane.innerHTML = `
+                <div class="d-flex flex-column align-items-center justify-content-center h-100 text-muted" style="min-height: 200px;">
                     <i class="fa-solid fa-circle-notch fa-spin fa-2x mb-3 text-info"></i>
-                    <div>Loading table design for <strong>${fullTableName}</strong>...</div>
+                    <div>Loading table design for <strong>${escapeHtml(fullTableName)}</strong>...</div>
                 </div>
             `;
         }
@@ -85,12 +164,15 @@
             const cacheKey = `${connId}_${database || ''}`;
             let typesInfo = typesCache.get(cacheKey);
             if (!typesInfo) {
-                const tRes = await fetch(`/api/metadata/${connId}/table-design/types?database=${encodeURIComponent(database || '')}`);
-                const tJson = await tRes.json();
-                if (tJson.success) {
-                    typesInfo = tJson.data;
-                    typesCache.set(cacheKey, typesInfo);
-                } else {
+                try {
+                    const tRes = await fetch(`/api/metadata/${connId}/table-design/types?database=${encodeURIComponent(database || '')}`);
+                    const tJson = await tRes.json();
+                    if (tJson.success) {
+                        typesInfo = tJson.data;
+                        typesCache.set(cacheKey, typesInfo);
+                    }
+                } catch (_) {}
+                if (!typesInfo) {
                     typesInfo = {
                         engine: dbType,
                         types: ['int', 'varchar', 'nvarchar', 'datetime', 'decimal', 'bit'],
@@ -117,6 +199,11 @@
                 selectedFieldIndices: new Set([0]),
                 selectedTrigIndex: 0,
                 sqlPanelHeight: 180,
+                domPane: pane,
+                isRendered: false,
+                liveSqlEditor: null,
+                previewEditor: null,
+                triggerEditor: null,
                 triggerCm: null,
                 previewCm: null,
                 liveSqlCm: null,
@@ -124,15 +211,17 @@
             };
 
             designerSessions.set(tabId, session);
+            renderDesigner(session);
             activateTab(tabId);
 
         } catch (err) {
             console.error('Error opening table designer:', err);
-            if (container) {
-                container.innerHTML = `
+            const errTarget = pane || container;
+            if (errTarget) {
+                errTarget.innerHTML = `
                     <div class="p-4 text-danger">
                         <h5><i class="fa-solid fa-triangle-exclamation me-2"></i>Failed to load table design</h5>
-                        <p>${err.message}</p>
+                        <p>${escapeHtml(err.message)}</p>
                         <button class="btn btn-sm btn-outline-secondary" onclick="window.AppTabs.closeTab('${tabId}', document.querySelector('.ide-tab[data-tab-id=\\'${tabId}\\']'))">Close Tab</button>
                     </div>
                 `;
@@ -236,6 +325,9 @@
             triggers: []
         };
 
+        const container = document.getElementById('table-designer-container');
+        const pane = container ? getOrCreateSessionPane(container, tabId) : null;
+
         const session = {
             tabId,
             isNew: true,
@@ -254,6 +346,11 @@
             selectedFieldIndices: new Set([0]),
             selectedTrigIndex: 0,
             sqlPanelHeight: 180,
+            domPane: pane,
+            isRendered: false,
+            liveSqlEditor: null,
+            previewEditor: null,
+            triggerEditor: null,
             triggerCm: null,
             previewCm: null,
             liveSqlCm: null,
@@ -261,6 +358,7 @@
         };
 
         designerSessions.set(tabId, session);
+        renderDesigner(session);
         activateTab(tabId);
         markDirty(session);
     }
@@ -283,13 +381,24 @@
             dbType: dbType
         });
 
-        // Show loading state
+        // Show loading state inside the dedicated session pane
         const container = document.getElementById('table-designer-container');
+        let pane = null;
         if (container) {
-            container.innerHTML = `
-                <div class="d-flex flex-column align-items-center justify-content-center h-100 text-muted">
+            pane = getOrCreateSessionPane(container, tabId);
+            container.querySelectorAll('.td-tab-session-pane').forEach(p => {
+                if (p !== pane) p.classList.add('d-none');
+            });
+            Array.from(container.children).forEach(child => {
+                if (!child.classList.contains('td-tab-session-pane')) {
+                    child.remove();
+                }
+            });
+            pane.classList.remove('d-none');
+            pane.innerHTML = `
+                <div class="d-flex flex-column align-items-center justify-content-center h-100 text-muted" style="min-height: 200px;">
                     <i class="fa-solid fa-circle-notch fa-spin fa-2x mb-3 text-info"></i>
-                    <div>Cloning structure from <strong>[${safeSchema}].[${name}]</strong>...</div>
+                    <div>Cloning structure from <strong>[${escapeHtml(safeSchema)}].[${escapeHtml(name)}]</strong>...</div>
                 </div>
             `;
         }
@@ -301,13 +410,14 @@
             if (!json.success) throw new Error(json.error || 'Failed to load source table schema');
 
             // Fetch supported types if not cached
-            let typesInfo = typesCache.get(connId);
+            const cacheKey = `${connId}_${database || ''}`;
+            let typesInfo = typesCache.get(cacheKey);
             if (!typesInfo) {
-                const tRes = await fetch(`/api/metadata/${connId}/table-design/types`);
+                const tRes = await fetch(`/api/metadata/${connId}/table-design/types?database=${encodeURIComponent(database || '')}`);
                 const tJson = await tRes.json();
                 if (tJson.success) {
                     typesInfo = tJson.data;
-                    typesCache.set(connId, typesInfo);
+                    typesCache.set(cacheKey, typesInfo);
                 } else {
                     typesInfo = {
                         engine: dbType,
@@ -369,6 +479,11 @@
                 selectedFieldIndices: new Set([0]),
                 selectedTrigIndex: 0,
                 sqlPanelHeight: 180,
+                domPane: pane,
+                isRendered: false,
+                liveSqlEditor: null,
+                previewEditor: null,
+                triggerEditor: null,
                 triggerCm: null,
                 previewCm: null,
                 liveSqlCm: null,
@@ -376,16 +491,18 @@
             };
 
             designerSessions.set(tabId, session);
+            renderDesigner(session);
             activateTab(tabId);
             markDirty(session);
 
         } catch (err) {
             console.error('Error copying table:', err);
-            if (container) {
-                container.innerHTML = `
+            const errTarget = pane || container;
+            if (errTarget) {
+                errTarget.innerHTML = `
                     <div class="p-4 text-danger">
                         <h5><i class="fa-solid fa-triangle-exclamation me-2"></i>Failed to copy table design</h5>
-                        <p>${err.message}</p>
+                        <p>${escapeHtml(err.message)}</p>
                         <button class="btn btn-sm btn-outline-secondary" onclick="window.AppTabs.closeTab('${tabId}', document.querySelector('.ide-tab[data-tab-id=\\'${tabId}\\']'))">Close Tab</button>
                     </div>
                 `;
@@ -878,19 +995,66 @@
         }, 10);
     }
 
-    // ── Activate Tab ─────────────────────────────────────────────────────────
+    // ── Activate Tab (Per-Tab Caching for Instant Zero-Lag Switch) ─────────
     function activateTab(tabId) {
         const session = designerSessions.get(tabId);
         if (!session) return;
         activeSession = session;
-        renderDesigner(session);
+
+        const container = document.getElementById('table-designer-container');
+        if (!container) return;
+
+        // Clean any stray non-pane elements
+        Array.from(container.children).forEach(child => {
+            if (!child.classList.contains('td-tab-session-pane')) {
+                child.remove();
+            }
+        });
+
+        // Hide all session panes
+        container.querySelectorAll('.td-tab-session-pane').forEach(p => p.classList.add('d-none'));
+
+        // If session pane does not exist yet, build it
+        let pane = session.domPane;
+        if (!pane || !container.contains(pane)) {
+            pane = getOrCreateSessionPane(container, tabId);
+            session.domPane = pane;
+        }
+
+        pane.classList.remove('d-none');
+
+        if (!session.isRendered) {
+            renderDesigner(session);
+        } else {
+            // Already rendered: reveal pane instantly without DOM rebuild and layout Monaco editors
+            setTimeout(() => {
+                if (session.liveSqlEditor && typeof session.liveSqlEditor.layout === 'function') {
+                    session.liveSqlEditor.layout();
+                }
+                if (session.activeSubTab === 'sql-preview' && session.previewEditor && typeof session.previewEditor.layout === 'function') {
+                    session.previewEditor.layout();
+                }
+                if (session.activeSubTab === 'trigger' && session.triggerEditor && typeof session.triggerEditor.layout === 'function') {
+                    session.triggerEditor.layout();
+                }
+            }, 20);
+        }
     }
 
     // ── Close Tab Cleanup ────────────────────────────────────────────────────
     function closeTab(tabId) {
         const s = designerSessions.get(tabId);
-        if (s && s.liveSqlDebounceTimer) {
-            clearTimeout(s.liveSqlDebounceTimer);
+        if (s) {
+            if (s.liveSqlDebounceTimer) {
+                clearTimeout(s.liveSqlDebounceTimer);
+            }
+            if (s.liveSqlEditor) { try { s.liveSqlEditor.dispose(); } catch (_) {} s.liveSqlEditor = null; }
+            if (s.previewEditor) { try { s.previewEditor.dispose(); } catch (_) {} s.previewEditor = null; }
+            if (s.triggerEditor) { try { s.triggerEditor.dispose(); } catch (_) {} s.triggerEditor = null; }
+            if (s.domPane && s.domPane.parentNode) {
+                s.domPane.remove();
+                s.domPane = null;
+            }
         }
         designerSessions.delete(tabId);
         if (activeSession && activeSession.tabId === tabId) {
@@ -900,10 +1064,11 @@
 
     // ── Live SQL Update Helper ───────────────────────────────────────────────
     function updateLiveSql(session) {
-        if (!session.liveSqlCm) return;
+        if (!session.liveSqlEditor && !session.liveSqlCm) return;
         clearTimeout(session.liveSqlDebounceTimer);
         session.liveSqlDebounceTimer = setTimeout(async () => {
-            const statusBadge = document.getElementById('td-live-sql-status');
+            const pane = session.domPane || document.getElementById('table-designer-container');
+            const statusBadge = pane ? pane.querySelector('#td-live-sql-status') : document.getElementById('td-live-sql-status');
             if (statusBadge) {
                 statusBadge.textContent = 'Updating...';
                 statusBadge.className = 'badge bg-warning text-dark';
@@ -923,16 +1088,23 @@
                 });
                 const j = await res.json();
                 if (j.success) {
+                    if (j.preview_sql && !session.previewSql) {
+                        session.previewSql = j.preview_sql;
+                    }
                     const diff = j.diff || {};
                     const stmts = diff.statements || [];
 
                     if (filter === 'all') {
-                        if (diff.migration_sql && diff.migration_sql.trim()) {
+                        if (stmts.length > 0 && diff.migration_sql && diff.migration_sql.trim()) {
                             script = diff.migration_sql;
-                        } else if (!session.isNew) {
-                            script = '-- No pending schema changes.\n-- Current table definition:\n\n' + (session.previewSql || '');
                         } else {
-                            script = '-- No SQL generated.\n';
+                            // When no pending changes, display the full table definition DDL
+                            const currentDdl = (session.previewSql || j.preview_sql || '').trim();
+                            if (currentDdl) {
+                                script = '-- No pending schema changes. Current table definition:\n\n' + currentDdl + '\n';
+                            } else {
+                                script = '-- No schema changes detected.\n';
+                            }
                         }
                     } else {
                         const filteredStmts = stmts.filter(st => {
@@ -949,7 +1121,7 @@
                                 indexes: 'Indexes',
                                 triggers: 'Triggers'
                             };
-                            script = `-- No ${filterLabels[filter] || filter} statements found.\n`;
+                            script = `-- No pending changes for: ${filterLabels[filter] || filter}\n`;
                         } else {
                             const joinSep = session.dbType === 'sqlserver' ? '\n\nGO\n\n' : '\n\n';
                             const sqlList = filteredStmts.map(st => (typeof st === 'object' ? st.sql : st));
@@ -960,9 +1132,13 @@
                     script = `-- Diff error: ${j.error}`;
                 }
 
-                if (session.liveSqlCm) {
+                if (session.liveSqlEditor) {
+                    session.liveSqlEditor.setValue(script);
+                } else if (session.liveSqlCm) {
                     session.liveSqlCm.setValue(script);
-                    session.liveSqlCm.refresh();
+                    if (typeof session.liveSqlCm.refresh === 'function') {
+                        session.liveSqlCm.refresh();
+                    }
                 }
 
                 if (statusBadge) {
@@ -981,7 +1157,7 @@
 
     // ── Row Selection & Inspector In-Place Update (No Scroll Jump) ───────────
     function updateFieldInspector(session) {
-        const container = document.getElementById('table-designer-container');
+        const container = session.domPane || document.getElementById('table-designer-container');
         if (!container) return;
         const cols = session.modifiedData.columns || [];
         const sel = session.selectedFieldIndex;
@@ -1058,7 +1234,7 @@
             session.selectedFieldIndex = idx;
         }
 
-        const container = document.getElementById('table-designer-container');
+        const container = session.domPane || document.getElementById('table-designer-container');
         if (container) {
             const rows = container.querySelectorAll('#td-pane-fields tbody tr[data-field-index]');
             const isMulti = session.selectedFieldIndices.size > 1;
@@ -1083,7 +1259,8 @@
         if (window.AppTabs) {
             window.AppTabs.setTabDirty(session.tabId, isDirty);
         }
-        const saveBtns = document.querySelectorAll('.td-btn--save');
+        const container = session.domPane || document;
+        const saveBtns = container.querySelectorAll('.td-btn--save');
         saveBtns.forEach(btn => {
             btn.disabled = !isDirty;
         });
@@ -1092,18 +1269,30 @@
 
     // ── Render Complete Designer Interface ──────────────────────────────────
     function renderDesigner(session) {
-        const container = document.getElementById('table-designer-container');
-        if (!container) return;
+        let pane = session.domPane;
+        if (!pane) {
+            const container = document.getElementById('table-designer-container');
+            if (container) {
+                pane = getOrCreateSessionPane(container, session.tabId);
+                session.domPane = pane;
+            }
+        }
+        if (!pane) return;
+
+        // Clean up previously instantiated Monaco editors for this session before rebuilding HTML
+        if (session.triggerEditor) { try { session.triggerEditor.dispose(); } catch (_) {} session.triggerEditor = null; }
+        if (session.previewEditor) { try { session.previewEditor.dispose(); } catch (_) {} session.previewEditor = null; }
+        if (session.liveSqlEditor) { try { session.liveSqlEditor.dispose(); } catch (_) {} session.liveSqlEditor = null; }
 
         // Preserve scroll position of current active grid
-        const prevGrid = container.querySelector('.td-tab-pane.active .td-grid-wrapper');
+        const prevGrid = pane.querySelector('.td-tab-pane.active .td-grid-wrapper');
         const prevScrollTop = prevGrid ? prevGrid.scrollTop : 0;
         const prevScrollLeft = prevGrid ? prevGrid.scrollLeft : 0;
 
         const isDirty = session.isNew || (JSON.stringify(session.originalData) !== JSON.stringify(session.modifiedData));
         const subTab = session.activeSubTab;
 
-        container.innerHTML = `
+        pane.innerHTML = `
             <div class="d-flex flex-column h-100 overflow-hidden">
                 <!-- Table Header Bar (Schema & Editable Table Name) -->
                 <div class="td-header-bar">
@@ -1190,6 +1379,7 @@
                         </div>
                     </div>
                     <div class="td-live-sql-cm-wrap">
+                        <div class="td-live-sql-editor"></div>
                         <textarea id="td-live-sql-editor" class="d-none"></textarea>
                     </div>
                 </div>
@@ -1203,13 +1393,14 @@
         `;
 
         // Restore scroll position
-        const newGrid = container.querySelector('.td-tab-pane.active .td-grid-wrapper');
+        const newGrid = pane.querySelector('.td-tab-pane.active .td-grid-wrapper');
         if (newGrid && prevScrollTop > 0) {
             newGrid.scrollTop = prevScrollTop;
             newGrid.scrollLeft = prevScrollLeft;
         }
 
-        bindEvents(session);
+        bindEvents(session, pane);
+        session.isRendered = true;
     }
 
     // ── Dynamic Toolbar Actions per Tab ──────────────────────────────────────
@@ -1746,12 +1937,13 @@
                 </table>
             </div>
 
-            <!-- Bottom Trigger Definition CodeMirror Panel -->
+            <!-- Bottom Trigger Definition CodeMirror/Monaco Panel -->
             <div class="td-trigger-def-pane">
                 <div class="td-subtab-header">
                     <span class="td-subtab-item active"><i class="fa-solid fa-code me-1"></i>Definition</span>
                 </div>
                 <div class="td-trigger-cm-wrap">
+                    <div class="td-trigger-def-editor"></div>
                     <textarea id="td-trigger-def-editor" class="d-none"></textarea>
                 </div>
             </div>
@@ -1762,6 +1954,7 @@
     function renderSqlPreviewPane(session) {
         return `
             <div class="td-preview-wrap">
+                <div class="td-sql-preview-editor"></div>
                 <textarea id="td-sql-preview-editor" class="d-none"></textarea>
                 <div class="td-preview-footer">
                     <span class="text-muted">SQL Preview for "Save"</span>
@@ -1771,8 +1964,8 @@
     }
 
     // ── Event Bindings ───────────────────────────────────────────────────────
-    function bindEvents(session) {
-        const container = document.getElementById('table-designer-container');
+    function bindEvents(session, pane) {
+        const container = pane || session.domPane || document.getElementById('table-designer-container');
         if (!container) return;
 
         // Sub-tabs click
@@ -2420,12 +2613,27 @@
             });
         });
 
-        // Trigger Definition CodeMirror Editor
+        // Trigger Definition Editor (Monaco with CodeMirror fallback)
         if (session.activeSubTab === 'trigger') {
+            const curTrig = session.modifiedData.triggers[session.selectedTrigIndex] || null;
+            const trigVal = curTrig ? (curTrig.definition || '') : '';
+            const trigMonacoDiv = container.querySelector('.td-trigger-def-editor');
             const trigDefArea = container.querySelector('#td-trigger-def-editor');
-            if (trigDefArea && window.CodeMirror) {
-                const curTrig = session.modifiedData.triggers[session.selectedTrigIndex] || null;
-                const trigVal = curTrig ? (curTrig.definition || '') : '';
+
+            if (trigMonacoDiv && typeof monaco !== 'undefined' && monaco.editor) {
+                session.triggerEditor = createMonacoEditor(trigMonacoDiv, {
+                    value: trigVal,
+                    readOnly: !curTrig
+                });
+                if (session.triggerEditor) {
+                    session.triggerEditor.onDidChangeModelContent(() => {
+                        if (curTrig) {
+                            curTrig.definition = session.triggerEditor.getValue();
+                            markDirty(session);
+                        }
+                    });
+                }
+            } else if (trigDefArea && window.CodeMirror) {
                 session.triggerCm = window.CodeMirror.fromTextArea(trigDefArea, {
                     mode: 'text/x-sql',
                     theme: getCodeMirrorTheme(),
@@ -2444,24 +2652,39 @@
             }
         }
 
-        // SQL Preview CodeMirror Editor
+        // SQL Preview Editor (Monaco with CodeMirror fallback)
         if (session.activeSubTab === 'sql-preview') {
+            const prevMonacoDiv = container.querySelector('.td-sql-preview-editor');
             const previewArea = container.querySelector('#td-sql-preview-editor');
-            if (previewArea && window.CodeMirror) {
+            const prevVal = session.previewSql || '-- No preview available\n';
+
+            if (prevMonacoDiv && typeof monaco !== 'undefined' && monaco.editor) {
+                session.previewEditor = createMonacoEditor(prevMonacoDiv, {
+                    value: prevVal,
+                    readOnly: true
+                });
+            } else if (previewArea && window.CodeMirror) {
                 session.previewCm = window.CodeMirror.fromTextArea(previewArea, {
                     mode: 'text/x-sql',
                     theme: getCodeMirrorTheme(),
                     lineNumbers: true,
                     readOnly: true
                 });
-                session.previewCm.setValue(session.previewSql || '-- No preview available\n');
+                session.previewCm.setValue(prevVal);
                 setTimeout(() => session.previewCm.refresh(), 50);
             }
         }
 
-        // Persistent Live SQL CodeMirror Editor (Always visible at bottom)
+        // Persistent Live SQL Editor (Monaco with CodeMirror fallback)
+        const liveSqlMonacoDiv = container.querySelector('.td-live-sql-editor');
         const liveSqlArea = container.querySelector('#td-live-sql-editor');
-        if (liveSqlArea && window.CodeMirror) {
+        if (liveSqlMonacoDiv && typeof monaco !== 'undefined' && monaco.editor) {
+            session.liveSqlEditor = createMonacoEditor(liveSqlMonacoDiv, {
+                value: '-- Generating SQL script...\n',
+                readOnly: true
+            });
+            updateLiveSql(session);
+        } else if (liveSqlArea && window.CodeMirror && typeof window.CodeMirror.fromTextArea === 'function') {
             session.liveSqlCm = window.CodeMirror.fromTextArea(liveSqlArea, {
                 mode: 'text/x-sql',
                 theme: getCodeMirrorTheme(),
@@ -2470,24 +2693,44 @@
             });
             updateLiveSql(session);
             setTimeout(() => {
-                if (session.liveSqlCm) session.liveSqlCm.refresh();
+                if (session.liveSqlCm && typeof session.liveSqlCm.refresh === 'function') {
+                    session.liveSqlCm.refresh();
+                }
             }, 60);
+        } else if (liveSqlArea) {
+            liveSqlArea.classList.remove('d-none');
+            session.liveSqlCm = {
+                setValue: (val) => { liveSqlArea.value = val; },
+                getValue: () => liveSqlArea.value,
+                refresh: () => {},
+                setOption: () => {}
+            };
+            updateLiveSql(session);
+        }
+
+        // If Monaco loads slightly after initial render, upgrade to Monaco automatically
+        if (typeof monaco === 'undefined' || !monaco.editor) {
+            if (typeof window._onMonacoReady === 'function') {
+                window._onMonacoReady(() => {
+                    if (activeSession === session && session.domPane && !session.liveSqlEditor) {
+                        renderDesigner(session);
+                    }
+                });
+            }
         }
 
         // Copy Live SQL Button
         const copyLiveSqlBtn = container.querySelector('#td-btn-copy-live-sql');
         if (copyLiveSqlBtn) {
             copyLiveSqlBtn.addEventListener('click', () => {
-                if (session.liveSqlCm) {
-                    const sql = session.liveSqlCm.getValue();
-                    if (sql) {
-                        if (window.copyToClipboard) {
-                            window.copyToClipboard(sql);
-                        } else {
-                            navigator.clipboard?.writeText(sql);
-                        }
-                        showDesignerNotification('Copied SQL script to clipboard.');
+                const sql = session.liveSqlEditor ? session.liveSqlEditor.getValue() : (session.liveSqlCm ? session.liveSqlCm.getValue() : '');
+                if (sql) {
+                    if (window.copyToClipboard) {
+                        window.copyToClipboard(sql);
+                    } else {
+                        navigator.clipboard?.writeText(sql);
                     }
+                    showDesignerNotification('Copied SQL script to clipboard.');
                 }
             });
         }
@@ -2519,7 +2762,8 @@
                     const newH = Math.max(60, Math.min(startHeight + delta, maxH));
                     session.sqlPanelHeight = newH;
                     liveSqlPane.style.height = `${newH}px`;
-                    if (session.liveSqlCm) session.liveSqlCm.refresh();
+                    if (session.liveSqlEditor) session.liveSqlEditor.layout();
+                    else if (session.liveSqlCm) session.liveSqlCm.refresh();
                 }
 
                 function onMouseUp() {
@@ -2528,7 +2772,8 @@
                     document.body.style.userSelect = '';
                     window.removeEventListener('mousemove', onMouseMove);
                     window.removeEventListener('mouseup', onMouseUp);
-                    if (session.liveSqlCm) session.liveSqlCm.refresh();
+                    if (session.liveSqlEditor) session.liveSqlEditor.layout();
+                    else if (session.liveSqlCm) session.liveSqlCm.refresh();
                 }
 
                 window.addEventListener('mousemove', onMouseMove);
@@ -2614,29 +2859,68 @@
             warnList.innerHTML = '';
         }
 
-        // Initialize or update Diff CodeMirror (Editable)
+        // Initialize or update Diff Editor (Editable)
+        const diffEditorContainer = document.getElementById('td-modal-diff-editor');
         const diffTextarea = document.getElementById('td-modal-diff-sql');
         const applyBtn = document.getElementById('td-modal-btn-apply');
 
+        function getModalDiffValue() {
+            if (modalDiffEditor) return modalDiffEditor.getValue();
+            if (modalDiffCm) return modalDiffCm.getValue();
+            return diffData.migration_sql || '';
+        }
+
+        function setModalDiffValue(val) {
+            if (modalDiffEditor) {
+                modalDiffEditor.setValue(val);
+                modalDiffEditor.layout();
+            } else if (modalDiffCm) {
+                modalDiffCm.setValue(val);
+                modalDiffCm.refresh();
+            }
+        }
+
         function updateApplyBtnState() {
-            const val = modalDiffCm ? modalDiffCm.getValue().trim() : (diffData.migration_sql || '').trim();
+            const val = getModalDiffValue().trim();
             if (applyBtn) {
                 applyBtn.disabled = !val;
             }
         }
 
-        if (!modalDiffCm && window.CodeMirror) {
-            modalDiffCm = window.CodeMirror.fromTextArea(diffTextarea, {
-                mode: 'text/x-sql',
-                theme: getCodeMirrorTheme(),
-                lineNumbers: true,
-                readOnly: false
-            });
-            modalDiffCm.on('change', () => {
-                updateApplyBtnState();
-            });
-        } else if (modalDiffCm) {
-            modalDiffCm.setOption('readOnly', false);
+        if (diffEditorContainer && typeof monaco !== 'undefined' && monaco.editor) {
+            if (diffTextarea) diffTextarea.classList.add('d-none');
+            diffEditorContainer.classList.remove('d-none');
+            if (!modalDiffEditor) {
+                modalDiffEditor = createMonacoEditor(diffEditorContainer, {
+                    value: diffData.migration_sql || '-- No changes detected.\n',
+                    readOnly: false
+                });
+                if (modalDiffEditor) {
+                    modalDiffEditor.onDidChangeModelContent(() => {
+                        updateApplyBtnState();
+                    });
+                }
+            } else {
+                modalDiffEditor.updateOptions({ readOnly: false });
+                modalDiffEditor.setValue(diffData.migration_sql || '-- No changes detected.\n');
+            }
+        } else if (diffTextarea && window.CodeMirror) {
+            if (diffEditorContainer) diffEditorContainer.classList.add('d-none');
+            diffTextarea.classList.remove('d-none');
+            if (!modalDiffCm) {
+                modalDiffCm = window.CodeMirror.fromTextArea(diffTextarea, {
+                    mode: 'text/x-sql',
+                    theme: getCodeMirrorTheme(),
+                    lineNumbers: true,
+                    readOnly: false
+                });
+                modalDiffCm.on('change', () => {
+                    updateApplyBtnState();
+                });
+            } else {
+                modalDiffCm.setOption('readOnly', false);
+                modalDiffCm.setValue(diffData.migration_sql || '-- No changes detected.\n');
+            }
         }
 
         // Component filtering for Compare Script
@@ -2662,9 +2946,7 @@
                     filterStatusBadge.textContent = 'Hiển thị: Tất cả';
                 }
                 if (resetFilterBtn) resetFilterBtn.classList.add('d-none');
-                if (modalDiffCm) {
-                    modalDiffCm.setValue(diffData.migration_sql || '-- No changes detected.\n');
-                }
+                setModalDiffValue(diffData.migration_sql || '-- No changes detected.\n');
             } else {
                 const typeNames = {
                     tables: 'Tables (Bảng & Cột)',
@@ -2694,12 +2976,13 @@
                     const joinSep = session.dbType === 'sqlserver' ? '\n\nGO\n\n' : '\n\n';
                     filteredSql = stmts.map(st => (typeof st === 'object' ? st.sql : st)).join(joinSep) + (session.dbType === 'sqlserver' ? '\n\nGO\n' : '\n');
                 }
-                if (modalDiffCm) {
-                    modalDiffCm.setValue(filteredSql);
-                }
+                setModalDiffValue(filteredSql);
             }
             updateApplyBtnState();
-            setTimeout(() => { if (modalDiffCm) modalDiffCm.refresh(); }, 50);
+            setTimeout(() => {
+                if (modalDiffEditor) modalDiffEditor.layout();
+                if (modalDiffCm) modalDiffCm.refresh();
+            }, 50);
         }
 
         if (auditList) {
@@ -2726,7 +3009,7 @@
         // Wire Apply Changes button
         updateApplyBtnState();
         applyBtn.onclick = async () => {
-            const finalSql = modalDiffCm ? modalDiffCm.getValue().trim() : (diffData.migration_sql || '').trim();
+            const finalSql = getModalDiffValue().trim();
             if (!finalSql) {
                 alert('No migration SQL to execute.');
                 return;
@@ -2800,6 +3083,7 @@
         modalInstance = new bootstrap.Modal(modalEl);
         modalInstance.show();
         setTimeout(() => {
+            if (modalDiffEditor) modalDiffEditor.layout();
             if (modalDiffCm) modalDiffCm.refresh();
         }, 200);
     }

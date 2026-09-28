@@ -7,6 +7,10 @@ class DatabaseAdapter(ABC):
         self.config = config
         self.connection = None
 
+    @property
+    def db_type(self) -> str:
+        return getattr(self, "_db_type", None) or str(self.config.get("type", "")).lower() or "sqlserver"
+
     @abstractmethod
     def connect(self):
         ...
@@ -16,7 +20,7 @@ class DatabaseAdapter(ABC):
         ...
 
     @abstractmethod
-    def execute(self, sql: str, params=None, limit=None, database=None):
+    def execute(self, sql: str, params=None, limit=None, database=None, schema=None, **kwargs):
         ...
 
     @abstractmethod

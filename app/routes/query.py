@@ -25,6 +25,7 @@ def execute():
             limit = None
 
     database = data.get("database")
+    schema = data.get("schema")
 
     try:
         connection = get_connection_manager().get(
@@ -36,6 +37,7 @@ def execute():
             sql,
             limit=limit,
             database=database,
+            schema=schema,
         )
         return jsonify(result)
 

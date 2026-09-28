@@ -16,6 +16,7 @@ def serialize_cell(val):
     return str(val)
 
 class PostgreSqlAdapter(DatabaseAdapter):
+    db_type = "postgresql"
 
     def connect(self):
         if psycopg is None:
@@ -35,6 +36,7 @@ class PostgreSqlAdapter(DatabaseAdapter):
         )
 
         self.connection.autocommit = True
+        self._current_search_path = None
 
     def _build_conn_params(self):
         c = self.config
@@ -52,8 +54,9 @@ class PostgreSqlAdapter(DatabaseAdapter):
         if self.connection:
             self.connection.close()
             self.connection = None
+            self._current_search_path = None
 
-    def execute(self, sql, params=None, limit=None, database=None):
+    def execute(self, sql, params=None, limit=None, database=None, schema=None, **kwargs):
         results = []
         messages = []
         errors = []
@@ -76,6 +79,26 @@ class PostgreSqlAdapter(DatabaseAdapter):
 
         try:
             with self.connection.cursor() as cursor:
+                # Set search_path only when changed
+                target_schema = (schema or self.config.get("schema") or "").strip()
+                if target_schema:
+                    schemas_to_set = [f'"{target_schema}"']
+                    if target_schema.lower() != "dbo":
+                        schemas_to_set.append('"dbo"')
+                    if target_schema.lower() != "public":
+                        schemas_to_set.append("public")
+                else:
+                    schemas_to_set = ['"dbo"', 'public']
+
+                cur_path = getattr(self, "_current_search_path", None)
+                if cur_path != schemas_to_set:
+                    set_path_sql = f'SET search_path TO {", ".join(schemas_to_set)}'
+                    try:
+                        cursor.execute(set_path_sql)
+                        self._current_search_path = schemas_to_set
+                    except Exception:
+                        pass
+
                 try:
                     cursor.execute(sql, params or ())
                     while True:
@@ -160,60 +183,109 @@ class PostgreSqlAdapter(DatabaseAdapter):
     def list_schemas(self, database=None):
         result = self.execute(
             """
-            SELECT schema_name
-            FROM information_schema.schemata
-            WHERE schema_name NOT IN ('pg_toast')
-            ORDER BY schema_name
-            """
+            SELECT nspname
+            FROM pg_catalog.pg_namespace
+            WHERE nspname NOT LIKE 'pg_toast%%'
+              AND nspname NOT LIKE 'pg_temp%%'
+            ORDER BY nspname
+            """,
+            limit=0,
+            database=database
         )
 
         return [{"name": row[0]} for row in result["rows"]]
 
     def list_objects(self, database, schema, object_type, search=None):
+        target_schema = (schema or "public").strip()
+
         if object_type in ["procedures", "functions"]:
             sql = """
-                SELECT routine_schema, routine_name, NULL as id
-                FROM information_schema.routines
-                WHERE routine_schema = %s
+                SELECT n.nspname, p.proname, p.oid
+                FROM pg_catalog.pg_proc p
+                JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace
+                WHERE (n.nspname = %s OR lower(n.nspname) = lower(%s))
             """
             if object_type == "procedures":
-                sql += "  AND routine_type = 'PROCEDURE'"
+                sql += "  AND p.prokind = 'p'"
             else:
-                sql += "  AND routine_type = 'FUNCTION'"
-            params = [schema]
+                sql += "  AND p.prokind != 'p'"
+            params = [target_schema, target_schema]
+            if search:
+                sql += "  AND p.proname ILIKE %s"
+                params.append(f"%{search}%")
+            sql += "\n            ORDER BY p.proname"
+
+        elif object_type in ["materialized_views", "mviews", "materialized_view"]:
+            sql = """
+                SELECT n.nspname, c.relname, c.oid
+                FROM pg_catalog.pg_class c
+                JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+                WHERE (n.nspname = %s OR lower(n.nspname) = lower(%s))
+                  AND c.relkind = 'm'
+            """
+            params = [target_schema, target_schema]
+            if search:
+                sql += "  AND c.relname ILIKE %s"
+                params.append(f"%{search}%")
+            sql += "\n            ORDER BY c.relname"
+
+        elif object_type == "views":
+            sql = """
+                SELECT n.nspname, c.relname, c.oid
+                FROM pg_catalog.pg_class c
+                JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+                WHERE (n.nspname = %s OR lower(n.nspname) = lower(%s))
+                  AND c.relkind = 'v'
+            """
+            params = [target_schema, target_schema]
+            if search:
+                sql += "  AND c.relname ILIKE %s"
+                params.append(f"%{search}%")
+            sql += "\n            ORDER BY c.relname"
+
+        elif object_type == "tables":
+            sql = """
+                SELECT n.nspname, c.relname, c.oid
+                FROM pg_catalog.pg_class c
+                JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+                WHERE (n.nspname = %s OR lower(n.nspname) = lower(%s))
+                  AND c.relkind IN ('r', 'p')
+            """
+            params = [target_schema, target_schema]
+            if search:
+                sql += "  AND c.relname ILIKE %s"
+                params.append(f"%{search}%")
+            sql += "\n            ORDER BY c.relname"
+
+        elif object_type == "triggers":
+            sql = """
+                SELECT n.nspname, t.tgname, t.oid
+                FROM pg_catalog.pg_trigger t
+                JOIN pg_catalog.pg_class c ON c.oid = t.tgrelid
+                JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+                WHERE (n.nspname = %s OR lower(n.nspname) = lower(%s))
+                  AND NOT t.tgisinternal
+            """
+            params = [target_schema, target_schema]
+            if search:
+                sql += "  AND t.tgname ILIKE %s"
+                params.append(f"%{search}%")
+            sql += "\n            ORDER BY t.tgname"
+
         else:
-            if object_type == "tables":
-                sql = """
-                    SELECT table_schema, table_name, NULL as id
-                    FROM information_schema.tables
-                    WHERE table_schema = %s
-                      AND table_type = 'BASE TABLE'
-                """
-                params = [schema]
-            elif object_type == "views":
-                sql = """
-                    SELECT table_schema, table_name, NULL as id
-                    FROM information_schema.views
-                    WHERE table_schema = %s
-                """
-                params = [schema]
-            else:
-                sql = """
-                    SELECT n.nspname, p.proname, p.oid
-                    FROM pg_proc AS p
-                    JOIN pg_namespace AS n
-                      ON n.oid = p.pronamespace
-                    WHERE n.nspname = %s
-                """
-                params = [schema]
+            sql = """
+                SELECT n.nspname, c.relname, c.oid
+                FROM pg_catalog.pg_class c
+                JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+                WHERE (n.nspname = %s OR lower(n.nspname) = lower(%s))
+            """
+            params = [target_schema, target_schema]
+            if search:
+                sql += "  AND c.relname ILIKE %s"
+                params.append(f"%{search}%")
+            sql += "\n            ORDER BY c.relname"
 
-        if search:
-            sql += "  AND (routine_name ILIKE %s OR table_name ILIKE %s)" if object_type in ["procedures", "functions"] else "  AND p.proname ILIKE %s" if object_type not in ["tables", "views"] else "  AND table_name ILIKE %s"
-            params.append(f"%{search}%")
-
-        sql += "\n            ORDER BY 2"
-
-        result = self.execute(sql, tuple(params))
+        result = self.execute(sql, tuple(params), limit=0, database=database)
 
         return [
             {
@@ -241,35 +313,56 @@ class PostgreSqlAdapter(DatabaseAdapter):
                 FROM pg_catalog.pg_proc AS p
                 JOIN pg_catalog.pg_namespace AS n
                   ON n.oid = p.pronamespace
-                WHERE n.nspname = %s
+                WHERE (n.nspname = %s OR lower(n.nspname) = lower(%s))
                   AND (p.proname = %s OR lower(p.proname) = lower(%s))
                 ORDER BY p.pronargs ASC
                 LIMIT 1
                 """,
-                (target_schema, name, name),
+                (target_schema, target_schema, name, name),
                 limit=1,
                 database=database
             )
             return result["rows"][0][0] if result.get("rows") else None
 
-        if norm_type == "view":
+        if norm_type in {"view", "materialized_view", "mview"}:
             result = self.execute(
                 """
-                SELECT
-                    'CREATE OR REPLACE VIEW ' ||
-                    quote_ident(schemaname) || '.' ||
-                    quote_ident(viewname) || ' AS ' ||
-                    definition
-                FROM pg_views
-                WHERE schemaname = %s
-                  AND (viewname = %s OR lower(viewname) = lower(%s))
+                SELECT 
+                    CASE WHEN c.relkind = 'm' THEN 'CREATE MATERIALIZED VIEW ' ELSE 'CREATE OR REPLACE VIEW ' END ||
+                    quote_ident(n.nspname) || '.' || quote_ident(c.relname) || ' AS' || E'\\n' ||
+                    pg_catalog.pg_get_viewdef(c.oid, true)
+                FROM pg_catalog.pg_class c
+                JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+                WHERE (n.nspname = %s OR lower(n.nspname) = lower(%s))
+                  AND (c.relname = %s OR lower(c.relname) = lower(%s))
+                  AND c.relkind IN ('v', 'm')
                 LIMIT 1
                 """,
-                (target_schema, name, name),
+                (target_schema, target_schema, name, name),
                 limit=1,
                 database=database
             )
-            return result["rows"][0][0] if result.get("rows") else None
+            if result.get("rows") and result["rows"][0][0]:
+                return result["rows"][0][0]
+
+            # Fallback matching by object name across schemas
+            res_fb = self.execute(
+                """
+                SELECT 
+                    CASE WHEN c.relkind = 'm' THEN 'CREATE MATERIALIZED VIEW ' ELSE 'CREATE OR REPLACE VIEW ' END ||
+                    quote_ident(n.nspname) || '.' || quote_ident(c.relname) || ' AS' || E'\\n' ||
+                    pg_catalog.pg_get_viewdef(c.oid, true)
+                FROM pg_catalog.pg_class c
+                JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+                WHERE (c.relname = %s OR lower(c.relname) = lower(%s))
+                  AND c.relkind IN ('v', 'm')
+                LIMIT 1
+                """,
+                (name, name),
+                limit=1,
+                database=database
+            )
+            return res_fb["rows"][0][0] if res_fb.get("rows") else None
 
         if norm_type == "trigger":
             result = self.execute(
@@ -292,24 +385,31 @@ class PostgreSqlAdapter(DatabaseAdapter):
         return None
 
     def get_intellisense_objects(self, database=None, schema=None):
-        target_schema = schema or "public"
+        target_schema = (schema or "public").strip()
         items = []
         try:
-            # 1. Tables and Views
+            # 1. Tables, Views, Materialized Views from pg_class
             tv_query = """
-                SELECT table_name, table_schema, table_type
-                FROM information_schema.tables
-                WHERE table_schema = %s
-                ORDER BY table_name
+                SELECT c.relname, n.nspname,
+                       CASE c.relkind
+                           WHEN 'r' THEN 'table'
+                           WHEN 'p' THEN 'table'
+                           WHEN 'v' THEN 'view'
+                           WHEN 'm' THEN 'materialized_view'
+                           ELSE 'table'
+                       END AS obj_type
+                FROM pg_catalog.pg_class c
+                JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+                WHERE (n.nspname = %s OR lower(n.nspname) = lower(%s))
+                  AND c.relkind IN ('r', 'p', 'v', 'm')
+                ORDER BY c.relname
             """
-            res = self.execute(tv_query, [target_schema], limit=0, database=database)
+            res = self.execute(tv_query, [target_schema, target_schema], limit=0, database=database)
             for row in res.get("rows", []):
-                name, s_name, t_type = row[0], row[1], row[2]
-                mapped_type = "table" if t_type == "BASE TABLE" else "view"
                 items.append({
-                    "name": name,
-                    "schema": s_name,
-                    "type": mapped_type,
+                    "name": row[0],
+                    "schema": row[1],
+                    "type": row[2],
                     "target_object": ""
                 })
 
@@ -324,10 +424,10 @@ class PostgreSqlAdapter(DatabaseAdapter):
                     END AS routine_type
                 FROM pg_catalog.pg_proc p
                 JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace
-                WHERE n.nspname = %s
+                WHERE (n.nspname = %s OR lower(n.nspname) = lower(%s))
                 ORDER BY p.proname
             """
-            res_r = self.execute(routines_query, [target_schema], limit=0, database=database)
+            res_r = self.execute(routines_query, [target_schema, target_schema], limit=0, database=database)
             for row in res_r.get("rows", []):
                 name, s_name, r_type = row[0], row[1], (row[2] or "").lower()
                 items.append({
@@ -337,15 +437,18 @@ class PostgreSqlAdapter(DatabaseAdapter):
                     "target_object": ""
                 })
 
-            # 3. Triggers
+            # 3. Triggers from pg_trigger
             try:
                 triggers_query = """
-                    SELECT trigger_name, trigger_schema
-                    FROM information_schema.triggers
-                    WHERE trigger_schema = %s
-                    ORDER BY trigger_name
+                    SELECT t.tgname, n.nspname
+                    FROM pg_catalog.pg_trigger t
+                    JOIN pg_catalog.pg_class c ON c.oid = t.tgrelid
+                    JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+                    WHERE (n.nspname = %s OR lower(n.nspname) = lower(%s))
+                      AND NOT t.tgisinternal
+                    ORDER BY t.tgname
                 """
-                res_t = self.execute(triggers_query, [target_schema], limit=0, database=database)
+                res_t = self.execute(triggers_query, [target_schema, target_schema], limit=0, database=database)
                 for row in res_t.get("rows", []):
                     name, s_name = row[0], row[1]
                     items.append({
@@ -364,36 +467,37 @@ class PostgreSqlAdapter(DatabaseAdapter):
     def get_intellisense_columns(self, database=None, schema=None, table_name=None):
         if not table_name:
             return []
-        target_schema = schema or "public"
+        target_schema = (schema or "public").strip()
         query = """
-            SELECT c.column_name, c.data_type, c.character_maximum_length, c.is_nullable,
-                   CASE WHEN pk.column_name IS NOT NULL THEN 1 ELSE 0 END AS is_pk
-            FROM information_schema.columns c
+            SELECT 
+                a.attname AS column_name,
+                pg_catalog.format_type(a.atttypid, a.atttypmod) AS data_type,
+                NOT a.attnotnull AS is_nullable,
+                CASE WHEN pk.attnum IS NOT NULL THEN 1 ELSE 0 END AS is_pk
+            FROM pg_catalog.pg_attribute a
+            JOIN pg_catalog.pg_class c ON c.oid = a.attrelid
+            JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
             LEFT JOIN (
-                SELECT kcu.column_name
-                FROM information_schema.table_constraints tc
-                JOIN information_schema.key_column_usage kcu
-                  ON tc.constraint_name = kcu.constraint_name
-                 AND tc.table_schema = kcu.table_schema
-                WHERE tc.constraint_type = 'PRIMARY KEY'
-                  AND tc.table_schema = %s AND tc.table_name = %s
-            ) pk ON c.column_name = pk.column_name
-            WHERE c.table_schema = %s AND c.table_name = %s
-            ORDER BY c.ordinal_position
+                SELECT conrelid, unnest(conkey) AS attnum
+                FROM pg_catalog.pg_constraint
+                WHERE contype = 'p'
+            ) pk ON pk.conrelid = c.oid AND pk.attnum = a.attnum
+            WHERE (n.nspname = %s OR lower(n.nspname) = lower(%s))
+              AND (c.relname = %s OR lower(c.relname) = lower(%s))
+              AND a.attnum > 0
+              AND NOT a.attisdropped
+            ORDER BY a.attnum
         """
         try:
-            res = self.execute(query, [target_schema, table_name, target_schema, table_name], limit=0, database=database)
+            res = self.execute(query, [target_schema, target_schema, table_name, table_name], limit=0, database=database)
             items = []
             for row in res.get("rows", []):
-                col_name, data_type, max_len, is_null, is_pk = row[0], row[1], row[2], row[3] == "YES", bool(row[4])
-                type_str = data_type
-                if max_len:
-                    type_str = f"{data_type}({max_len})"
+                col_name, data_type, is_null, is_pk = row[0], row[1], bool(row[2]), bool(row[3])
                 items.append({
                     "name": col_name,
                     "type": "column",
                     "schema": target_schema,
-                    "data_type": type_str,
+                    "data_type": data_type,
                     "is_nullable": is_null,
                     "is_pk": is_pk
                 })
@@ -434,68 +538,101 @@ class PostgreSqlAdapter(DatabaseAdapter):
         child_type,
     ):
         items = []
+        target_schema = (schema or "public").strip()
+
         if child_type == "columns":
-            sql = """
-                SELECT column_name, data_type, character_maximum_length, is_nullable
-                FROM information_schema.columns
-                WHERE table_schema = %s AND table_name = %s
-                ORDER BY ordinal_position
+            attr_sql = """
+                SELECT 
+                    a.attname AS column_name,
+                    pg_catalog.format_type(a.atttypid, a.atttypmod) AS data_type,
+                    NULL AS character_maximum_length,
+                    NOT a.attnotnull AS is_nullable
+                FROM pg_catalog.pg_attribute a
+                JOIN pg_catalog.pg_class c ON c.oid = a.attrelid
+                JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+                WHERE (n.nspname = %s OR lower(n.nspname) = lower(%s))
+                  AND (c.relname = %s OR lower(c.relname) = lower(%s))
+                  AND a.attnum > 0
+                  AND NOT a.attisdropped
+                ORDER BY a.attnum
             """
-            res = self.execute(sql, (schema, name))
-            for r in res["rows"]:
-                items.append({"name": r[0], "type": r[1], "length": r[2], "nullable": r[3] == "YES"})
+            attr_res = self.execute(attr_sql, (target_schema, target_schema, name, name), limit=0, database=database)
+            for r in attr_res.get("rows", []):
+                items.append({"name": r[0], "type": r[1], "length": r[2], "nullable": bool(r[3])})
                 
         elif child_type == "keys":
             sql = """
-                SELECT constraint_name, constraint_type as type
-                FROM information_schema.table_constraints
-                WHERE table_schema = %s AND table_name = %s
-                  AND constraint_type IN ('PRIMARY KEY', 'FOREIGN KEY', 'UNIQUE')
+                SELECT con.conname AS constraint_name,
+                       CASE con.contype
+                           WHEN 'p' THEN 'PRIMARY KEY'
+                           WHEN 'f' THEN 'FOREIGN KEY'
+                           WHEN 'u' THEN 'UNIQUE'
+                           ELSE con.contype::text
+                       END AS type
+                FROM pg_catalog.pg_constraint con
+                JOIN pg_catalog.pg_class c ON c.oid = con.conrelid
+                JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+                WHERE (n.nspname = %s OR lower(n.nspname) = lower(%s))
+                  AND (c.relname = %s OR lower(c.relname) = lower(%s))
+                  AND con.contype IN ('p', 'f', 'u')
+                ORDER BY con.conname
             """
-            res = self.execute(sql, (schema, name))
-            for r in res["rows"]:
+            res = self.execute(sql, (target_schema, target_schema, name, name), limit=0, database=database)
+            for r in res.get("rows", []):
                 items.append({"name": r[0], "type": r[1]})
                 
         elif child_type == "constraints":
             sql = """
-                SELECT constraint_name, constraint_type as type
-                FROM information_schema.table_constraints
-                WHERE table_schema = %s AND table_name = %s
-                  AND constraint_type = 'CHECK'
+                SELECT con.conname AS constraint_name, 'CHECK' AS type
+                FROM pg_catalog.pg_constraint con
+                JOIN pg_catalog.pg_class c ON c.oid = con.conrelid
+                JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+                WHERE (n.nspname = %s OR lower(n.nspname) = lower(%s))
+                  AND (c.relname = %s OR lower(c.relname) = lower(%s))
+                  AND con.contype = 'c'
+                ORDER BY con.conname
             """
-            res = self.execute(sql, (schema, name))
-            for r in res["rows"]:
+            res = self.execute(sql, (target_schema, target_schema, name, name), limit=0, database=database)
+            for r in res.get("rows", []):
                 items.append({"name": r[0], "type": r[1]})
                 
         elif child_type == "triggers":
             sql = """
-                SELECT trigger_name
-                FROM information_schema.triggers
-                WHERE event_object_schema = %s AND event_object_table = %s
+                SELECT t.tgname AS trigger_name
+                FROM pg_catalog.pg_trigger t
+                JOIN pg_catalog.pg_class c ON c.oid = t.tgrelid
+                JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+                WHERE (n.nspname = %s OR lower(n.nspname) = lower(%s))
+                  AND (c.relname = %s OR lower(c.relname) = lower(%s))
+                  AND NOT t.tgisinternal
+                ORDER BY t.tgname
             """
-            res = self.execute(sql, (schema, name))
-            for r in res["rows"]:
+            res = self.execute(sql, (target_schema, target_schema, name, name), limit=0, database=database)
+            for r in res.get("rows", []):
                 items.append({"name": r[0]})
                 
         elif child_type == "indexes":
             sql = """
                 SELECT indexname
-                FROM pg_indexes
-                WHERE schemaname = %s AND tablename = %s
+                FROM pg_catalog.pg_indexes
+                WHERE (schemaname = %s OR lower(schemaname) = lower(%s))
+                  AND (tablename = %s OR lower(tablename) = lower(%s))
+                ORDER BY indexname
             """
-            res = self.execute(sql, (schema, name))
-            for r in res["rows"]:
+            res = self.execute(sql, (target_schema, target_schema, name, name), limit=0, database=database)
+            for r in res.get("rows", []):
                 items.append({"name": r[0]})
                 
         elif child_type == "params":
             sql = """
                 SELECT parameter_name, data_type
                 FROM information_schema.parameters
-                WHERE specific_schema = %s AND specific_name LIKE %s || '%%'
+                WHERE (specific_schema = %s OR lower(specific_schema) = lower(%s))
+                  AND (specific_name LIKE %s || '%%' OR lower(specific_name) LIKE lower(%s) || '%%')
                 ORDER BY ordinal_position
             """
-            res = self.execute(sql, (schema, name))
-            for r in res["rows"]:
+            res = self.execute(sql, (target_schema, target_schema, name, name), limit=0, database=database)
+            for r in res.get("rows", []):
                 name_val = r[0] if r[0] else 'Return/Arg'
                 items.append({"name": name_val, "type": r[1]})
                 

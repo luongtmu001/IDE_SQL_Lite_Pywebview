@@ -139,6 +139,12 @@
             : null;
         const isDark = themeObj ? themeObj.isDark : (cur !== 'light' && cur !== 'win-nt' && cur !== 'win-xp');
         syncNativeTitlebar(cur, isDark);
+        setTimeout(() => {
+            syncNativeTitlebar(cur, isDark);
+        }, 300);
+        setTimeout(() => {
+            syncNativeTitlebar(cur, isDark);
+        }, 800);
     }
 
     if (window.pywebview && window.pywebview.api) {

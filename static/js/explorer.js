@@ -55,31 +55,68 @@ function initExplorer() {
             current = parentLi.querySelector(':scope > .tree-item');
         }
 
-        // If database is detected but schema not found, default to 'dbo' or 'public'
+        // If database is detected but schema not found, check configured default schema or schemaFilter first
         if (ctx.database && !ctx.schema) {
-            ctx.schema = (ctx.dbType === 'postgresql' ? 'public' : 'dbo');
-        }
-
-        // Apply detected context to globals
-        if (ctx.connectionId)   window.ActiveConnectionId   = ctx.connectionId;
-        if (ctx.connectionName) window.ActiveConnectionName = ctx.connectionName;
-        if (ctx.database)       window.ActiveDatabase       = ctx.database;
-        if (ctx.schema)         window.ActiveSchema         = ctx.schema;
-        if (ctx.dbType)         window.ActiveDbType         = ctx.dbType;
-
-        window.LastFocusedTreeContext = { ...ctx };
-
-        if (window.AppTabs) {
-            if (window.AppTabs.updateActiveTabContext) {
-                window.AppTabs.updateActiveTabContext(ctx);
-            } else if (window.AppTabs.setDefaultContext) {
-                window.AppTabs.setDefaultContext(ctx);
+            const filterKey = `${ctx.connectionId}::${ctx.database}`;
+            const sf = schemaFilters[filterKey];
+            if (Array.isArray(sf) && sf.length > 0 && sf[0]) {
+                ctx.schema = sf[0];
+            } else {
+                let savedSch = null;
+                if (typeof getSavedConnections === 'function') {
+                    const savedList = getSavedConnections() || [];
+                    const profile = savedList.find(s => s && s.type === ctx.dbType && (s.name === ctx.connectionName || s.server === ctx.connectionName || s.connection_id === ctx.connectionId));
+                    if (profile && profile.schema && (!profile.database || profile.database === ctx.database)) {
+                        savedSch = profile.schema;
+                    }
+                }
+                ctx.schema = savedSch || (ctx.dbType === 'postgresql' ? 'public' : 'dbo');
             }
         }
 
-        document.dispatchEvent(new CustomEvent('ide-context-changed', { detail: ctx }));
-        if (typeof window.updateActionBar === 'function') {
-            window.updateActionBar();
+        // Always track focused tree context so New Query / Profiler can consume it
+        const focusedNodeData = element ? element.closest('.tree-item')?._nodeData : null;
+        window.LastFocusedTreeContext = { 
+            ...ctx, 
+            nodeType: focusedNodeData?.type || null, 
+            config: focusedNodeData?.config || null 
+        };
+
+        if (window.AppTabs && window.AppTabs.setDefaultContext) {
+            window.AppTabs.setDefaultContext(ctx);
+        }
+
+        // Context Adoption Rules:
+        // 1. If active tab has no connection yet, adopt this clicked connection if connected.
+        // 2. If active tab already belongs to this connection, sync database / schema navigation within the same connection.
+        // 3. If user clicked a DIFFERENT connection in the tree, do NOT hijack the active editor's context!
+        const activeTabState = window.AppTabs && typeof window.AppTabs.getActiveTabState === 'function' 
+            ? window.AppTabs.getActiveTabState() 
+            : null;
+        const currentTabConnId = activeTabState?.connectionId || window.ActiveConnectionId;
+        const currentTabConnName = activeTabState?.connectionName || window.ActiveConnectionName;
+
+        const tabHasNoConnection = !currentTabConnId && !currentTabConnName;
+        const isSameConnection = Boolean(
+            (ctx.connectionId && ctx.connectionId === currentTabConnId) ||
+            (ctx.connectionName && ctx.connectionName === currentTabConnName)
+        );
+
+        if ((tabHasNoConnection && ctx.connectionId) || isSameConnection) {
+            if (ctx.connectionId)   window.ActiveConnectionId   = ctx.connectionId;
+            if (ctx.connectionName) window.ActiveConnectionName = ctx.connectionName;
+            if (ctx.database)       window.ActiveDatabase       = ctx.database;
+            if (ctx.schema)         window.ActiveSchema         = ctx.schema;
+            if (ctx.dbType)         window.ActiveDbType         = ctx.dbType;
+
+            if (window.AppTabs && window.AppTabs.updateActiveTabContext) {
+                window.AppTabs.updateActiveTabContext(ctx);
+            }
+
+            document.dispatchEvent(new CustomEvent('ide-context-changed', { detail: ctx }));
+            if (typeof window.updateActionBar === 'function') {
+                window.updateActionBar();
+            }
         }
         return ctx;
     }
@@ -255,11 +292,14 @@ function initExplorer() {
                 });
             });
 
+            const dbDefaultSchema = (Array.isArray(schemaFilters[filterKey]) && schemaFilters[filterKey].length > 0)
+                ? schemaFilters[filterKey][0]
+                : null;
             dbNodeCtrl = renderNode(containerUl, {
                 name: dbName, type: 'database', icon: 'database', iconColor: 'var(--ide-accent)',
                 hasChildren: true,
                 loadCallback: ul => fetchSchemas(ul, connId, connName, dbName, dbType),
-                nodeData: { connId, connName, database: dbName, dbType },
+                nodeData: { connId, connName, database: dbName, schema: dbDefaultSchema, dbType },
                 rightEl: schemaFilterBtn,
             });
         });
@@ -298,9 +338,11 @@ function initExplorer() {
     async function fetchCategories(containerUl, connId, connName, dbName, schemaName, dbType) {
         containerUl.innerHTML = '';
 
+        const isPg = (dbType || window.ActiveDbType || '').toLowerCase().includes('postgr');
         const categories = [
             { label: 'Tables',     type: 'tables',     icon: 'table',       color: '#6897BB' },
             { label: 'Views',      type: 'views',      icon: 'eye',         color: '#6897BB' },
+            ...(isPg ? [{ label: 'Materialized Views', type: 'materialized_views', icon: 'layer-group', color: '#6897BB' }] : []),
             { label: 'Procedures', type: 'procedures', icon: 'code',        color: '#CC7832' },
             { label: 'Functions',  type: 'functions',  icon: 'calculator',  color: '#CC7832' },
             { label: 'Triggers',   type: 'triggers',   icon: 'bolt',        color: '#CC7832' },
@@ -359,19 +401,21 @@ function initExplorer() {
             return;
         }
 
-        const iconMap = { tables: 'table', views: 'eye', procedures: 'code', functions: 'calculator', triggers: 'bolt' };
-        const typeMap = { tables: 'table', views: 'view', procedures: 'procedure', functions: 'function', triggers: 'trigger' };
+        const iconMap = { tables: 'table', views: 'eye', materialized_views: 'layer-group', procedures: 'code', functions: 'calculator', triggers: 'bolt' };
+        const typeMap = { tables: 'table', views: 'view', materialized_views: 'materialized_view', procedures: 'procedure', functions: 'function', triggers: 'trigger' };
 
+        const fragment = document.createDocumentFragment();
         data.items.forEach(obj => {
             const objName = obj.name || obj;
             const mappedType = typeMap[objType] || objType;
-            renderNode(containerUl, {
+            renderNode(fragment, {
                 name: objName, type: mappedType, icon: iconMap[objType] || 'file-code', iconColor: '#c7cfcf',
                 hasChildren: true,
                 loadCallback: ul => fetchObjectFolders(ul, connId, connName, dbName, schema, mappedType, objName, effectiveDbType),
                 nodeData: { connId, connName, database: dbName, schema, type: mappedType, dbType: effectiveDbType },
             });
         });
+        containerUl.appendChild(fragment);
     }
 
     // ── Fetch object folders (Columns, Keys, etc.) ────────────────────────────
@@ -387,7 +431,7 @@ function initExplorer() {
                 { label: 'Triggers', type: 'triggers' },
                 { label: 'Indexes', type: 'indexes' }
             ];
-        } else if (objType === 'view') {
+        } else if (objType === 'view' || objType === 'materialized_view') {
             folders = [
                 { label: 'Columns', type: 'columns' },
                 { label: 'Triggers', type: 'triggers' },
@@ -431,9 +475,10 @@ function initExplorer() {
             return;
         }
 
+        const fragment = document.createDocumentFragment();
         data.items.forEach(child => {
             if (childType === 'triggers') {
-                renderNode(containerUl, {
+                renderNode(fragment, {
                     name: child.name,
                     type: 'trigger',
                     icon: 'bolt',
@@ -479,12 +524,13 @@ function initExplorer() {
                 color = 'var(--ide-text-dim)';
             }
 
-            renderNode(containerUl, {
+            renderNode(fragment, {
                 name: label, type: `leaf-${childType}`, icon: icon, iconColor: color,
                 hasChildren: false,
                 nodeData: { connId, connName, database: dbName, schema: safeSchema, name: child.name, tableName: objName, type: childType, dbType: effectiveDbType }
             });
         });
+        containerUl.appendChild(fragment);
     }
 
     // ── Filter modal ──────────────────────────────────────────────────────────
@@ -891,7 +937,17 @@ function initExplorer() {
                 <i class="fa-solid fa-plug tree-icon text-success ide-conn-connect" title="Connect"></i>
             `;
         }
-        
+
+        // Auto-initialize default database and schema filters if configured in connection profile
+        if (isActive && connId && config) {
+            if (config.database && !dbFilters[connId]) {
+                dbFilters[connId] = { selected: [config.database] };
+            }
+            if (config.database && config.schema && !schemaFilters[`${connId}::${config.database}`]) {
+                schemaFilters[`${connId}::${config.database}`] = [config.schema];
+            }
+        }
+
         let dbNodeCtrl = null;
 
         const btnFilter = rightEl.querySelector('.ide-conn-filter');
@@ -950,7 +1006,7 @@ function initExplorer() {
             iconColor: isActive ? 'var(--ide-success)' : 'var(--ide-text-dim)',
             hasChildren: isActive,
             loadCallback: isActive ? (ul => fetchDatabases(ul, connId, name, dbType)) : null,
-            nodeData: { connId, connName: name, dbType, isActive, database: config ? config.database : null, config },
+            nodeData: { connId, connName: name, dbType, isActive, database: config ? config.database : null, schema: config ? config.schema : null, config },
             rightEl: rightEl
         });
 
@@ -1394,7 +1450,9 @@ function initExplorer() {
 
     function renderConnectionItem(c, targetUl, saved, activeMap) {
         if (!c || c.type === 'group_marker' || String(c.name || '').startsWith('__group__')) return;
-        const activeConn = activeMap[c.name + '::' + c.type];
+        const activeConn = activeMap[c.name + '::' + c.type]
+            || activeMap[(c.server || c.host || '') + '::' + c.type]
+            || Object.values(activeMap).find(a => (a && (a.connection_id === c.id || (a.config && a.config.id === c.id) || a.name === c.name || (a.config && a.config.name === c.name))));
         const isActive = !!activeConn;
         const connId = isActive ? activeConn.connection_id : null;
         const ctrl = addConnectionNodeToUl(targetUl, connId, c.name, c.type, isActive, c);
@@ -1514,6 +1572,7 @@ function initExplorer() {
         try {
             await loadSavedConnectionsFromStorage();
             const activeMap = {};
+            let fetchedSaved = [];
             try {
                 const res  = await fetch('/api/connections');
                 if (res && res.ok) {
@@ -1526,12 +1585,19 @@ function initExplorer() {
                             activeMap[displayName + '::' + dbType] = c;
                         });
                     }
+                    if (data && Array.isArray(data.saved_connections) && data.saved_connections.length > 0) {
+                        fetchedSaved = data.saved_connections;
+                    }
                 }
             } catch (fetchErr) {
                 console.warn('[Explorer] fetch /api/connections warning:', fetchErr);
             }
 
-            const saved = getSavedConnections();
+            let saved = getSavedConnections();
+            if ((!saved || saved.length === 0) && fetchedSaved.length > 0) {
+                _cachedSavedConnections = fetchedSaved;
+                saved = _cachedSavedConnections;
+            }
 
             // Merge active connections that might not be in saved yet
             Object.values(activeMap).forEach(c => {
@@ -1691,11 +1757,34 @@ function initExplorer() {
         });
     }
     async function disconnect(connId) {
-        if (!connId) return;
+        let targetId = connId;
+        if (typeof targetId === 'object' && targetId) {
+            targetId = targetId.connId || targetId.connectionId || targetId.connection_id || targetId.id;
+        }
+        if (!targetId) targetId = window.ActiveConnectionId;
+        if (!targetId) return;
+
         try {
-            await fetch(`/api/connections/${connId}`, { method: 'DELETE' });
+            const res = await fetch(`/api/connections/${targetId}`, { method: 'DELETE' });
+            const data = await res.json().catch(() => ({}));
+            if (data && data.success) {
+                if (typeof showToast === 'function') {
+                    showToast('✓ Disconnected successfully', 'info');
+                }
+            }
         } catch (_) {}
-        loadActiveConnections();
+
+        if (window.ActiveConnectionId === targetId || !window.ActiveConnectionId) {
+            window.ActiveConnectionId = null;
+            window.ActiveConnectionName = null;
+            window.ActiveDatabase = null;
+            window.ActiveSchema = null;
+            window.ActiveDbType = null;
+            if (typeof window.updateActionBar === 'function') {
+                window.updateActionBar();
+            }
+        }
+        await loadActiveConnections();
     }
     
     async function deleteConnection(connId, name, type) {
@@ -1733,7 +1822,7 @@ function initExplorer() {
                 if (typeof onConnected === 'function') {
                     onConnected(data.connection, payload);
                 } else if (typeof window.activateConnectionContext === 'function') {
-                    window.activateConnectionContext(data.connection.connection_id, name, payload.type, payload.database);
+                    window.activateConnectionContext(data.connection.connection_id, name, payload.type, payload.database, payload.schema);
                 }
                 return { success: true, data };
             } else {
@@ -1834,7 +1923,7 @@ function initExplorer() {
                     if (typeof onConnected === 'function') {
                         onConnected(data.connection, config);
                     } else if (typeof window.activateConnectionContext === 'function') {
-                        window.activateConnectionContext(data.connection.connection_id, name, dbType, config.database);
+                        window.activateConnectionContext(data.connection.connection_id, name, dbType, config.database, config.schema);
                     }
                 } else {
                     const errMsg = data.error || 'Connection failed.';
@@ -2013,7 +2102,8 @@ function initExplorer() {
         deleteGroup,
         refreshNode: () => {},
         showDatabaseFilterModal,
-        showSchemaChecklistModal
+        showSchemaChecklistModal,
+        getSchemaFilter: (connId, db) => schemaFilters[`${connId}::${db}`]
     };
 }
 window.promptReconnectPassword = promptReconnectPassword;

@@ -34,7 +34,28 @@ def list_connections():
             get_owner_session_id()
         )
     ]
-    return jsonify(success=True, connections=items)
+    saved_connections = []
+    try:
+        from pathlib import Path
+        import json
+        conn_file = Path(__file__).resolve().parent.parent.parent / "data" / "connections.json"
+        if conn_file.exists():
+            with open(conn_file, "r", encoding="utf-8-sig") as f:
+                saved_raw = json.load(f)
+                for item in saved_raw:
+                    d = dict(item)
+                    db_type = (d.get("type") or "").strip().lower()
+                    if db_type == "group_marker" or str(d.get("name", "")).startswith("__group__"):
+                        continue
+                    if d.get("password"):
+                        d["has_password"] = True
+                        d.pop("password", None)
+                    else:
+                        d["has_password"] = False
+                    saved_connections.append(d)
+    except Exception:
+        pass
+    return jsonify(success=True, connections=items, saved_connections=saved_connections, active_connections=items)
 
 @connections_bp.delete("/<connection_id>")
 def delete_connection(connection_id):
@@ -76,3 +97,31 @@ def clear_credential():
     cm = get_connection_manager()
     cm.clear_cached_password(data)
     return jsonify(success=True)
+
+@connections_bp.post("/fetch-metadata")
+def fetch_metadata():
+    data = request.get_json(silent=True) or {}
+    cm = get_connection_manager()
+    owner_id = get_owner_session_id()
+    try:
+        temp_conn = cm.create(owner_id, data)
+        try:
+            db_name = data.get("database") or None
+            databases = []
+            schemas = []
+            try:
+                raw_dbs = temp_conn.metadata_service.list_databases()
+                databases = [d.get("name", d) if isinstance(d, dict) else str(d) for d in raw_dbs]
+            except Exception:
+                pass
+            try:
+                raw_schemas = temp_conn.metadata_service.list_schemas(db_name)
+                schemas = [s.get("name", s) if isinstance(s, dict) else str(s) for s in raw_schemas]
+            except Exception:
+                pass
+            return jsonify(success=True, databases=databases, schemas=schemas)
+        finally:
+            cm.close(owner_id, temp_conn.connection_id)
+    except Exception as exc:
+        return jsonify(success=False, error=str(exc)), 400
+

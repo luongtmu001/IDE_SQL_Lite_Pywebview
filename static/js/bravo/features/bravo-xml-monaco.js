@@ -675,6 +675,7 @@
                 renderLineHighlight: 'line', // Single line highlight avoids expensive box repaints
                 scrollBeyondLastLine: false,
                 automaticLayout: true,
+                mouseWheelZoom: true,
                 readOnly: this.options.readOnly,
                 // High-performance scrolling in WebView2 (Fix for Issue 1)
                 smoothScrolling: false, // Direct hardware scrolling, eliminating mousewheel input delay
@@ -702,6 +703,17 @@
                     snippetsPreventQuickSuggestions: false
                 },
                 fixedOverflowWidgets: true
+            });
+
+            // Synchronize line-height proportionally on zoom (Ctrl + Mouse Wheel)
+            this.editor.onDidChangeConfiguration(e => {
+                if (e.hasChanged(monaco.editor.EditorOption.fontSize)) {
+                    const curFontSize = this.editor.getOption(monaco.editor.EditorOption.fontSize);
+                    const expectedLineHeight = Math.round(curFontSize * (20 / 13));
+                    if (this.editor.getOption(monaco.editor.EditorOption.lineHeight) !== expectedLineHeight) {
+                        this.editor.updateOptions({ lineHeight: expectedLineHeight });
+                    }
+                }
             });
 
             // Debounced change and validation listeners (Issue 1 & 4)

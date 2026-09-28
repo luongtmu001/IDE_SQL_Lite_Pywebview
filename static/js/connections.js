@@ -17,6 +17,10 @@ function initConnections() {
     const fHost = document.getElementById("connHost");
     const fPort = document.getElementById("connPort");
     const fDb = document.getElementById("connDb");
+    const fSchema = document.getElementById("connSchema");
+    const btnFetchDbs = document.getElementById("btnFetchDbs");
+    const btnFetchSchemas = document.getElementById("btnFetchSchemas");
+    const connDbList = document.getElementById("connDbList");
     const fGroup = document.getElementById("connGroup");
     const fGroupList = document.getElementById("connGroupList");
     const fWinAuth = document.getElementById("connWinAuth");
@@ -57,6 +61,16 @@ function initConnections() {
         fHost.value = data.server || data.host || "localhost";
         fPort.value = data.port || "";
         fDb.value = data.database || "";
+        if (fSchema) {
+            fSchema.innerHTML = '<option value="">(Tất cả / Mặc định)</option>';
+            if (data.schema) {
+                const opt = document.createElement("option");
+                opt.value = data.schema;
+                opt.textContent = data.schema;
+                opt.selected = true;
+                fSchema.appendChild(opt);
+            }
+        }
         if (fGroup) fGroup.value = data.group || "";
         fWinAuth.checked = Boolean(data.trusted_connection);
         if (fEncrypt) fEncrypt.checked = data.encrypt !== undefined ? Boolean(data.encrypt) : (data.ssl !== undefined ? Boolean(data.ssl) : false);
@@ -129,6 +143,16 @@ function initConnections() {
                 fHost.value = data.server || data.host || "localhost";
                 fPort.value = data.port || "";
                 fDb.value = data.database || "";
+                if (fSchema) {
+                    fSchema.innerHTML = '<option value="">(Tất cả / Mặc định)</option>';
+                    if (data.schema) {
+                        const opt = document.createElement("option");
+                        opt.value = data.schema;
+                        opt.textContent = data.schema;
+                        opt.selected = true;
+                        fSchema.appendChild(opt);
+                    }
+                }
                 if (fGroup) fGroup.value = data.group || "";
                 fWinAuth.checked = Boolean(data.trusted_connection);
                 if (fEncrypt) {
@@ -155,6 +179,9 @@ function initConnections() {
             fHost.value = "localhost";
             fPort.value = "";
             fDb.value = "";
+            if (fSchema) {
+                fSchema.innerHTML = '<option value="">(Tất cả / Mặc định)</option>';
+            }
             if (fGroup) fGroup.value = "";
             fWinAuth.checked = true;
             if (fEncrypt) fEncrypt.checked = false;
@@ -180,7 +207,8 @@ function initConnections() {
             name: fName.value,
             type: fType.value,
             port: fPort.value ? parseInt(fPort.value) : null,
-            database: fDb.value,
+            database: fDb.value ? fDb.value.trim() : "",
+            schema: fSchema ? fSchema.value.trim() : "",
             group: fGroup ? fGroup.value.trim() : ""
         };
         
@@ -206,6 +234,108 @@ function initConnections() {
         }
         
         return payload;
+    }
+
+    // Connect to server and fetch available Databases and Schemas
+    async function fetchMetadata(trigger = 'both') {
+        const hostVal = (fHost.value || '').trim();
+        if (!hostVal) {
+            alert("Vui lòng nhập thông tin Host / Server trước!");
+            fHost.focus();
+            return;
+        }
+
+        const btn = (trigger === 'schemas') ? btnFetchSchemas : btnFetchDbs;
+        const oldBtnHtml = btn ? btn.innerHTML : '';
+        if (btn) {
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i>Đang tải...';
+            btn.style.pointerEvents = 'none';
+        }
+
+        try {
+            const metaPayload = {
+                id: window._editingConnId || null,
+                name: (fName.value || '').trim() || "temp_conn",
+                type: fType.value,
+                port: fPort.value ? parseInt(fPort.value) : null,
+                database: (fDb.value || '').trim(),
+                schema: fSchema ? (fSchema.value || '').trim() : ""
+            };
+            if (fType.value === "sqlserver") {
+                metaPayload.server = hostVal;
+                metaPayload.trusted_connection = fWinAuth.checked;
+                metaPayload.encrypt = fEncrypt ? fEncrypt.checked : false;
+                metaPayload.trust_server_certificate = fTrustCert ? fTrustCert.checked : true;
+                if (fDriver && fDriver.value) metaPayload.driver = fDriver.value;
+                if (fTimeout && fTimeout.value) metaPayload.timeout = parseInt(fTimeout.value) || 30;
+            } else {
+                metaPayload.host = hostVal;
+            }
+            if (!metaPayload.trusted_connection) {
+                metaPayload.username = fUser.value;
+                metaPayload.password = fPass.value;
+            }
+
+            const res = await fetch("/api/connections/fetch-metadata", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(metaPayload)
+            });
+            const data = await res.json();
+
+            if (res.ok && data.success) {
+                // 1. Populate Databases datalist
+                if (Array.isArray(data.databases) && connDbList) {
+                    connDbList.innerHTML = data.databases.map(d => `<option value="${d}">`).join('');
+                }
+
+                // 2. Populate Schemas dropdown
+                if (Array.isArray(data.schemas) && fSchema) {
+                    const curVal = fSchema.value;
+                    fSchema.innerHTML = '<option value="">(Tất cả / Mặc định)</option>';
+                    data.schemas.forEach(s => {
+                        const opt = document.createElement("option");
+                        opt.value = s;
+                        opt.textContent = s;
+                        if (s === curVal) opt.selected = true;
+                        fSchema.appendChild(opt);
+                    });
+                }
+
+                const dCount = (data.databases || []).length;
+                const sCount = (data.schemas || []).length;
+                if (trigger === 'schemas') {
+                    showToast(`✓ Đã tải ${sCount} schema từ server`, 'success');
+                } else if (trigger === 'dbs') {
+                    showToast(`✓ Đã tải ${dCount} database từ server`, 'success');
+                } else {
+                    showToast(`✓ Đã tải kết nối (${dCount} DBs, ${sCount} Schemas)`, 'success');
+                }
+            } else {
+                alert("Không thể tải metadata từ server: " + (data.error || "Lỗi không xác định"));
+            }
+        } catch (err) {
+            alert("Lỗi kết nối khi tải metadata: " + err.message);
+        } finally {
+            if (btn) {
+                btn.innerHTML = oldBtnHtml;
+                btn.style.pointerEvents = '';
+            }
+        }
+    }
+
+    if (btnFetchDbs) {
+        btnFetchDbs.addEventListener("click", () => fetchMetadata('dbs'));
+    }
+    if (btnFetchSchemas) {
+        btnFetchSchemas.addEventListener("click", () => fetchMetadata('schemas'));
+    }
+    if (fDb) {
+        fDb.addEventListener("change", () => {
+            if (fHost.value && fHost.value.trim()) {
+                fetchMetadata('schemas');
+            }
+        });
     }
 
     // Toggle Username/Password visibility based on Windows Auth
@@ -408,7 +538,7 @@ function initConnections() {
 
                 // Activate connection context in Action Bar and Editor
                 if (typeof window.activateConnectionContext === 'function') {
-                    window.activateConnectionContext(data.connection.connection_id, payload.name, payload.type, payload.database);
+                    window.activateConnectionContext(data.connection.connection_id, payload.name, payload.type, payload.database, payload.schema);
                 }
 
                 // Dispatch event so BRAVO window or other components can catch the new connection

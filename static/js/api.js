@@ -65,7 +65,9 @@
                 }
             } else if (path.startsWith('/api/connections/')) {
                 const sub = path.replace('/api/connections/', '');
-                if (sub === 'check-credential' && method === 'POST') {
+                if (sub === 'fetch-metadata' && method === 'POST') {
+                    result = await api.fetch_connection_metadata(body);
+                } else if (sub === 'check-credential' && method === 'POST') {
                     result = await api.check_credential(body);
                 } else if (sub === 'clear-credential' && method === 'POST') {
                     result = await api.clear_credential(body);
@@ -143,7 +145,7 @@
 
             // === Query Routes ===
             else if (path === '/api/query/execute' && method === 'POST') {
-                result = await api.execute_query(body.connection_id, body.sql, body.limit, body.database);
+                result = await api.execute_query(body.connection_id, body.sql, body.limit, body.database, body.schema);
             } else if (path === '/api/query/explain' && method === 'POST') {
                 result = await api.explain_query(body.connection_id, body.sql, body.database);
             }
