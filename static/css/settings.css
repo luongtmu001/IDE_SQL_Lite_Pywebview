@@ -449,6 +449,29 @@ html, body {
 .settings-window select:focus {
     border-color: var(--ide-accent, #CC7832);
 }
+.settings-window select optgroup {
+    background: var(--ide-bg-dropdown, #202228);
+    color: var(--ide-accent, #CC7832);
+    font-weight: 600;
+    padding: 4px 6px;
+}
+.settings-window select option {
+    background: var(--ide-bg-input, #13141A);
+    color: var(--ide-text-main, #c7cfcf);
+    padding: 4px 8px;
+}
+html[data-bs-theme="light"] .settings-window select optgroup,
+html[data-bs-theme="win-nt"] .settings-window select optgroup,
+html[data-bs-theme="win-xp"] .settings-window select optgroup {
+    background: #e9ecef;
+    color: #0d6efd;
+}
+html[data-bs-theme="light"] .settings-window select option,
+html[data-bs-theme="win-nt"] .settings-window select option,
+html[data-bs-theme="win-xp"] .settings-window select option {
+    background: #ffffff;
+    color: #212529;
+}
 
 .settings-window .check-setting {
     margin: 16px 0 22px;

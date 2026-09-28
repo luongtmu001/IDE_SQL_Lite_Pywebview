@@ -55,6 +55,31 @@
             };
         },
 
+        async getSystemFonts() {
+            if (global._cachedSystemFonts) return global._cachedSystemFonts;
+            try {
+                const api = await ensureApi();
+                if (api && typeof api.get_system_fonts === 'function') {
+                    const res = await api.get_system_fonts();
+                    if (res && res.success && res.data) {
+                        global._cachedSystemFonts = res.data;
+                        return res.data;
+                    }
+                }
+                const resp = await fetch('/api/system/fonts');
+                if (resp && resp.ok) {
+                    const json = await resp.json();
+                    if (json.success && json.data) {
+                        global._cachedSystemFonts = json.data;
+                        return json.data;
+                    }
+                }
+            } catch (e) {
+                console.warn('[AppStorage] getSystemFonts error:', e);
+            }
+            return null;
+        },
+
         async saveSettings(settings) {
             try {
                 const api = await ensureApi();

@@ -5,9 +5,58 @@
 (function (global) {
     'use strict';
 
+    let _systemFonts = null;
+    let _systemFontsPromise = null;
+
+    async function fetchSystemFonts() {
+        if (_systemFonts) return _systemFonts;
+        if (global._cachedSystemFonts) {
+            _systemFonts = global._cachedSystemFonts;
+            return _systemFonts;
+        }
+        if (_systemFontsPromise) return _systemFontsPromise;
+        _systemFontsPromise = (async () => {
+            try {
+                if (global.AppStorage && typeof global.AppStorage.getSystemFonts === 'function') {
+                    const data = await global.AppStorage.getSystemFonts();
+                    if (data && data.all && data.all.length > 0) {
+                        _systemFonts = data;
+                        global._cachedSystemFonts = data;
+                        return _systemFonts;
+                    }
+                }
+                if (window.pywebview?.api?.get_system_fonts) {
+                    const res = await window.pywebview.api.get_system_fonts();
+                    if (res && res.success && res.data) {
+                        _systemFonts = res.data;
+                        global._cachedSystemFonts = res.data;
+                        return _systemFonts;
+                    }
+                }
+                const resp = await fetch('/api/system/fonts');
+                if (resp && resp.ok) {
+                    const json = await resp.json();
+                    if (json.success && json.data) {
+                        _systemFonts = json.data;
+                        global._cachedSystemFonts = json.data;
+                        return _systemFonts;
+                    }
+                }
+            } catch (e) {
+                console.warn('[Settings] Failed to fetch system fonts:', e);
+            }
+            return null;
+        })();
+        return _systemFontsPromise;
+    }
+
+    // Prefetch system fonts immediately on load
+    fetchSystemFonts();
+
     const FONT_OPTIONS_CODE = [
         { value: 'Consolas', label: 'Consolas (Mặc định)' },
         { value: 'JetBrains Mono', label: 'JetBrains Mono' },
+        { value: 'Cascadia Code', label: 'Cascadia Code' },
         { value: 'Fira Code', label: 'Fira Code' },
         { value: 'Courier New', label: 'Courier New' },
         { value: 'monospace', label: 'Monospace' }
@@ -28,6 +77,7 @@
         { value: 'Arial', label: 'Arial' },
         { value: 'Roboto', label: 'Roboto' },
         { value: 'Tahoma', label: 'Tahoma' },
+        { value: 'Calibri', label: 'Calibri' },
         { value: 'System UI', label: 'System UI (Native OS Font)' }
     ];
 
@@ -799,17 +849,140 @@
             desc.className = 'description';
             desc.textContent = field.desc;
 
-            const select = document.createElement('select');
-            const options = (catKey === 'appearance' && field.key === 'theme') ? getThemeOptions() : (field.options || []);
-            options.forEach(opt => {
-                const optEl = document.createElement('option');
-                optEl.value = typeof opt === 'object' ? opt.value : opt;
-                optEl.textContent = typeof opt === 'object' ? opt.label : opt;
-                if (String(optEl.value) === String(currentVal)) {
-                    optEl.selected = true;
+            const isUiFont = (catKey === 'appearance' && field.key === 'uiFontFamily');
+            const isCodeFont = (field.key === 'fontFamily' && (catKey === 'editor' || catKey === 'grid' || catKey === 'messages'));
+            const isTheme = (catKey === 'appearance' && field.key === 'theme');
+
+            function populateFontSelect(targetSelect, val, isUi) {
+                targetSelect.innerHTML = '';
+
+                // 1. Recommended Fonts Group
+                const recGroup = document.createElement('optgroup');
+                recGroup.label = '⭐ Khuyên dùng (Recommended)';
+                const recList = isUi ? FONT_OPTIONS_UI : FONT_OPTIONS_CODE;
+
+                let valFound = false;
+                recList.forEach(opt => {
+                    const optEl = document.createElement('option');
+                    optEl.value = opt.value;
+                    optEl.textContent = opt.label;
+                    if (opt.value && opt.value !== 'monospace' && opt.value !== 'System UI') {
+                        optEl.style.fontFamily = `"${opt.value}", sans-serif`;
+                    }
+                    if (String(opt.value).toLowerCase() === String(val || '').toLowerCase()) {
+                        optEl.selected = true;
+                        valFound = true;
+                    }
+                    recGroup.appendChild(optEl);
+                });
+                targetSelect.appendChild(recGroup);
+
+                // 2. System Fonts from the computer
+                const sysFonts = _systemFonts || global._cachedSystemFonts;
+                if (sysFonts && Array.isArray(sysFonts.all) && sysFonts.all.length > 0) {
+                    const recSet = new Set(recList.map(r => r.value.toLowerCase()));
+
+                    if (isUi) {
+                        const sysGroup = document.createElement('optgroup');
+                        sysGroup.label = `💻 Phông chữ trên máy tính (System Fonts - ${sysFonts.all.length} phông)`;
+                        sysFonts.all.forEach(fontName => {
+                            if (recSet.has(fontName.toLowerCase())) return;
+                            const optEl = document.createElement('option');
+                            optEl.value = fontName;
+                            optEl.textContent = fontName;
+                            optEl.style.fontFamily = `"${fontName}", sans-serif`;
+                            if (String(fontName).toLowerCase() === String(val || '').toLowerCase()) {
+                                optEl.selected = true;
+                                valFound = true;
+                            }
+                            sysGroup.appendChild(optEl);
+                        });
+                        targetSelect.appendChild(sysGroup);
+                    } else {
+                        // Monospace group first
+                        const monoList = (sysFonts.monospace && sysFonts.monospace.length > 0) ? sysFonts.monospace : [];
+                        if (monoList.length > 0) {
+                            const monoGroup = document.createElement('optgroup');
+                            monoGroup.label = `💻 Phông đơn cách trên máy (Monospace - ${monoList.length} phông)`;
+                            monoList.forEach(fontName => {
+                                if (recSet.has(fontName.toLowerCase())) return;
+                                const optEl = document.createElement('option');
+                                optEl.value = fontName;
+                                optEl.textContent = fontName;
+                                optEl.style.fontFamily = `"${fontName}", monospace`;
+                                if (String(fontName).toLowerCase() === String(val || '').toLowerCase()) {
+                                    optEl.selected = true;
+                                    valFound = true;
+                                }
+                                monoGroup.appendChild(optEl);
+                            });
+                            targetSelect.appendChild(monoGroup);
+                        }
+
+                        // Other system fonts group
+                        const monoSet = new Set(monoList.map(m => m.toLowerCase()));
+                        const otherGroup = document.createElement('optgroup');
+                        otherGroup.label = `Tất cả phông khác trên máy (All Other Fonts)`;
+                        sysFonts.all.forEach(fontName => {
+                            if (recSet.has(fontName.toLowerCase()) || monoSet.has(fontName.toLowerCase())) return;
+                            const optEl = document.createElement('option');
+                            optEl.value = fontName;
+                            optEl.textContent = fontName;
+                            optEl.style.fontFamily = `"${fontName}", sans-serif`;
+                            if (String(fontName).toLowerCase() === String(val || '').toLowerCase()) {
+                                optEl.selected = true;
+                                valFound = true;
+                            }
+                            otherGroup.appendChild(optEl);
+                        });
+                        targetSelect.appendChild(otherGroup);
+                    }
                 }
-                select.appendChild(optEl);
-            });
+
+                // If current val is not found, prepend it
+                if (!valFound && val) {
+                    const customOpt = document.createElement('option');
+                    customOpt.value = val;
+                    customOpt.textContent = `${val} (Hiện tại)`;
+                    customOpt.style.fontFamily = `"${val}", sans-serif`;
+                    customOpt.selected = true;
+                    targetSelect.insertBefore(customOpt, targetSelect.firstChild);
+                }
+            }
+
+            if (isUiFont || isCodeFont) {
+                populateFontSelect(select, currentVal, isUiFont);
+                if (!_systemFonts && !global._cachedSystemFonts) {
+                    fetchSystemFonts().then(fonts => {
+                        if (fonts && select.isConnected) {
+                            const valBefore = select.value || currentVal;
+                            populateFontSelect(select, valBefore, isUiFont);
+                        }
+                    });
+                }
+            } else if (isTheme) {
+                const options = getThemeOptions();
+                options.forEach(opt => {
+                    const optEl = document.createElement('option');
+                    optEl.value = typeof opt === 'object' ? opt.value : opt;
+                    optEl.textContent = typeof opt === 'object' ? opt.label : opt;
+                    if (String(optEl.value) === String(currentVal)) {
+                        optEl.selected = true;
+                    }
+                    select.appendChild(optEl);
+                });
+            } else {
+                const options = field.options || [];
+                options.forEach(opt => {
+                    const optEl = document.createElement('option');
+                    optEl.value = typeof opt === 'object' ? opt.value : opt;
+                    optEl.textContent = typeof opt === 'object' ? opt.label : opt;
+                    if (String(optEl.value) === String(currentVal)) {
+                        optEl.selected = true;
+                    }
+                    select.appendChild(optEl);
+                });
+            }
 
             select.onchange = () => {
                 setDraftValue(catKey, field, select.value);

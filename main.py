@@ -1615,6 +1615,14 @@ class BravoApi:
         except Exception as e:
             return {"success": False, "error": str(e), "snippets": []}
 
+    def get_system_fonts(self):
+        try:
+            from app.utils.system_fonts import get_system_fonts
+            fonts = get_system_fonts()
+            return {"success": True, "data": fonts}
+        except Exception as e:
+            return {"success": False, "error": str(e), "data": {"all": [], "ui": [], "monospace": []}}
+
     def open_profiler_window(self, conn_id=None, db_type=None):
         try:
             import webview
@@ -2614,6 +2622,9 @@ class SettingsSubwindowApi:
 
     def import_vsix_theme(self):
         return self._main_api.import_vsix_theme(target_win=self._window)
+
+    def get_system_fonts(self):
+        return self._main_api.get_system_fonts()
 
     def __getattr__(self, name):
         return getattr(self._main_api, name)

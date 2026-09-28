@@ -216,6 +216,15 @@
             } else if (path === '/api/grid/save-results' && method === 'POST') {
                 result = await api.grid_save_results_as(body.columns, body.rows, body.defaultFilename);
             }
+
+            // === System Fonts Route ===
+            else if (path === '/api/system/fonts' && method === 'GET') {
+                if (typeof api.get_system_fonts === 'function') {
+                    result = await api.get_system_fonts();
+                } else {
+                    result = { success: false, error: 'get_system_fonts not supported by native api' };
+                }
+            }
         } catch (ipcErr) {
             console.error('[IPC] Bridge error for', path, ipcErr);
             result = { success: false, error: String(ipcErr) };

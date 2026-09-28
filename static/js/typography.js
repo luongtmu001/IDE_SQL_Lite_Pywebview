@@ -127,6 +127,9 @@
         },
 
         getSupportedFonts() {
+            if (global._cachedSystemFonts && Array.isArray(global._cachedSystemFonts.all)) {
+                return global._cachedSystemFonts.all;
+            }
             return Object.keys(FONT_FAMILY_FALLBACKS);
         },
 
