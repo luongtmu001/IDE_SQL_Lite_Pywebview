@@ -1312,7 +1312,7 @@ html[data-bs-theme="github-dark-dimmed-dark"] {
 html[data-bs-theme="github-light"] {
     --ide-theme-id:                 "github-light";
     --ide-theme-name:               "GitHub (Light)";
-    --ide-titlebar-bg:              #fff;
+    --ide-titlebar-bg:              #ffffff;
     --ide-titlebar-text:            #2f363d;
 
     /* Bootstrap overrides */
@@ -1322,7 +1322,7 @@ html[data-bs-theme="github-light"] {
     --bs-border-color-translucent:  rgba(120, 120, 120, 0.35);
     --bs-primary:                   #159739;
     --bs-primary-rgb:               21,151,57;
-    --bs-dark:                      #fff;
+    --bs-dark:                      #ffffff;
     --bs-secondary:                 #6a737d;
     --bs-link-color:                #159739;
     --bs-link-hover-color:          #159739;
@@ -1330,10 +1330,10 @@ html[data-bs-theme="github-light"] {
     /* IDE surface layers */
     --ide-bg-main:                  #f6f8fa;
     --ide-bg-sidebar:               #f6f8fa;
-    --ide-bg-toolbar:               #fff;
-    --ide-bg-editor:                #fff;
+    --ide-bg-toolbar:               #ffffff;
+    --ide-bg-editor:                #ffffff;
     --ide-bg-panel:                 #f6f8fa;
-    --ide-bg-result:                #fff;
+    --ide-bg-result:                #ffffff;
     --ide-bg-input:                 #fafbfc;
     --ide-bg-modal:                 #f6f8fa;
     --ide-bg-dropdown:              #fafbfc;
@@ -1367,9 +1367,9 @@ html[data-bs-theme="github-light"] {
     --ide-info:                     #6897BB;
 
     /* Tabs */
-    --ide-tab-active-bg:            #fff;
+    --ide-tab-active-bg:            #ffffff;
     --ide-tab-inactive-bg:          #f6f8fa;
-    --ide-tab-active-border:        #fff;
+    --ide-tab-active-border:        #ffffff;
 
     /* Result Grid */
     --ide-grid-header-bg:           #f6f8fa;
@@ -1377,7 +1377,7 @@ html[data-bs-theme="github-light"] {
     --ide-grid-row-hover:           rgba(128, 128, 128, 0.08);
 
     /* Action bar & Badges */
-    --ide-action-bar-bg:            #fff;
+    --ide-action-bar-bg:            #ffffff;
     --ide-badge-bg:                 #f6f8fa;
     --ide-badge-text:               #24292e;
     --ide-badge-hover:              #e1e4e8;
@@ -1387,7 +1387,7 @@ html[data-bs-theme="github-light"] {
     --ide-ctx-separator:            #e1e4e8;
 
     /* Scrollbars */
-    --ide-scroll-track:             #fff;
+    --ide-scroll-track:             #ffffff;
     --ide-scroll-thumb:             #e1e4e8;
     --ide-scroll-thumb-hover:       #6a737d;
 }
@@ -2078,13 +2078,13 @@ html[data-bs-theme="cobalt2"] {
 
     /* Bootstrap overrides */
     --bs-body-bg:                   #15232d;
-    --bs-body-color:                #fff;
+    --bs-body-color:                #ffffff;
     --bs-border-color:              #0d3a58;
     --bs-border-color-translucent:  rgba(120, 120, 120, 0.35);
     --bs-primary:                   #0088ff;
     --bs-primary-rgb:               0,136,255;
     --bs-dark:                      #15232D;
-    --bs-secondary:                 #aaa;
+    --bs-secondary:                 #aaaaaa;
     --bs-link-color:                #0088ff;
     --bs-link-hover-color:          #0088ff;
 
@@ -2105,10 +2105,10 @@ html[data-bs-theme="cobalt2"] {
     --ide-border-active:            #0d3a58;
 
     /* Typography */
-    --ide-text-main:                #fff;
-    --ide-text-muted:               #aaa;
-    --ide-text-active:              #fff;
-    --ide-text-dim:                 #aaa;
+    --ide-text-main:                #ffffff;
+    --ide-text-muted:               #aaaaaa;
+    --ide-text-active:              #ffffff;
+    --ide-text-dim:                 #aaaaaa;
 
     /* Interactive states */
     --ide-hover-bg:                 rgba(128, 128, 128, 0.12);
@@ -2140,7 +2140,7 @@ html[data-bs-theme="cobalt2"] {
     /* Action bar & Badges */
     --ide-action-bar-bg:            #15232D;
     --ide-badge-bg:                 #122738;
-    --ide-badge-text:               #fff;
+    --ide-badge-text:               #ffffff;
     --ide-badge-hover:              #0d3a58;
 
     /* Context menu */
@@ -2150,5 +2150,5 @@ html[data-bs-theme="cobalt2"] {
     /* Scrollbars */
     --ide-scroll-track:             #15232D;
     --ide-scroll-thumb:             #0d3a58;
-    --ide-scroll-thumb-hover:       #aaa;
+    --ide-scroll-thumb-hover:       #aaaaaa;
 }

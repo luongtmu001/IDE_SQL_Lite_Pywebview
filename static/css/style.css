@@ -3905,7 +3905,8 @@ mark.bravo-le-search-mark {
     border-radius: 4px;
     background: rgba(56, 139, 253, 0.1);
     color: #58a6ff;
-    font-size: 11px;
+    font-family: var(--ide-ui-font-family, inherit);
+    font-size: calc(var(--ide-ui-font-size, 13px) - 2px);
     font-weight: 500;
     text-align: center;
     cursor: pointer;

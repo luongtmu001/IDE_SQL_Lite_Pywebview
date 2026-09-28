@@ -323,9 +323,39 @@
         if (reg && typeof reg.getAllThemes === 'function') {
             const all = reg.getAllThemes();
             all.forEach(t => {
-                if (t && t.id) ensureDynamicMonacoTheme(t);
+                try {
+                    if (t && t.id) ensureDynamicMonacoTheme(t);
+                } catch (e) {
+                    console.warn('[MonacoInit] Theme pre-register error for', t?.id, e);
+                }
             });
         }
+    }
+
+    function toFullHexColor(colorStr, fallbackHex) {
+        if (!colorStr || typeof colorStr !== 'string') return fallbackHex;
+        let s = colorStr.trim();
+        if (!s) return fallbackHex;
+        if (s.startsWith('rgb')) {
+            const match = s.match(/rgba?\s*\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/i);
+            if (match) {
+                const r = parseInt(match[1], 10).toString(16).padStart(2, '0');
+                const g = parseInt(match[2], 10).toString(16).padStart(2, '0');
+                const b = parseInt(match[3], 10).toString(16).padStart(2, '0');
+                return `#${r}${g}${b}`;
+            }
+        }
+        if (s.startsWith('#')) s = s.substring(1);
+        if (/^[0-9A-Fa-f]{3}$/.test(s)) {
+            return `#${s[0]}${s[0]}${s[1]}${s[1]}${s[2]}${s[2]}`;
+        }
+        if (/^[0-9A-Fa-f]{4}$/.test(s)) {
+            return `#${s[0]}${s[0]}${s[1]}${s[1]}${s[2]}${s[2]}${s[3]}${s[3]}`;
+        }
+        if (/^[0-9A-Fa-f]{6}$/.test(s) || /^[0-9A-Fa-f]{8}$/.test(s)) {
+            return `#${s}`;
+        }
+        return fallbackHex;
     }
 
     function ensureDynamicMonacoTheme(themeObj) {
@@ -343,23 +373,46 @@
             if (cssFg) fg = cssFg;
         } catch (_) {}
 
+        bg = toFullHexColor(bg, isDark ? "#1e1e1e" : "#ffffff");
+        fg = toFullHexColor(fg, isDark ? "#d4d4d4" : "#1e1e1e");
+
         const baseRules = isDark ? BASE_DARK_RULES : BASE_LIGHT_RULES;
         const customRules = Array.isArray(themeObj.rules) ? themeObj.rules : [];
         const mergedRules = [...baseRules, ...customRules];
 
-        monaco.editor.defineTheme(themeId, {
-            base: isDark ? "vs-dark" : "vs",
-            inherit: true,
-            rules: mergedRules,
-            colors: {
-                "editor.background": bg,
-                "editor.foreground": fg,
-                "editor.lineHighlightBackground": isDark ? "#2d2d2d" : "#f8f8f8",
-                "editorLineNumber.foreground": isDark ? "#858585" : "#a0a0a0",
-                "editor.selectionBackground": isDark ? "#264f78" : "#add6ff",
-                "editorWidget.background": isDark ? "#252526" : "#f3f3f3"
+        const sanitizedRules = mergedRules.map(r => {
+            if (!r) return r;
+            const nr = { ...r };
+            if (nr.foreground) {
+                const fullFg = toFullHexColor(nr.foreground, null);
+                if (fullFg) nr.foreground = fullFg.replace(/^#/, '');
+                else delete nr.foreground;
             }
+            if (nr.background) {
+                const fullBg = toFullHexColor(nr.background, null);
+                if (fullBg) nr.background = fullBg.replace(/^#/, '');
+                else delete nr.background;
+            }
+            return nr;
         });
+
+        try {
+            monaco.editor.defineTheme(themeId, {
+                base: isDark ? "vs-dark" : "vs",
+                inherit: true,
+                rules: sanitizedRules,
+                colors: {
+                    "editor.background": bg,
+                    "editor.foreground": fg,
+                    "editor.lineHighlightBackground": isDark ? "#2d2d2d" : "#f8f8f8",
+                    "editorLineNumber.foreground": isDark ? "#858585" : "#a0a0a0",
+                    "editor.selectionBackground": isDark ? "#264f78" : "#add6ff",
+                    "editorWidget.background": isDark ? "#252526" : "#f3f3f3"
+                }
+            });
+        } catch (err) {
+            console.warn(`[MonacoInit] Failed to define dynamic theme ${themeId}:`, err);
+        }
     }
 
     function getMonacoTheme(themeName) {

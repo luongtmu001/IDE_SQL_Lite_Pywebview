@@ -13,7 +13,8 @@ html, body {
     overflow: hidden;
     background: var(--ide-bg-main, #1C1D23);
     color: var(--ide-text-main, #c7cfcf);
-    font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+    font-family: var(--ide-ui-font-family, "Segoe UI", -apple-system, BlinkMacSystemFont, Arial, sans-serif);
+    font-size: var(--ide-ui-font-size, 13px);
 }
 
 .settings-standalone {
@@ -53,7 +54,8 @@ html, body {
     border: 1px solid var(--ide-border, #3c3f41);
     background: var(--ide-bg-main, #1C1D23);
     color: var(--ide-text-main, #c7cfcf);
-    font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+    font-family: var(--ide-ui-font-family, "Segoe UI", -apple-system, BlinkMacSystemFont, Arial, sans-serif);
+    font-size: var(--ide-ui-font-size, 13px);
     overflow: hidden;
 }
 

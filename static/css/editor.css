@@ -24,8 +24,8 @@
     padding: 4px 12px;
     margin-right: 2px;
     cursor: pointer;
-    font-size: var(--ide-grid-font-size, 12px);
-    font-family: var(--ide-grid-font-family, inherit);
+    font-family: var(--ide-ui-font-family, inherit);
+    font-size: calc(var(--ide-ui-font-size, 13px) - 1px);
     white-space: nowrap;
     min-width: 80px;
     max-width: 180px;
@@ -127,7 +127,8 @@
     border: 1px solid var(--ide-border);
     border-radius: 3px;
     padding: 1px 7px;
-    font-size: 11px;
+    font-family: var(--ide-ui-font-family, inherit);
+    font-size: calc(var(--ide-ui-font-size, 13px) - 2px);
     height: 22px;
     cursor: pointer;
     white-space: nowrap;
@@ -153,7 +154,8 @@
 .ide-ctx-selectors .dropdown-menu {
     border: 1px solid var(--ide-border);
     background: var(--ide-bg-dropdown, #202228);
-    font-size: 12px;
+    font-family: var(--ide-ui-font-family, inherit);
+    font-size: calc(var(--ide-ui-font-size, 13px) - 1px);
     z-index: 1060;
 }
 
@@ -200,7 +202,8 @@
 }
 
 .ide-ctx-db-header-title {
-    font-size: 10px;
+    font-family: var(--ide-ui-font-family, inherit);
+    font-size: calc(var(--ide-ui-font-size, 13px) - 3px);
     font-weight: 700;
     letter-spacing: 0.5px;
     color: var(--ide-text-muted, #848c94);
@@ -214,7 +217,8 @@
     color: var(--ide-text-muted, #848c94);
     padding: 2px 6px;
     border-radius: 3px;
-    font-size: 11px;
+    font-family: var(--ide-ui-font-family, inherit);
+    font-size: calc(var(--ide-ui-font-size, 13px) - 2px);
     line-height: 1;
     cursor: pointer;
     transition: color 0.15s ease, background 0.15s ease;
@@ -249,7 +253,7 @@
 }
 
 .ide-ctx-db-filter-icon {
-    font-size: 10px;
+    font-size: calc(var(--ide-ui-font-size, 13px) - 3px);
     color: var(--ide-text-dim, #777);
     margin-right: 6px;
     flex-shrink: 0;
@@ -259,7 +263,8 @@
     border: none !important;
     background: transparent !important;
     color: var(--ide-text-main, #fff) !important;
-    font-size: 11px !important;
+    font-family: var(--ide-ui-font-family, inherit) !important;
+    font-size: calc(var(--ide-ui-font-size, 13px) - 2px) !important;
     padding: 0 !important;
     height: 100% !important;
     width: 100% !important;
@@ -271,7 +276,7 @@
     border: none;
     background: transparent;
     color: var(--ide-text-dim, #777);
-    font-size: 10px;
+    font-size: calc(var(--ide-ui-font-size, 13px) - 3px);
     padding: 0 2px;
     cursor: pointer;
     line-height: 1;
@@ -285,7 +290,8 @@
 .ide-ctx-db-no-match {
     padding: 10px 12px;
     color: var(--ide-text-muted, #848c94);
-    font-size: 11px;
+    font-family: var(--ide-ui-font-family, inherit);
+    font-size: calc(var(--ide-ui-font-size, 13px) - 2px);
     text-align: center;
     font-style: italic;
     user-select: none;
@@ -293,7 +299,8 @@
 
 .ide-ctx-sep {
     color: var(--ide-text-dim);
-    font-size: 13px;
+    font-family: var(--ide-ui-font-family, inherit);
+    font-size: var(--ide-ui-font-size, 13px);
     padding: 0 2px;
     flex-shrink: 0;
 }
@@ -305,7 +312,8 @@
     border: 1px solid var(--ide-border);
     color: var(--ide-text-main);
     border-radius: 3px;
-    font-size: 12px;
+    font-family: var(--ide-ui-font-family, inherit);
+    font-size: calc(var(--ide-ui-font-size, 13px) - 1px);
     padding: 2px 10px;
     height: 24px;
     cursor: pointer;
@@ -354,7 +362,8 @@
     border-bottom: 2px solid transparent;
     border-radius: 0;
     color: var(--ide-text-muted);
-    font-size: 12px;
+    font-family: var(--ide-ui-font-family, inherit);
+    font-size: calc(var(--ide-ui-font-size, 13px) - 1px);
     padding: 0 14px;
     cursor: pointer;
     transition: color 0.15s, border-color 0.15s;
@@ -370,7 +379,8 @@
 }
 
 .ide-result-status-text {
-    font-size: 11px;
+    font-family: var(--ide-ui-font-family, inherit);
+    font-size: calc(var(--ide-ui-font-size, 13px) - 2px);
     color: var(--ide-text-muted);
 }
 
@@ -383,7 +393,8 @@
     min-height: 25px;
     max-height: 25px;
     flex-shrink: 0;
-    font-size: 11px;
+    font-family: var(--ide-ui-font-family, inherit);
+    font-size: calc(var(--ide-ui-font-size, 13px) - 2px);
     color: var(--ide-text-muted, #9da5b4);
     box-sizing: border-box;
     z-index: 10;
@@ -404,7 +415,8 @@
     width: 48px;
     height: 20px;
     padding: 0 4px;
-    font-size: 11px;
+    font-family: var(--ide-ui-font-family, inherit);
+    font-size: calc(var(--ide-ui-font-size, 13px) - 2px);
     text-align: center;
     background: var(--ide-bg-editor, #1e1e1e);
     color: var(--ide-text-main, #d4d4d4);
@@ -424,7 +436,7 @@
 .ide-sb-zoom-btn {
     height: 20px;
     padding: 0 5px;
-    font-size: 9px;
+    font-size: calc(var(--ide-ui-font-size, 13px) - 4px);
     display: flex;
     align-items: center;
     justify-content: center;

@@ -3,8 +3,8 @@
 #table-designer-container {
     background-color: var(--ide-bg-main, #1C1D23);
     color: var(--ide-text-main, #c7cfcf);
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-    font-size: 12px;
+    font-family: var(--ide-ui-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif);
+    font-size: calc(var(--ide-ui-font-size, 13px) - 1px);
     height: 100%;
     display: flex;
     flex-direction: column;

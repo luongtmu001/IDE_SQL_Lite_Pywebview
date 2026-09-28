@@ -2,13 +2,33 @@
 <html lang="en" data-bs-theme="dark">
 
 <head>
-    <!-- Immediate Theme Restore: Khôi phục ngay theme đã lưu trước khi HTML render -->
+    <!-- Immediate Theme & Typography Restore: Khôi phục ngay theme và font đã lưu trước khi HTML render -->
     <script>
         (function () {
             try {
                 var saved = localStorage.getItem('ide-theme');
                 if (saved) {
                     document.documentElement.setAttribute('data-bs-theme', saved);
+                }
+                var fontFam = localStorage.getItem('ide-ui-font-family');
+                var fontSz = localStorage.getItem('ide-ui-font-size');
+                if (fontFam) {
+                    var stack = fontFam;
+                    if (fontFam === 'Segoe UI') stack = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif";
+                    else if (fontFam === 'Inter') stack = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif";
+                    else if (fontFam === 'Roboto') stack = "'Roboto', 'Segoe UI', Arial, sans-serif";
+                    else if (fontFam === 'Arial') stack = "Arial, 'Helvetica Neue', Helvetica, sans-serif";
+                    else if (fontFam === 'Tahoma') stack = "Tahoma, Verdana, 'Segoe UI', sans-serif";
+                    else if (fontFam === 'System UI') stack = "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+                    document.documentElement.style.setProperty('--ide-ui-font-family', stack);
+                    document.documentElement.style.setProperty('--bs-body-font-family', stack);
+                }
+                if (fontSz) {
+                    var szNum = parseInt(fontSz, 10);
+                    if (!isNaN(szNum) && szNum >= 10 && szNum <= 24) {
+                        document.documentElement.style.setProperty('--ide-ui-font-size', szNum + 'px');
+                        document.documentElement.style.setProperty('--bs-body-font-size', szNum + 'px');
+                    }
                 }
             } catch (e) { }
         })();
@@ -18,6 +38,11 @@
     <title>luoBTool IDE</title>
     <link rel="icon" type="image/png" href="../static/image/logo-200x200.png">
     <meta name="description" content="Web-based SQL IDE for SQL Server and PostgreSQL">
+
+    <!-- Google Fonts for Inter & Roboto -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
 
     <!-- Bootstrap 5 -->
     <link href="../static/vendor/bootstrap/bootstrap.min.css" rel="stylesheet">

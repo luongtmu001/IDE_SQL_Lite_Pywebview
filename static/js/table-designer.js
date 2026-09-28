@@ -12,11 +12,16 @@
     const typesCache = new Map(); // connId -> typesInfo
 
     function getMonacoTheme() {
-        const activeTheme = document.documentElement.getAttribute('data-bs-theme') || 'dark';
-        if (window.MonacoInit && typeof window.MonacoInit.getMonacoTheme === 'function') {
-            return window.MonacoInit.getMonacoTheme(activeTheme);
+        try {
+            const activeTheme = document.documentElement.getAttribute('data-bs-theme') || 'dark';
+            if (window.MonacoInit && typeof window.MonacoInit.getMonacoTheme === 'function') {
+                return window.MonacoInit.getMonacoTheme(activeTheme);
+            }
+            return (activeTheme === 'light' || activeTheme === 'win-nt' || activeTheme === 'win-xp' || activeTheme.includes('light')) ? 'ide-light' : 'ide-dark';
+        } catch (e) {
+            console.warn('[TableDesigner] getMonacoTheme fallback:', e);
+            return 'vs-dark';
         }
-        return (activeTheme === 'light' || activeTheme === 'win-nt' || activeTheme === 'win-xp' || activeTheme.includes('light')) ? 'ide-light' : 'ide-dark';
     }
 
     function createMonacoEditor(containerEl, options = {}) {

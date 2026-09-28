@@ -1,10 +1,10 @@
 {
-    "theme": "github-light",
+    "theme": "synthwave-84",
     "appearance": {
-        "theme": "github-light",
+        "theme": "synthwave-84",
         "iconSize": 15,
-        "uiFontFamily": "Segoe UI",
-        "uiFontSize": 13,
+        "uiFontFamily": "Inter",
+        "uiFontSize": 14,
         "fontSize": 13
     },
     "addons": {
@@ -23,11 +23,11 @@
     },
     "grid": {
         "fontFamily": "JetBrains Mono",
-        "fontSize": 12
+        "fontSize": 14
     },
     "messages": {
         "fontFamily": "JetBrains Mono",
-        "fontSize": 11
+        "fontSize": 13
     },
     "sql": {
         "maxRows": 0

@@ -4,8 +4,9 @@
 
 /* ── Base ─────────────────────────────────────────────────────────────────────── */
 body, html {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
-    font-size: 13px;
+    font-family: var(--ide-ui-font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif);
+    font-size: var(--ide-ui-font-size, 13px);
+    line-height: var(--ide-ui-line-height, 1.45);
     background: var(--ide-bg-main);
     color: var(--ide-text-main);
 }
@@ -16,7 +17,8 @@ body, html {
     color: var(--ide-text-main) !important;
     border-color: var(--ide-border) !important;
     border-radius: 2px !important;
-    font-size: 13px;
+    font-family: var(--ide-ui-font-family, inherit);
+    font-size: var(--ide-ui-font-size, 13px);
 }
 .form-control:focus, .form-select:focus {
     box-shadow: none !important;
@@ -33,7 +35,8 @@ body, html {
 }
 .ide-brand {
     color: var(--ide-accent);
-    font-size: 14px;
+    font-family: var(--ide-ui-font-family, inherit);
+    font-size: calc(var(--ide-ui-font-size, 13px) + 1px);
     font-weight: 700;
     letter-spacing: 0.5px;
 }
@@ -44,7 +47,8 @@ body, html {
     padding: 4px 6px;
     border-radius: 3px;
     cursor: pointer;
-    font-size: 13px;
+    font-family: var(--ide-ui-font-family, inherit);
+    font-size: var(--ide-ui-font-size, 13px);
     line-height: 1;
 }
 .ide-toolbar-btn:hover {
@@ -56,7 +60,8 @@ body, html {
 }
 .nav-link {
     color: var(--ide-text-main) !important;
-    font-size: 13px;
+    font-family: var(--ide-ui-font-family, inherit);
+    font-size: var(--ide-ui-font-size, 13px);
     padding: 4px 8px;
 }
 .nav-link:hover { background: var(--ide-hover-bg); border-radius: 2px; }
@@ -66,7 +71,8 @@ body, html {
     background: var(--ide-bg-input);
     color: var(--ide-text-main);
     border: 1px solid var(--ide-border);
-    font-size: 12px;
+    font-family: var(--ide-ui-font-family, inherit);
+    font-size: calc(var(--ide-ui-font-size, 13px) - 1px);
 }
 
 /* ── Common resizer (editor / results) ──────────────────────────────────────── */
@@ -89,7 +95,8 @@ body, html {
 .ide-statusbar {
     background: var(--ide-accent);
     color: #fff;
-    font-size: 11px;
+    font-family: var(--ide-ui-font-family, inherit);
+    font-size: calc(var(--ide-ui-font-size, 13px) - 2px);
     height: 22px;
     display: flex;
     align-items: center;
@@ -110,6 +117,7 @@ body, html {
     color: var(--ide-text-main) !important;
     border: 1px solid var(--ide-border);
     border-radius: 4px;
+    font-family: var(--ide-ui-font-family, inherit);
 }
 .modal-header {
     border-color: var(--ide-border) !important;
@@ -124,7 +132,8 @@ body, html {
     gap: 8px;
 }
 .modal-title {
-    font-size: 13px;
+    font-family: var(--ide-ui-font-family, inherit);
+    font-size: var(--ide-ui-font-size, 13px);
     font-weight: 600;
 }
 .btn-close { filter: invert(0.7); }
@@ -132,7 +141,8 @@ html[data-bs-theme="dark"] .btn-close { filter: invert(0.8); }
 
 /* ── Forms ───────────────────────────────────────────────────────────────────── */
 .ide-form-label {
-    font-size: 11px;
+    font-family: var(--ide-ui-font-family, inherit);
+    font-size: calc(var(--ide-ui-font-size, 13px) - 2px);
     color: var(--ide-text-muted);
     text-transform: uppercase;
     letter-spacing: 0.3px;
@@ -145,11 +155,14 @@ html[data-bs-theme="dark"] .btn-close { filter: invert(0.8); }
     background: var(--ide-bg-dropdown) !important;
     border: 1px solid var(--ide-border);
     border-radius: 3px;
-    font-size: 12px;
+    font-family: var(--ide-ui-font-family, inherit);
+    font-size: calc(var(--ide-ui-font-size, 13px) - 1px);
     padding: 2px 0;
 }
 .dropdown-item {
     color: var(--ide-text-main) !important;
+    font-family: var(--ide-ui-font-family, inherit);
+    font-size: calc(var(--ide-ui-font-size, 13px) - 1px);
     padding: 4px 12px;
 }
 .dropdown-item:hover {
@@ -163,7 +176,8 @@ html[data-bs-theme="dark"] .btn-close { filter: invert(0.8); }
     background: var(--ide-bg-toolbar) !important;
     color: var(--ide-text-muted) !important;
     border-color: var(--ide-border) !important;
-    font-size: 12px;
+    font-family: var(--ide-ui-font-family, inherit);
+    font-size: calc(var(--ide-ui-font-size, 13px) - 1px);
 }
 
 /* ── Buttons ─────────────────────────────────────────────────────────────────── */

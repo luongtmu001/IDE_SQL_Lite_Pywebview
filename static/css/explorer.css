@@ -19,7 +19,8 @@
 }
 
 .ide-sidebar-header-title {
-    font-size: 11px;
+    font-family: var(--ide-ui-font-family, inherit);
+    font-size: calc(var(--ide-ui-font-size, 13px) - 2px);
     font-weight: 700;
     letter-spacing: 0.5px;
     text-transform: uppercase;
@@ -58,11 +59,36 @@
     justify-content: center;
     cursor: pointer;
     z-index: 30;
-    font-size: 11px;
+    font-family: var(--ide-ui-font-family, inherit);
+    font-size: calc(var(--ide-ui-font-size, 13px) - 2px);
 }
 .ide-sidebar-reopen:hover {
     background: var(--ide-hover-bg);
     color: var(--ide-text-active);
+}
+
+/* ── Tree Root Drop Zone for moving groups or connections out to root ───────── */
+.tree-root-dropzone {
+    margin: 4px 6px 6px 6px;
+    padding: 6px 10px;
+    border: 1.5px dashed var(--ide-accent, #388bfd);
+    border-radius: 4px;
+    background: rgba(56, 139, 253, 0.1);
+    color: #58a6ff;
+    font-family: var(--ide-ui-font-family, inherit);
+    font-size: calc(var(--ide-ui-font-size, 13px) - 2px);
+    font-weight: 500;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    user-select: none;
+    display: none;
+}
+.tree-root-dropzone.drag-over {
+    background: rgba(56, 139, 253, 0.28);
+    border-color: #79c0ff;
+    color: #ffffff;
+    box-shadow: 0 0 8px rgba(56, 139, 253, 0.4);
 }
 
 /* ── Tree ────────────────────────────────────────────────────────────────────── */
@@ -97,7 +123,8 @@
     cursor: pointer;
     white-space: nowrap;
     border-radius: 2px;
-    font-size: 12px;
+    font-family: var(--ide-ui-font-family, inherit);
+    font-size: calc(var(--ide-ui-font-size, 13px) - 1px);
     color: var(--ide-text-main);
     position: relative;
     box-sizing: border-box;
@@ -115,7 +142,7 @@
     align-items: center;
     justify-content: center;
     color: var(--ide-text-dim);
-    font-size: 10px;
+    font-size: calc(var(--ide-ui-font-size, 13px) - 3px);
     flex-shrink: 0;
     transition: transform 0.1s, color 0.15s;
 }
@@ -128,13 +155,14 @@
     text-align: center;
     margin-right: 6px;
     flex-shrink: 0;
-    font-size: 12px;
+    font-size: calc(var(--ide-ui-font-size, 13px) - 1px);
 }
 
 .tree-label {
     white-space: nowrap;
     user-select: none;
     margin-right: 8px;
+    font-family: var(--ide-ui-font-family, inherit);
 }
 
 /* ── Filter icon on category nodes ──────────────────────────────────────────── */
@@ -144,7 +172,7 @@
     background: none;
     border: none;
     padding: 0 3px;
-    font-size: 10px;
+    font-size: calc(var(--ide-ui-font-size, 13px) - 3px);
     cursor: pointer;
     border-radius: 2px;
     line-height: 1;
@@ -164,7 +192,7 @@
     background: none;
     border: none;
     padding: 0 4px;
-    font-size: 11px;
+    font-size: calc(var(--ide-ui-font-size, 13px) - 2px);
     cursor: pointer;
     border-radius: 2px;
     transition: opacity 0.15s;
@@ -189,7 +217,8 @@
     display: flex;
     align-items: center;
     padding: 4px 10px;
-    font-size: 12px;
+    font-family: var(--ide-ui-font-family, inherit);
+    font-size: calc(var(--ide-ui-font-size, 13px) - 1px);
     cursor: pointer;
     user-select: none;
     transition: background-color 0.1s;
@@ -206,7 +235,8 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    font-size: 11px;
+    font-family: var(--ide-ui-font-family, inherit);
+    font-size: calc(var(--ide-ui-font-size, 13px) - 2px);
     padding: 2px 2px 6px 2px;
 }
 .checklist-actions a {

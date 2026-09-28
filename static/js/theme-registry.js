@@ -157,7 +157,7 @@
             name: 'GitHub (Light)',
             isDark: false,
             cmTheme: 'default',
-            titlebarBg: '#fff',
+            titlebarBg: '#ffffff',
             titlebarText: '#2f363d',
             border: '#e1e4e8'
         },

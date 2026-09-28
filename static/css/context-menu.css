@@ -12,7 +12,8 @@
     min-width: 190px;
     max-width: 260px;
     padding: 3px 0;
-    font-size: 12px;
+    font-family: var(--ide-ui-font-family, inherit);
+    font-size: calc(var(--ide-ui-font-size, 13px) - 1px);
     animation: ctx-appear 0.07s ease-out;
     outline: none;
 }
@@ -33,7 +34,8 @@
     background: none;
     width: 100%;
     text-align: left;
-    font-size: 12px;
+    font-family: var(--ide-ui-font-family, inherit);
+    font-size: calc(var(--ide-ui-font-size, 13px) - 1px);
     gap: 8px;
     user-select: none;
 }
@@ -60,12 +62,12 @@
 .ide-ctx-item:hover .ide-ctx-icon { color: var(--ide-accent); }
 .ide-ctx-item.danger .ide-ctx-icon { color: var(--ide-danger); }
 
-.ide-ctx-label { flex: 1; }
+.ide-ctx-label { flex: 1; font-family: var(--ide-ui-font-family, inherit); }
 
 .ide-ctx-shortcut {
     margin-left: auto;
     color: var(--ide-text-dim);
-    font-size: 10px;
+    font-size: calc(var(--ide-ui-font-size, 13px) - 3px);
     letter-spacing: 0.3px;
     padding-left: 16px;
     font-family: inherit;
@@ -89,7 +91,8 @@
 
 .ide-ctx-header {
     padding: 3px 12px 3px;
-    font-size: 10px;
+    font-family: var(--ide-ui-font-family, inherit);
+    font-size: calc(var(--ide-ui-font-size, 13px) - 3px);
     font-weight: 700;
     letter-spacing: 0.5px;
     text-transform: uppercase;
@@ -113,6 +116,8 @@
     min-width: 170px;
     padding: 3px 0;
     display: none;
+    font-family: var(--ide-ui-font-family, inherit);
+    font-size: calc(var(--ide-ui-font-size, 13px) - 1px);
     z-index: 10001;
     animation: ctx-appear 0.06s ease-out;
 }

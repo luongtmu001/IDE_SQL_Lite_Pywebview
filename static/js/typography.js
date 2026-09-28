@@ -86,6 +86,8 @@
             root.style.setProperty('--ide-ui-font-family', fontStack);
             root.style.setProperty('--ide-ui-font-size', `${size}px`);
             root.style.setProperty('--ide-ui-line-height', '1.45');
+            root.style.setProperty('--bs-body-font-family', fontStack);
+            root.style.setProperty('--bs-body-font-size', `${size}px`);
 
             // 2. Cache in localStorage for immediate restore on reload
             try {
