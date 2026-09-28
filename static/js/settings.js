@@ -509,16 +509,21 @@
         }
 
         // 2. Editor font & size (Truyền biến CSS và cập nhật Monaco/CodeMirror)
-        const editorFont = settings.editor?.fontFamily || 'Consolas';
+        const rawEditorFont = settings.editor?.fontFamily || 'Consolas';
+        const cleanEditorFont = rawEditorFont.trim().replace(/^['"]+|['"]+$/g, '');
+        const editorFontStack = cleanEditorFont.includes('monospace') || cleanEditorFont.includes('sans-serif')
+            ? cleanEditorFont
+            : `"${cleanEditorFont}", Consolas, monospace`;
         const editorSize = Number(settings.editor?.fontSize) || 14;
-        document.documentElement.style.setProperty('--ide-editor-font-family', editorFont);
+
+        document.documentElement.style.setProperty('--ide-editor-font-family', editorFontStack);
         document.documentElement.style.setProperty('--ide-editor-font-size', editorSize + 'px');
 
         const updateEditorInstance = (edWrapper) => {
             if (!edWrapper) return;
             const wrap = edWrapper.getWrapperElement ? edWrapper.getWrapperElement() : null;
             if (wrap) {
-                wrap.style.fontFamily = editorFont;
+                wrap.style.fontFamily = editorFontStack;
                 wrap.style.fontSize = editorSize + 'px';
                 if (typeof edWrapper.refresh === 'function') edWrapper.refresh();
             }
@@ -526,12 +531,12 @@
                 if (settings.editor?.wordWrap !== undefined) edWrapper.setOption('lineWrapping', Boolean(settings.editor.wordWrap));
                 if (settings.editor?.tabSize !== undefined) edWrapper.setOption('tabSize', Number(settings.editor.tabSize) || 4);
                 if (settings.editor?.insertSpaces !== undefined) edWrapper.setOption('indentWithTabs', !settings.editor.insertSpaces);
-                edWrapper.setOption('fontFamily', editorFont);
+                edWrapper.setOption('fontFamily', editorFontStack);
                 edWrapper.setOption('fontSize', editorSize);
             }
             if (typeof edWrapper.updateOptions === 'function') {
                 edWrapper.updateOptions({
-                    fontFamily: editorFont,
+                    fontFamily: editorFontStack,
                     fontSize: editorSize,
                     lineHeight: Math.round(editorSize * (19 / 13)),
                     wordWrap: settings.editor?.wordWrap ? 'on' : 'off',
@@ -1024,6 +1029,49 @@
                 });
             }
 
+            let previewWrap = null;
+            let updateFontPreview = null;
+
+            if (isUiFont || isCodeFont) {
+                previewWrap = document.createElement('div');
+                previewWrap.className = 'setting-font-preview';
+
+                const previewLabel = document.createElement('div');
+                previewLabel.className = 'preview-label';
+                previewLabel.innerHTML = '<i class="fa-solid fa-eye me-1"></i>Xem trước phông chữ (Live Preview):';
+
+                const previewText = document.createElement('div');
+                previewText.className = 'preview-sample';
+                if (isUiFont) {
+                    previewText.textContent = 'Giao diện IDE: Bảng dữ liệu, Cây thư mục, Menu tác vụ (0123456789 - AaBbCc)';
+                } else if (catKey === 'editor') {
+                    previewText.textContent = 'SELECT [Id], [Title], [CreatedAt] FROM [dbo].[Users] WHERE [IsActive] = 1; -- 0123456789';
+                } else if (catKey === 'grid') {
+                    previewText.textContent = 'Bảng dữ liệu: [ID: 1042] | [Họ tên: Nguyễn Văn A] | [Số tiền: 15,250,000 ₫]';
+                } else {
+                    previewText.textContent = '(1 row affected) - Completion time: 2026-09-29 03:00:00';
+                }
+
+                previewWrap.appendChild(previewLabel);
+                previewWrap.appendChild(previewText);
+
+                updateFontPreview = function (fontName) {
+                    if (!fontName || fontName === '__LAZY_LOAD__') return;
+                    const clean = fontName.trim().replace(/^['"]+|['"]+$/g, '');
+                    const stack = isUiFont
+                        ? `"${clean}", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`
+                        : `"${clean}", Consolas, monospace`;
+                    previewText.style.fontFamily = stack;
+                    select.style.fontFamily = stack;
+
+                    if (isUiFont && window.TypographyManager && typeof window.TypographyManager.apply === 'function') {
+                        window.TypographyManager.apply({ uiFontFamily: clean }, false);
+                    }
+                };
+
+                updateFontPreview(currentVal);
+            }
+
             select.onchange = () => {
                 if (select.value === '__LAZY_LOAD__') {
                     select.value = currentVal || '';
@@ -1032,12 +1080,24 @@
                     }
                     return;
                 }
+                if (typeof updateFontPreview === 'function') {
+                    updateFontPreview(select.value);
+                }
                 setDraftValue(catKey, field, select.value);
+            };
+
+            select.oninput = () => {
+                if (select.value !== '__LAZY_LOAD__' && typeof updateFontPreview === 'function') {
+                    updateFontPreview(select.value);
+                }
             };
 
             wrap.appendChild(title);
             wrap.appendChild(desc);
             wrap.appendChild(select);
+            if (previewWrap) {
+                wrap.appendChild(previewWrap);
+            }
             return wrap;
         }
 

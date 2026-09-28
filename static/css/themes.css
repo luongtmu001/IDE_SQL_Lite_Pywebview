@@ -212,14 +212,14 @@ html[data-bs-theme="light"] .CodeMirror-activeline-background {
 }
 
 /* ── Typography Application ─────────────────────────────────────────────────── */
-.CodeMirror,
+.CodeMirror {
+    font-family: var(--ide-editor-font-family) !important;
+}
+
 .monaco-editor,
-.monaco-editor .view-line,
-.monaco-editor .view-lines,
-.monaco-editor .lines-content,
 #monaco-sql-editor,
 #monaco-sql-editor-2 {
-    font-family: var(--ide-editor-font-family) !important;
+    font-family: var(--ide-editor-font-family, 'JetBrains Mono', Consolas, monospace);
 }
 
 .ide-results-table,

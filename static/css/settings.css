@@ -795,3 +795,44 @@ html[data-bs-theme="light"] .settings-window .btn-settings-action-custom {
     background: #0066cc;
     border-color: #005bb5;
 }
+
+/* ── Live Font Preview Box ─────────────────────────────────────────────────── */
+.settings-window .setting-font-preview {
+    margin-top: 10px;
+    padding: 10px 14px;
+    background: var(--ide-bg-input, #13141A);
+    border: 1px dashed var(--ide-border, #3c3f41);
+    border-radius: 6px;
+    transition: all 0.15s ease-in-out;
+}
+
+.settings-window .setting-font-preview .preview-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--ide-text-muted, #858585);
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+}
+
+.settings-window .setting-font-preview .preview-sample {
+    font-size: 13.5px;
+    line-height: 1.5;
+    color: var(--ide-text-main, #d4d4d4);
+    word-break: break-all;
+    transition: font-family 0.1s ease;
+}
+
+html[data-bs-theme="light"] .settings-window .setting-font-preview,
+html[data-bs-theme="win-nt"] .settings-window .setting-font-preview,
+html[data-bs-theme="win-xp"] .settings-window .setting-font-preview {
+    background: #ffffff;
+    border-color: #c0c0c0;
+}
+
+html[data-bs-theme="light"] .settings-window .setting-font-preview .preview-sample,
+html[data-bs-theme="win-nt"] .settings-window .setting-font-preview .preview-sample,
+html[data-bs-theme="win-xp"] .settings-window .setting-font-preview .preview-sample {
+    color: #111111;
+}

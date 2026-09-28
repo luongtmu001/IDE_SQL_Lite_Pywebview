@@ -717,9 +717,12 @@
                 if (editor.getOption(monaco.editor.EditorOption.lineHeight) !== expectedLineHeight) {
                     editor.updateOptions({ lineHeight: expectedLineHeight });
                 }
-                if (window.EditorStatusBar) {
-                    window.EditorStatusBar.updateZoomDisplay(curFontSize);
+                if (window.EditorStatusBar && !window.EditorStatusBar._isApplyingZoom) {
+                    const base = window.EditorStatusBar._baseFontSize || 14;
+                    window.EditorStatusBar._currentZoomPct = Math.max(20, Math.min(400, Math.round((curFontSize / base) * 100)));
+                    window.EditorStatusBar.updateZoomDisplay();
                 }
+                remeasureMonacoFonts();
             }
         });
 
@@ -776,10 +779,20 @@
     const EditorStatusBar = {
         _activeEditor: null,
         _isInitialized: false,
+        _currentZoomPct: 100,
+        _baseFontSize: 14,
+        _isApplyingZoom: false,
 
         init() {
             if (this._isInitialized) return;
             this._isInitialized = true;
+            try {
+                const raw = localStorage.getItem('ide-settings');
+                if (raw) {
+                    const s = JSON.parse(raw);
+                    if (s.editor?.fontSize) this._baseFontSize = Number(s.editor.fontSize) || 14;
+                }
+            } catch (_) {}
             this._bindUIEvents();
             if (_primaryEditor) {
                 this.setActiveEditor(_primaryEditor);
@@ -796,13 +809,11 @@
             return this._activeEditor || _primaryEditor;
         },
 
-        updateZoomDisplay(fontSize) {
-            const ed = this.getActiveEditor();
-            const curFontSize = fontSize || (ed ? ed.getOption(monaco.editor.EditorOption.fontSize) : 13);
-            const pct = Math.round((curFontSize / 13) * 100);
+        updateZoomDisplay() {
+            if (this._isApplyingZoom) return;
             const input = document.getElementById('ide-sb-zoom-input');
             if (input && document.activeElement !== input) {
-                input.value = `${pct} %`;
+                input.value = `${this._currentZoomPct} %`;
             }
         },
 
@@ -810,17 +821,31 @@
             const ed = this.getActiveEditor();
             if (!ed) return;
             const validPct = Math.max(20, Math.min(400, Math.round(pct)));
-            const newFontSize = Math.max(6, Math.min(80, Math.round(13 * (validPct / 100))));
+            this._currentZoomPct = validPct;
+            const base = this._baseFontSize || 14;
+            const newFontSize = Math.max(6, Math.min(80, Math.round(base * (validPct / 100))));
             const newLineHeight = Math.round(newFontSize * (19 / 13));
+
+            this._isApplyingZoom = true;
             ed.updateOptions({
                 fontSize: newFontSize,
                 lineHeight: newLineHeight
             });
+            ed.layout();
+            remeasureMonacoFonts();
+
             const input = document.getElementById('ide-sb-zoom-input');
-            if (input) {
+            if (input && document.activeElement !== input) {
                 input.value = `${validPct} %`;
             }
-            remeasureMonacoFonts();
+
+            setTimeout(() => {
+                this._isApplyingZoom = false;
+                if (ed) {
+                    ed.layout();
+                    remeasureMonacoFonts();
+                }
+            }, 30);
         },
 
         updateCursor(editor) {
@@ -905,7 +930,7 @@
                 const commitZoom = () => {
                     const raw = zoomInput.value.replace(/[^0-9]/g, '');
                     const val = parseInt(raw, 10);
-                    if (!isNaN(val)) {
+                    if (!isNaN(val) && val >= 20 && val <= 400) {
                         EditorStatusBar.applyZoom(val);
                     } else {
                         EditorStatusBar.updateZoomDisplay();
@@ -913,14 +938,21 @@
                 };
                 zoomInput.addEventListener('keydown', (e) => {
                     if (e.key === 'Enter') {
+                        e.preventDefault();
                         commitZoom();
                         zoomInput.blur();
+                        const ed = EditorStatusBar.getActiveEditor();
+                        if (ed) ed.focus();
                     } else if (e.key === 'Escape') {
+                        e.preventDefault();
                         EditorStatusBar.updateZoomDisplay();
                         zoomInput.blur();
+                        const ed = EditorStatusBar.getActiveEditor();
+                        if (ed) ed.focus();
                     }
                 });
                 zoomInput.addEventListener('change', commitZoom);
+                zoomInput.addEventListener('blur', commitZoom);
                 zoomInput.addEventListener('focus', () => {
                     zoomInput.select();
                 });
@@ -1161,10 +1193,25 @@
         const fontFam = edConfig.fontFamily;
         const fontSz = Number(edConfig.fontSize);
         const opts = {};
-        if (fontFam) opts.fontFamily = fontFam;
+        if (fontFam) {
+            const clean = fontFam.trim().replace(/^['"]+|['"]+$/g, '');
+            opts.fontFamily = clean.includes('monospace') || clean.includes('sans-serif')
+                ? clean
+                : `"${clean}", Consolas, monospace`;
+            document.documentElement.style.setProperty('--ide-editor-font-family', opts.fontFamily);
+        }
         if (fontSz && !isNaN(fontSz)) {
-            opts.fontSize = fontSz;
-            opts.lineHeight = Math.round(fontSz * (19 / 13));
+            if (window.EditorStatusBar) {
+                window.EditorStatusBar._baseFontSize = fontSz;
+                const zoomPct = window.EditorStatusBar._currentZoomPct || 100;
+                const finalSize = Math.max(6, Math.min(80, Math.round(fontSz * (zoomPct / 100))));
+                opts.fontSize = finalSize;
+                opts.lineHeight = Math.round(finalSize * (19 / 13));
+            } else {
+                opts.fontSize = fontSz;
+                opts.lineHeight = Math.round(fontSz * (19 / 13));
+            }
+            document.documentElement.style.setProperty('--ide-editor-font-size', fontSz + 'px');
         }
         if (edConfig.wordWrap !== undefined) opts.wordWrap = edConfig.wordWrap ? 'on' : 'off';
         if (edConfig.minimap !== undefined) opts.minimap = { enabled: Boolean(edConfig.minimap) };
@@ -1172,6 +1219,7 @@
         [_primaryEditor, _secondaryEditor].forEach(ed => {
             if (!ed) return;
             ed.updateOptions(opts);
+            ed.layout();
             const m = ed.getModel();
             if (m) {
                 if (edConfig.tabSize !== undefined) m.updateOptions({ tabSize: Number(edConfig.tabSize) || 4 });
@@ -1179,6 +1227,10 @@
             }
         });
         remeasureMonacoFonts();
+        setTimeout(() => {
+            [_primaryEditor, _secondaryEditor].forEach(ed => { if (ed) ed.layout(); });
+            remeasureMonacoFonts();
+        }, 50);
     }
 
     document.addEventListener('ide-settings-updated', (e) => {
