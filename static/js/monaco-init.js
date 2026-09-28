@@ -44,44 +44,112 @@
     const DARK_THEME = "ide-dark";
     const LIGHT_THEME = "ide-light";
 
+    // ── Base Rules for SQL & Languages Highlighting ──────────────────────────
+    const BASE_DARK_RULES = [
+        { token: "keyword", foreground: "569cd6", fontStyle: "bold" },
+        { token: "keyword.sql", foreground: "569cd6", fontStyle: "bold" },
+        { token: "operator", foreground: "d4d4d4" },
+        { token: "operator.sql", foreground: "d4d4d4" },
+        { token: "predefined", foreground: "dcdcaa" },
+        { token: "predefined.sql", foreground: "dcdcaa" },
+        { token: "variable", foreground: "9cdcfe" },
+        { token: "variable.sql", foreground: "9cdcfe" },
+        { token: "variable.predefined", foreground: "4fc1ff" },
+        { token: "variable.predefined.sql", foreground: "4fc1ff" },
+        { token: "string", foreground: "ce9178" },
+        { token: "string.sql", foreground: "ce9178" },
+        { token: "string.escape", foreground: "d7ba7d" },
+        { token: "string.escape.sql", foreground: "d7ba7d" },
+        { token: "comment", foreground: "6a9955", fontStyle: "italic" },
+        { token: "comment.sql", foreground: "6a9955", fontStyle: "italic" },
+        { token: "comment.quote", foreground: "6a9955", fontStyle: "italic" },
+        { token: "comment.quote.sql", foreground: "6a9955", fontStyle: "italic" },
+        { token: "number", foreground: "b5cea8" },
+        { token: "number.sql", foreground: "b5cea8" },
+        { token: "number.hex", foreground: "b5cea8" },
+        { token: "number.hex.sql", foreground: "b5cea8" },
+        { token: "type", foreground: "4ec9b0" },
+        { token: "type.sql", foreground: "4ec9b0" },
+        { token: "type.identifier", foreground: "4ec9b0" },
+        { token: "type.identifier.sql", foreground: "4ec9b0" },
+        { token: "delimiter", foreground: "d4d4d4" },
+        { token: "delimiter.sql", foreground: "d4d4d4" },
+        { token: "identifier", foreground: "d4d4d4" },
+        { token: "identifier.sql", foreground: "d4d4d4" },
+        { token: "identifier.quote", foreground: "9cdcfe" },
+        { token: "identifier.quote.sql", foreground: "9cdcfe" },
+        // XML Token Highlighting for dark
+        { token: "tag", foreground: "4ec9b0", fontStyle: "bold" },
+        { token: "tag.xml", foreground: "4ec9b0", fontStyle: "bold" },
+        { token: "metatag", foreground: "569cd6" },
+        { token: "metatag.xml", foreground: "569cd6" },
+        { token: "metatag.content.xml", foreground: "dcdcaa" },
+        { token: "attribute.name", foreground: "9cdcfe" },
+        { token: "attribute.name.xml", foreground: "9cdcfe" },
+        { token: "attribute.value", foreground: "ce9178" },
+        { token: "attribute.value.xml", foreground: "ce9178" },
+        { token: "delimiter.xml", foreground: "808080" },
+        { token: "delimiter.cdata", foreground: "d7ba7d" },
+        { token: "comment.content", foreground: "6a9955", fontStyle: "italic" },
+        { token: "comment.xml", foreground: "6a9955", fontStyle: "italic" }
+    ];
+
+    const BASE_LIGHT_RULES = [
+        { token: "keyword", foreground: "0000ff", fontStyle: "bold" },
+        { token: "keyword.sql", foreground: "0000ff", fontStyle: "bold" },
+        { token: "operator", foreground: "000000" },
+        { token: "operator.sql", foreground: "000000" },
+        { token: "predefined", foreground: "795e26" },
+        { token: "predefined.sql", foreground: "795e26" },
+        { token: "variable", foreground: "001080" },
+        { token: "variable.sql", foreground: "001080" },
+        { token: "variable.predefined", foreground: "0070c1" },
+        { token: "variable.predefined.sql", foreground: "0070c1" },
+        { token: "string", foreground: "a31515" },
+        { token: "string.sql", foreground: "a31515" },
+        { token: "string.escape", foreground: "ee0000" },
+        { token: "string.escape.sql", foreground: "ee0000" },
+        { token: "comment", foreground: "008000", fontStyle: "italic" },
+        { token: "comment.sql", foreground: "008000", fontStyle: "italic" },
+        { token: "comment.quote", foreground: "008000", fontStyle: "italic" },
+        { token: "comment.quote.sql", foreground: "008000", fontStyle: "italic" },
+        { token: "number", foreground: "098658" },
+        { token: "number.sql", foreground: "098658" },
+        { token: "number.hex", foreground: "098658" },
+        { token: "number.hex.sql", foreground: "098658" },
+        { token: "type", foreground: "267f99" },
+        { token: "type.sql", foreground: "267f99" },
+        { token: "type.identifier", foreground: "267f99" },
+        { token: "type.identifier.sql", foreground: "267f99" },
+        { token: "delimiter", foreground: "000000" },
+        { token: "delimiter.sql", foreground: "000000" },
+        { token: "identifier", foreground: "1e1e1e" },
+        { token: "identifier.sql", foreground: "1e1e1e" },
+        { token: "identifier.quote", foreground: "001080" },
+        { token: "identifier.quote.sql", foreground: "001080" },
+        // XML Token Highlighting for light
+        { token: "tag", foreground: "800000", fontStyle: "bold" },
+        { token: "tag.xml", foreground: "800000", fontStyle: "bold" },
+        { token: "metatag", foreground: "800080" },
+        { token: "metatag.xml", foreground: "800080" },
+        { token: "metatag.content.xml", foreground: "795e26" },
+        { token: "attribute.name", foreground: "e50000" },
+        { token: "attribute.name.xml", foreground: "e50000" },
+        { token: "attribute.value", foreground: "0000ff" },
+        { token: "attribute.value.xml", foreground: "0000ff" },
+        { token: "delimiter.xml", foreground: "0000ff" },
+        { token: "delimiter.cdata", foreground: "800000" },
+        { token: "comment.content", foreground: "008000", fontStyle: "italic" },
+        { token: "comment.xml", foreground: "008000", fontStyle: "italic" }
+    ];
+
     function defineThemes() {
         if (typeof monaco === "undefined") return;
 
         monaco.editor.defineTheme(DARK_THEME, {
             base: "vs-dark",
             inherit: true,
-            rules: [
-                { token: "keyword", foreground: "569cd6", fontStyle: "bold" },
-                { token: "keyword.sql", foreground: "569cd6", fontStyle: "bold" },
-                { token: "operator", foreground: "d4d4d4" },
-                { token: "predefined", foreground: "dcdcaa" },
-                { token: "variable", foreground: "9cdcfe" },
-                { token: "variable.predefined", foreground: "4fc1ff" },
-                { token: "string", foreground: "ce9178" },
-                { token: "string.escape", foreground: "d7ba7d" },
-                { token: "comment", foreground: "6a9955", fontStyle: "italic" },
-                { token: "comment.quote", foreground: "6a9955", fontStyle: "italic" },
-                { token: "number", foreground: "b5cea8" },
-                { token: "number.hex", foreground: "b5cea8" },
-                { token: "type", foreground: "4ec9b0" },
-                { token: "type.identifier", foreground: "4ec9b0" },
-                { token: "delimiter", foreground: "d4d4d4" },
-                { token: "identifier.quote", foreground: "9cdcfe" },
-                // XML Token Highlighting for ide-dark
-                { token: "tag", foreground: "4ec9b0", fontStyle: "bold" },
-                { token: "tag.xml", foreground: "4ec9b0", fontStyle: "bold" },
-                { token: "metatag", foreground: "569cd6" },
-                { token: "metatag.xml", foreground: "569cd6" },
-                { token: "metatag.content.xml", foreground: "dcdcaa" },
-                { token: "attribute.name", foreground: "9cdcfe" },
-                { token: "attribute.name.xml", foreground: "9cdcfe" },
-                { token: "attribute.value", foreground: "ce9178" },
-                { token: "attribute.value.xml", foreground: "ce9178" },
-                { token: "delimiter.xml", foreground: "808080" },
-                { token: "delimiter.cdata", foreground: "d7ba7d" },
-                { token: "comment.content", foreground: "6a9955", fontStyle: "italic" },
-                { token: "comment.xml", foreground: "6a9955", fontStyle: "italic" }
-            ],
+            rules: BASE_DARK_RULES,
             colors: {
                 "editor.background": "#1e1e1e",
                 "editor.foreground": "#d4d4d4",
@@ -105,41 +173,39 @@
             }
         });
 
+        monaco.editor.defineTheme("dark", {
+            base: "vs-dark",
+            inherit: true,
+            rules: BASE_DARK_RULES,
+            colors: {
+                "editor.background": "#1e1e1e",
+                "editor.foreground": "#d4d4d4",
+                "editor.lineHighlightBackground": "#2d2d2d",
+                "editorLineNumber.foreground": "#858585",
+                "editorLineNumber.activeForeground": "#c6c6c6",
+                "editor.selectionBackground": "#264f78",
+                "editor.selectionHighlightBackground": "#2f3f5c",
+                "editorCursor.foreground": "#aeafad",
+                "editorWidget.background": "#252526"
+            }
+        });
+
         monaco.editor.defineTheme(LIGHT_THEME, {
             base: "vs",
             inherit: true,
-            rules: [
-                { token: "keyword", foreground: "0000ff", fontStyle: "bold" },
-                { token: "keyword.sql", foreground: "0000ff", fontStyle: "bold" },
-                { token: "operator", foreground: "000000" },
-                { token: "predefined", foreground: "795e26" },
-                { token: "variable", foreground: "001080" },
-                { token: "variable.predefined", foreground: "0070c1" },
-                { token: "string", foreground: "a31515" },
-                { token: "string.escape", foreground: "ee0000" },
-                { token: "comment", foreground: "008000", fontStyle: "italic" },
-                { token: "comment.quote", foreground: "008000", fontStyle: "italic" },
-                { token: "number", foreground: "098658" },
-                { token: "number.hex", foreground: "098658" },
-                { token: "type", foreground: "267f99" },
-                { token: "type.identifier", foreground: "267f99" },
-                { token: "delimiter", foreground: "000000" },
-                { token: "identifier.quote", foreground: "001080" },
-                // XML Token Highlighting for ide-light
-                { token: "tag", foreground: "800000", fontStyle: "bold" },
-                { token: "tag.xml", foreground: "800000", fontStyle: "bold" },
-                { token: "metatag", foreground: "800080" },
-                { token: "metatag.xml", foreground: "800080" },
-                { token: "metatag.content.xml", foreground: "795e26" },
-                { token: "attribute.name", foreground: "e50000" },
-                { token: "attribute.name.xml", foreground: "e50000" },
-                { token: "attribute.value", foreground: "0000ff" },
-                { token: "attribute.value.xml", foreground: "0000ff" },
-                { token: "delimiter.xml", foreground: "0000ff" },
-                { token: "delimiter.cdata", foreground: "800000" },
-                { token: "comment.content", foreground: "008000", fontStyle: "italic" },
-                { token: "comment.xml", foreground: "008000", fontStyle: "italic" }
-            ],
+            rules: BASE_LIGHT_RULES,
+            colors: {
+                "editor.background": "#ffffff",
+                "editor.foreground": "#1e1e1e",
+                "editor.lineHighlightBackground": "#f8f8f8",
+                "editorLineNumber.foreground": "#a0a0a0"
+            }
+        });
+
+        monaco.editor.defineTheme("light", {
+            base: "vs",
+            inherit: true,
+            rules: BASE_LIGHT_RULES,
             colors: {
                 "editor.background": "#ffffff",
                 "editor.foreground": "#1e1e1e",
@@ -232,7 +298,7 @@
         monaco.editor.defineTheme("monokai", {
             base: "vs-dark",
             inherit: true,
-            rules: [],
+            rules: BASE_DARK_RULES,
             colors: {
                 "editor.background": "#272822",
                 "editor.foreground": "#f8f8f2",
@@ -244,13 +310,22 @@
         monaco.editor.defineTheme("nord", {
             base: "vs-dark",
             inherit: true,
-            rules: [],
+            rules: BASE_DARK_RULES,
             colors: {
                 "editor.background": "#2e3440",
                 "editor.foreground": "#d8dee9",
                 "editor.lineHighlightBackground": "#3b4252"
             }
         });
+
+        // Pre-register themes from ThemeRegistry if already loaded
+        const reg = window.ThemeRegistry || (window.parent && window.parent.ThemeRegistry);
+        if (reg && typeof reg.getAllThemes === 'function') {
+            const all = reg.getAllThemes();
+            all.forEach(t => {
+                if (t && t.id) ensureDynamicMonacoTheme(t);
+            });
+        }
     }
 
     function ensureDynamicMonacoTheme(themeObj) {
@@ -268,15 +343,21 @@
             if (cssFg) fg = cssFg;
         } catch (_) {}
 
+        const baseRules = isDark ? BASE_DARK_RULES : BASE_LIGHT_RULES;
+        const customRules = Array.isArray(themeObj.rules) ? themeObj.rules : [];
+        const mergedRules = [...baseRules, ...customRules];
+
         monaco.editor.defineTheme(themeId, {
             base: isDark ? "vs-dark" : "vs",
             inherit: true,
-            rules: [],
+            rules: mergedRules,
             colors: {
                 "editor.background": bg,
                 "editor.foreground": fg,
                 "editor.lineHighlightBackground": isDark ? "#2d2d2d" : "#f8f8f8",
-                "editorLineNumber.foreground": isDark ? "#858585" : "#a0a0a0"
+                "editorLineNumber.foreground": isDark ? "#858585" : "#a0a0a0",
+                "editor.selectionBackground": isDark ? "#264f78" : "#add6ff",
+                "editorWidget.background": isDark ? "#252526" : "#f3f3f3"
             }
         });
     }
@@ -293,6 +374,8 @@
             "tokyo-night-storm-dark",
             "monokai",
             "nord",
+            "dark",
+            "light",
             DARK_THEME,
             LIGHT_THEME
         ];
