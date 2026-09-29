@@ -56,7 +56,22 @@ class PostgreSqlAdapter(DatabaseAdapter):
             self.connection = None
             self._current_search_path = None
 
+    def cancel(self):
+        self._is_cancelled = True
+        if self.connection:
+            try:
+                if hasattr(self.connection, "cancel_safe"):
+                    self.connection.cancel_safe()
+                elif hasattr(self.connection, "cancel"):
+                    self.connection.cancel()
+                return True
+            except Exception:
+                pass
+        return False
+
     def execute(self, sql, params=None, limit=None, database=None, schema=None, **kwargs):
+        self._is_cancelled = False
+        progress_callback = kwargs.get("progress_callback")
         results = []
         messages = []
         errors = []
@@ -102,15 +117,59 @@ class PostgreSqlAdapter(DatabaseAdapter):
                 try:
                     cursor.execute(sql, params or ())
                     while True:
+                        if self._is_cancelled:
+                            break
                         if cursor.description:
                             columns = [desc.name for desc in cursor.description]
                             fetch_limit = limit if limit is not None else int(self.config.get("max_rows", 1000))
-                            if fetch_limit == 0:
-                                raw_rows = cursor.fetchall()
-                            else:
-                                raw_rows = cursor.fetchmany(fetch_limit)
+                            res_index = len(results)
 
-                            rows = [[serialize_cell(c) for c in r] for r in raw_rows]
+                            if progress_callback:
+                                try:
+                                    progress_callback({
+                                        "type": "columns",
+                                        "result_index": res_index,
+                                        "columns": columns,
+                                    })
+                                except Exception:
+                                    pass
+
+                                rows = []
+                                first_chunk = True
+                                while True:
+                                    if self._is_cancelled:
+                                        break
+                                    chunk_size = 100 if first_chunk else 500
+                                    first_chunk = False
+                                    if fetch_limit > 0:
+                                        remaining = fetch_limit - len(rows)
+                                        if remaining <= 0:
+                                            break
+                                        chunk_size = min(chunk_size, remaining)
+
+                                    raw_rows = cursor.fetchmany(chunk_size)
+                                    if not raw_rows:
+                                        break
+                                    serialized_chunk = [[serialize_cell(c) for c in r] for r in raw_rows]
+                                    rows.extend(serialized_chunk)
+
+                                    try:
+                                        progress_callback({
+                                            "type": "chunk",
+                                            "result_index": res_index,
+                                            "columns": columns,
+                                            "rows": serialized_chunk,
+                                            "total_so_far": len(rows),
+                                        })
+                                    except Exception:
+                                        pass
+                            else:
+                                if fetch_limit == 0:
+                                    raw_rows = cursor.fetchall()
+                                else:
+                                    raw_rows = cursor.fetchmany(fetch_limit)
+                                rows = [[serialize_cell(c) for c in r] for r in (raw_rows or []) if isinstance(r, (list, tuple))]
+
                             row_count = len(rows)
                             results.append({
                                 "columns": columns,
@@ -131,13 +190,17 @@ class PostgreSqlAdapter(DatabaseAdapter):
                             break
 
                 except Exception as pg_err:
-                    err_detail = parse_error_details(sql, pg_err)
-                    if err_detail["clean_message"]:
-                        errors.append(err_detail)
-                        if err_detail.get("line"):
-                            messages.append(f"Msg: Line {err_detail['line']}: {err_detail['clean_message']}")
-                        else:
-                            messages.append(f"Msg: {err_detail['clean_message']}")
+                    is_cancel = self._is_cancelled or "cancel" in str(pg_err).lower()
+                    if is_cancel:
+                        messages.append("Query execution was cancelled by user.")
+                    else:
+                        err_detail = parse_error_details(sql, pg_err)
+                        if err_detail["clean_message"]:
+                            errors.append(err_detail)
+                            if err_detail.get("line"):
+                                messages.append(f"Msg: Line {err_detail['line']}: {err_detail['clean_message']}")
+                            else:
+                                messages.append(f"Msg: {err_detail['clean_message']}")
 
         finally:
             if has_handler:
@@ -157,6 +220,7 @@ class PostgreSqlAdapter(DatabaseAdapter):
             "results": results,
             "messages": messages,
             "errors": errors,
+            "cancelled": self._is_cancelled,
             "error": "\n".join(e["clean_message"] for e in errors) if errors else None,
             "message": "\n".join(messages) if messages else ("Commands completed successfully." if success else "\n".join(e["clean_message"] for e in errors)),
             "current_database": self.config.get("database", "postgres"),

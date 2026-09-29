@@ -55,6 +55,26 @@ def execute():
         ), 400
 
 
+@query_bp.post("/cancel")
+def cancel():
+    data = request.get_json(silent=True) or {}
+    connection_id = data.get("connection_id")
+    if not connection_id:
+        return jsonify(success=False, error="connection_id is required"), 400
+
+    try:
+        connection = get_connection_manager().get(
+            get_owner_session_id(),
+            connection_id,
+        )
+        ok = connection.query_service.cancel()
+        return jsonify(success=True, cancelled=ok)
+    except PermissionError:
+        return jsonify(success=False, error="Forbidden"), 403
+    except Exception as exc:
+        return jsonify(success=False, error=str(exc)), 400
+
+
 @query_bp.post("/explain")
 def explain():
     """Return an execution plan text for the given SQL.

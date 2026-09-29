@@ -749,6 +749,278 @@ function initQuery() {
         }
     }
 
+    // ── Progressive Query Streaming & Cancel State ────────────────────────────
+    let currentExecutingConnId = null;
+    let currentExecutingQueryId = null;
+    let currentStreamingData = null;
+
+    async function cancelQuery() {
+        if (!resultPanelState.isRunning) return;
+        setStatus('Đang hủy truy vấn… (Cancelling…)', true);
+        if (stopBtn) {
+            stopBtn.disabled = true;
+            stopBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i>Stopping';
+        }
+        const tabState = window.AppTabs ? window.AppTabs.getActiveTabState() : null;
+        const connId = currentExecutingConnId || (tabState && tabState.connectionId) || window.ActiveConnectionId;
+        if (connId) {
+            try {
+                await fetch('/api/query/cancel', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ connection_id: connId })
+                });
+            } catch (err) {
+                console.warn('Error sending query cancel request:', err);
+            }
+        }
+    }
+
+    // Fast cell formatter helper for data values (PostgreSQL boolean, JSON, etc.)
+    function formatGridCell(td, val) {
+        if (val === null || val === undefined) {
+            td.innerHTML = '<span class="ide-null-value">NULL</span>';
+            td.classList.add('ide-null-cell');
+        } else if (typeof val === 'number') {
+            td.textContent = val;
+            td.className = 'ide-num-value';
+        } else if (typeof val === 'boolean') {
+            td.textContent = String(val);
+            td.className = 'ide-bool-value';
+        } else if (typeof val === 'object') {
+            try {
+                td.textContent = JSON.stringify(val);
+            } catch (e) {
+                td.textContent = String(val);
+            }
+        } else {
+            td.textContent = val;
+        }
+    }
+
+    // Helper to construct a single grid pane with header, col resizers and virtual grid
+    function createGridPaneElement(resSet, index, totalGrids, tabContainer, savedWidths, tabId, defaultPaneH) {
+        const pane = document.createElement('div');
+        pane.className = 'ide-grid-pane';
+        pane.dataset.gridIndex = index;
+        pane.style.height = defaultPaneH || (totalGrids === 1 ? '100%' : '240px');
+        if (totalGrids === 1) {
+            pane.style.flex = '1 1 100%';
+        }
+
+        const filterBar = document.createElement('div');
+        filterBar.className = 'ide-result-filter-bar d-none';
+        filterBar.style.display = 'none';
+        filterBar.innerHTML = `
+            <div class="d-flex align-items-center gap-2 flex-grow-1 text-truncate">
+                <i class="fa-solid fa-filter text-primary" style="font-size: 11px;"></i>
+                <span class="ide-result-filter-summary text-truncate"></span>
+            </div>
+            <button type="button" class="ide-btn-clear-all-filters" title="Xóa tất cả bộ lọc trên bảng kết quả này">
+                <i class="fa-solid fa-circle-xmark me-1"></i>Xóa tất cả lọc
+            </button>
+        `;
+        pane.appendChild(filterBar);
+
+        const tableScroll = document.createElement('div');
+        tableScroll.className = 'ide-grid-table-scroll';
+
+        const table = document.createElement('table');
+        table.className = 'ide-results-table';
+
+        const thead = document.createElement('thead');
+        const tbody = document.createElement('tbody');
+
+        const headerTr = document.createElement('tr');
+        const rnTh = document.createElement('th');
+        rnTh.className = 'ide-row-number';
+        rnTh.textContent = '';
+        headerTr.appendChild(rnTh);
+
+        (resSet.columns || []).forEach((col, cIdx) => {
+            const colName = typeof col === 'string' ? col : col.name;
+            const colKey = `${index}_${colName}`;
+            const th = document.createElement('th');
+            const minW = Math.max(38, Math.min(160, colName.length * 8 + 36));
+            const w = (savedWidths && (savedWidths[colKey] || savedWidths[colName])) || Math.max(minW, 120);
+            th.style.width = w + 'px';
+            th.style.minWidth = minW + 'px';
+
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'ide-th-content';
+
+            const label = document.createElement('span');
+            label.className = 'ide-th-name';
+            label.textContent = colName;
+            label.title = colName;
+            contentDiv.appendChild(label);
+
+            const filterBtn = document.createElement('button');
+            filterBtn.type = 'button';
+            filterBtn.className = 'ide-th-filter-btn';
+            filterBtn.dataset.colIdx = cIdx;
+            filterBtn.dataset.colName = colName;
+            filterBtn.title = `Lọc cột [${colName}]`;
+            filterBtn.innerHTML = '<i class="fa-solid fa-filter"></i>';
+            contentDiv.appendChild(filterBtn);
+
+            th.appendChild(contentDiv);
+
+            const resizer = document.createElement('span');
+            resizer.className = 'col-resizer';
+            resizer.title = 'Kéo để thay đổi độ rộng cột';
+            th.appendChild(resizer);
+
+            let startX, startW;
+            let pendingResize = false;
+            let latestWidth = 0;
+
+            resizer.addEventListener('pointerdown', e => {
+                e.stopPropagation();
+                startX = e.clientX;
+                startW = th.offsetWidth;
+                latestWidth = startW;
+                resizer.classList.add('dragging');
+                document.body.style.cursor = 'col-resize';
+                document.body.style.userSelect = 'none';
+
+                const onMove = mv => {
+                    latestWidth = Math.max(minW, startW + (mv.clientX - startX));
+                    if (tabId && savedWidths) savedWidths[colKey] = latestWidth;
+                    if (pendingResize) return;
+                    pendingResize = true;
+                    requestAnimationFrame(() => {
+                        pendingResize = false;
+                        th.style.width = latestWidth + 'px';
+                    });
+                };
+                const onUp = () => {
+                    resizer.classList.remove('dragging');
+                    document.body.style.cursor = '';
+                    document.body.style.userSelect = '';
+                    document.removeEventListener('pointermove', onMove);
+                    document.removeEventListener('pointerup', onUp);
+                    th.style.width = latestWidth + 'px';
+                };
+                document.addEventListener('pointermove', onMove);
+                document.addEventListener('pointerup', onUp);
+            });
+
+            headerTr.appendChild(th);
+        });
+
+        thead.appendChild(headerTr);
+        table.appendChild(thead);
+        table.appendChild(tbody);
+        tableScroll.appendChild(table);
+        pane.appendChild(tableScroll);
+        tabContainer.appendChild(pane);
+
+        if (window.GridResultManager) {
+            window.GridResultManager.attach(table, resSet, index);
+        } else if (resSet.rows && resSet.rows.length > 0) {
+            resSet.rows.forEach((row, idx) => {
+                const tr = document.createElement('tr');
+                const rnTd = document.createElement('td');
+                rnTd.className = 'ide-row-number';
+                rnTd.textContent = idx + 1;
+                tr.appendChild(rnTd);
+                row.forEach(val => {
+                    const td = document.createElement('td');
+                    formatGridCell(td, val);
+                    tr.appendChild(td);
+                });
+                tbody.appendChild(tr);
+            });
+        }
+
+        return { pane, table };
+    }
+
+    // ── Progressive Query Streaming Hook ──────────────────────────────────────
+    window.onQueryProgress = function(evt) {
+        if (!evt || !evt.query_id || evt.query_id !== currentExecutingQueryId || !resultPanelState.isRunning) {
+            return;
+        }
+
+        const tabId = window.AppTabs ? window.AppTabs.getActiveTabId() : null;
+        if (!tabColumnWidths[tabId]) tabColumnWidths[tabId] = {};
+        const savedWidths = tabColumnWidths[tabId];
+
+        if (!currentStreamingData) {
+            emptyEl.classList.add('d-none');
+            tableWrap.classList.remove('d-none');
+            setResultsTabVisible(true);
+            switchResultView('results-grid');
+
+            // Hide any other cached tab containers
+            Object.keys(tabGridContainers).forEach(id => {
+                if (tabGridContainers[id]) tabGridContainers[id].classList.add('d-none');
+            });
+
+            // Clean up old container for this tab if any
+            if (tabId && tabGridContainers[tabId]) {
+                const oldTables = tabGridContainers[tabId].querySelectorAll('table.ide-results-table');
+                oldTables.forEach(tbl => {
+                    const inst = window.GridResultManager ? window.GridResultManager.getInstance(tbl) : null;
+                    if (inst) inst.destroy();
+                });
+                tabGridContainers[tabId].remove();
+                delete tabGridContainers[tabId];
+            }
+
+            const tabContainer = document.createElement('div');
+            tabContainer.className = 'ide-tab-grid-wrap w-100 h-100 d-flex flex-column';
+            if (tabId) {
+                tabContainer.dataset.tabId = tabId;
+                tabGridContainers[tabId] = tabContainer;
+            }
+            tableWrap.appendChild(tabContainer);
+
+            currentStreamingData = {
+                tabId,
+                tabContainer,
+                savedWidths,
+                grids: {},
+                totalRows: 0
+            };
+        }
+
+        const resIdx = evt.result_index || 0;
+
+        if (evt.type === 'columns') {
+            if (!currentStreamingData.grids[resIdx]) {
+                const resSet = { columns: evt.columns, rows: [], row_count: 0 };
+                const { pane, table } = createGridPaneElement(resSet, resIdx, 1, currentStreamingData.tabContainer, savedWidths, tabId, '100%');
+                currentStreamingData.grids[resIdx] = { pane, table, resSet };
+            }
+            setStatus(`Đang truy vấn... (${evt.columns.length} cột)`);
+        } else if (evt.type === 'chunk') {
+            let entry = currentStreamingData.grids[resIdx];
+            if (!entry) {
+                const resSet = { columns: evt.columns, rows: [], row_count: 0 };
+                const { pane, table } = createGridPaneElement(resSet, resIdx, 1, currentStreamingData.tabContainer, savedWidths, tabId, '100%');
+                entry = { pane, table, resSet };
+                currentStreamingData.grids[resIdx] = entry;
+            }
+            const inst = window.GridResultManager ? window.GridResultManager.getInstance(entry.table) : null;
+            if (inst && typeof inst.appendRows === 'function') {
+                inst.appendRows(evt.rows);
+            } else {
+                entry.resSet.rows.push(...evt.rows);
+                entry.resSet.row_count = entry.resSet.rows.length;
+            }
+            currentStreamingData.totalRows += evt.rows.length;
+            const curCount = currentStreamingData.totalRows;
+            setStatus(`Đang tải dữ liệu... Đã nhận ${curCount.toLocaleString()} dòng`);
+            if (footerRows) footerRows.textContent = `${curCount.toLocaleString()} rows (streaming...)`;
+            if (footer) {
+                footer.classList.remove('d-none');
+                footer.classList.add('d-flex');
+            }
+        }
+    };
+
     // ── Execute query ─────────────────────────────────────────────────────────
     async function executeQuery() {
         if (resultPanelState.isRunning) return;
@@ -815,6 +1087,10 @@ function initQuery() {
         clearResults();
         setStatus('Running…');
 
+        currentExecutingConnId = connId;
+        currentExecutingQueryId = 'q_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
+        currentStreamingData = null;
+
         const t0 = performance.now();
 
         try {
@@ -830,7 +1106,8 @@ function initQuery() {
                     sql: sql,
                     limit: parsedLimit,
                     database: dbName || null,
-                    schema: schema || null
+                    schema: schema || null,
+                    query_id: currentExecutingQueryId
                 })
             });
 
@@ -888,7 +1165,25 @@ function initQuery() {
                 errors: errorsList
             });
 
-            if (hasData) {
+            const streamingUsed = Boolean(currentStreamingData && Object.keys(currentStreamingData.grids).length > 0 && currentStreamingData.totalRows > 0);
+
+            if (streamingUsed) {
+                const finalRows = currentStreamingData.totalRows;
+                const gridCount = Object.keys(currentStreamingData.grids).length;
+                if (data.cancelled) {
+                    setStatus(`Đã dừng truy vấn theo yêu cầu · Đã nhận ${finalRows.toLocaleString()} dòng · ${ms} ms`, true);
+                } else if (hasErrors) {
+                    indicateMessagesTabError(true);
+                    setStatus(`${finalRows.toLocaleString()} rows · Có lỗi xảy ra · ${ms} ms`, true);
+                } else {
+                    indicateMessagesTabError(false);
+                    setStatus(`${finalRows.toLocaleString()} rows · ${gridCount} grid${gridCount > 1 ? 's' : ''} · ${ms} ms`);
+                }
+                if (footerTime) footerTime.textContent = `${ms} ms`;
+                if (footerRows) footerRows.textContent = `${finalRows.toLocaleString()} row${finalRows !== 1 ? 's' : ''} (${gridCount} result set${gridCount !== 1 ? 's' : ''})`;
+                setResultsTabVisible(true);
+                switchResultView('results-grid');
+            } else if (hasData) {
                 // Results available (e.g. statement 1 succeeded) -> Show Results Tab
                 setResultsTabVisible(true);
                 renderGrid({ results: dataResults }, ms);
@@ -922,15 +1217,21 @@ function initQuery() {
 
         } catch (e) {
             const ms = Math.round(performance.now() - t0);
-            setResultsTabVisible(false);
+            const streamingUsed = Boolean(currentStreamingData && currentStreamingData.totalRows > 0);
+            if (!streamingUsed) {
+                setResultsTabVisible(false);
+                clearResults();
+            }
             const cleanErr = cleanClientMessage(e.message || 'Unknown execution error');
             showMessage(`${cleanErr}\nCompletion time: ${new Date().toLocaleTimeString()} (${ms} ms)`, 'error', {
                 baseStartLine,
                 executedSql: sql,
                 errors: [{ message: cleanErr, line: 1, col: 1 }]
             });
-            setStatus('Error', true);
-            switchResultView('results-messages');
+            setStatus(cleanErr.toLowerCase().includes('cancel') ? 'Query cancelled' : 'Error', true);
+            if (!streamingUsed) {
+                switchResultView('results-messages');
+            }
         } finally {
             setRunning(false);
         }
@@ -1031,176 +1332,7 @@ function initQuery() {
 
         resultsList.forEach((resSet, index) => {
             totalRowCount += (resSet.row_count ?? resSet.rows.length);
-
-            // Create grid pane container
-            const pane = document.createElement('div');
-            pane.className = 'ide-grid-pane';
-            pane.dataset.gridIndex = index;
-            pane.style.height = defaultPaneH;
-            if (totalGrids === 1) {
-                pane.style.flex = '1 1 100%';
-            }
-
-            // Filter bar banner for this grid pane
-            const filterBar = document.createElement('div');
-            filterBar.className = 'ide-result-filter-bar d-none';
-            filterBar.style.display = 'none';
-            filterBar.innerHTML = `
-                <div class="d-flex align-items-center gap-2 flex-grow-1 text-truncate">
-                    <i class="fa-solid fa-filter text-primary" style="font-size: 11px;"></i>
-                    <span class="ide-result-filter-summary text-truncate"></span>
-                </div>
-                <button type="button" class="ide-btn-clear-all-filters" title="Xóa tất cả bộ lọc trên bảng kết quả này">
-                    <i class="fa-solid fa-circle-xmark me-1"></i>Xóa tất cả lọc
-                </button>
-            `;
-            pane.appendChild(filterBar);
-
-            // Table scroll wrapper (enables sticky thead while filterBar stays neatly above)
-            const tableScroll = document.createElement('div');
-            tableScroll.className = 'ide-grid-table-scroll';
-
-            // Create table
-            const table = document.createElement('table');
-            table.className = 'ide-results-table';
-
-            const thead = document.createElement('thead');
-            const tbody = document.createElement('tbody');
-
-            // Header
-            const headerTr = document.createElement('tr');
-
-            // Row-number column header
-            const rnTh = document.createElement('th');
-            rnTh.className = 'ide-row-number';
-            rnTh.textContent = '';
-            headerTr.appendChild(rnTh);
-
-            resSet.columns.forEach((col, cIdx) => {
-                const colName = typeof col === 'string' ? col : col.name;
-                const colKey = `${index}_${colName}`;
-                const th = document.createElement('th');
-                const minW = Math.max(38, Math.min(160, colName.length * 8 + 36));
-                const w = savedWidths[colKey] || savedWidths[colName] || Math.max(minW, 120);
-                th.style.width = w + 'px';
-                th.style.minWidth = minW + 'px';
-
-                // Content wrapper: column title + filter button
-                const contentDiv = document.createElement('div');
-                contentDiv.className = 'ide-th-content';
-
-                const label = document.createElement('span');
-                label.className = 'ide-th-name';
-                label.textContent = colName;
-                label.title = colName;
-                contentDiv.appendChild(label);
-
-                const filterBtn = document.createElement('button');
-                filterBtn.type = 'button';
-                filterBtn.className = 'ide-th-filter-btn';
-                filterBtn.dataset.colIdx = cIdx;
-                filterBtn.dataset.colName = colName;
-                filterBtn.title = `Lọc cột [${colName}]`;
-                filterBtn.innerHTML = '<i class="fa-solid fa-filter"></i>';
-                contentDiv.appendChild(filterBtn);
-
-                th.appendChild(contentDiv);
-
-                // Resize handle
-                const resizer = document.createElement('span');
-                resizer.className = 'col-resizer';
-                resizer.title = 'Kéo để thay đổi độ rộng cột';
-                th.appendChild(resizer);
-
-                // Resizer drag with requestAnimationFrame to prevent forced synchronous layout
-                let startX, startW;
-                let pendingResize = false;
-                let latestWidth = 0;
-
-                resizer.addEventListener('pointerdown', e => {
-                    e.stopPropagation();
-                    startX = e.clientX;
-                    startW = th.offsetWidth;
-                    latestWidth = startW;
-                    resizer.classList.add('dragging');
-                    document.body.style.cursor = 'col-resize';
-                    document.body.style.userSelect = 'none';
-
-                    const onMove = mv => {
-                        latestWidth = Math.max(minW, startW + (mv.clientX - startX));
-                        if (tabId) savedWidths[colKey] = latestWidth;
-                        if (pendingResize) return;
-                        pendingResize = true;
-                        requestAnimationFrame(() => {
-                            pendingResize = false;
-                            th.style.width = latestWidth + 'px';
-                        });
-                    };
-                    const onUp = () => {
-                        resizer.classList.remove('dragging');
-                        document.body.style.cursor = '';
-                        document.body.style.userSelect = '';
-                        document.removeEventListener('pointermove', onMove);
-                        document.removeEventListener('pointerup', onUp);
-                        th.style.width = latestWidth + 'px';
-                    };
-                    document.addEventListener('pointermove', onMove);
-                    document.addEventListener('pointerup', onUp);
-                });
-
-                headerTr.appendChild(th);
-            });
-            thead.appendChild(headerTr);
-            table.appendChild(thead);
-
-            // Fast cell formatter helper for data values (PostgreSQL boolean, JSON, etc.)
-            function formatGridCell(td, val) {
-                if (val === null || val === undefined) {
-                    td.innerHTML = '<span class="ide-null-value">NULL</span>';
-                    td.classList.add('ide-null-cell');
-                } else if (typeof val === 'number') {
-                    td.textContent = val;
-                    td.className = 'ide-num-value';
-                } else if (typeof val === 'boolean') {
-                    // Supports PostgreSQL boolean (true/false) as well as SQL Server bit
-                    td.textContent = String(val);
-                    td.className = 'ide-bool-value';
-                } else if (typeof val === 'object') {
-                    // PostgreSQL JSON, JSONB, arrays, etc.
-                    try {
-                        td.textContent = JSON.stringify(val);
-                    } catch (e) {
-                        td.textContent = String(val);
-                    }
-                } else {
-                    td.textContent = val;
-                }
-            }
-
-            table.appendChild(tbody);
-            tableScroll.appendChild(table);
-            pane.appendChild(tableScroll);
-            tabContainer.appendChild(pane);
-
-            // Gắn GridResultManager cho cell selection, phím tắt, filter, context menu và virtual row rendering
-            if (window.GridResultManager) {
-                window.GridResultManager.attach(table, resSet, index);
-            } else {
-                // Fallback row population if GridResultManager is not loaded
-                resSet.rows.forEach((row, idx) => {
-                    const tr = document.createElement('tr');
-                    const rnTd = document.createElement('td');
-                    rnTd.className = 'ide-row-number';
-                    rnTd.textContent = idx + 1;
-                    tr.appendChild(rnTd);
-                    row.forEach(val => {
-                        const td = document.createElement('td');
-                        formatGridCell(td, val);
-                        tr.appendChild(td);
-                    });
-                    tbody.appendChild(tr);
-                });
-            }
+            const { pane } = createGridPaneElement(resSet, index, totalGrids, tabContainer, savedWidths, tabId, defaultPaneH);
 
             // Insert splitter between panes
             if (index < totalGrids - 1) {
@@ -1286,6 +1418,7 @@ function initQuery() {
         if (tabId && tabGridContainers[tabId]) {
             tabGridContainers[tabId].classList.add('d-none');
         }
+        currentStreamingData = null;
         emptyEl.classList.remove('d-none');
         tableWrap.classList.add('d-none');
         footer.classList.add('d-none');
@@ -1543,19 +1676,30 @@ function initQuery() {
                 ? '<i class="fa-solid fa-spinner fa-spin me-1"></i>Running'
                 : '<i class="fa-solid fa-play me-1"></i>Run';
         }
-        if (stopBtn) stopBtn.disabled = !running;
+        if (stopBtn) {
+            stopBtn.disabled = !running;
+            stopBtn.innerHTML = '<i class="fa-solid fa-stop me-1"></i>Stop';
+        }
+        if (!running) {
+            currentExecutingConnId = null;
+            currentExecutingQueryId = null;
+        }
     }
 
-    // ── Keyboard shortcut F5 ──────────────────────────────────────────────────
+    // ── Keyboard shortcut F5 & Esc (Cancel) ───────────────────────────────────
     document.addEventListener('keydown', e => {
         if (e.key === 'F5' && !e.ctrlKey && !e.altKey) {
             e.preventDefault();
             executeQuery();
+        } else if (e.key === 'Escape' && resultPanelState.isRunning) {
+            e.preventDefault();
+            cancelQuery();
         }
     });
 
     // ── Bind buttons & Message interactions ───────────────────────────────────
     if (runBtn)  runBtn.addEventListener('click', executeQuery);
+    if (stopBtn) stopBtn.addEventListener('click', cancelQuery);
     if (planBtn) planBtn.addEventListener('click', requestPlan);
 
     // Copy Messages button

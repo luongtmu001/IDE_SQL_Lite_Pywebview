@@ -547,6 +547,11 @@
             mouseWheelZoom: true,
             contextmenu: true,
             fixedOverflowWidgets: true,
+            find: {
+                addExtraSpaceOnTop: false,
+                autoFindInSelection: 'multiline',
+                seedSearchStringFromSelection: 'always'
+            },
             minimap: { enabled: initialMinimap },
             wordWrap: initialWordWrap,
             // Disable native suggest widget so #ide-intellisense-popup manages autocompletion:
@@ -637,17 +642,6 @@
             }
         });
 
-        // Ctrl+F / Cmd+F: Find & Replace
-        editor.addAction({
-            id: 'sql-find-replace',
-            label: 'Find and Replace',
-            keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyF],
-            run: () => {
-                if (window.AppFindReplace && typeof window.AppFindReplace.show === 'function') {
-                    window.AppFindReplace.show();
-                }
-            }
-        });
 
         // Ctrl+/: Toggle Comment
         editor.addAction({

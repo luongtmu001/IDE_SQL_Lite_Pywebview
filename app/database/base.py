@@ -23,6 +23,10 @@ class DatabaseAdapter(ABC):
     def execute(self, sql: str, params=None, limit=None, database=None, schema=None, **kwargs):
         ...
 
+    def cancel(self):
+        """Cancel currently executing query if supported."""
+        return False
+
     @abstractmethod
     def list_databases(self):
         ...

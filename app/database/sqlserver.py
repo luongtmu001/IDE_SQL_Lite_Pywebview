@@ -159,8 +159,22 @@ class SqlServerAdapter(DatabaseAdapter):
             self.connection.close()
             self.connection = None
 
+    def cancel(self):
+        self._is_cancelled = True
+        cur = getattr(self, "_active_cursor", None)
+        if cur:
+            try:
+                cur.cancel()
+                return True
+            except Exception:
+                pass
+        return False
+
     def execute(self, sql, params=None, limit=None, database=None, schema=None, **kwargs):
+        self._is_cancelled = False
         cursor = self.connection.cursor()
+        self._active_cursor = cursor
+        progress_callback = kwargs.get("progress_callback")
 
         try:
             # Switch database context if database is specified and query doesn't explicitly start with USE
@@ -213,21 +227,67 @@ class SqlServerAdapter(DatabaseAdapter):
                             messages.append(cleaned)
 
             for b_info in batches:
+                if self._is_cancelled:
+                    break
                 batch_sql = b_info["sql"]
                 b_start = b_info["start_line"]
                 try:
                     cursor.execute(batch_sql, params or ())
                     collect_messages()
                     while True:
+                        if self._is_cancelled:
+                            break
                         if cursor.description:
                             columns = [desc[0] for desc in cursor.description]
                             fetch_limit = limit if limit is not None else int(self.config.get("max_rows", 1000))
-                            if fetch_limit == 0:
-                                raw_rows = cursor.fetchall()
-                            else:
-                                raw_rows = cursor.fetchmany(fetch_limit)
+                            res_index = len(results)
 
-                            rows = [[serialize_cell(c) for c in r] for r in raw_rows]
+                            if progress_callback:
+                                try:
+                                    progress_callback({
+                                        "type": "columns",
+                                        "result_index": res_index,
+                                        "columns": columns,
+                                    })
+                                except Exception:
+                                    pass
+
+                                rows = []
+                                first_chunk = True
+                                while True:
+                                    if self._is_cancelled:
+                                        break
+                                    chunk_size = 100 if first_chunk else 500
+                                    first_chunk = False
+                                    if fetch_limit > 0:
+                                        remaining = fetch_limit - len(rows)
+                                        if remaining <= 0:
+                                            break
+                                        chunk_size = min(chunk_size, remaining)
+
+                                    raw_chunk = cursor.fetchmany(chunk_size)
+                                    if not raw_chunk or not isinstance(raw_chunk, (list, tuple)):
+                                        break
+                                    serialized_chunk = [[serialize_cell(c) for c in r] for r in raw_chunk]
+                                    rows.extend(serialized_chunk)
+
+                                    try:
+                                        progress_callback({
+                                            "type": "chunk",
+                                            "result_index": res_index,
+                                            "columns": columns,
+                                            "rows": serialized_chunk,
+                                            "total_so_far": len(rows),
+                                        })
+                                    except Exception:
+                                        pass
+                            else:
+                                if fetch_limit == 0:
+                                    raw_rows = cursor.fetchall()
+                                else:
+                                    raw_rows = cursor.fetchmany(fetch_limit)
+                                rows = [[serialize_cell(c) for c in r] for r in (raw_rows or []) if isinstance(r, (list, tuple))]
+
                             row_count = len(rows)
                             results.append({
                                 "columns": columns,
@@ -247,25 +307,33 @@ class SqlServerAdapter(DatabaseAdapter):
                                 break
                         except Exception as nextset_err:
                             collect_messages()
-                            err_detail = parse_error_details(sql, nextset_err, batch_start_line=b_start)
-                            if err_detail["clean_message"]:
-                                errors.append(err_detail)
-                                if err_detail.get("line"):
-                                    messages.append(f"Msg: Line {err_detail['line']}: {err_detail['clean_message']}")
-                                else:
-                                    messages.append(f"Msg: {err_detail['clean_message']}")
+                            is_cancel = self._is_cancelled or "operation cancelled" in str(nextset_err).lower() or "hy008" in str(nextset_err).lower()
+                            if is_cancel:
+                                messages.append("Query execution was cancelled by user.")
+                            else:
+                                err_detail = parse_error_details(sql, nextset_err, batch_start_line=b_start)
+                                if err_detail["clean_message"]:
+                                    errors.append(err_detail)
+                                    if err_detail.get("line"):
+                                        messages.append(f"Msg: Line {err_detail['line']}: {err_detail['clean_message']}")
+                                    else:
+                                        messages.append(f"Msg: {err_detail['clean_message']}")
                             break
                         collect_messages()
 
                 except Exception as batch_err:
                     collect_messages()
-                    err_detail = parse_error_details(sql, batch_err, batch_start_line=b_start)
-                    if err_detail["clean_message"]:
-                        errors.append(err_detail)
-                        if err_detail.get("line"):
-                            messages.append(f"Msg: Line {err_detail['line']}: {err_detail['clean_message']}")
-                        else:
-                            messages.append(f"Msg: {err_detail['clean_message']}")
+                    is_cancel = self._is_cancelled or "operation cancelled" in str(batch_err).lower() or "hy008" in str(batch_err).lower()
+                    if is_cancel:
+                        messages.append("Query execution was cancelled by user.")
+                    else:
+                        err_detail = parse_error_details(sql, batch_err, batch_start_line=b_start)
+                        if err_detail["clean_message"]:
+                            errors.append(err_detail)
+                            if err_detail.get("line"):
+                                messages.append(f"Msg: Line {err_detail['line']}: {err_detail['clean_message']}")
+                            else:
+                                messages.append(f"Msg: {err_detail['clean_message']}")
 
             current_db = None
             try:
@@ -287,12 +355,14 @@ class SqlServerAdapter(DatabaseAdapter):
                 "results": results,
                 "messages": messages,
                 "errors": errors,
+                "cancelled": self._is_cancelled,
                 "error": "\n".join(e["clean_message"] for e in errors) if errors else None,
                 "message": "\n".join(messages) if messages else ("Commands completed successfully." if success else "\n".join(e["clean_message"] for e in errors)),
                 "current_database": current_db,
             }
 
         finally:
+            self._active_cursor = None
             cursor.close()
 
     def list_databases(self):

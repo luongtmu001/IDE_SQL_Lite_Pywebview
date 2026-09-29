@@ -3,8 +3,8 @@
     "appearance": {
         "theme": "win-xp",
         "iconSize": 15,
-        "uiFontFamily": "Inter",
-        "uiFontSize": 14,
+        "uiFontFamily": "Roboto",
+        "uiFontSize": 15,
         "fontSize": 13
     },
     "addons": {
@@ -13,8 +13,8 @@
         }
     },
     "editor": {
-        "fontFamily": "JetBrains Mono",
-        "fontSize": 15,
+        "fontFamily": "Cascadia Code",
+        "fontSize": 13,
         "tabSize": 4,
         "insertSpaces": true,
         "wordWrap": false,
@@ -22,7 +22,7 @@
         "keywordCase": "upper"
     },
     "grid": {
-        "fontFamily": "JetBrains Mono",
+        "fontFamily": "Roboto",
         "fontSize": 14
     },
     "messages": {

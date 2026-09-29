@@ -145,7 +145,9 @@
 
             // === Query Routes ===
             else if (path === '/api/query/execute' && method === 'POST') {
-                result = await api.execute_query(body.connection_id, body.sql, body.limit, body.database, body.schema);
+                result = await api.execute_query(body.connection_id, body.sql, body.limit, body.database, body.schema, body.query_id);
+            } else if (path === '/api/query/cancel' && method === 'POST') {
+                result = await api.cancel_query(body.connection_id);
             } else if (path === '/api/query/explain' && method === 'POST') {
                 result = await api.explain_query(body.connection_id, body.sql, body.database);
             }

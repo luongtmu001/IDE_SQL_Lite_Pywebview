@@ -2822,11 +2822,43 @@ class MainApi(BravoApi):
             return {"success": False, "error": str(exc)}
 
     # Query Execution API
-    def execute_query(self, connection_id, sql, limit=1000, database=None, schema=None):
+    def execute_query(self, connection_id, sql, limit=1000, database=None, schema=None, query_id=None):
         try:
             conn = self._get_connection(connection_id)
-            result = conn.query_service.execute(sql, limit=limit, database=database, schema=schema)
+
+            def on_progress(event):
+                if not query_id:
+                    return
+                try:
+                    import webview, json
+                    payload = json.dumps({"query_id": query_id, **event})
+                    js = f"if (window.onQueryProgress) {{ window.onQueryProgress({payload}); }}"
+                    for w in getattr(webview, 'windows', []):
+                        try:
+                            w.evaluate_js(js)
+                        except Exception:
+                            pass
+                except Exception:
+                    pass
+
+            result = conn.query_service.execute(
+                sql,
+                limit=limit,
+                database=database,
+                schema=schema,
+                progress_callback=on_progress if query_id else None
+            )
             return {"success": True, **result}
+        except Exception as exc:
+            return {"success": False, "error": str(exc)}
+
+    def cancel_query(self, connection_id):
+        try:
+            conn = self._get_connection(connection_id)
+            if conn and hasattr(conn, "query_service"):
+                ok = conn.query_service.cancel()
+                return {"success": True, "cancelled": ok}
+            return {"success": False, "error": "Connection not found"}
         except Exception as exc:
             return {"success": False, "error": str(exc)}
 

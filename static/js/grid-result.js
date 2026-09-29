@@ -374,6 +374,26 @@
             if (existingPopover) existingPopover.remove();
         }
 
+        // ── Progressive Streaming Row Appending ──────────────────────────────
+        appendRows(newRows) {
+            if (!newRows || newRows.length === 0) return;
+            const hadZeroRows = this.totalRows === 0;
+            for (let i = 0; i < newRows.length; i++) {
+                this.rows.push(newRows[i]);
+            }
+            this.totalRows = this.rows.length;
+            this.resSet.row_count = this.totalRows;
+            if (this.renderer) {
+                this.renderer.render(false);
+            }
+            if (hadZeroRows && this.totalRows > 0 && this.totalCols > 0 && !this.anchorCell) {
+                this.setSelection(0, 0, 0, 0);
+            }
+            if (typeof window.updateResultFooter === 'function') {
+                window.updateResultFooter();
+            }
+        }
+
         // ── Virtual Index Mapping & Row Cell Rendering ────────────────────────
         getDisplayRowCount() {
             return this.filteredRowIndices ? this.filteredRowIndices.length : this.totalRows;
