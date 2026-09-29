@@ -286,7 +286,7 @@ class SqlServerAdapter(DatabaseAdapter):
                                     raw_rows = cursor.fetchall()
                                 else:
                                     raw_rows = cursor.fetchmany(fetch_limit)
-                                rows = [[serialize_cell(c) for c in r] for r in (raw_rows or []) if isinstance(r, (list, tuple))]
+                                rows = [[serialize_cell(c) for c in r] for r in (raw_rows or []) if r is not None]
 
                             row_count = len(rows)
                             results.append({
@@ -377,12 +377,27 @@ class SqlServerAdapter(DatabaseAdapter):
         ]
 
     def list_schemas(self, database=None):
-        db_prefix = f"[{database}]." if database else ""
-        result = self.execute(
-            f"SELECT name FROM {db_prefix}sys.schemas ORDER BY name"
-        )
+        clean_db = str(database).replace("]", "]]") if database else None
+        db_prefix = f"[{clean_db}]." if clean_db else ""
+        try:
+            result = self.execute(
+                f"SELECT name FROM {db_prefix}sys.schemas ORDER BY name",
+                database=database
+            )
+            rows = result.get("rows", [])
+            if rows:
+                return [{"name": row[0]} for row in rows]
+        except Exception:
+            pass
 
-        return [{"name": row[0]} for row in result["rows"]]
+        try:
+            result = self.execute(
+                "SELECT name FROM sys.schemas ORDER BY name",
+                database=database
+            )
+            return [{"name": row[0]} for row in result.get("rows", [])]
+        except Exception:
+            return []
 
     def list_objects(self, database, schema, object_type, search=None):
         type_map = {

@@ -117,8 +117,15 @@ def fetch_metadata():
             try:
                 raw_schemas = temp_conn.metadata_service.list_schemas(db_name)
                 schemas = [s.get("name", s) if isinstance(s, dict) else str(s) for s in raw_schemas]
+                if not schemas and db_name:
+                    raw_fallback = temp_conn.metadata_service.list_schemas(None)
+                    schemas = [s.get("name", s) if isinstance(s, dict) else str(s) for s in raw_fallback]
             except Exception:
-                pass
+                try:
+                    raw_fallback = temp_conn.metadata_service.list_schemas(None)
+                    schemas = [s.get("name", s) if isinstance(s, dict) else str(s) for s in raw_fallback]
+                except Exception:
+                    pass
             return jsonify(success=True, databases=databases, schemas=schemas)
         finally:
             cm.close(owner_id, temp_conn.connection_id)

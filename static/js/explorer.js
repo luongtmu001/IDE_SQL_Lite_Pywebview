@@ -263,7 +263,19 @@ function initExplorer() {
         const dbFilter = dbFilters[connId];
         if (dbFilter) {
             if (Array.isArray(dbFilter.selected)) {
-                items = items.filter(db => dbFilter.selected.includes(db.name || db));
+                const selLower = dbFilter.selected.map(x => String(x).toLowerCase());
+                const filtered = items.filter(db => {
+                    const dName = db.name || db;
+                    return dbFilter.selected.includes(dName) || selLower.includes(String(dName).toLowerCase());
+                });
+                if (filtered.length > 0) {
+                    items = filtered;
+                } else if (config && config.database && dbFilter.selected.length === 1 && selLower.includes(String(config.database).toLowerCase())) {
+                    // Configured default database was not found or is inaccessible; show all available databases
+                    delete dbFilters[connId];
+                } else {
+                    items = [];
+                }
             } else if (dbFilter.search) {
                 const s = dbFilter.search.toLowerCase();
                 items = items.filter(db => (db.name || db).toLowerCase().includes(s));

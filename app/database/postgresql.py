@@ -168,7 +168,7 @@ class PostgreSqlAdapter(DatabaseAdapter):
                                     raw_rows = cursor.fetchall()
                                 else:
                                     raw_rows = cursor.fetchmany(fetch_limit)
-                                rows = [[serialize_cell(c) for c in r] for r in (raw_rows or []) if isinstance(r, (list, tuple))]
+                                rows = [[serialize_cell(c) for c in r] for r in (raw_rows or []) if r is not None]
 
                             row_count = len(rows)
                             results.append({
