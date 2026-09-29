@@ -32,6 +32,7 @@
         "fontSize": 14
     },
     "sql": {
-        "maxRows": 0
+        "maxRows": 0,
+        "sqlprotection": 1
     }
 }

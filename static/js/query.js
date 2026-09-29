@@ -1020,7 +1020,7 @@ function initQuery() {
     };
 
     // ── Execute query ─────────────────────────────────────────────────────────
-    async function executeQuery() {
+    async function executeQuery(skipProtection = false) {
         if (resultPanelState.isRunning) return;
 
         if (typeof window.ensureResultPanelVisible === 'function') {
@@ -1053,6 +1053,34 @@ function initQuery() {
             setResultsTabVisible(false);
             switchResultView('results-messages');
             return;
+        }
+
+        // Fatal Actions Guard (SSMSBoost Fatal Actions Protection)
+        if (!skipProtection && window.SqlProtection && typeof window.SqlProtection.isProtectionEnabled === 'function' && window.SqlProtection.isProtectionEnabled()) {
+            const detectedIssues = window.SqlProtection.detectFatalSqlActions(sql, baseStartLine);
+            if (detectedIssues && detectedIssues.length > 0) {
+                window.SqlProtection.showFatalActionsGuard(detectedIssues, {
+                    onContinue: () => {
+                        executeQuery(true);
+                    },
+                    onCancel: () => {
+                        // Execution aborted by user
+                    },
+                    onNavigate: (line) => {
+                        if (typeof targetEd.setCursor === 'function') {
+                            targetEd.setCursor(line, 1);
+                        }
+                        if (targetEd.rawEditor) {
+                            try {
+                                targetEd.rawEditor.revealLineInCenter(line);
+                                targetEd.rawEditor.setPosition({ lineNumber: line, column: 1 });
+                                targetEd.rawEditor.focus();
+                            } catch (_) {}
+                        }
+                    }
+                });
+                return;
+            }
         }
 
         const tabState = window.AppTabs ? window.AppTabs.getActiveTabState() : null;

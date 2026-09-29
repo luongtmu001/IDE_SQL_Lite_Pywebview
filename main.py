@@ -104,9 +104,13 @@ def _load_settings_file():
             "appearance": {"theme": "dark", "iconSize": 16},
             "grid": {"fontFamily": "Segoe UI", "fontSize": 13},
             "messages": {"fontFamily": "Consolas", "fontSize": 13},
-            "sql": {"maxRows": 1000, "timeoutSeconds": 30},
+            "sql": {"maxRows": 1000, "timeoutSeconds": 30, "sqlprotection": 1},
             "addons": {"bravo_tool": {"enabled": True}},
         }
+    if "sql" not in settings or not isinstance(settings["sql"], dict):
+        settings["sql"] = {"maxRows": 1000, "timeoutSeconds": 30, "sqlprotection": 1}
+    elif "sqlprotection" not in settings["sql"]:
+        settings["sql"]["sqlprotection"] = 1
     if "editor" not in settings or not isinstance(settings["editor"], dict):
         settings["editor"] = {
             "fontFamily": "Consolas",

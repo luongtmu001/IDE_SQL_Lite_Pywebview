@@ -299,6 +299,17 @@
                     min: 5,
                     max: 300,
                     step: 5
+                },
+                {
+                    key: 'sqlprotection',
+                    label: 'Bảo vệ câu lệnh SQL nguy hiểm (SQL Protection Guard)',
+                    desc: 'Biến cấu hình: sql.sqlprotection. Cảnh báo an toàn trước khi thực thi các lệnh DELETE / UPDATE không có điều kiện WHERE, hoặc TRUNCATE bảng (1 = Bật bảo vệ, 0 = Tắt).',
+                    type: 'select',
+                    valueType: 'number',
+                    options: [
+                        { value: 1, label: '1 - Bật bảo vệ (Cảnh báo trước khi thực thi)' },
+                        { value: 0, label: '0 - Tắt bảo vệ (Không cảnh báo)' }
+                    ]
                 }
             ]
         },
@@ -347,7 +358,8 @@
         },
         sql: {
             maxRows: 1000,
-            timeoutSeconds: 30
+            timeoutSeconds: 30,
+            sqlprotection: 1
         },
         addons: {
             bravo_tool: {
@@ -612,6 +624,7 @@
             window._sqlConfig = window._sqlConfig || {};
             if (settings.sql.maxRows !== undefined) window._sqlConfig.maxRows = Number(settings.sql.maxRows);
             if (settings.sql.timeoutSeconds !== undefined) window._sqlConfig.timeoutSeconds = Number(settings.sql.timeoutSeconds);
+            if (settings.sql.sqlprotection !== undefined) window._sqlConfig.sqlprotection = Number(settings.sql.sqlprotection);
         }
 
         // 7. Dispatch Event thông báo cập nhật cho toàn hệ thống
@@ -1119,7 +1132,11 @@
                 if (typeof updateFontPreview === 'function') {
                     updateFontPreview(select.value);
                 }
-                setDraftValue(catKey, field, select.value);
+                let valToSet = select.value;
+                if (field.valueType === 'number' || (field.options && field.options.length > 0 && typeof field.options[0].value === 'number')) {
+                    valToSet = Number(valToSet);
+                }
+                setDraftValue(catKey, field, valToSet);
             };
 
             select.oninput = () => {

@@ -1,0 +1,294 @@
+/* ── SSMSBoost Fatal Actions Guard Modal CSS ─────────────────────────────── */
+/* Clones the authentic Windows / SSMSBoost Fatal Actions Guard dialog UI */
+
+.fatal-guard-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100000;
+    backdrop-filter: blur(1.5px);
+    font-family: var(--ide-ui-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif);
+}
+
+.fatal-guard-backdrop.d-none {
+    display: none !important;
+}
+
+.fatal-guard-window {
+    width: 530px;
+    max-width: 95vw;
+    background: var(--ide-bg-panel, #f3f3f3);
+    color: var(--bs-body-color, #1e1e1e);
+    border: 1px solid var(--ide-border, #999999);
+    border-radius: 6px;
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    animation: fatalGuardFadeIn 0.15s ease-out;
+}
+
+@keyframes fatalGuardFadeIn {
+    from {
+        opacity: 0;
+        transform: scale(0.96);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+/* ── Title Bar ── */
+.fatal-guard-titlebar {
+    height: 32px;
+    background: var(--ide-bg-sidebar, #e8e8e8);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 4px 0 10px;
+    border-bottom: 1px solid var(--ide-border, #d2d2d2);
+    user-select: none;
+}
+
+[data-bs-theme="dark"] .fatal-guard-window {
+    background: #252526;
+    color: #d4d4d4;
+    border-color: #3f3f46;
+}
+
+[data-bs-theme="dark"] .fatal-guard-titlebar {
+    background: #1f1f1f;
+    border-bottom-color: #333333;
+}
+
+.fatal-guard-title-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12.5px;
+    font-weight: 500;
+    color: inherit;
+    letter-spacing: 0.1px;
+}
+
+.fatal-guard-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    font-size: 13px;
+    color: #0078d7;
+}
+
+.fatal-guard-window-controls {
+    display: flex;
+    align-items: center;
+    height: 100%;
+}
+
+.fatal-guard-ctrl-btn {
+    border: none;
+    background: transparent;
+    width: 34px;
+    height: 28px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    color: inherit;
+    cursor: default;
+    opacity: 0.65;
+    padding: 0;
+    transition: background 0.1s;
+}
+
+.fatal-guard-ctrl-btn.btn-close-action {
+    cursor: pointer;
+    opacity: 1;
+    font-size: 13px;
+}
+
+.fatal-guard-ctrl-btn.btn-close-action:hover {
+    background: #e81123 !important;
+    color: #ffffff !important;
+}
+
+/* ── Content Body ── */
+.fatal-guard-body {
+    padding: 12px 14px 12px 14px;
+    display: flex;
+    flex-direction: column;
+}
+
+.fatal-guard-prompt {
+    font-size: 12px;
+    margin-bottom: 8px;
+    color: inherit;
+    font-weight: normal;
+}
+
+/* ── Table Grid ── */
+.fatal-guard-table-wrap {
+    height: 155px;
+    border: 1px solid var(--ide-border, #7a7a7a);
+    background: var(--ide-bg-input, #ffffff);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    margin-bottom: 12px;
+}
+
+[data-bs-theme="dark"] .fatal-guard-table-wrap {
+    border-color: #4a4a4f;
+    background: #1e1e1e;
+}
+
+.fatal-guard-table-head {
+    display: flex;
+    background: var(--ide-bg-panel, #f0f0f0);
+    border-bottom: 1px solid var(--ide-border, #c0c0c0);
+    font-size: 11.5px;
+    font-weight: 500;
+    user-select: none;
+}
+
+[data-bs-theme="dark"] .fatal-guard-table-head {
+    background: #2a2a2b;
+    border-bottom-color: #3c3c3c;
+}
+
+.fatal-guard-col-message {
+    flex: 1;
+    padding: 3px 8px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.fatal-guard-col-line {
+    width: 65px;
+    min-width: 65px;
+    padding: 3px 8px;
+    text-align: right;
+    border-left: 1px solid var(--ide-border, #c0c0c0);
+}
+
+[data-bs-theme="dark"] .fatal-guard-col-line {
+    border-left-color: #3c3c3c;
+}
+
+.fatal-guard-table-rows {
+    flex: 1;
+    overflow-y: auto;
+    font-size: 12px;
+    font-family: var(--ide-ui-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif);
+}
+
+.fatal-guard-row {
+    display: flex;
+    align-items: center;
+    min-height: 22px;
+    line-height: 22px;
+    cursor: pointer;
+    user-select: none;
+    border-bottom: 1px solid rgba(128, 128, 128, 0.08);
+}
+
+.fatal-guard-row:hover:not(.selected) {
+    background: rgba(0, 120, 215, 0.08);
+}
+
+.fatal-guard-row.selected {
+    background: #0078d7 !important;
+    color: #ffffff !important;
+}
+
+.fatal-guard-row.selected .fatal-guard-col-line {
+    border-left-color: rgba(255, 255, 255, 0.3) !important;
+}
+
+/* ── Footer & Actions ── */
+.fatal-guard-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 12px;
+}
+
+.fatal-guard-footer-text {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.fatal-guard-q {
+    font-size: 12px;
+    font-weight: 500;
+    color: inherit;
+}
+
+.fatal-guard-hint {
+    font-size: 11px;
+    color: var(--bs-secondary-color, #6c757d);
+}
+
+.fatal-guard-buttons {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.btn-fatal-guard {
+    min-width: 76px;
+    height: 25px;
+    font-size: 12px;
+    border-radius: 3px;
+    border: 1px solid #adadad;
+    background: #e1e1e1;
+    color: #000000;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    padding: 0 12px;
+    font-family: inherit;
+    transition: background 0.1s, border-color 0.1s;
+}
+
+.btn-fatal-guard:hover {
+    background: #e5f1fb;
+    border-color: #0078d7;
+}
+
+.btn-fatal-guard:active {
+    background: #cce4f7;
+    border-color: #005499;
+}
+
+[data-bs-theme="dark"] .btn-fatal-guard {
+    background: #3c3c3c;
+    border-color: #555555;
+    color: #ffffff;
+}
+
+[data-bs-theme="dark"] .btn-fatal-guard:hover {
+    background: #4a4a4a;
+    border-color: #0078d7;
+}
+
+[data-bs-theme="dark"] .btn-fatal-guard:active {
+    background: #2b2b2b;
+    border-color: #005499;
+}
+
+.btn-fatal-guard:focus-visible {
+    outline: 2px solid #0078d7;
+    outline-offset: 1px;
+}

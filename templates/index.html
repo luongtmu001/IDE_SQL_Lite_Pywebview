@@ -71,6 +71,7 @@
     <!-- Monaco Editor CSS -->
     <link rel="stylesheet" href="../static/vendor/monaco/vs/editor/editor.main.css">
     <link rel="stylesheet" href="../static/css/bravo.css">
+    <link rel="stylesheet" href="../static/css/sql-protection.css">
 </head>
 
 <body class="overflow-hidden vh-100 d-flex flex-column m-0 p-0">
@@ -993,6 +994,7 @@
     <script src="../static/js/tabs.js"></script>
     <script src="../static/js/explorer.js"></script>
     <script src="../static/js/grid-result.js"></script>
+    <script src="../static/js/sql-protection.js"></script>
     <script src="../static/js/query.js"></script>
     <script src="../static/js/connections.js"></script>
     <script src="../static/js/table-designer.js"></script>
@@ -1034,6 +1036,54 @@
             </div>
             <div class="settings-popup-footer" id="settingsPopupFooter">
                 <button type="button" class="btn-popup btn-popup-primary" id="settingsPopupOkBtn">Đồng ý</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- SSMSBoost Fatal Actions Guard Modal (SQL Protection) -->
+    <div class="fatal-guard-backdrop d-none" id="fatalActionsGuardBackdrop">
+        <div class="fatal-guard-window" role="dialog" aria-modal="true" aria-labelledby="fatalGuardTitleText">
+            <!-- Window Title Bar -->
+            <div class="fatal-guard-titlebar">
+                <div class="fatal-guard-title-left" id="fatalGuardTitleText">
+                    <span class="fatal-guard-icon">
+                        <i class="fa-solid fa-shield-halved"></i>
+                    </span>
+                    <span>SSMSBoost Fatal Actions Guard</span>
+                </div>
+                <div class="fatal-guard-window-controls">
+                    <button type="button" class="fatal-guard-ctrl-btn" disabled tabindex="-1" title="Minimize">─</button>
+                    <button type="button" class="fatal-guard-ctrl-btn" disabled tabindex="-1" title="Maximize">□</button>
+                    <button type="button" class="fatal-guard-ctrl-btn btn-close-action" id="fatalGuardCloseBtn" title="Close (Cancel query execution)">✕</button>
+                </div>
+            </div>
+
+            <!-- Window Body -->
+            <div class="fatal-guard-body">
+                <div class="fatal-guard-prompt">Potential problems detected in your query</div>
+                
+                <!-- Table Grid -->
+                <div class="fatal-guard-table-wrap">
+                    <div class="fatal-guard-table-head">
+                        <div class="fatal-guard-col-message">Message</div>
+                        <div class="fatal-guard-col-line">Line</div>
+                    </div>
+                    <div class="fatal-guard-table-rows" id="fatalGuardRows">
+                        <!-- Populated dynamically by sql-protection.js -->
+                    </div>
+                </div>
+
+                <!-- Footer & Action Buttons -->
+                <div class="fatal-guard-footer">
+                    <div class="fatal-guard-footer-text">
+                        <div class="fatal-guard-q">Are you sure you want to CONTINUE query execution ?</div>
+                        <div class="fatal-guard-hint">(Dbl-click result to cancel execution and navigate to code line)</div>
+                    </div>
+                    <div class="fatal-guard-buttons">
+                        <button type="button" class="btn-fatal-guard" id="fatalGuardYesBtn">Yes</button>
+                        <button type="button" class="btn-fatal-guard" id="fatalGuardNoBtn">No</button>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
