@@ -354,8 +354,19 @@
                     ed.updateOptions({ wordWrap: val ? 'on' : 'off' });
                 } else if (opt === 'fontSize') {
                     const sz = Number(val) || 13;
-                    const expectedLineHeight = Math.round(sz * (19 / 13));
+                    const curLH = ed.getOption(monaco.editor.EditorOption.lineHeight);
+                    const expectedLineHeight = (curLH && curLH !== Math.round(14 * (19 / 13))) ? Math.max(sz, curLH) : Math.round(sz * (19 / 13));
                     ed.updateOptions({ fontSize: sz, lineHeight: expectedLineHeight });
+                    remeasureMonacoFonts();
+                } else if (opt === 'lineHeight') {
+                    const lh = Number(val) || 0;
+                    const curSize = ed.getOption(monaco.editor.EditorOption.fontSize) || 14;
+                    const finalLH = lh > 0 ? Math.max(curSize, lh) : Math.round(curSize * (19 / 13));
+                    ed.updateOptions({ lineHeight: finalLH });
+                    remeasureMonacoFonts();
+                } else if (opt === 'letterSpacing') {
+                    const ls = Number(val) || 0;
+                    ed.updateOptions({ letterSpacing: ls });
                     remeasureMonacoFonts();
                 } else if (opt === 'fontFamily') {
                     ed.updateOptions({ fontFamily: val });
@@ -486,6 +497,8 @@
 
         let initialFontFamily = "'JetBrains Mono', Consolas, 'Courier New', monospace";
         let initialFontSize = 14;
+        let initialLineHeight = 0;
+        let initialLetterSpacing = 0;
         let initialWordWrap = 'off';
         let initialMinimap = true;
         let initialTabSize = 4;
@@ -498,6 +511,8 @@
                 if (s && s.editor) {
                     if (s.editor.fontFamily) initialFontFamily = s.editor.fontFamily;
                     if (s.editor.fontSize) initialFontSize = Number(s.editor.fontSize) || 14;
+                    if (s.editor.lineHeight !== undefined) initialLineHeight = Number(s.editor.lineHeight) || 0;
+                    if (s.editor.letterSpacing !== undefined) initialLetterSpacing = Number(s.editor.letterSpacing) || 0;
                     if (s.editor.wordWrap !== undefined) initialWordWrap = s.editor.wordWrap ? 'on' : 'off';
                     if (s.editor.minimap !== undefined) initialMinimap = Boolean(s.editor.minimap);
                     if (s.editor.tabSize !== undefined) initialTabSize = Number(s.editor.tabSize) || 4;
@@ -515,7 +530,19 @@
             if (!isNaN(cssSize) && cssSize > 0) {
                 initialFontSize = cssSize;
             }
+            const cssLH = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--ide-editor-line-height'), 10);
+            if (!isNaN(cssLH) && cssLH > 0) {
+                initialLineHeight = cssLH;
+            }
+            const cssLS = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--ide-editor-letter-spacing'));
+            if (!isNaN(cssLS)) {
+                initialLetterSpacing = cssLS;
+            }
         } catch (_) {}
+
+        const calculatedLineHeight = initialLineHeight > 0
+            ? Math.max(initialFontSize, initialLineHeight)
+            : Math.round(initialFontSize * (19 / 13));
 
         const model = monaco.editor.createModel(initialValue || '', 'sql');
 
@@ -523,10 +550,10 @@
             model: model,
             theme: themeName,
             fontSize: initialFontSize,
-            lineHeight: Math.round(initialFontSize * (19 / 13)),
+            lineHeight: calculatedLineHeight,
             fontFamily: initialFontFamily,
             fontLigatures: false,
-            letterSpacing: 0,
+            letterSpacing: initialLetterSpacing,
             lineNumbers: 'on',
             lineNumbersMinChars: 3,
             glyphMargin: true,
@@ -707,15 +734,22 @@
         editor.onDidChangeConfiguration(e => {
             if (e.hasChanged(monaco.editor.EditorOption.fontSize)) {
                 const curFontSize = editor.getOption(monaco.editor.EditorOption.fontSize);
-                const expectedLineHeight = Math.round(curFontSize * (19 / 13));
+                const baseLH = (window.EditorStatusBar && window.EditorStatusBar._baseLineHeight) || 0;
+                const baseFS = (window.EditorStatusBar && window.EditorStatusBar._baseFontSize) || 14;
+                const ratio = baseFS > 0 ? (curFontSize / baseFS) : 1;
+                const expectedLineHeight = baseLH > 0
+                    ? Math.max(curFontSize, Math.round(baseLH * ratio))
+                    : Math.round(curFontSize * (19 / 13));
                 if (editor.getOption(monaco.editor.EditorOption.lineHeight) !== expectedLineHeight) {
                     editor.updateOptions({ lineHeight: expectedLineHeight });
                 }
                 if (window.EditorStatusBar && !window.EditorStatusBar._isApplyingZoom) {
-                    const base = window.EditorStatusBar._baseFontSize || 14;
-                    window.EditorStatusBar._currentZoomPct = Math.max(20, Math.min(400, Math.round((curFontSize / base) * 100)));
+                    window.EditorStatusBar._currentZoomPct = Math.max(20, Math.min(400, Math.round((curFontSize / baseFS) * 100)));
                     window.EditorStatusBar.updateZoomDisplay();
                 }
+                remeasureMonacoFonts();
+            }
+            if (e.hasChanged(monaco.editor.EditorOption.lineHeight) || e.hasChanged(monaco.editor.EditorOption.letterSpacing)) {
                 remeasureMonacoFonts();
             }
         });
@@ -775,6 +809,8 @@
         _isInitialized: false,
         _currentZoomPct: 100,
         _baseFontSize: 14,
+        _baseLineHeight: 0,
+        _baseLetterSpacing: 0,
         _isApplyingZoom: false,
 
         init() {
@@ -785,6 +821,8 @@
                 if (raw) {
                     const s = JSON.parse(raw);
                     if (s.editor?.fontSize) this._baseFontSize = Number(s.editor.fontSize) || 14;
+                    if (s.editor?.lineHeight !== undefined) this._baseLineHeight = Number(s.editor.lineHeight) || 0;
+                    if (s.editor?.letterSpacing !== undefined) this._baseLetterSpacing = Number(s.editor.letterSpacing) || 0;
                 }
             } catch (_) {}
             this._bindUIEvents();
@@ -818,15 +856,35 @@
             this._currentZoomPct = validPct;
             const base = this._baseFontSize || 14;
             const newFontSize = Math.max(6, Math.min(80, Math.round(base * (validPct / 100))));
-            const newLineHeight = Math.round(newFontSize * (19 / 13));
+            const baseLH = this._baseLineHeight || 0;
+            const newLineHeight = baseLH > 0
+                ? Math.max(newFontSize, Math.round(baseLH * (validPct / 100)))
+                : Math.round(newFontSize * (19 / 13));
+            const baseLS = this._baseLetterSpacing || 0;
+            const newLetterSpacing = baseLS !== 0
+                ? Math.round(baseLS * (validPct / 100) * 10) / 10
+                : 0;
+
+            // Preserve scroll position (top visible line) and cursor position
+            const visibleRanges = ed.getVisibleRanges ? ed.getVisibleRanges() : null;
+            const topLine = (visibleRanges && visibleRanges.length > 0) ? visibleRanges[0].startLineNumber : null;
+            const pos = ed.getPosition ? ed.getPosition() : null;
 
             this._isApplyingZoom = true;
             ed.updateOptions({
                 fontSize: newFontSize,
-                lineHeight: newLineHeight
+                lineHeight: newLineHeight,
+                letterSpacing: newLetterSpacing
             });
             ed.layout();
             remeasureMonacoFonts();
+
+            if (topLine !== null && typeof ed.revealLine === 'function') {
+                ed.revealLine(topLine, monaco.editor.ScrollType.Immediate);
+            }
+            if (pos && typeof ed.setPosition === 'function') {
+                ed.setPosition(pos);
+            }
 
             const input = document.getElementById('ide-sb-zoom-input');
             if (input && document.activeElement !== input) {
@@ -838,6 +896,12 @@
                 if (ed) {
                     ed.layout();
                     remeasureMonacoFonts();
+                    if (topLine !== null && typeof ed.revealLine === 'function') {
+                        ed.revealLine(topLine, monaco.editor.ScrollType.Immediate);
+                    }
+                    if (pos && typeof ed.setPosition === 'function') {
+                        ed.setPosition(pos);
+                    }
                 }
             }, 30);
         },
@@ -1186,6 +1250,9 @@
         const edConfig = settings.editor;
         const fontFam = edConfig.fontFamily;
         const fontSz = Number(edConfig.fontSize);
+        const rawLineHeight = edConfig.lineHeight !== undefined ? Number(edConfig.lineHeight) : undefined;
+        const rawLetterSpacing = edConfig.letterSpacing !== undefined ? Number(edConfig.letterSpacing) : undefined;
+
         const opts = {};
         if (fontFam) {
             const clean = fontFam.trim().replace(/^['"]+|['"]+$/g, '');
@@ -1194,24 +1261,65 @@
                 : `"${clean}", Consolas, monospace`;
             document.documentElement.style.setProperty('--ide-editor-font-family', opts.fontFamily);
         }
+
+        const zoomPct = (window.EditorStatusBar && window.EditorStatusBar._currentZoomPct) || 100;
+
         if (fontSz && !isNaN(fontSz)) {
             if (window.EditorStatusBar) {
                 window.EditorStatusBar._baseFontSize = fontSz;
-                const zoomPct = window.EditorStatusBar._currentZoomPct || 100;
-                const finalSize = Math.max(6, Math.min(80, Math.round(fontSz * (zoomPct / 100))));
-                opts.fontSize = finalSize;
-                opts.lineHeight = Math.round(finalSize * (19 / 13));
-            } else {
-                opts.fontSize = fontSz;
-                opts.lineHeight = Math.round(fontSz * (19 / 13));
             }
+            const finalSize = Math.max(6, Math.min(80, Math.round(fontSz * (zoomPct / 100))));
+            opts.fontSize = finalSize;
             document.documentElement.style.setProperty('--ide-editor-font-size', fontSz + 'px');
         }
+
+        const curBaseSize = (window.EditorStatusBar && window.EditorStatusBar._baseFontSize) || 14;
+        const activeSize = opts.fontSize || curBaseSize;
+
+        if (rawLineHeight !== undefined && !isNaN(rawLineHeight)) {
+            if (window.EditorStatusBar) {
+                window.EditorStatusBar._baseLineHeight = rawLineHeight;
+            }
+            if (rawLineHeight > 0) {
+                const scaledLH = Math.max(activeSize, Math.round(rawLineHeight * (zoomPct / 100)));
+                opts.lineHeight = scaledLH;
+                document.documentElement.style.setProperty('--ide-editor-line-height', rawLineHeight + 'px');
+            } else {
+                opts.lineHeight = Math.round(activeSize * (19 / 13));
+                document.documentElement.style.setProperty('--ide-editor-line-height', 'normal');
+            }
+        } else if (fontSz && !isNaN(fontSz)) {
+            const baseLH = (window.EditorStatusBar && window.EditorStatusBar._baseLineHeight) || 0;
+            if (baseLH > 0) {
+                opts.lineHeight = Math.max(activeSize, Math.round(baseLH * (zoomPct / 100)));
+            } else {
+                opts.lineHeight = Math.round(activeSize * (19 / 13));
+            }
+        }
+
+        if (rawLetterSpacing !== undefined && !isNaN(rawLetterSpacing)) {
+            if (window.EditorStatusBar) {
+                window.EditorStatusBar._baseLetterSpacing = rawLetterSpacing;
+            }
+            if (rawLetterSpacing !== 0) {
+                opts.letterSpacing = Math.round(rawLetterSpacing * (zoomPct / 100) * 10) / 10;
+                document.documentElement.style.setProperty('--ide-editor-letter-spacing', rawLetterSpacing + 'px');
+            } else {
+                opts.letterSpacing = 0;
+                document.documentElement.style.setProperty('--ide-editor-letter-spacing', '0px');
+            }
+        }
+
         if (edConfig.wordWrap !== undefined) opts.wordWrap = edConfig.wordWrap ? 'on' : 'off';
         if (edConfig.minimap !== undefined) opts.minimap = { enabled: Boolean(edConfig.minimap) };
 
         [_primaryEditor, _secondaryEditor].forEach(ed => {
             if (!ed) return;
+            // Preserve scroll position (top visible line) and cursor position
+            const visibleRanges = ed.getVisibleRanges ? ed.getVisibleRanges() : null;
+            const topLine = (visibleRanges && visibleRanges.length > 0) ? visibleRanges[0].startLineNumber : null;
+            const pos = ed.getPosition ? ed.getPosition() : null;
+
             ed.updateOptions(opts);
             ed.layout();
             const m = ed.getModel();
@@ -1219,11 +1327,22 @@
                 if (edConfig.tabSize !== undefined) m.updateOptions({ tabSize: Number(edConfig.tabSize) || 4 });
                 if (edConfig.insertSpaces !== undefined) m.updateOptions({ insertSpaces: Boolean(edConfig.insertSpaces) });
             }
+
+            if (topLine !== null && typeof ed.revealLine === 'function') {
+                ed.revealLine(topLine, monaco.editor.ScrollType.Immediate);
+            }
+            if (pos && typeof ed.setPosition === 'function') {
+                ed.setPosition(pos);
+            }
         });
         remeasureMonacoFonts();
         setTimeout(() => {
-            [_primaryEditor, _secondaryEditor].forEach(ed => { if (ed) ed.layout(); });
-            remeasureMonacoFonts();
+            [_primaryEditor, _secondaryEditor].forEach(ed => {
+                if (ed) {
+                    ed.layout();
+                    remeasureMonacoFonts();
+                }
+            });
         }, 50);
     }
 

@@ -123,6 +123,24 @@
                     step: 1
                 },
                 {
+                    key: 'lineHeight',
+                    label: 'Chiều cao dòng (Editor Line Height)',
+                    desc: 'Biến cấu hình: editor.lineHeight. Chiều cao dòng trong trình soạn thảo code (pixel). Đặt bằng 0 để dùng mặc định (tự động theo cỡ chữ).',
+                    type: 'number',
+                    min: 0,
+                    max: 80,
+                    step: 1
+                },
+                {
+                    key: 'letterSpacing',
+                    label: 'Khoảng cách ký tự (Editor Letter Spacing)',
+                    desc: 'Biến cấu hình: editor.letterSpacing. Khoảng cách giữa các ký tự trong trình soạn thảo code (pixel). Đặt bằng 0 để dùng mặc định.',
+                    type: 'number',
+                    min: -2,
+                    max: 10,
+                    step: 0.5
+                },
+                {
                     key: 'tabSize',
                     label: 'Độ dài Tab (Tab Size)',
                     desc: 'Biến cấu hình: editor.tabSize. Số lượng khoảng trắng tương ứng khi nhấn phím Tab.',
@@ -305,6 +323,8 @@
         editor: {
             fontFamily: 'Consolas',
             fontSize: 14,
+            lineHeight: 0,
+            letterSpacing: 0,
             tabSize: 4,
             insertSpaces: true,
             wordWrap: false,
@@ -515,9 +535,13 @@
             ? cleanEditorFont
             : `"${cleanEditorFont}", Consolas, monospace`;
         const editorSize = Number(settings.editor?.fontSize) || 14;
+        const editorLineHeight = Number(settings.editor?.lineHeight) || 0;
+        const editorLetterSpacing = Number(settings.editor?.letterSpacing) || 0;
 
         document.documentElement.style.setProperty('--ide-editor-font-family', editorFontStack);
         document.documentElement.style.setProperty('--ide-editor-font-size', editorSize + 'px');
+        document.documentElement.style.setProperty('--ide-editor-line-height', editorLineHeight > 0 ? (editorLineHeight + 'px') : 'normal');
+        document.documentElement.style.setProperty('--ide-editor-letter-spacing', editorLetterSpacing + 'px');
 
         const updateEditorInstance = (edWrapper) => {
             if (!edWrapper) return;
@@ -525,6 +549,8 @@
             if (wrap) {
                 wrap.style.fontFamily = editorFontStack;
                 wrap.style.fontSize = editorSize + 'px';
+                wrap.style.lineHeight = editorLineHeight > 0 ? (editorLineHeight + 'px') : '';
+                wrap.style.letterSpacing = editorLetterSpacing !== 0 ? (editorLetterSpacing + 'px') : '';
                 if (typeof edWrapper.refresh === 'function') edWrapper.refresh();
             }
             if (typeof edWrapper.setOption === 'function') {
@@ -533,12 +559,18 @@
                 if (settings.editor?.insertSpaces !== undefined) edWrapper.setOption('indentWithTabs', !settings.editor.insertSpaces);
                 edWrapper.setOption('fontFamily', editorFontStack);
                 edWrapper.setOption('fontSize', editorSize);
+                edWrapper.setOption('lineHeight', editorLineHeight);
+                edWrapper.setOption('letterSpacing', editorLetterSpacing);
             }
             if (typeof edWrapper.updateOptions === 'function') {
+                const calculatedLH = editorLineHeight > 0
+                    ? Math.max(editorSize, editorLineHeight)
+                    : Math.round(editorSize * (19 / 13));
                 edWrapper.updateOptions({
                     fontFamily: editorFontStack,
                     fontSize: editorSize,
-                    lineHeight: Math.round(editorSize * (19 / 13)),
+                    lineHeight: calculatedLH,
+                    letterSpacing: editorLetterSpacing,
                     wordWrap: settings.editor?.wordWrap ? 'on' : 'off',
                     minimap: { enabled: Boolean(settings.editor?.minimap) }
                 });

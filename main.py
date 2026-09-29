@@ -93,6 +93,8 @@ def _load_settings_file():
             "editor": {
                 "fontFamily": "Consolas",
                 "fontSize": 14,
+                "lineHeight": 0,
+                "letterSpacing": 0,
                 "tabSize": 4,
                 "insertSpaces": True,
                 "wordWrap": False,
@@ -105,6 +107,23 @@ def _load_settings_file():
             "sql": {"maxRows": 1000, "timeoutSeconds": 30},
             "addons": {"bravo_tool": {"enabled": True}},
         }
+    if "editor" not in settings or not isinstance(settings["editor"], dict):
+        settings["editor"] = {
+            "fontFamily": "Consolas",
+            "fontSize": 14,
+            "lineHeight": 0,
+            "letterSpacing": 0,
+            "tabSize": 4,
+            "insertSpaces": True,
+            "wordWrap": False,
+            "minimap": True,
+            "keywordCase": "upper",
+        }
+    else:
+        if "lineHeight" not in settings["editor"]:
+            settings["editor"]["lineHeight"] = 0
+        if "letterSpacing" not in settings["editor"]:
+            settings["editor"]["letterSpacing"] = 0
     cur_theme = settings.get("theme") or settings.get("appearance", {}).get("theme", "dark")
     settings["theme"] = cur_theme
     if "appearance" not in settings or not isinstance(settings["appearance"], dict):

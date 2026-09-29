@@ -146,6 +146,26 @@ function initTabs() {
             }
         });
 
+        // Middle-click to close tab (auxclick with button === 1)
+        tabEl.addEventListener('auxclick', e => {
+            if (e.button === 1) {
+                e.preventDefault();
+                e.stopPropagation();
+                closeTab(tabId, tabEl);
+            }
+        });
+        tabEl.addEventListener('mousedown', e => {
+            if (e.button === 1) {
+                e.preventDefault();
+            }
+        });
+
+        // Double-click on tab label to rename
+        tabEl.querySelector('.tab-label')?.addEventListener('dblclick', e => {
+            e.stopPropagation();
+            renameTab(tabId);
+        });
+
         tabEl.addEventListener('contextmenu', e => {
             e.preventDefault();
             switchTab(tabId);
@@ -241,10 +261,15 @@ function initTabs() {
     }
 
     function closeTab(tabId, tabEl) {
+        if (!tabEl) tabEl = document.querySelector(`.ide-tab[data-tab-id="${tabId}"]`);
         const state = tabsData.get(tabId);
         const title = state ? state.title : 'Editor';
         const isDirty = state ? !!state.isDirty : false;
-        showCloseConfirmModal(title, isDirty, () => forceCloseTab(tabId, tabEl));
+        if (isDirty) {
+            showCloseConfirmModal(title, true, () => forceCloseTab(tabId, tabEl));
+        } else {
+            forceCloseTab(tabId, tabEl);
+        }
     }
 
     function forceCloseTab(tabId, tabEl) {
@@ -350,42 +375,429 @@ function initTabs() {
         bsModal.show();
     }
 
+    function showBatchCloseConfirmModal(message, onConfirm) {
+        document.getElementById('ide-tab-batch-close-modal')?.remove();
+        const modal = document.createElement('div');
+        modal.id = 'ide-tab-batch-close-modal';
+        modal.className = 'modal fade';
+        modal.setAttribute('tabindex', '-1');
+        modal.setAttribute('aria-hidden', 'true');
+
+        modal.innerHTML = `
+            <div class="modal-dialog modal-sm modal-dialog-centered">
+                <div class="modal-content shadow border-0">
+                    <div class="modal-header py-2 bg-warning-subtle text-warning">
+                        <h6 class="modal-title mb-0" style="font-size:13px; font-weight:600;">
+                            <i class="fa-solid fa-triangle-exclamation me-2 text-warning"></i>Xác nhận đóng nhiều Tab
+                        </h6>
+                        <button type="button" class="btn-close btn-close-sm" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body py-3" style="font-size: 13px; line-height: 1.5;">
+                        ${message}<br><span class="text-secondary small mt-1 d-inline-block">Dữ liệu chưa lưu sẽ bị mất khi đóng các tab này.</span>
+                    </div>
+                    <div class="modal-footer py-2 d-flex justify-content-end gap-2">
+                        <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Hủy</button>
+                        <button type="button" class="btn btn-sm btn-danger" id="ide-tab-batch-close-confirm">
+                            <i class="fa-solid fa-xmark me-1"></i>Đóng không lưu
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+        const bsModal = new bootstrap.Modal(modal);
+        modal.querySelector('#ide-tab-batch-close-confirm').addEventListener('click', () => {
+            bsModal.hide();
+            onConfirm();
+        });
+        modal.addEventListener('hidden.bs.modal', () => modal.remove());
+        bsModal.show();
+    }
+
+    function closeOtherTabs(targetTabId) {
+        if (!tabsData.has(targetTabId)) return;
+        switchTab(targetTabId);
+
+        const allTabEls = Array.from(tabsBar.querySelectorAll('.ide-tab[data-tab-id]'));
+        const others = allTabEls.filter(el => el.dataset.tabId !== targetTabId);
+        if (others.length === 0) return;
+
+        const dirtyOthers = others.filter(el => {
+            const s = tabsData.get(el.dataset.tabId);
+            return s && s.isDirty;
+        });
+
+        const doClose = () => {
+            others.forEach(el => {
+                forceCloseTab(el.dataset.tabId, el);
+            });
+            if (typeof showToast === 'function') {
+                showToast(`Đã đóng ${others.length} tab khác`, 'info');
+            }
+        };
+
+        if (dirtyOthers.length > 0) {
+            showBatchCloseConfirmModal(
+                `Có ${dirtyOthers.length} tab chưa được lưu thay đổi. Bạn có chắc chắn muốn đóng tất cả các tab khác không?`,
+                doClose
+            );
+        } else {
+            doClose();
+        }
+    }
+
+    function closeTabsToRight(targetTabId) {
+        if (!tabsData.has(targetTabId)) return;
+        const allTabEls = Array.from(tabsBar.querySelectorAll('.ide-tab[data-tab-id]'));
+        const targetIndex = allTabEls.findIndex(el => el.dataset.tabId === targetTabId);
+        if (targetIndex === -1) return;
+
+        const rightTabs = allTabEls.slice(targetIndex + 1);
+        if (rightTabs.length === 0) return;
+
+        const dirtyRights = rightTabs.filter(el => {
+            const s = tabsData.get(el.dataset.tabId);
+            return s && s.isDirty;
+        });
+
+        const doClose = () => {
+            rightTabs.forEach(el => {
+                forceCloseTab(el.dataset.tabId, el);
+            });
+            if (typeof showToast === 'function') {
+                showToast(`Đã đóng ${rightTabs.length} tab bên phải`, 'info');
+            }
+        };
+
+        if (dirtyRights.length > 0) {
+            showBatchCloseConfirmModal(
+                `Có ${dirtyRights.length} tab bên phải chưa được lưu thay đổi. Bạn có chắc chắn muốn đóng không?`,
+                doClose
+            );
+        } else {
+            doClose();
+        }
+    }
+
+    function closeAllTabs() {
+        const allTabEls = Array.from(tabsBar.querySelectorAll('.ide-tab[data-tab-id]'));
+        if (allTabEls.length === 0) return;
+
+        const dirtyTabs = allTabEls.filter(el => {
+            const s = tabsData.get(el.dataset.tabId);
+            return s && s.isDirty;
+        });
+
+        const doClose = () => {
+            allTabEls.forEach(el => {
+                forceCloseTab(el.dataset.tabId, el);
+            });
+            if (typeof showToast === 'function') {
+                showToast('Đã đóng tất cả các tab', 'info');
+            }
+        };
+
+        if (dirtyTabs.length > 0) {
+            showBatchCloseConfirmModal(
+                `Có ${dirtyTabs.length} tab chưa được lưu thay đổi. Bạn có chắc chắn muốn đóng tất cả các tab không?`,
+                doClose
+            );
+        } else {
+            doClose();
+        }
+    }
+
+    function duplicateTab(tabId) {
+        if (!tabsData.has(tabId)) return;
+        const state = tabsData.get(tabId);
+        let content = state.content || '';
+        if (activeTabId === tabId && state.tabType !== 'designer' && state.tabType !== 'data-editor' && window.AppEditor) {
+            content = window.AppEditor.getValue();
+            state.content = content;
+        }
+
+        const newTitle = `${state.title || 'Tab'} (Copy)`;
+        const newTabId = createTab({
+            tabType: state.tabType,
+            title: newTitle,
+            content: content,
+            connectionId: state.connectionId,
+            connectionName: state.connectionName,
+            database: state.database,
+            schema: state.schema,
+            dbType: state.dbType,
+            designerData: state.designerData ? JSON.parse(JSON.stringify(state.designerData)) : null
+        });
+
+        const origEl = document.querySelector(`.ide-tab[data-tab-id="${tabId}"]`);
+        const newEl = document.querySelector(`.ide-tab[data-tab-id="${newTabId}"]`);
+        if (origEl && newEl && origEl.nextSibling && origEl.nextSibling !== newEl) {
+            tabsBar.insertBefore(newEl, origEl.nextSibling);
+        }
+
+        if (typeof showToast === 'function') {
+            showToast(`Đã nhân bản tab "${state.title}"`, 'success');
+        }
+        return newTabId;
+    }
+
+    function renameTab(tabId) {
+        if (!tabsData.has(tabId)) return;
+        const state = tabsData.get(tabId);
+        const currentTitle = state.title || '';
+
+        document.getElementById('ide-tab-rename-modal')?.remove();
+        const modal = document.createElement('div');
+        modal.id = 'ide-tab-rename-modal';
+        modal.className = 'modal fade';
+        modal.setAttribute('tabindex', '-1');
+        modal.setAttribute('aria-hidden', 'true');
+
+        modal.innerHTML = `
+            <div class="modal-dialog modal-sm modal-dialog-centered">
+                <div class="modal-content shadow border-0">
+                    <div class="modal-header py-2 bg-body-secondary">
+                        <h6 class="modal-title mb-0" style="font-size:13px; font-weight:600;">
+                            <i class="fa-solid fa-pen-to-square me-2 text-primary"></i>Đổi tên Tab (Rename Tab)
+                        </h6>
+                        <button type="button" class="btn-close btn-close-sm" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body py-3">
+                        <label class="form-label small text-muted mb-1">Tên tiêu đề mới:</label>
+                        <input type="text" id="ide-tab-rename-input" class="form-control form-control-sm" value="${currentTitle.replace(/"/g, '&quot;')}" spellcheck="false" autocomplete="off" />
+                    </div>
+                    <div class="modal-footer py-2 d-flex justify-content-end gap-2">
+                        <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Hủy</button>
+                        <button type="button" class="btn btn-sm btn-primary" id="ide-tab-rename-confirm">
+                            <i class="fa-solid fa-check me-1"></i>Lưu
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+        const bsModal = new bootstrap.Modal(modal);
+        const inputEl = modal.querySelector('#ide-tab-rename-input');
+
+        const doRename = () => {
+            const newTitle = (inputEl.value || '').trim();
+            if (!newTitle) {
+                if (typeof showToast === 'function') showToast('Tiêu đề tab không được để trống.', 'warning');
+                return;
+            }
+            updateTabTitle(tabId, newTitle);
+            bsModal.hide();
+            if (typeof showToast === 'function') {
+                showToast(`Đã đổi tên tab thành "${newTitle}"`, 'success');
+            }
+        };
+
+        modal.querySelector('#ide-tab-rename-confirm').addEventListener('click', doRename);
+        inputEl.addEventListener('keydown', e => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                doRename();
+            }
+        });
+
+        modal.addEventListener('shown.bs.modal', () => {
+            inputEl.focus();
+            inputEl.select();
+        });
+        modal.addEventListener('hidden.bs.modal', () => modal.remove());
+        bsModal.show();
+    }
+
+    function fallbackCopy(text, onSuccess) {
+        try {
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.position = 'fixed';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            document.body.removeChild(ta);
+            if (onSuccess) onSuccess();
+        } catch (_) {}
+    }
+
+    function copyTabTitle(tabId) {
+        if (!tabsData.has(tabId)) return;
+        const state = tabsData.get(tabId);
+        const title = state.title || '';
+        const doSuccess = () => {
+            if (typeof showToast === 'function') showToast(`✓ Đã sao chép tiêu đề: "${title}"`, 'success');
+        };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(title).then(doSuccess).catch(() => {
+                fallbackCopy(title, doSuccess);
+            });
+        } else {
+            fallbackCopy(title, doSuccess);
+        }
+    }
+
     function showTabContextMenu(e, tabId) {
         document.getElementById('ide-tab-context-menu')?.remove();
-        const menu = document.createElement('ul');
-        menu.id = 'ide-tab-context-menu';
-        menu.className = 'dropdown-menu shadow-sm';
-        menu.style.position = 'absolute';
-        menu.style.display = 'block';
-        menu.style.zIndex = '1070';
-        menu.style.left = e.pageX + 'px';
-        menu.style.top = e.pageY + 'px';
-        
+
         const state = tabsData.get(tabId);
-        const isQuery = state && state.tabType === 'query';
+        if (!state) return;
+
+        const isQuery = state.tabType === 'query';
         const isSplit = window.isEditorSplit && window.isEditorSplit();
+        const allTabEls = Array.from(tabsBar.querySelectorAll('.ide-tab[data-tab-id]'));
+        const targetIndex = allTabEls.findIndex(el => el.dataset.tabId === tabId);
+        const hasOthers = allTabEls.length > 1;
+        const hasRight = targetIndex >= 0 && targetIndex < allTabEls.length - 1;
 
-        let items = '<li><a class="dropdown-item" href="#" id="ctx-tab-save"><i class="fa-solid fa-floppy-disk me-2 text-primary"></i>Save (Ctrl+S)</a></li>';
-        if (isQuery) {
-            items += '<li><a class="dropdown-item" href="#" id="ctx-tab-split"><i class="fa-solid fa-columns me-2 text-info"></i>' + (isSplit ? 'Close Split View' : 'Split Tab') + '</a></li>';
-        }
-        items += '<li><hr class="dropdown-divider"></li>';
-        items += '<li><a class="dropdown-item text-danger" href="#" id="ctx-tab-close"><i class="fa-solid fa-xmark me-2"></i>Close Tab</a></li>';
-        menu.innerHTML = items;
+        const menu = document.createElement('div');
+        menu.id = 'ide-tab-context-menu';
+        menu.className = 'ide-context-menu';
+        menu.setAttribute('tabindex', '-1');
 
+        menu.innerHTML = `
+            <button class="ide-ctx-item" id="ctx-tab-save">
+                <i class="fa-solid fa-floppy-disk ide-ctx-icon text-primary"></i>
+                <span class="ide-ctx-label">Save</span>
+                <span class="ide-ctx-shortcut">Ctrl+S</span>
+            </button>
+            <div class="ide-ctx-separator"></div>
+            <button class="ide-ctx-item" id="ctx-tab-close">
+                <i class="fa-solid fa-xmark ide-ctx-icon"></i>
+                <span class="ide-ctx-label">Close</span>
+                <span class="ide-ctx-shortcut">Ctrl+W</span>
+            </button>
+            <button class="ide-ctx-item ${!hasOthers ? 'disabled' : ''}" id="ctx-tab-close-others" ${!hasOthers ? 'disabled' : ''}>
+                <i class="fa-solid fa-rectangle-xmark ide-ctx-icon"></i>
+                <span class="ide-ctx-label">Close Others</span>
+            </button>
+            <button class="ide-ctx-item ${!hasRight ? 'disabled' : ''}" id="ctx-tab-close-right" ${!hasRight ? 'disabled' : ''}>
+                <i class="fa-solid fa-arrow-right-from-bracket ide-ctx-icon"></i>
+                <span class="ide-ctx-label">Close to the Right</span>
+            </button>
+            <button class="ide-ctx-item danger" id="ctx-tab-close-all">
+                <i class="fa-solid fa-trash-can ide-ctx-icon"></i>
+                <span class="ide-ctx-label">Close All</span>
+            </button>
+            <div class="ide-ctx-separator"></div>
+            <button class="ide-ctx-item" id="ctx-tab-duplicate">
+                <i class="fa-solid fa-clone ide-ctx-icon"></i>
+                <span class="ide-ctx-label">Duplicate Tab</span>
+            </button>
+            <button class="ide-ctx-item" id="ctx-tab-rename">
+                <i class="fa-solid fa-pen-to-square ide-ctx-icon"></i>
+                <span class="ide-ctx-label">Rename Tab...</span>
+            </button>
+            <button class="ide-ctx-item" id="ctx-tab-copy-title">
+                <i class="fa-regular fa-copy ide-ctx-icon"></i>
+                <span class="ide-ctx-label">Copy Title</span>
+            </button>
+            ${isQuery ? `
+            <div class="ide-ctx-separator"></div>
+            <button class="ide-ctx-item" id="ctx-tab-split">
+                <i class="fa-solid fa-columns ide-ctx-icon text-info"></i>
+                <span class="ide-ctx-label">${isSplit ? 'Close Split View' : 'Split Editor'}</span>
+            </button>
+            ` : ''}
+        `;
+
+        // Position menu within viewport
+        let posX = e.clientX || e.pageX;
+        let posY = e.clientY || e.pageY;
+        menu.style.left = posX + 'px';
+        menu.style.top = posY + 'px';
         document.body.appendChild(menu);
 
-        const closeMenu = () => menu.remove();
-        setTimeout(() => document.addEventListener('click', closeMenu, { once: true }), 10);
+        const rect = menu.getBoundingClientRect();
+        if (rect.right > window.innerWidth - 8) {
+            menu.style.left = Math.max(8, window.innerWidth - rect.width - 8) + 'px';
+        }
+        if (rect.bottom > window.innerHeight - 8) {
+            menu.style.top = Math.max(8, window.innerHeight - rect.height - 8) + 'px';
+        }
 
-        menu.querySelector('#ctx-tab-save').addEventListener('click', (ev) => {
+        const closeMenu = () => {
+            menu.remove();
+            document.removeEventListener('click', onDocClick);
+            document.removeEventListener('contextmenu', onDocClick);
+            document.removeEventListener('keydown', onKeyDown);
+        };
+
+        const onDocClick = (ev) => {
+            if (!menu.contains(ev.target)) {
+                closeMenu();
+            }
+        };
+
+        const onKeyDown = (ev) => {
+            if (ev.key === 'Escape') {
+                closeMenu();
+            }
+        };
+
+        setTimeout(() => {
+            document.addEventListener('click', onDocClick);
+            document.addEventListener('contextmenu', onDocClick);
+            document.addEventListener('keydown', onKeyDown);
+        }, 10);
+
+        // Bind Actions
+        menu.querySelector('#ctx-tab-save')?.addEventListener('click', (ev) => {
             ev.preventDefault();
+            closeMenu();
+            switchTab(tabId);
             saveActiveTab();
         });
 
+        menu.querySelector('#ctx-tab-close')?.addEventListener('click', (ev) => {
+            ev.preventDefault();
+            closeMenu();
+            const tabEl = document.querySelector(`.ide-tab[data-tab-id="${tabId}"]`);
+            closeTab(tabId, tabEl);
+        });
+
+        menu.querySelector('#ctx-tab-close-others')?.addEventListener('click', (ev) => {
+            ev.preventDefault();
+            closeMenu();
+            closeOtherTabs(tabId);
+        });
+
+        menu.querySelector('#ctx-tab-close-right')?.addEventListener('click', (ev) => {
+            ev.preventDefault();
+            closeMenu();
+            closeTabsToRight(tabId);
+        });
+
+        menu.querySelector('#ctx-tab-close-all')?.addEventListener('click', (ev) => {
+            ev.preventDefault();
+            closeMenu();
+            closeAllTabs();
+        });
+
+        menu.querySelector('#ctx-tab-duplicate')?.addEventListener('click', (ev) => {
+            ev.preventDefault();
+            closeMenu();
+            duplicateTab(tabId);
+        });
+
+        menu.querySelector('#ctx-tab-rename')?.addEventListener('click', (ev) => {
+            ev.preventDefault();
+            closeMenu();
+            renameTab(tabId);
+        });
+
+        menu.querySelector('#ctx-tab-copy-title')?.addEventListener('click', (ev) => {
+            ev.preventDefault();
+            closeMenu();
+            copyTabTitle(tabId);
+        });
+
         if (isQuery) {
-            menu.querySelector('#ctx-tab-split').addEventListener('click', (ev) => {
+            menu.querySelector('#ctx-tab-split')?.addEventListener('click', (ev) => {
                 ev.preventDefault();
+                closeMenu();
+                switchTab(tabId);
                 if (window.toggleSplitEditor) {
                     window.toggleSplitEditor();
                 } else if (window.splitEditor) {
@@ -393,12 +805,6 @@ function initTabs() {
                 }
             });
         }
-
-        menu.querySelector('#ctx-tab-close').addEventListener('click', (ev) => {
-            ev.preventDefault();
-            const tabEl = document.querySelector('.ide-tab[data-tab-id="' + tabId + '"]');
-            if (tabEl) closeTab(tabId, tabEl);
-        });
     }
 
     function saveActiveTab() {
@@ -520,6 +926,13 @@ function initTabs() {
         createTab, 
         switchTab, 
         closeTab, 
+        closeOtherTabs,
+        closeTabsToRight,
+        closeAllTabs,
+        duplicateTab,
+        renameTab,
+        copyTabTitle,
+        saveTab: saveActiveTab,
         setTabDirty, 
         updateTabTitle, 
         getActiveTabState, 
