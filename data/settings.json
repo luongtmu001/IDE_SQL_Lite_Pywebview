@@ -13,7 +13,7 @@
         }
     },
     "editor": {
-        "fontFamily": "Cascadia Code",
+        "fontFamily": "JetBrains Mono",
         "fontSize": 13,
         "tabSize": 4,
         "insertSpaces": true,

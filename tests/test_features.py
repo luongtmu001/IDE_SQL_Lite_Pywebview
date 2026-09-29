@@ -93,12 +93,14 @@ def test_features():
         assert calls2[1] == 'CREATE PROCEDURE dbo.proc1 AS BEGIN SELECT 1 END', f"Expected CREATE batch, got {calls2[1]}"
         print('[PASS] Embedded USE without GO successfully split into two batches')
 
-        # 6. Test connection modal contains SSL and Trust Certificate options
+        # 6. Test connection modal contains SSL, Trust Certificate options, and database logo
         res = client.get('/')
         assert b'id="connEncrypt"' in res.data, 'Missing SSL/Encrypt checkbox in connection modal'
         assert b'id="connTrustCert"' in res.data, 'Missing Trust Certificate checkbox in connection modal'
         assert b'id="connSqlServerOptionsGroup"' in res.data, 'Missing SQL Server options group in connection modal'
-        print('[PASS] Connection modal has SSL and Trust Certificate options')
+        assert b'id="connTypeLogo"' in res.data, 'Missing database type logo in connection modal'
+        assert b'id="connTypeLogoWrapper"' in res.data, 'Missing logo wrapper in connection modal'
+        print('[PASS] Connection modal has SSL and Trust Certificate options and database logo')
 
         # 7. Test interactive context selectors on Action Bar
         assert b'id="ide-ctx-connection"' in res.data, 'Missing ide-ctx-connection button'

@@ -371,6 +371,21 @@ function initConnections() {
         if (fPort && !fPort.value) {
             fPort.placeholder = isSqlServer ? "1433" : "5432";
         }
+
+        // Update database type logo right below the title
+        const logoImg = document.getElementById("connTypeLogo");
+        if (logoImg) {
+            if (isSqlServer) {
+                logoImg.src = "/static/icons/sqlserver.png";
+                logoImg.alt = "microsoft-sql-server";
+                logoImg.onerror = function() { this.src = "https://img.icons8.com/color/48/microsoft-sql-server.png"; };
+            } else {
+                logoImg.src = "/static/icons/postgresql.png";
+                logoImg.alt = "postgreesql";
+                logoImg.onerror = function() { this.src = "https://img.icons8.com/color/48/postgreesql.png"; };
+            }
+        }
+
         syncAuthUI();
     }
     if (fType) fType.addEventListener("change", syncTypeUI);
