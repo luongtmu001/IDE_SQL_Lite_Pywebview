@@ -125,11 +125,11 @@
                 {
                     key: 'lineHeight',
                     label: 'Chiều cao dòng (Editor Line Height)',
-                    desc: 'Biến cấu hình: editor.lineHeight. Chiều cao dòng trong trình soạn thảo code (pixel). Đặt bằng 0 để dùng mặc định (tự động theo cỡ chữ).',
+                    desc: 'Biến cấu hình: editor.lineHeight. Chiều cao dòng trong trình soạn thảo code (pixel hoặc tỷ lệ: ví dụ 24 hoặc 1.5). Đặt bằng 0 để dùng mặc định (tự động theo cỡ chữ).',
                     type: 'number',
                     min: 0,
                     max: 80,
-                    step: 1
+                    step: 0.1
                 },
                 {
                     key: 'letterSpacing',
@@ -540,7 +540,7 @@
 
         document.documentElement.style.setProperty('--ide-editor-font-family', editorFontStack);
         document.documentElement.style.setProperty('--ide-editor-font-size', editorSize + 'px');
-        document.documentElement.style.setProperty('--ide-editor-line-height', editorLineHeight > 0 ? (editorLineHeight + 'px') : 'normal');
+        document.documentElement.style.setProperty('--ide-editor-line-height', editorLineHeight > 0 ? (editorLineHeight <= 4 ? String(editorLineHeight) : (editorLineHeight + 'px')) : 'normal');
         document.documentElement.style.setProperty('--ide-editor-letter-spacing', editorLetterSpacing + 'px');
 
         const updateEditorInstance = (edWrapper) => {
@@ -549,8 +549,8 @@
             if (wrap) {
                 wrap.style.fontFamily = editorFontStack;
                 wrap.style.fontSize = editorSize + 'px';
-                wrap.style.lineHeight = editorLineHeight > 0 ? (editorLineHeight + 'px') : '';
-                wrap.style.letterSpacing = editorLetterSpacing !== 0 ? (editorLetterSpacing + 'px') : '';
+                // Do NOT set wrap.style.lineHeight or wrap.style.letterSpacing directly on container
+                // to avoid interfering with Monaco Editor internal font metrics and cursor alignment.
                 if (typeof edWrapper.refresh === 'function') edWrapper.refresh();
             }
             if (typeof edWrapper.setOption === 'function') {
@@ -563,9 +563,11 @@
                 edWrapper.setOption('letterSpacing', editorLetterSpacing);
             }
             if (typeof edWrapper.updateOptions === 'function') {
-                const calculatedLH = editorLineHeight > 0
-                    ? Math.max(editorSize, editorLineHeight)
-                    : Math.round(editorSize * (19 / 13));
+                const calculatedLH = typeof window.computeEditorLineHeight === 'function'
+                    ? window.computeEditorLineHeight(editorLineHeight, editorSize)
+                    : (editorLineHeight > 0
+                        ? (editorLineHeight <= 4 ? Math.max(editorSize, Math.round(editorSize * editorLineHeight)) : Math.max(editorSize, Math.round(editorLineHeight)))
+                        : Math.round(editorSize * (19 / 13)));
                 edWrapper.updateOptions({
                     fontFamily: editorFontStack,
                     fontSize: editorSize,
@@ -580,7 +582,9 @@
         if (window.AppEditor) updateEditorInstance(window.AppEditor);
         if (window.AppEditor2) updateEditorInstance(window.AppEditor2);
 
-        if (typeof monaco !== 'undefined' && monaco.editor && typeof monaco.editor.remeasureFonts === 'function') {
+        if (typeof window.remeasureMonacoFonts === 'function') {
+            window.remeasureMonacoFonts();
+        } else if (typeof monaco !== 'undefined' && monaco.editor && typeof monaco.editor.remeasureFonts === 'function') {
             try { monaco.editor.remeasureFonts(); } catch (_) {}
         }
 

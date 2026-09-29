@@ -93,20 +93,10 @@
 
 /* ── Strict Monaco Editor Font Metrics & Cursor Alignment ─────────────────── */
 #monaco-sql-editor .monaco-editor,
-#monaco-sql-editor .monaco-editor .view-line,
-#monaco-sql-editor .monaco-editor .view-lines,
-#monaco-sql-editor .monaco-editor .inputarea,
-#monaco-sql-editor .monaco-editor .lines-content,
-#monaco-sql-editor-2 .monaco-editor,
-#monaco-sql-editor-2 .monaco-editor .view-line,
-#monaco-sql-editor-2 .monaco-editor .view-lines,
-#monaco-sql-editor-2 .monaco-editor .inputarea,
-#monaco-sql-editor-2 .monaco-editor .lines-content {
-    font-family: var(--ide-editor-font-family, 'JetBrains Mono', Consolas, 'Courier New', monospace);
+#monaco-sql-editor-2 .monaco-editor {
     font-variant-ligatures: none;
     font-feature-settings: "liga" 0, "calt" 0;
-    letter-spacing: 0px;
-    text-rendering: optimizeLegibility;
+    text-rendering: auto;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
 }

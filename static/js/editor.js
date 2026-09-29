@@ -24,6 +24,25 @@
         }
     }
 
+    // ── Editor Line Height Calculator ────────────────────────────────────────────
+    // Supports:
+    // - 0 / undefined / <= 0: Auto mode (ratio ~1.46 matching standard Monaco 19/13)
+    // - 0 < raw <= 4: Multiplier / ratio mode (e.g. 1 -> 1x font size, 1.5 -> 1.5x font size)
+    // - raw > 4: Absolute pixel mode (e.g. 20, 24, 28)
+    function computeEditorLineHeight(rawLineHeight, fontSize) {
+        const fs = Number(fontSize) || 14;
+        const raw = Number(rawLineHeight);
+        if (!raw || isNaN(raw) || raw <= 0) {
+            return Math.round(fs * (19 / 13));
+        }
+        if (raw <= 4) {
+            return Math.max(fs, Math.round(fs * raw));
+        }
+        return Math.max(fs, Math.round(raw));
+    }
+    window.computeEditorLineHeight = computeEditorLineHeight;
+    window.remeasureMonacoFonts = remeasureMonacoFonts;
+
     if (typeof document !== 'undefined' && document.fonts && document.fonts.ready) {
         document.fonts.ready.then(remeasureMonacoFonts);
     }
@@ -354,18 +373,26 @@
                     ed.updateOptions({ wordWrap: val ? 'on' : 'off' });
                 } else if (opt === 'fontSize') {
                     const sz = Number(val) || 13;
-                    const curLH = ed.getOption(monaco.editor.EditorOption.lineHeight);
-                    const expectedLineHeight = (curLH && curLH !== Math.round(14 * (19 / 13))) ? Math.max(sz, curLH) : Math.round(sz * (19 / 13));
+                    const baseLH = (window.EditorStatusBar && window.EditorStatusBar._baseLineHeight !== undefined)
+                        ? window.EditorStatusBar._baseLineHeight
+                        : 0;
+                    const expectedLineHeight = computeEditorLineHeight(baseLH, sz);
                     ed.updateOptions({ fontSize: sz, lineHeight: expectedLineHeight });
                     remeasureMonacoFonts();
                 } else if (opt === 'lineHeight') {
                     const lh = Number(val) || 0;
+                    if (window.EditorStatusBar) {
+                        window.EditorStatusBar._baseLineHeight = lh;
+                    }
                     const curSize = ed.getOption(monaco.editor.EditorOption.fontSize) || 14;
-                    const finalLH = lh > 0 ? Math.max(curSize, lh) : Math.round(curSize * (19 / 13));
+                    const finalLH = computeEditorLineHeight(lh, curSize);
                     ed.updateOptions({ lineHeight: finalLH });
                     remeasureMonacoFonts();
                 } else if (opt === 'letterSpacing') {
                     const ls = Number(val) || 0;
+                    if (window.EditorStatusBar) {
+                        window.EditorStatusBar._baseLetterSpacing = ls;
+                    }
                     ed.updateOptions({ letterSpacing: ls });
                     remeasureMonacoFonts();
                 } else if (opt === 'fontFamily') {
@@ -540,9 +567,7 @@
             }
         } catch (_) {}
 
-        const calculatedLineHeight = initialLineHeight > 0
-            ? Math.max(initialFontSize, initialLineHeight)
-            : Math.round(initialFontSize * (19 / 13));
+        const calculatedLineHeight = computeEditorLineHeight(initialLineHeight, initialFontSize);
 
         const model = monaco.editor.createModel(initialValue || '', 'sql');
 
@@ -734,12 +759,19 @@
         editor.onDidChangeConfiguration(e => {
             if (e.hasChanged(monaco.editor.EditorOption.fontSize)) {
                 const curFontSize = editor.getOption(monaco.editor.EditorOption.fontSize);
-                const baseLH = (window.EditorStatusBar && window.EditorStatusBar._baseLineHeight) || 0;
+                const baseLH = (window.EditorStatusBar && window.EditorStatusBar._baseLineHeight !== undefined)
+                    ? window.EditorStatusBar._baseLineHeight
+                    : 0;
                 const baseFS = (window.EditorStatusBar && window.EditorStatusBar._baseFontSize) || 14;
-                const ratio = baseFS > 0 ? (curFontSize / baseFS) : 1;
-                const expectedLineHeight = baseLH > 0
-                    ? Math.max(curFontSize, Math.round(baseLH * ratio))
-                    : Math.round(curFontSize * (19 / 13));
+                let expectedLineHeight;
+                if (baseLH > 0 && baseLH <= 4) {
+                    expectedLineHeight = computeEditorLineHeight(baseLH, curFontSize);
+                } else if (baseLH > 4) {
+                    const ratio = baseFS > 0 ? (curFontSize / baseFS) : 1;
+                    expectedLineHeight = Math.max(curFontSize, Math.round(baseLH * ratio));
+                } else {
+                    expectedLineHeight = computeEditorLineHeight(0, curFontSize);
+                }
                 if (editor.getOption(monaco.editor.EditorOption.lineHeight) !== expectedLineHeight) {
                     editor.updateOptions({ lineHeight: expectedLineHeight });
                 }
@@ -857,9 +889,14 @@
             const base = this._baseFontSize || 14;
             const newFontSize = Math.max(6, Math.min(80, Math.round(base * (validPct / 100))));
             const baseLH = this._baseLineHeight || 0;
-            const newLineHeight = baseLH > 0
-                ? Math.max(newFontSize, Math.round(baseLH * (validPct / 100)))
-                : Math.round(newFontSize * (19 / 13));
+            let newLineHeight;
+            if (baseLH > 0 && baseLH <= 4) {
+                newLineHeight = computeEditorLineHeight(baseLH, newFontSize);
+            } else if (baseLH > 4) {
+                newLineHeight = Math.max(newFontSize, Math.round(baseLH * (validPct / 100)));
+            } else {
+                newLineHeight = computeEditorLineHeight(0, newFontSize);
+            }
             const baseLS = this._baseLetterSpacing || 0;
             const newLetterSpacing = baseLS !== 0
                 ? Math.round(baseLS * (validPct / 100) * 10) / 10
@@ -1281,19 +1318,27 @@
                 window.EditorStatusBar._baseLineHeight = rawLineHeight;
             }
             if (rawLineHeight > 0) {
-                const scaledLH = Math.max(activeSize, Math.round(rawLineHeight * (zoomPct / 100)));
-                opts.lineHeight = scaledLH;
-                document.documentElement.style.setProperty('--ide-editor-line-height', rawLineHeight + 'px');
+                if (rawLineHeight <= 4) {
+                    opts.lineHeight = computeEditorLineHeight(rawLineHeight, activeSize);
+                    document.documentElement.style.setProperty('--ide-editor-line-height', String(rawLineHeight));
+                } else {
+                    opts.lineHeight = Math.max(activeSize, Math.round(rawLineHeight * (zoomPct / 100)));
+                    document.documentElement.style.setProperty('--ide-editor-line-height', rawLineHeight + 'px');
+                }
             } else {
-                opts.lineHeight = Math.round(activeSize * (19 / 13));
+                opts.lineHeight = computeEditorLineHeight(0, activeSize);
                 document.documentElement.style.setProperty('--ide-editor-line-height', 'normal');
             }
         } else if (fontSz && !isNaN(fontSz)) {
-            const baseLH = (window.EditorStatusBar && window.EditorStatusBar._baseLineHeight) || 0;
-            if (baseLH > 0) {
+            const baseLH = (window.EditorStatusBar && window.EditorStatusBar._baseLineHeight !== undefined)
+                ? window.EditorStatusBar._baseLineHeight
+                : 0;
+            if (baseLH > 0 && baseLH <= 4) {
+                opts.lineHeight = computeEditorLineHeight(baseLH, activeSize);
+            } else if (baseLH > 4) {
                 opts.lineHeight = Math.max(activeSize, Math.round(baseLH * (zoomPct / 100)));
             } else {
-                opts.lineHeight = Math.round(activeSize * (19 / 13));
+                opts.lineHeight = computeEditorLineHeight(0, activeSize);
             }
         }
 
