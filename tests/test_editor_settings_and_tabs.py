@@ -200,3 +200,21 @@ def test_editor_css_split_and_diff_styles():
     assert ".ide-diff-toolbar" in content
 
 
+def test_diff_tab_stores_original_and_modified_content():
+    tabs_js_path = Path("static/js/tabs.js")
+    assert tabs_js_path.exists()
+    tabs_content = tabs_js_path.read_text(encoding="utf-8")
+
+    assert "originalText:   opts.originalText" in tabs_content
+    assert "modifiedText:   opts.modifiedText" in tabs_content
+    assert "originalTitle:  opts.originalTitle" in tabs_content
+    assert "modifiedTitle:  opts.modifiedTitle" in tabs_content
+    assert "getDiffEditorValues" in tabs_content
+
+    editor_js_path = Path("static/js/editor.js")
+    assert editor_js_path.exists()
+    editor_content = editor_js_path.read_text(encoding="utf-8")
+    assert "window.getDiffEditorValues" in editor_content
+
+
+

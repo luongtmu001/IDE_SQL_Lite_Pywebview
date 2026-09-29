@@ -1511,6 +1511,19 @@
                     const tmp = leftEl.textContent;
                     leftEl.textContent = rightEl.textContent;
                     rightEl.textContent = tmp;
+                    leftEl.title = leftEl.textContent;
+                    rightEl.title = rightEl.textContent;
+                }
+                if (window.AppTabs && window.AppTabs.getActiveTabState) {
+                    const st = window.AppTabs.getActiveTabState();
+                    if (st && st.tabType === 'diff') {
+                        const tmpText = st.originalText;
+                        st.originalText = st.modifiedText;
+                        st.modifiedText = tmpText;
+                        const tmpTitle = st.originalTitle;
+                        st.originalTitle = st.modifiedTitle;
+                        st.modifiedTitle = tmpTitle;
+                    }
                 }
             };
         }
@@ -1562,14 +1575,37 @@
 
         const leftEl = document.getElementById('diff-title-left');
         const rightEl = document.getElementById('diff-title-right');
-        if (leftEl) leftEl.textContent = originalTitle;
-        if (rightEl) rightEl.textContent = modifiedTitle;
+        if (leftEl) {
+            leftEl.textContent = originalTitle;
+            leftEl.title = originalTitle;
+        }
+        if (rightEl) {
+            rightEl.textContent = modifiedTitle;
+            rightEl.title = modifiedTitle;
+        }
 
         if (_diffOriginalModel) _diffOriginalModel.dispose();
         if (_diffModifiedModel) _diffModifiedModel.dispose();
 
         _diffOriginalModel = monaco.editor.createModel(originalText || '', lang);
         _diffModifiedModel = monaco.editor.createModel(modifiedText || '', lang);
+
+        _diffOriginalModel.onDidChangeContent(() => {
+            if (window.AppTabs && window.AppTabs.getActiveTabState) {
+                const st = window.AppTabs.getActiveTabState();
+                if (st && st.tabType === 'diff') {
+                    st.originalText = _diffOriginalModel.getValue();
+                }
+            }
+        });
+        _diffModifiedModel.onDidChangeContent(() => {
+            if (window.AppTabs && window.AppTabs.getActiveTabState) {
+                const st = window.AppTabs.getActiveTabState();
+                if (st && st.tabType === 'diff') {
+                    st.modifiedText = _diffModifiedModel.getValue();
+                }
+            }
+        });
 
         if (_diffEditor) {
             _diffEditor.setModel({
@@ -1584,6 +1620,13 @@
         setTimeout(() => {
             if (_diffEditor) _diffEditor.layout();
         }, 30);
+    };
+
+    window.getDiffEditorValues = function () {
+        return {
+            original: _diffOriginalModel ? _diffOriginalModel.getValue() : '',
+            modified: _diffModifiedModel ? _diffModifiedModel.getValue() : ''
+        };
     };
 
     window.hideDiffView = function () {

@@ -125,7 +125,11 @@ function initTabs() {
             resultData:     null,
             activeView:     'results-grid',
             messageText:    '',
-            planText:       ''
+            planText:       '',
+            originalText:   opts.originalText   !== undefined ? opts.originalText : '',
+            modifiedText:   opts.modifiedText   !== undefined ? opts.modifiedText : '',
+            originalTitle:  opts.originalTitle  || '',
+            modifiedTitle:  opts.modifiedTitle  || ''
         });
 
         const tabEl = document.createElement('li');
@@ -180,11 +184,17 @@ function initTabs() {
     }
 
     function switchTab(tabId) {
-        // Save current editor content if switching from a query tab
+        // Save current editor content if switching from a query tab or diff tab
         if (activeTabId && tabsData.has(activeTabId)) {
             const prev = tabsData.get(activeTabId);
             if (prev.tabType !== 'designer' && prev.tabType !== 'diff' && window.AppEditor) {
                 prev.content = window.AppEditor.getValue();
+            } else if (prev.tabType === 'diff' && typeof window.getDiffEditorValues === 'function') {
+                const diffVals = window.getDiffEditorValues();
+                if (diffVals) {
+                    prev.originalText = diffVals.original;
+                    prev.modifiedText = diffVals.modified;
+                }
             }
         }
 
@@ -848,9 +858,16 @@ function initTabs() {
     }
 
     function handleCompareTab(sourceTabId) {
+        if (activeTabId && tabsData.has(activeTabId)) {
+            const activeState = tabsData.get(activeTabId);
+            if (activeState.tabType !== 'designer' && activeState.tabType !== 'diff' && window.AppEditor) {
+                activeState.content = window.AppEditor.getValue();
+            }
+        }
+
         const sourceTab = tabsData.get(sourceTabId);
         if (!sourceTab) return;
-        const sourceContent = (sourceTabId === activeTabId && window.AppEditor) ? window.AppEditor.getValue() : sourceTab.content;
+        const sourceContent = sourceTab.content !== undefined ? sourceTab.content : '';
 
         const otherQueryTabs = Array.from(tabsData.entries()).filter(([id, t]) => id !== sourceTabId && t.tabType === 'query');
 
@@ -864,7 +881,7 @@ function initTabs() {
 
         if (otherQueryTabs.length === 1) {
             const [targetId, targetTab] = otherQueryTabs[0];
-            const targetContent = (targetId === activeTabId && window.AppEditor) ? window.AppEditor.getValue() : targetTab.content;
+            const targetContent = targetTab.content !== undefined ? targetTab.content : '';
             createTab({
                 tabType: 'diff',
                 title: `Diff: ${sourceTab.title} ↔ ${targetTab.title}`,
@@ -881,8 +898,16 @@ function initTabs() {
     }
 
     function showComparePickerModal(sourceTabId, otherQueryTabs) {
+        if (activeTabId && tabsData.has(activeTabId)) {
+            const activeState = tabsData.get(activeTabId);
+            if (activeState.tabType !== 'designer' && activeState.tabType !== 'diff' && window.AppEditor) {
+                activeState.content = window.AppEditor.getValue();
+            }
+        }
+
         const sourceTab = tabsData.get(sourceTabId);
-        const sourceContent = (sourceTabId === activeTabId && window.AppEditor) ? window.AppEditor.getValue() : sourceTab.content;
+        if (!sourceTab) return;
+        const sourceContent = sourceTab.content !== undefined ? sourceTab.content : '';
 
         let existing = document.getElementById('ide-compare-picker-modal');
         if (existing) existing.remove();
@@ -948,7 +973,7 @@ function initTabs() {
                 const targetTab = tabsData.get(targetId);
                 closeModal();
                 if (!targetTab) return;
-                const targetContent = (targetId === activeTabId && window.AppEditor) ? window.AppEditor.getValue() : targetTab.content;
+                const targetContent = targetTab.content !== undefined ? targetTab.content : '';
                 createTab({
                     tabType: 'diff',
                     title: `Diff: ${sourceTab.title} ↔ ${targetTab.title}`,
@@ -963,8 +988,14 @@ function initTabs() {
     }
 
     function handleCompareWithDisk(sourceTabId) {
+        if (activeTabId && tabsData.has(activeTabId)) {
+            const activeState = tabsData.get(activeTabId);
+            if (activeState.tabType !== 'designer' && activeState.tabType !== 'diff' && window.AppEditor) {
+                activeState.content = window.AppEditor.getValue();
+            }
+        }
         const sourceTab = sourceTabId ? tabsData.get(sourceTabId) : null;
-        const sourceContent = sourceTab ? ((sourceTabId === activeTabId && window.AppEditor) ? window.AppEditor.getValue() : sourceTab.content) : (window.AppEditor ? window.AppEditor.getValue() : '');
+        const sourceContent = sourceTab ? (sourceTab.content !== undefined ? sourceTab.content : '') : (window.AppEditor ? window.AppEditor.getValue() : '');
         const sourceTitle = sourceTab ? sourceTab.title : 'Editor';
 
         const input = document.getElementById('diff-file-input');
@@ -980,10 +1011,10 @@ function initTabs() {
                     tabType: 'diff',
                     title: `Diff: ${sourceTitle} ↔ ${file.name}`,
                     icon: 'fa-code-compare',
-                    originalText: fileContent,
-                    modifiedText: sourceContent,
-                    originalTitle: file.name + ' (Disk)',
-                    modifiedTitle: sourceTitle + ' (Editor)'
+                    originalText: sourceContent,
+                    modifiedText: fileContent,
+                    originalTitle: sourceTitle + ' (Editor)',
+                    modifiedTitle: file.name + ' (Disk)'
                 });
             };
             reader.readAsText(file);
@@ -1091,8 +1122,13 @@ function initTabs() {
     const btnCompareToolbar = document.getElementById('ide-btn-compare');
     if (btnCompareToolbar) {
         btnCompareToolbar.onclick = () => {
-            if (activeTabId) {
-                handleCompareTab(activeTabId);
+            let targetTabId = activeTabId;
+            if (targetTabId && tabsData.has(targetTabId) && tabsData.get(targetTabId).tabType !== 'query') {
+                const firstQuery = Array.from(tabsData.entries()).find(([_, t]) => t.tabType === 'query');
+                targetTabId = firstQuery ? firstQuery[0] : null;
+            }
+            if (targetTabId) {
+                handleCompareTab(targetTabId);
             } else {
                 handleCompareWithDisk(null);
             }
