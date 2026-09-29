@@ -336,6 +336,38 @@ class PostgreSqlAdapter(DatabaseAdapter):
                 params.append(f"%{search}%")
             sql += "\n            ORDER BY t.tgname"
 
+        elif object_type == "sequences":
+            sql = """
+                SELECT n.nspname, c.relname, c.oid
+                FROM pg_catalog.pg_class c
+                JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+                WHERE (n.nspname = %s OR lower(n.nspname) = lower(%s))
+                  AND c.relkind = 'S'
+            """
+            params = [target_schema, target_schema]
+            if search:
+                sql += "  AND c.relname ILIKE %s"
+                params.append(f"%{search}%")
+            sql += "\n            ORDER BY c.relname"
+
+        elif object_type in ("user_types", "types"):
+            sql = """
+                SELECT n.nspname, t.typname, t.oid
+                FROM pg_catalog.pg_type t
+                JOIN pg_catalog.pg_namespace n ON n.oid = t.typnamespace
+                WHERE (n.nspname = %s OR lower(n.nspname) = lower(%s))
+                  AND t.typtype IN ('c', 'd', 'e')
+                  AND NOT EXISTS (
+                      SELECT 1 FROM pg_catalog.pg_class c
+                      WHERE c.oid = t.typrelid AND c.relkind != 'c'
+                  )
+            """
+            params = [target_schema, target_schema]
+            if search:
+                sql += "  AND t.typname ILIKE %s"
+                params.append(f"%{search}%")
+            sql += "\n            ORDER BY t.typname"
+
         else:
             sql = """
                 SELECT n.nspname, c.relname, c.oid
@@ -441,6 +473,76 @@ class PostgreSqlAdapter(DatabaseAdapter):
                 LIMIT 1
                 """,
                 (target_schema, name, name),
+                limit=1,
+                database=database
+            )
+            return result["rows"][0][0] if result.get("rows") else None
+
+        if norm_type in {"sequence", "sequences"}:
+            result = self.execute(
+                """
+                SELECT 
+                    'CREATE SEQUENCE ' || quote_ident(schemaname) || '.' || quote_ident(sequencename) || E'\\n' ||
+                    '    START WITH ' || start_value || E'\\n' ||
+                    '    INCREMENT BY ' || increment_by || E'\\n' ||
+                    '    MINVALUE ' || min_value || E'\\n' ||
+                    '    MAXVALUE ' || max_value || E'\\n' ||
+                    CASE WHEN cycle THEN '    CYCLE;' ELSE '    NO CYCLE;' END
+                FROM pg_catalog.pg_sequences
+                WHERE (schemaname = %s OR lower(schemaname) = lower(%s))
+                  AND (sequencename = %s OR lower(sequencename) = lower(%s))
+                LIMIT 1
+                """,
+                (target_schema, target_schema, name, name),
+                limit=1,
+                database=database
+            )
+            if result.get("rows"):
+                return result["rows"][0][0]
+
+            result_fallback = self.execute(
+                """
+                SELECT 
+                    '-- Sequence: ' || quote_ident(n.nspname) || '.' || quote_ident(c.relname) || E'\\n' ||
+                    'CREATE SEQUENCE ' || quote_ident(n.nspname) || '.' || quote_ident(c.relname) || ';'
+                FROM pg_catalog.pg_class c
+                JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+                WHERE (n.nspname = %s OR lower(n.nspname) = lower(%s))
+                  AND (c.relname = %s OR lower(c.relname) = lower(%s))
+                  AND c.relkind = 'S'
+                LIMIT 1
+                """,
+                (target_schema, target_schema, name, name),
+                limit=1,
+                database=database
+            )
+            return result_fallback["rows"][0][0] if result_fallback.get("rows") else None
+
+        if norm_type in {"user_type", "user_types", "type", "types"}:
+            result = self.execute(
+                """
+                SELECT 
+                    CASE t.typtype
+                        WHEN 'e' THEN
+                            'CREATE TYPE ' || quote_ident(n.nspname) || '.' || quote_ident(t.typname) || ' AS ENUM (' ||
+                            COALESCE((
+                                SELECT string_agg(quote_literal(enumlabel), ', ' ORDER BY enumsortorder)
+                                FROM pg_catalog.pg_enum WHERE enumtypid = t.oid
+                            ), '') || ');'
+                        WHEN 'd' THEN
+                            'CREATE DOMAIN ' || quote_ident(n.nspname) || '.' || quote_ident(t.typname) || ' AS ' ||
+                            format_type(t.typbasetype, t.typtypmod) || ';'
+                        ELSE
+                            '-- Type: ' || quote_ident(n.nspname) || '.' || quote_ident(t.typname) || E'\\n' ||
+                            '-- Kind: ' || t.typtype
+                    END
+                FROM pg_catalog.pg_type t
+                JOIN pg_catalog.pg_namespace n ON n.oid = t.typnamespace
+                WHERE (n.nspname = %s OR lower(n.nspname) = lower(%s))
+                  AND (t.typname = %s OR lower(t.typname) = lower(%s))
+                LIMIT 1
+                """,
+                (target_schema, target_schema, name, name),
                 limit=1,
                 database=database
             )

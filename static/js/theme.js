@@ -35,6 +35,7 @@
             ? window.ThemeRegistry.getThemeById(name)
             : null;
         const isDark = themeObj ? Boolean(themeObj.isDark) : (name !== 'light' && name !== 'win-nt' && name !== 'win-xp' && !name.toLowerCase().includes('light'));
+        html.setAttribute('data-theme-mode', isDark ? 'dark' : 'light');
 
         // Sync Monaco Editor theme
         if (typeof monaco !== 'undefined' && monaco.editor && window.MonacoInit) {
@@ -120,6 +121,11 @@
     // 1. Synchronously set attribute immediately from localStorage / OS
     const initialTheme = getEffectiveTheme();
     document.documentElement.setAttribute('data-bs-theme', initialTheme);
+    const initialThemeObj = (window.ThemeRegistry && typeof window.ThemeRegistry.getThemeById === 'function')
+        ? window.ThemeRegistry.getThemeById(initialTheme)
+        : null;
+    const initialIsDark = initialThemeObj ? Boolean(initialThemeObj.isDark) : (initialTheme !== 'light' && initialTheme !== 'win-nt' && initialTheme !== 'win-xp' && !initialTheme.toLowerCase().includes('light'));
+    document.documentElement.setAttribute('data-theme-mode', initialIsDark ? 'dark' : 'light');
 
     // 2. Asynchronously verify against settings.json as soon as IPC ready
     async function syncFromSettingsFile() {

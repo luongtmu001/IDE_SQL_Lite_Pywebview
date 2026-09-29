@@ -83,6 +83,28 @@
             { separator: true },
             { id: 'drop', label: 'Drop Trigger', icon: 'fa-circle-minus', danger: true },
         ],
+        sequence: [
+            { id: 'script-create', label: 'Script as CREATE', icon: 'fa-code' },
+            { id: 'script-drop', label: 'Script as DROP', icon: 'fa-trash', danger: true },
+            { separator: true },
+            { id: 'refresh', label: 'Refresh', icon: 'fa-rotate-right' },
+            { separator: true },
+            { id: 'drop', label: 'Drop Sequence', icon: 'fa-circle-minus', danger: true },
+        ],
+        'group-sequences': [
+            { id: 'refresh', label: 'Refresh', icon: 'fa-rotate-right' },
+        ],
+        user_type: [
+            { id: 'script-create', label: 'Script as CREATE', icon: 'fa-code' },
+            { id: 'script-drop', label: 'Script as DROP', icon: 'fa-trash', danger: true },
+            { separator: true },
+            { id: 'refresh', label: 'Refresh', icon: 'fa-rotate-right' },
+            { separator: true },
+            { id: 'drop', label: 'Drop Type', icon: 'fa-circle-minus', danger: true },
+        ],
+        'group-user_types': [
+            { id: 'refresh', label: 'Refresh', icon: 'fa-rotate-right' },
+        ],
         database: [
             { id: 'new-query', label: 'New Query', icon: 'fa-plus' },
             { separator: true },
@@ -147,9 +169,10 @@
                 break;
             case 'script-drop':
                 {
+                    const dropKeyword = (type === 'user_type' || type === 'user_types') ? 'TYPE' : (type || 'TABLE').toUpperCase();
                     const sql = dbType === 'postgresql'
-                        ? `DROP ${type.toUpperCase()} "${schema || 'public'}"."${name}";`
-                        : `DROP ${type.toUpperCase()} [${safeSchema}].[${name}];`;
+                        ? `DROP ${dropKeyword} "${schema || 'public'}"."${name}";`
+                        : `DROP ${dropKeyword} [${safeSchema}].[${name}];`;
                     openScriptInNewTab(sql, `DROP_${name}`, nodeData, false);
                 }
                 break;
@@ -374,6 +397,7 @@
     function confirmDrop(nodeData) {
         const { type, name, schema, tableName, dbType } = nodeData;
         if (!confirm(`Are you sure you want to DROP ${type} [${schema}].[${name}]?\n\nThis action cannot be undone.`)) return;
+        const dropKeyword = (type === 'user_type' || type === 'user_types') ? 'TYPE' : (type || 'TABLE').toUpperCase();
         let sql;
         if (type === 'trigger') {
             if (dbType === 'postgresql') {
@@ -383,8 +407,8 @@
             }
         } else {
             sql = dbType === 'postgresql'
-                ? `DROP ${(type || 'TABLE').toUpperCase()} "${schema || 'public'}"."${name}";`
-                : `DROP ${(type || 'TABLE').toUpperCase()} [${schema || 'dbo'}].[${name}];`;
+                ? `DROP ${dropKeyword} "${schema || 'public'}"."${name}";`
+                : `DROP ${dropKeyword} [${schema || 'dbo'}].[${name}];`;
         }
         openScriptInNewTab(sql, `DROP_${name}`, nodeData, true);
     }

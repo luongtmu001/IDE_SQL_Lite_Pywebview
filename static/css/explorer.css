@@ -158,6 +158,37 @@
     font-size: calc(var(--ide-ui-font-size, 13px) - 1px);
 }
 
+/* ── Database Connection Icon (SVG / Image) ─────────────────────────────────── */
+.tree-conn-icon {
+    width: 16px;
+    height: 16px;
+    object-fit: contain;
+    margin-right: 6px;
+    flex-shrink: 0;
+    vertical-align: middle;
+    transition: filter 0.2s ease, opacity 0.2s ease;
+}
+
+/* Connected state: Original color */
+.tree-conn-icon.connected {
+    filter: none !important;
+    opacity: 1 !important;
+}
+
+/* Disconnected state: White in Dark Mode, Gray in Light Mode */
+html[data-theme-mode="dark"] .tree-conn-icon.disconnected,
+html[data-bs-theme="dark"] .tree-conn-icon.disconnected,
+html:not([data-theme-mode="light"]):not([data-bs-theme="light"]):not([data-bs-theme="win-xp"]):not([data-bs-theme="win-nt"]) .tree-conn-icon.disconnected {
+    filter: brightness(0) invert(1) opacity(0.85);
+}
+
+html[data-theme-mode="light"] .tree-conn-icon.disconnected,
+html[data-bs-theme="light"] .tree-conn-icon.disconnected,
+html[data-bs-theme="win-xp"] .tree-conn-icon.disconnected,
+html[data-bs-theme="win-nt"] .tree-conn-icon.disconnected {
+    filter: grayscale(100%) opacity(0.65);
+}
+
 .tree-label {
     white-space: nowrap;
     user-select: none;

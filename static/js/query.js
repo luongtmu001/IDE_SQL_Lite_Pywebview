@@ -478,18 +478,16 @@ function initQuery() {
                                 if (dd) dd.hide();
                             }
 
-                            // Single selection: set active database and default schema (dbo for sqlserver, public for postgresql)
-                            let defaultSchema = dbType === 'postgresql' ? 'public' : 'dbo';
+                            // Single selection: set active database and default schema
                             let preferredSch = null;
-                            if (dbType === 'postgresql') {
-                                if (window.AppExplorer && typeof window.AppExplorer.getSavedConnections === 'function') {
-                                    const savedList = window.AppExplorer.getSavedConnections() || [];
-                                    const profile = savedList.find(s => s && s.type === dbType && (s.name === currentConnName || s.connection_id === connId));
-                                    if (profile && profile.schema && (!profile.database || profile.database === dbName)) {
-                                        preferredSch = profile.schema;
-                                    }
+                            if (window.AppExplorer && typeof window.AppExplorer.getSavedConnections === 'function') {
+                                const savedList = window.AppExplorer.getSavedConnections() || [];
+                                const profile = savedList.find(s => s && (s.name === currentConnName || s.server === currentConnName || s.connection_id === connId || s.id === connId));
+                                if (profile && profile.schema) {
+                                    preferredSch = profile.schema;
                                 }
                             }
+                            let defaultSchema = preferredSch || (dbType === 'postgresql' ? 'public' : 'dbo');
                             try {
                                 const sRes = await fetch(`/api/metadata/${connId}/schemas?database=${encodeURIComponent(dbName)}`);
                                 const sData = await sRes.json();

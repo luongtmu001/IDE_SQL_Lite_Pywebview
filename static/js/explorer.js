@@ -65,8 +65,8 @@ function initExplorer() {
                 let savedSch = null;
                 if (typeof getSavedConnections === 'function') {
                     const savedList = getSavedConnections() || [];
-                    const profile = savedList.find(s => s && s.type === ctx.dbType && (s.name === ctx.connectionName || s.server === ctx.connectionName || s.connection_id === ctx.connectionId));
-                    if (profile && profile.schema && (!profile.database || profile.database === ctx.database)) {
+                    const profile = savedList.find(s => s && (s.type === ctx.dbType || !ctx.dbType) && (s.name === ctx.connectionName || s.server === ctx.connectionName || s.connection_id === ctx.connectionId || s.id === ctx.connectionId));
+                    if (profile && profile.schema) {
                         savedSch = profile.schema;
                     }
                 }
@@ -152,7 +152,8 @@ function initExplorer() {
         const {
             name, type, icon, iconColor,
             hasChildren, loadCallback,
-            nodeData = {}, rightEl = null
+            nodeData = {}, rightEl = null,
+            iconImg = null, iconFallback = null, iconClass = ''
         } = opts;
 
         const li   = document.createElement('li');
@@ -169,9 +170,23 @@ function initExplorer() {
         const toggle = document.createElement('i');
         toggle.className = `fa-solid ${hasChildren ? 'fa-caret-right' : 'fa-fw'} tree-toggle`;
 
-        const iconEl = document.createElement('i');
-        iconEl.className = `fa-solid fa-${icon} tree-icon`;
-        if (iconColor) iconEl.style.color = iconColor;
+        let iconEl;
+        if (iconImg) {
+            iconEl = document.createElement('img');
+            iconEl.src = iconImg;
+            iconEl.className = `tree-conn-icon ${iconClass || ''}`;
+            if (iconFallback) {
+                iconEl.onerror = () => {
+                    iconEl.onerror = null;
+                    iconEl.src = iconFallback;
+                };
+            }
+            iconEl.alt = name || '';
+        } else {
+            iconEl = document.createElement('i');
+            iconEl.className = `fa-solid fa-${icon} tree-icon`;
+            if (iconColor) iconEl.style.color = iconColor;
+        }
 
         const label = document.createElement('span');
         label.className = 'tree-label';
@@ -239,7 +254,7 @@ function initExplorer() {
     }
 
     // ── Fetch databases ───────────────────────────────────────────────────────
-    async function fetchDatabases(containerUl, connId, connName, dbType) {
+    async function fetchDatabases(containerUl, connId, connName, dbType, config = null) {
         const res  = await fetch(`/api/metadata/${connId}/databases`);
         const data = await res.json();
         containerUl.innerHTML = '';
@@ -261,9 +276,25 @@ function initExplorer() {
             return;
         }
 
+        // Determine default schema for this connection
+        let connDefaultSchema = (config && config.schema) ? config.schema : null;
+        if (!connDefaultSchema && typeof getSavedConnections === 'function') {
+            const savedList = getSavedConnections() || [];
+            const profile = savedList.find(s => s && (s.name === connName || s.server === connName || (config && s.id === config.id)));
+            if (profile && profile.schema) {
+                connDefaultSchema = profile.schema;
+            }
+        }
+
         items.forEach(db => {
             const dbName = db.name || db;
             const filterKey = `${connId}::${dbName}`;
+
+            // If connection has default schema configured, any newly opened database under that connection
+            // automatically defaults to filtering by that default schema.
+            if (connDefaultSchema && !schemaFilters[filterKey]) {
+                schemaFilters[filterKey] = [connDefaultSchema];
+            }
 
             // Schema filter checklist button
             const schemaFilterBtn = document.createElement('button');
@@ -294,11 +325,11 @@ function initExplorer() {
 
             const dbDefaultSchema = (Array.isArray(schemaFilters[filterKey]) && schemaFilters[filterKey].length > 0)
                 ? schemaFilters[filterKey][0]
-                : null;
+                : (connDefaultSchema || null);
             dbNodeCtrl = renderNode(containerUl, {
                 name: dbName, type: 'database', icon: 'database', iconColor: 'var(--ide-accent)',
                 hasChildren: true,
-                loadCallback: ul => fetchSchemas(ul, connId, connName, dbName, dbType),
+                loadCallback: ul => fetchSchemas(ul, connId, connName, dbName, dbType, connDefaultSchema),
                 nodeData: { connId, connName, database: dbName, schema: dbDefaultSchema, dbType },
                 rightEl: schemaFilterBtn,
             });
@@ -306,7 +337,7 @@ function initExplorer() {
     }
 
     // ── Fetch schemas ─────────────────────────────────────────────────────────
-    async function fetchSchemas(containerUl, connId, connName, dbName, dbType) {
+    async function fetchSchemas(containerUl, connId, connName, dbName, dbType, connDefaultSchema = null) {
         const res  = await fetch(`/api/metadata/${connId}/schemas?database=${encodeURIComponent(dbName)}`);
         const data = await res.json();
         containerUl.innerHTML = '';
@@ -314,7 +345,19 @@ function initExplorer() {
         let schemas = data.items || [];
         const activeFilter = schemaFilters[`${connId}::${dbName}`];
         if (Array.isArray(activeFilter)) {
-            schemas = schemas.filter(s => activeFilter.includes(s.name || s));
+            const activeFilterLower = activeFilter.map(x => String(x).toLowerCase());
+            const matched = schemas.filter(s => {
+                const sName = String(s.name || s);
+                return activeFilter.includes(sName) || activeFilterLower.includes(sName.toLowerCase());
+            });
+            if (matched.length > 0) {
+                schemas = matched;
+            } else if (connDefaultSchema && activeFilter.length === 1 && activeFilterLower.includes(connDefaultSchema.toLowerCase())) {
+                // If the inherited default schema is not present in this database, fall back to showing all schemas
+                delete schemaFilters[`${connId}::${dbName}`];
+            } else {
+                schemas = matched;
+            }
         }
 
         if (!schemas.length) {
@@ -340,12 +383,14 @@ function initExplorer() {
 
         const isPg = (dbType || window.ActiveDbType || '').toLowerCase().includes('postgr');
         const categories = [
-            { label: 'Tables',     type: 'tables',     icon: 'table',       color: '#6897BB' },
-            { label: 'Views',      type: 'views',      icon: 'eye',         color: '#6897BB' },
+            { label: 'Tables',             type: 'tables',             icon: 'table',           color: '#6897BB' },
+            { label: 'Views',              type: 'views',              icon: 'eye',             color: '#6897BB' },
             ...(isPg ? [{ label: 'Materialized Views', type: 'materialized_views', icon: 'layer-group', color: '#6897BB' }] : []),
-            { label: 'Procedures', type: 'procedures', icon: 'code',        color: '#CC7832' },
-            { label: 'Functions',  type: 'functions',  icon: 'calculator',  color: '#CC7832' },
-            { label: 'Triggers',   type: 'triggers',   icon: 'bolt',        color: '#CC7832' },
+            { label: 'Procedures',         type: 'procedures',         icon: 'code',            color: '#CC7832' },
+            { label: 'Functions',          type: 'functions',          icon: 'calculator',      color: '#CC7832' },
+            { label: 'Triggers',           type: 'triggers',           icon: 'bolt',            color: '#CC7832' },
+            { label: 'Sequences',          type: 'sequences',          icon: 'arrow-down-1-9',  color: '#8892b0' },
+            { label: 'User Defined Types', type: 'user_types',         icon: 'cube',            color: '#98c379' },
         ];
 
         categories.forEach(cat => {
@@ -401,17 +446,39 @@ function initExplorer() {
             return;
         }
 
-        const iconMap = { tables: 'table', views: 'eye', materialized_views: 'layer-group', procedures: 'code', functions: 'calculator', triggers: 'bolt' };
-        const typeMap = { tables: 'table', views: 'view', materialized_views: 'materialized_view', procedures: 'procedure', functions: 'function', triggers: 'trigger' };
+        const iconMap = { 
+            tables: 'table', 
+            views: 'eye', 
+            materialized_views: 'layer-group', 
+            procedures: 'code', 
+            functions: 'calculator', 
+            triggers: 'bolt',
+            sequences: 'arrow-down-1-9',
+            user_types: 'cube'
+        };
+        const typeMap = { 
+            tables: 'table', 
+            views: 'view', 
+            materialized_views: 'materialized_view', 
+            procedures: 'procedure', 
+            functions: 'function', 
+            triggers: 'trigger',
+            sequences: 'sequence',
+            user_types: 'user_type'
+        };
 
         const fragment = document.createDocumentFragment();
         data.items.forEach(obj => {
             const objName = obj.name || obj;
             const mappedType = typeMap[objType] || objType;
+            const isLeaf = objType === 'sequences' || objType === 'user_types';
             renderNode(fragment, {
-                name: objName, type: mappedType, icon: iconMap[objType] || 'file-code', iconColor: '#c7cfcf',
-                hasChildren: true,
-                loadCallback: ul => fetchObjectFolders(ul, connId, connName, dbName, schema, mappedType, objName, effectiveDbType),
+                name: objName, 
+                type: mappedType, 
+                icon: iconMap[objType] || 'file-code', 
+                iconColor: objType === 'sequences' ? '#8892b0' : (objType === 'user_types' ? '#98c379' : '#c7cfcf'),
+                hasChildren: !isLeaf,
+                loadCallback: isLeaf ? null : (ul => fetchObjectFolders(ul, connId, connName, dbName, schema, mappedType, objName, effectiveDbType)),
                 nodeData: { connId, connName, database: dbName, schema, type: mappedType, dbType: effectiveDbType },
             });
         });
@@ -999,13 +1066,23 @@ function initExplorer() {
             });
         }
 
+        const isPg = String(dbType || '').toLowerCase().includes('postgr');
+        const connIconImg = isPg ? '/static/icons/postgresql.png' : '/static/icons/sqlserver.png';
+        const connIconFallback = isPg 
+            ? 'https://img.icons8.com/color/48/postgreesql.png' 
+            : 'https://img.icons8.com/color/48/microsoft-sql-server.png';
+        const connIconClass = isActive ? 'connected' : 'disconnected';
+
         dbNodeCtrl = renderNode(ul, {
             name: `${name} (${typeLabel})`,
             type: 'connection',
+            iconImg: connIconImg,
+            iconFallback: connIconFallback,
+            iconClass: connIconClass,
             icon: 'server',
             iconColor: isActive ? 'var(--ide-success)' : 'var(--ide-text-dim)',
             hasChildren: isActive,
-            loadCallback: isActive ? (ul => fetchDatabases(ul, connId, name, dbType)) : null,
+            loadCallback: isActive ? (ul => fetchDatabases(ul, connId, name, dbType, config)) : null,
             nodeData: { connId, connName: name, dbType, isActive, database: config ? config.database : null, schema: config ? config.schema : null, config },
             rightEl: rightEl
         });

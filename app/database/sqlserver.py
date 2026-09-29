@@ -393,6 +393,53 @@ class SqlServerAdapter(DatabaseAdapter):
         }
 
         db_prefix = f"[{database}]." if database else ""
+
+        if object_type == "sequences":
+            sql = f"""
+                SELECT s.name, sq.name, sq.object_id
+                FROM {db_prefix}sys.sequences AS sq
+                JOIN {db_prefix}sys.schemas AS s
+                  ON s.schema_id = sq.schema_id
+                WHERE s.name = ?
+            """
+            params = [schema]
+            if search:
+                sql += "  AND sq.name LIKE ?"
+                params.append(f"%{search}%")
+            sql += "\n            ORDER BY sq.name"
+            result = self.execute(sql, tuple(params), database=database)
+            return [
+                {
+                    "schema": row[0],
+                    "name": row[1],
+                    "id": row[2],
+                }
+                for row in result.get("rows", [])
+            ]
+
+        elif object_type in ("user_types", "types"):
+            sql = f"""
+                SELECT s.name, t.name, t.user_type_id
+                FROM {db_prefix}sys.types AS t
+                JOIN {db_prefix}sys.schemas AS s
+                  ON s.schema_id = t.schema_id
+                WHERE t.is_user_defined = 1 AND s.name = ?
+            """
+            params = [schema]
+            if search:
+                sql += "  AND t.name LIKE ?"
+                params.append(f"%{search}%")
+            sql += "\n            ORDER BY t.name"
+            result = self.execute(sql, tuple(params), database=database)
+            return [
+                {
+                    "schema": row[0],
+                    "name": row[1],
+                    "id": row[2],
+                }
+                for row in result.get("rows", [])
+            ]
+
         sql = f"""
             SELECT s.name, o.name, o.object_id
             FROM {db_prefix}sys.objects AS o
@@ -624,6 +671,43 @@ class SqlServerAdapter(DatabaseAdapter):
                 (name,),
             )
             if result["rows"]:
+                return result["rows"][0][0]
+
+        if object_type in ("sequence", "sequences"):
+            seq_sql = f"""
+                SELECT 
+                    'CREATE SEQUENCE ' + QUOTENAME(s.name) + '.' + QUOTENAME(sq.name) + CHAR(13) + CHAR(10) +
+                    '    AS ' + TYPE_NAME(sq.user_type_id) + CHAR(13) + CHAR(10) +
+                    '    START WITH ' + CAST(sq.start_value AS VARCHAR(30)) + CHAR(13) + CHAR(10) +
+                    '    INCREMENT BY ' + CAST(sq.increment AS VARCHAR(30)) + CHAR(13) + CHAR(10) +
+                    '    MINVALUE ' + CAST(sq.minimum_value AS VARCHAR(30)) + CHAR(13) + CHAR(10) +
+                    '    MAXVALUE ' + CAST(sq.maximum_value AS VARCHAR(30)) + CHAR(13) + CHAR(10) +
+                    CASE WHEN sq.is_cycling = 1 THEN '    CYCLE' ELSE '    NO CYCLE' END + ';'
+                FROM {db_prefix}sys.sequences AS sq
+                JOIN {db_prefix}sys.schemas AS s ON s.schema_id = sq.schema_id
+                WHERE s.name = ? AND sq.name = ?
+            """
+            result = self.execute(seq_sql, (schema, name), database=database)
+            if result.get("rows"):
+                return result["rows"][0][0]
+
+        if object_type in ("user_type", "user_types", "type", "types"):
+            udt_sql = f"""
+                SELECT 
+                    'CREATE TYPE ' + QUOTENAME(s.name) + '.' + QUOTENAME(t.name) + ' FROM ' + 
+                    TYPE_NAME(t.system_type_id) + 
+                    CASE 
+                        WHEN t.system_type_id IN (167, 175, 231, 239) THEN '(' + CASE WHEN t.max_length = -1 THEN 'MAX' ELSE CAST(CASE WHEN t.system_type_id IN (231, 239) THEN t.max_length/2 ELSE t.max_length END AS VARCHAR(10)) END + ')'
+                        WHEN t.system_type_id IN (106, 108) THEN '(' + CAST(t.precision AS VARCHAR(10)) + ',' + CAST(t.scale AS VARCHAR(10)) + ')'
+                        ELSE ''
+                    END + 
+                    CASE WHEN t.is_nullable = 1 THEN ' NULL;' ELSE ' NOT NULL;' END
+                FROM {db_prefix}sys.types t
+                JOIN {db_prefix}sys.schemas s ON s.schema_id = t.schema_id
+                WHERE t.is_user_defined = 1 AND s.name = ? AND t.name = ?
+            """
+            result = self.execute(udt_sql, (schema, name), database=database)
+            if result.get("rows"):
                 return result["rows"][0][0]
 
         result = self.execute(
