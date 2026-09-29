@@ -99,8 +99,9 @@ def test_features():
         assert b'id="connTrustCert"' in res.data, 'Missing Trust Certificate checkbox in connection modal'
         assert b'id="connSqlServerOptionsGroup"' in res.data, 'Missing SQL Server options group in connection modal'
         assert b'id="connTypeLogo"' in res.data, 'Missing database type logo in connection modal'
+        assert b'id="connTypeName"' in res.data, 'Missing database type name label in connection modal'
         assert b'id="connTypeLogoWrapper"' in res.data, 'Missing logo wrapper in connection modal'
-        print('[PASS] Connection modal has SSL and Trust Certificate options and database logo')
+        print('[PASS] Connection modal has SSL and Trust Certificate options, database logo, and type name')
 
         # 7. Test interactive context selectors on Action Bar
         assert b'id="ide-ctx-connection"' in res.data, 'Missing ide-ctx-connection button'

@@ -488,12 +488,15 @@
                 <button type="button" class="btn-close btn-close-sm" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
 
-            <!-- Database Type Logo Badge (Right below title) -->
-            <div class="text-center py-2 border-bottom" id="connTypeLogoWrapper" style="background: var(--ide-bg-hover, rgba(128,128,128,0.06));">
-                <img id="connTypeLogo" width="48" height="48" src="/static/icons/sqlserver.png" alt="microsoft-sql-server" onerror="this.onerror=null; this.src='https://img.icons8.com/color/48/microsoft-sql-server.png';" style="object-fit: contain; transition: transform 0.2s ease, opacity 0.2s ease;">
-            </div>
-
             <div class="modal-body">
+                <!-- Database Type Logo & Name Banner (Directly below title, left-aligned logo with DB type name, rounded 4 corners, aligned with form inputs) -->
+                <div class="d-flex align-items-center p-2 mb-3" id="connTypeLogoWrapper" style="background: var(--ide-bg-hover, rgba(128,128,128,0.08)); border: 1px solid var(--ide-border, rgba(128,128,128,0.2)); border-radius: 8px;">
+                    <img id="connTypeLogo" width="48" height="48" src="/static/icons/sqlserver.png" alt="microsoft-sql-server" onerror="this.onerror=null; this.src='https://img.icons8.com/color/48/microsoft-sql-server.png';" style="object-fit: contain; flex-shrink: 0;" class="me-3">
+                    <div class="d-flex flex-column justify-content-center">
+                        <span id="connTypeName" style="font-family: var(--ide-ui-font-family, var(--bs-body-font-family, inherit)); font-size: 18px; font-weight: 600; line-height: 24px; color: var(--ide-text-main, currentColor);">Microsoft SQL Server</span>
+                    </div>
+                </div>
+
                 <div id="connectionFormFields">
 
                     <div class="mb-2">

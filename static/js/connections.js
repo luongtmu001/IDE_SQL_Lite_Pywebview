@@ -372,8 +372,9 @@ function initConnections() {
             fPort.placeholder = isSqlServer ? "1433" : "5432";
         }
 
-        // Update database type logo right below the title
+        // Update database type logo and name right below the title
         const logoImg = document.getElementById("connTypeLogo");
+        const typeNameEl = document.getElementById("connTypeName");
         if (logoImg) {
             if (isSqlServer) {
                 logoImg.src = "/static/icons/sqlserver.png";
@@ -384,6 +385,9 @@ function initConnections() {
                 logoImg.alt = "postgreesql";
                 logoImg.onerror = function() { this.src = "https://img.icons8.com/color/48/postgreesql.png"; };
             }
+        }
+        if (typeNameEl) {
+            typeNameEl.textContent = isSqlServer ? "Microsoft SQL Server" : "PostgreSQL";
         }
 
         syncAuthUI();
