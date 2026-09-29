@@ -1,8 +1,8 @@
 {
-    "theme": "win-xp",
+    "theme": "github-light-colorblind-beta-light",
     "appearance": {
-        "theme": "win-xp",
-        "iconSize": 15,
+        "theme": "github-light-colorblind-beta-light",
+        "iconSize": 14,
         "uiFontFamily": "Roboto",
         "uiFontSize": 15,
         "fontSize": 13
@@ -14,9 +14,9 @@
     },
     "editor": {
         "fontFamily": "JetBrains Mono",
-        "fontSize": 13,
+        "fontSize": 15,
         "lineHeight": 1.5,
-        "letterSpacing": 0.5,
+        "letterSpacing": 0,
         "tabSize": 4,
         "insertSpaces": true,
         "wordWrap": false,

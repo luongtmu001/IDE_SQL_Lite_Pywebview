@@ -1518,3 +1518,66 @@ html[data-bs-theme="darcula"] .ide-results-table td.ide-null-cell {
     border-top: 1px solid var(--ide-border, #3c3f41);
     margin: 4px 0;
 }
+
+/* ── Split Editor & Resizer Styling ─────────────────────────────────────────── */
+#editor-resizer {
+    width: 6px !important;
+    background: var(--ide-border, #3c3f41);
+    cursor: col-resize;
+    position: relative;
+    transition: background 0.15s ease;
+    user-select: none;
+    touch-action: none;
+}
+#editor-resizer:hover,
+#editor-resizer.dragging {
+    background: var(--ide-primary, #007acc) !important;
+}
+#editor-resizer::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 2px;
+    height: 24px;
+    border-left: 1px dotted rgba(255, 255, 255, 0.4);
+    border-right: 1px dotted rgba(255, 255, 255, 0.4);
+    pointer-events: none;
+}
+
+#split-pane-header {
+    background: var(--ide-bg-panel, #252526);
+    border-bottom: 1px solid var(--ide-border, #3c3f41);
+    color: var(--ide-text-main, #cccccc);
+}
+#split-pane-tab-select {
+    color: var(--ide-text-main, #cccccc) !important;
+    background: transparent;
+    border: none;
+    outline: none;
+    box-shadow: none;
+}
+#split-pane-tab-select option {
+    background: var(--ide-bg-panel, #252526);
+    color: var(--ide-text-main, #cccccc);
+}
+
+/* ── Monaco Diff / Compare Container & Toolbar ────────────────────────────── */
+#editor-diff-container {
+    background: var(--ide-bg-editor, #1e1e1e);
+}
+.ide-diff-toolbar {
+    background: var(--ide-bg-panel, #252526);
+    border-bottom: 1px solid var(--ide-border, #3c3f41);
+    color: var(--ide-text-main, #cccccc);
+}
+.ide-diff-toolbar .btn-outline-secondary {
+    color: var(--ide-text-muted, #858585);
+    border-color: var(--ide-border, #3c3f41);
+}
+.ide-diff-toolbar .btn-outline-secondary:hover {
+    background: var(--ide-hover-bg, rgba(255, 255, 255, 0.1));
+    color: var(--ide-text-active, #ffffff);
+    border-color: var(--ide-primary, #007acc);
+}

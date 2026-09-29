@@ -183,7 +183,7 @@ function initTabs() {
         // Save current editor content if switching from a query tab
         if (activeTabId && tabsData.has(activeTabId)) {
             const prev = tabsData.get(activeTabId);
-            if (prev.tabType !== 'designer' && window.AppEditor) {
+            if (prev.tabType !== 'designer' && prev.tabType !== 'diff' && window.AppEditor) {
                 prev.content = window.AppEditor.getValue();
             }
         }
@@ -196,7 +196,7 @@ function initTabs() {
         activeTabId = tabId;
         const state = tabsData.get(tabId);
 
-        // Toggle workspace views: Query View vs Table Designer View vs Table Data Editor View
+        // Toggle workspace views: Query View vs Table Designer View vs Table Data Editor View vs Diff View
         const designerContainer = document.getElementById('table-designer-container');
         const dataEditorContainer = document.getElementById('table-data-editor-container');
         const editorWrap = document.querySelector('.ide-editor-wrap');
@@ -205,6 +205,7 @@ function initTabs() {
         const queryControls = document.querySelector('.ide-action-bar .d-flex.align-items-center.gap-1.flex-shrink-0');
 
         if (state && state.tabType === 'designer') {
+            if (typeof window.hideDiffView === 'function') window.hideDiffView();
             if (editorWrap) editorWrap.classList.add('d-none');
             if (resizer) resizer.classList.add('d-none');
             if (resultsPane) resultsPane.classList.add('d-none');
@@ -216,6 +217,7 @@ function initTabs() {
                 window.TableDesigner.activateTab(tabId);
             }
         } else if (state && state.tabType === 'data-editor') {
+            if (typeof window.hideDiffView === 'function') window.hideDiffView();
             if (editorWrap) editorWrap.classList.add('d-none');
             if (resizer) resizer.classList.add('d-none');
             if (resultsPane) resultsPane.classList.add('d-none');
@@ -226,7 +228,19 @@ function initTabs() {
             if (window.TableDataEditor) {
                 window.TableDataEditor.activateTab(tabId);
             }
+        } else if (state && state.tabType === 'diff') {
+            if (designerContainer) designerContainer.classList.add('d-none');
+            if (dataEditorContainer) dataEditorContainer.classList.add('d-none');
+            if (editorWrap) editorWrap.classList.remove('d-none');
+            if (resizer) resizer.classList.add('d-none');
+            if (resultsPane) resultsPane.classList.add('d-none');
+            if (queryControls) queryControls.classList.add('opacity-50', 'pe-none');
+
+            if (typeof window.showDiffView === 'function') {
+                window.showDiffView(state.originalText || '', state.modifiedText || '', state.originalTitle || 'Original', state.modifiedTitle || 'Modified');
+            }
         } else {
+            if (typeof window.hideDiffView === 'function') window.hideDiffView();
             if (designerContainer) designerContainer.classList.add('d-none');
             if (dataEditorContainer) dataEditorContainer.classList.add('d-none');
             if (editorWrap) editorWrap.classList.remove('d-none');
@@ -279,6 +293,10 @@ function initTabs() {
             window.TableDesigner.closeTab(tabId);
         } else if (state && state.tabType === 'data-editor' && window.TableDataEditor) {
             window.TableDataEditor.closeTab(tabId);
+        } else if (state && state.tabType === 'diff') {
+            if (typeof window.closeDiffView === 'function') {
+                window.closeDiffView();
+            }
         }
 
         tabsData.delete(tabId);
@@ -696,8 +714,16 @@ function initTabs() {
             ${isQuery ? `
             <div class="ide-ctx-separator"></div>
             <button class="ide-ctx-item" id="ctx-tab-split">
-                <i class="fa-solid fa-columns ide-ctx-icon text-info"></i>
-                <span class="ide-ctx-label">${isSplit ? 'Close Split View' : 'Split Editor'}</span>
+                <i class="fa-solid fa-table-columns ide-ctx-icon text-info"></i>
+                <span class="ide-ctx-label">${isSplit ? 'Close Split View' : 'Split to Right'}</span>
+            </button>
+            <button class="ide-ctx-item" id="ctx-tab-compare">
+                <i class="fa-solid fa-code-compare ide-ctx-icon text-warning"></i>
+                <span class="ide-ctx-label">Compare with...</span>
+            </button>
+            <button class="ide-ctx-item" id="ctx-tab-compare-file">
+                <i class="fa-regular fa-file-code ide-ctx-icon"></i>
+                <span class="ide-ctx-label">Compare with File on Disk...</span>
             </button>
             ` : ''}
         `;
@@ -797,14 +823,172 @@ function initTabs() {
             menu.querySelector('#ctx-tab-split')?.addEventListener('click', (ev) => {
                 ev.preventDefault();
                 closeMenu();
-                switchTab(tabId);
-                if (window.toggleSplitEditor) {
-                    window.toggleSplitEditor();
-                } else if (window.splitEditor) {
-                    window.splitEditor();
+                if (window.isEditorSplit && window.isEditorSplit()) {
+                    window.unsplitEditor();
+                } else {
+                    switchTab(tabId);
+                    if (window.splitEditor) {
+                        window.splitEditor(tabId);
+                    }
                 }
             });
+
+            menu.querySelector('#ctx-tab-compare')?.addEventListener('click', (ev) => {
+                ev.preventDefault();
+                closeMenu();
+                handleCompareTab(tabId);
+            });
+
+            menu.querySelector('#ctx-tab-compare-file')?.addEventListener('click', (ev) => {
+                ev.preventDefault();
+                closeMenu();
+                handleCompareWithDisk(tabId);
+            });
         }
+    }
+
+    function handleCompareTab(sourceTabId) {
+        const sourceTab = tabsData.get(sourceTabId);
+        if (!sourceTab) return;
+        const sourceContent = (sourceTabId === activeTabId && window.AppEditor) ? window.AppEditor.getValue() : sourceTab.content;
+
+        const otherQueryTabs = Array.from(tabsData.entries()).filter(([id, t]) => id !== sourceTabId && t.tabType === 'query');
+
+        if (otherQueryTabs.length === 0) {
+            if (typeof showToast === 'function') {
+                showToast('Chưa có tab truy vấn khác. Đang mở chọn file từ máy để so sánh...', 'info');
+            }
+            handleCompareWithDisk(sourceTabId);
+            return;
+        }
+
+        if (otherQueryTabs.length === 1) {
+            const [targetId, targetTab] = otherQueryTabs[0];
+            const targetContent = (targetId === activeTabId && window.AppEditor) ? window.AppEditor.getValue() : targetTab.content;
+            createTab({
+                tabType: 'diff',
+                title: `Diff: ${sourceTab.title} ↔ ${targetTab.title}`,
+                icon: 'fa-code-compare',
+                originalText: sourceContent,
+                modifiedText: targetContent,
+                originalTitle: sourceTab.title,
+                modifiedTitle: targetTab.title
+            });
+            return;
+        }
+
+        showComparePickerModal(sourceTabId, otherQueryTabs);
+    }
+
+    function showComparePickerModal(sourceTabId, otherQueryTabs) {
+        const sourceTab = tabsData.get(sourceTabId);
+        const sourceContent = (sourceTabId === activeTabId && window.AppEditor) ? window.AppEditor.getValue() : sourceTab.content;
+
+        let existing = document.getElementById('ide-compare-picker-modal');
+        if (existing) existing.remove();
+
+        const modal = document.createElement('div');
+        modal.id = 'ide-compare-picker-modal';
+        modal.className = 'modal fade show';
+        modal.style.display = 'block';
+        modal.style.backgroundColor = 'rgba(0,0,0,0.5)';
+        modal.style.zIndex = '1060';
+
+        const itemsHtml = otherQueryTabs.map(([id, t]) => `
+            <button type="button" class="list-group-item list-group-item-action d-flex align-items-center justify-content-between p-2" data-target-id="${id}" style="background: var(--ide-bg-panel); color: var(--ide-text-main); border-color: var(--ide-border);">
+                <div class="d-flex align-items-center gap-2 text-truncate">
+                    <i class="fa-solid fa-table-list text-info"></i>
+                    <span class="fw-semibold">${t.title}</span>
+                </div>
+                <span class="badge bg-secondary-subtle text-secondary" style="font-size: 10px;">Select</span>
+            </button>
+        `).join('');
+
+        modal.innerHTML = `
+            <div class="modal-dialog modal-dialog-centered" style="max-width: 420px;">
+                <div class="modal-content" style="background: var(--ide-bg-panel); color: var(--ide-text-main); border: 1px solid var(--ide-border); box-shadow: 0 8px 24px rgba(0,0,0,0.5);">
+                    <div class="modal-header py-2 px-3 border-bottom" style="border-color: var(--ide-border) !important;">
+                        <h6 class="modal-title mb-0 d-flex align-items-center gap-2">
+                            <i class="fa-solid fa-code-compare text-warning"></i>
+                            So sánh với tab nào?
+                        </h6>
+                        <button type="button" class="btn-close btn-close-white" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body p-3">
+                        <p class="small text-muted mb-2">So sánh tab <strong>"${sourceTab.title}"</strong> với:</p>
+                        <div class="list-group">
+                            ${itemsHtml}
+                        </div>
+                    </div>
+                    <div class="modal-footer py-2 px-3 border-top d-flex justify-content-between" style="border-color: var(--ide-border) !important;">
+                        <button type="button" class="btn btn-sm btn-outline-info btn-compare-disk">
+                            <i class="fa-regular fa-file-code me-1"></i>Chọn file từ máy...
+                        </button>
+                        <button type="button" class="btn btn-sm btn-secondary btn-cancel-compare">Đóng</button>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(modal);
+
+        const closeModal = () => modal.remove();
+        modal.querySelector('.btn-close').onclick = closeModal;
+        modal.querySelector('.btn-cancel-compare').onclick = closeModal;
+        modal.onclick = (e) => { if (e.target === modal) closeModal(); };
+
+        modal.querySelector('.btn-compare-disk').onclick = () => {
+            closeModal();
+            handleCompareWithDisk(sourceTabId);
+        };
+
+        modal.querySelectorAll('[data-target-id]').forEach(btn => {
+            btn.onclick = () => {
+                const targetId = btn.dataset.targetId;
+                const targetTab = tabsData.get(targetId);
+                closeModal();
+                if (!targetTab) return;
+                const targetContent = (targetId === activeTabId && window.AppEditor) ? window.AppEditor.getValue() : targetTab.content;
+                createTab({
+                    tabType: 'diff',
+                    title: `Diff: ${sourceTab.title} ↔ ${targetTab.title}`,
+                    icon: 'fa-code-compare',
+                    originalText: sourceContent,
+                    modifiedText: targetContent,
+                    originalTitle: sourceTab.title,
+                    modifiedTitle: targetTab.title
+                });
+            };
+        });
+    }
+
+    function handleCompareWithDisk(sourceTabId) {
+        const sourceTab = sourceTabId ? tabsData.get(sourceTabId) : null;
+        const sourceContent = sourceTab ? ((sourceTabId === activeTabId && window.AppEditor) ? window.AppEditor.getValue() : sourceTab.content) : (window.AppEditor ? window.AppEditor.getValue() : '');
+        const sourceTitle = sourceTab ? sourceTab.title : 'Editor';
+
+        const input = document.getElementById('diff-file-input');
+        if (!input) return;
+        input.value = '';
+        input.onchange = (e) => {
+            const file = e.target.files && e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                const fileContent = ev.target.result;
+                createTab({
+                    tabType: 'diff',
+                    title: `Diff: ${sourceTitle} ↔ ${file.name}`,
+                    icon: 'fa-code-compare',
+                    originalText: fileContent,
+                    modifiedText: sourceContent,
+                    originalTitle: file.name + ' (Disk)',
+                    modifiedTitle: sourceTitle + ' (Editor)'
+                });
+            };
+            reader.readAsText(file);
+        };
+        input.click();
     }
 
     function saveActiveTab() {
@@ -903,6 +1087,54 @@ function initTabs() {
 
     if (newTabBtn) newTabBtn.addEventListener('click', () => createTab());
 
+    // Wire Action Bar Toolbar buttons for Split and Compare
+    const btnCompareToolbar = document.getElementById('ide-btn-compare');
+    if (btnCompareToolbar) {
+        btnCompareToolbar.onclick = () => {
+            if (activeTabId) {
+                handleCompareTab(activeTabId);
+            } else {
+                handleCompareWithDisk(null);
+            }
+        };
+    }
+
+    const btnSplitToolbar = document.getElementById('ide-btn-split-editor');
+    if (btnSplitToolbar) {
+        btnSplitToolbar.onclick = () => {
+            if (window.toggleSplitEditor) {
+                window.toggleSplitEditor();
+            }
+        };
+    }
+
+    function getTabsList() {
+        const list = [];
+        tabsData.forEach((val, key) => {
+            list.push({
+                id: key,
+                title: val.title,
+                tabType: val.tabType,
+                content: (key === activeTabId && window.AppEditor) ? window.AppEditor.getValue() : val.content
+            });
+        });
+        return list;
+    }
+
+    window.getTabsList = getTabsList;
+    window.getActiveTabId = () => activeTabId;
+    window.getTabData = (id) => tabsData.get(id);
+    window.updateTabContent = (id, content) => {
+        const t = tabsData.get(id);
+        if (t) {
+            t.content = content;
+            setTabDirty(id, true);
+        }
+    };
+    window.closeActiveDiffTab = () => {
+        if (activeTabId) closeTab(activeTabId);
+    };
+
     // Global keyboard shortcut: Ctrl+T (or Cmd+T) creates new query tab
     // Global keyboard shortcut: Ctrl+S (or Cmd+S) saves active tab
     document.addEventListener('keydown', (e) => {
@@ -939,6 +1171,7 @@ function initTabs() {
         getActiveTabId, 
         getTab, 
         getAllTabs,
+        getTabsList,
         updateActiveTabContext,
         setDefaultContext,
         getDefaultContext

@@ -1027,21 +1027,24 @@ function initQuery() {
             window.ensureResultPanelVisible(true);
         }
 
-        if (!window.AppEditor) return;
+        const targetEd = (typeof window.getActiveAppEditor === 'function')
+            ? window.getActiveAppEditor()
+            : window.AppEditor;
+        if (!targetEd) return;
 
         // Prefer selected text and track editor line offset
         let baseStartLine = 1;
         let sql = '';
-        if (typeof window.AppEditor.somethingSelected === 'function' && window.AppEditor.somethingSelected()) {
-            sql = window.AppEditor.getSelection();
-            const monacoSel = (typeof window.AppEditor.getMonacoSelection === 'function')
-                ? window.AppEditor.getMonacoSelection()
-                : (window.AppEditor.rawEditor ? window.AppEditor.rawEditor.getSelection() : null);
+        if (typeof targetEd.somethingSelected === 'function' && targetEd.somethingSelected()) {
+            sql = targetEd.getSelection();
+            const monacoSel = (typeof targetEd.getMonacoSelection === 'function')
+                ? targetEd.getMonacoSelection()
+                : (targetEd.rawEditor ? targetEd.rawEditor.getSelection() : null);
             if (monacoSel && typeof monacoSel.startLineNumber === 'number') {
                 baseStartLine = monacoSel.startLineNumber;
             }
-        } else if (typeof window.AppEditor.getValue === 'function') {
-            sql = window.AppEditor.getValue();
+        } else if (typeof targetEd.getValue === 'function') {
+            sql = targetEd.getValue();
             baseStartLine = 1;
         }
 
@@ -1243,10 +1246,13 @@ function initQuery() {
             window.ensureResultPanelVisible(true);
         }
 
-        if (!window.AppEditor) return;
+        const targetEd = (typeof window.getActiveAppEditor === 'function')
+            ? window.getActiveAppEditor()
+            : window.AppEditor;
+        if (!targetEd) return;
 
-        let sql = window.AppEditor.getSelection();
-        if (!sql || !sql.trim()) sql = window.AppEditor.getValue();
+        let sql = (typeof targetEd.getSelection === 'function') ? targetEd.getSelection() : '';
+        if (!sql || !sql.trim()) sql = (typeof targetEd.getValue === 'function') ? targetEd.getValue() : '';
         if (!sql.trim()) { showPlan('Error: Query is empty.'); switchResultView('results-plan'); return; }
 
         const tabState = window.AppTabs ? window.AppTabs.getActiveTabState() : null;

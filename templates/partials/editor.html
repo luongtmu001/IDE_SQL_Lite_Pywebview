@@ -81,6 +81,13 @@
             <button class="ide-action-btn" title="Export results">
                 <i class="fa-solid fa-file-export me-1"></i>Export
             </button>
+            <span class="ide-vdivider mx-1"></span>
+            <button id="ide-btn-split-editor" class="ide-action-btn" title="Toggle Split Editor (Ctrl+\)">
+                <i class="fa-solid fa-table-columns me-1 text-info"></i>Split
+            </button>
+            <button id="ide-btn-compare" class="ide-action-btn" title="Compare / Diff Files...">
+                <i class="fa-solid fa-code-compare me-1 text-warning"></i>Compare
+            </button>
         </div>
     </div>
     <!-- Editor Tabs -->
@@ -102,19 +109,67 @@
             <textarea id="sql-editor" class="d-none"></textarea>
         </div>
         <div id="editor-resizer" class="ide-resizer-vertical d-none"
-            style="width: 5px; background: var(--ide-border); cursor: col-resize; z-index: 15; flex-shrink: 0;"></div>
-        <div id="editor-pane-2" class="flex-grow-1 position-relative h-100 d-none"
+            style="width: 5px; background: var(--ide-border); cursor: col-resize; z-index: 15; flex-shrink: 0;" title="Drag to resize split panes"></div>
+        <div id="editor-pane-2" class="flex-grow-1 position-relative h-100 d-none d-flex flex-column"
             style="width: 50%; min-width: 100px;">
-            <div class="position-absolute end-0 top-0 p-1" style="z-index: 20;">
-                <button id="btn-close-split" type="button" class="btn btn-sm btn-outline-secondary py-0 px-2"
-                    style="font-size: 11px; line-height: 1.6; background: var(--ide-bg-panel); opacity: 0.9;"
-                    title="Close Split View" onclick="if(window.unsplitEditor) window.unsplitEditor();">
-                    <i class="fa-solid fa-xmark me-1"></i>Close Split
-                </button>
+            <div id="split-pane-header" class="d-flex align-items-center justify-content-between px-2 py-1 border-bottom"
+                style="height: 26px; background: var(--ide-bg-panel); font-size: 11px; z-index: 10; flex-shrink: 0;">
+                <div class="d-flex align-items-center gap-1 overflow-hidden">
+                    <i class="fa-solid fa-table-columns text-info" style="font-size: 10px;"></i>
+                    <span class="text-muted" style="font-size: 10px;">Side:</span>
+                    <select id="split-pane-tab-select" class="form-select form-select-sm py-0 ps-1 pe-4 border-0 bg-transparent text-light text-truncate"
+                        style="max-width: 180px; height: 20px; font-size: 11px; cursor: pointer;" title="Select tab to view in right pane">
+                        <!-- Populated dynamically -->
+                    </select>
+                </div>
+                <div class="d-flex align-items-center gap-1">
+                    <button id="btn-close-split" type="button" class="btn btn-sm btn-outline-secondary py-0 px-1 border-0"
+                        style="font-size: 11px; line-height: 1.4;"
+                        title="Close Split View (Ctrl+\)" onclick="if(window.unsplitEditor) window.unsplitEditor();">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
             </div>
-            <div id="monaco-sql-editor-2" style="width: 100%; height: 100%; position: absolute; inset: 0;"></div>
-            <textarea id="sql-editor-2" class="d-none"></textarea>
+            <div class="flex-grow-1 position-relative w-100 h-100 overflow-hidden">
+                <div id="monaco-sql-editor-2" style="width: 100%; height: 100%; position: absolute; inset: 0;"></div>
+                <textarea id="sql-editor-2" class="d-none"></textarea>
+            </div>
         </div>
+
+        <!-- Monaco Diff / Compare Container -->
+        <div id="editor-diff-container" class="position-absolute inset-0 w-100 h-100 d-none flex-column" style="z-index: 25; background: var(--ide-bg-editor);">
+            <div id="diff-toolbar" class="ide-diff-toolbar d-flex align-items-center justify-content-between px-2 border-bottom flex-shrink-0" style="height: 30px; font-size: 11px; background: var(--ide-bg-panel);">
+                <div class="d-flex align-items-center gap-2 overflow-hidden">
+                    <span class="badge bg-warning-subtle text-warning border border-warning" style="font-size: 10px;">
+                        <i class="fa-solid fa-code-compare me-1"></i>Diff
+                    </span>
+                    <span id="diff-title-left" class="fw-semibold text-truncate text-secondary" style="max-width: 200px;" title="Original">Original</span>
+                    <i class="fa-solid fa-arrow-right-arrow-left text-muted" style="font-size: 10px;"></i>
+                    <span id="diff-title-right" class="fw-semibold text-truncate text-primary" style="max-width: 200px;" title="Modified">Modified</span>
+                </div>
+                <div class="d-flex align-items-center gap-1 flex-shrink-0">
+                    <button id="btn-diff-swap" class="btn btn-sm btn-outline-secondary py-0 px-2" style="font-size: 11px; height: 22px;" title="Swap Left and Right">
+                        <i class="fa-solid fa-right-left me-1"></i>Swap
+                    </button>
+                    <button id="btn-diff-inline-toggle" class="btn btn-sm btn-outline-secondary py-0 px-2" style="font-size: 11px; height: 22px;" title="Toggle Side-by-side / Inline Diff">
+                        <i class="fa-solid fa-table-columns me-1"></i>Side by Side
+                    </button>
+                    <button id="btn-diff-prev" class="btn btn-sm btn-outline-secondary py-0 px-2" style="font-size: 11px; height: 22px;" title="Previous Difference (F7)">
+                        <i class="fa-solid fa-arrow-up me-1"></i>Prev
+                    </button>
+                    <button id="btn-diff-next" class="btn btn-sm btn-outline-secondary py-0 px-2" style="font-size: 11px; height: 22px;" title="Next Difference (Shift+F7)">
+                        <i class="fa-solid fa-arrow-down me-1"></i>Next
+                    </button>
+                    <button id="btn-diff-close" class="btn btn-sm btn-outline-danger py-0 px-2 ms-2" style="font-size: 11px; height: 22px;" title="Close Compare View">
+                        <i class="fa-solid fa-xmark me-1"></i>Close
+                    </button>
+                </div>
+            </div>
+            <div id="monaco-diff-editor" class="flex-grow-1 position-relative w-100 h-100 overflow-hidden"></div>
+        </div>
+
+        <!-- Hidden input for file comparison -->
+        <input type="file" id="diff-file-input" accept=".sql,.txt,.json,.xml" class="d-none">
 
 
         <!-- IntelliSense Dual-Panel Popup -->

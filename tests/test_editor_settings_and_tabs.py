@@ -120,3 +120,83 @@ def test_settings_line_height_supports_decimal_ratios():
     # Confirm wrap.style.lineHeight is NOT applied inline on container
     assert "wrap.style.lineHeight = editorLineHeight" not in content
 
+
+def test_split_editor_dom_and_actions():
+    for template_path in ["templates/partials/editor.html", "templates/index.html"]:
+        path = Path(template_path)
+        assert path.exists(), f"{template_path} must exist"
+        content = path.read_text(encoding="utf-8")
+
+        assert "id=\"ide-btn-split-editor\"" in content
+        assert "id=\"editor-resizer\"" in content
+        assert "id=\"editor-pane-2\"" in content
+        assert "id=\"split-pane-header\"" in content
+        assert "id=\"split-pane-tab-select\"" in content
+        assert "id=\"btn-close-split\"" in content
+        assert "id=\"monaco-sql-editor-2\"" in content
+
+
+def test_diff_editor_dom_and_actions():
+    for template_path in ["templates/partials/editor.html", "templates/index.html"]:
+        path = Path(template_path)
+        assert path.exists(), f"{template_path} must exist"
+        content = path.read_text(encoding="utf-8")
+
+        assert "id=\"ide-btn-compare\"" in content
+        assert "id=\"editor-diff-container\"" in content
+        assert "id=\"diff-toolbar\"" in content
+        assert "id=\"btn-diff-swap\"" in content
+        assert "id=\"btn-diff-inline-toggle\"" in content
+        assert "id=\"btn-diff-prev\"" in content
+        assert "id=\"btn-diff-next\"" in content
+        assert "id=\"btn-diff-close\"" in content
+        assert "id=\"monaco-diff-editor\"" in content
+        assert "id=\"diff-file-input\"" in content
+
+
+def test_editor_js_split_and_diff_apis():
+    editor_js_path = Path("static/js/editor.js")
+    assert editor_js_path.exists()
+    content = editor_js_path.read_text(encoding="utf-8")
+
+    assert "window.splitEditor" in content
+    assert "window.unsplitEditor" in content
+    assert "window.toggleSplitEditor" in content
+    assert "window.isEditorSplit" in content
+    assert "window.getActiveAppEditor" in content
+    assert "initSplitResizer" in content
+    assert "initSplitShortcut" in content
+    assert "window.showDiffView" in content
+    assert "window.hideDiffView" in content
+    assert "window.closeDiffView" in content
+    assert "createDiffEditor" in content
+    assert "createDiffNavigator" in content
+
+
+def test_tabs_js_split_and_diff_integration():
+    tabs_js_path = Path("static/js/tabs.js")
+    assert tabs_js_path.exists()
+    content = tabs_js_path.read_text(encoding="utf-8")
+
+    assert "Split to Right" in content
+    assert "Compare with..." in content
+    assert "Compare with File on Disk..." in content
+    assert "tabType === 'diff'" in content
+    assert "handleCompareTab" in content
+    assert "handleCompareWithDisk" in content
+    assert "showComparePickerModal" in content
+    assert "window.closeActiveDiffTab" in content
+
+
+def test_editor_css_split_and_diff_styles():
+    css_path = Path("static/css/editor.css")
+    assert css_path.exists()
+    content = css_path.read_text(encoding="utf-8")
+
+    assert "#editor-resizer:hover" in content
+    assert "#editor-resizer.dragging" in content
+    assert "#split-pane-header" in content
+    assert "#editor-diff-container" in content
+    assert ".ide-diff-toolbar" in content
+
+

@@ -1219,20 +1219,161 @@
         window.addEventListener('resize', () => {
             if (_primaryEditor) _primaryEditor.layout();
             if (_secondaryEditor) _secondaryEditor.layout();
+            if (_diffEditor) _diffEditor.layout();
             remeasureMonacoFonts();
         });
+
+        // Initialize drag resizer for split editor panes
+        initSplitResizer();
+        initSplitShortcut();
 
         return window.AppEditor;
     };
 
     // ── 5. Split Editor Support ───────────────────────────────────────────────
-    window.splitEditor = function () {
+    let _secondaryTabId = null;
+    let _lastFocusedPane = 'primary'; // 'primary' | 'secondary'
+
+    window.isEditorSplit = function () {
+        const pane2 = document.getElementById('editor-pane-2');
+        return Boolean(pane2 && !pane2.classList.contains('d-none'));
+    };
+
+    window.getActiveAppEditor = function () {
+        if (window.isEditorSplit() && _lastFocusedPane === 'secondary' && window.AppEditor2) {
+            return window.AppEditor2;
+        }
+        return window.AppEditor;
+    };
+
+    function initSplitShortcut() {
+        window.addEventListener('keydown', (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === '\\') {
+                if (document.activeElement && document.activeElement.closest('.modal.show')) return;
+                e.preventDefault();
+                window.toggleSplitEditor();
+            }
+        });
+    }
+
+    function initSplitResizer() {
         const resizer = document.getElementById('editor-resizer');
+        const pane1 = document.getElementById('editor-pane-1');
+        const pane2 = document.getElementById('editor-pane-2');
+        const wrap = document.querySelector('.ide-editor-wrap');
+        if (!resizer || !pane1 || !pane2 || !wrap) return;
+
+        let isDragging = false;
+        let startX = 0;
+        let startW1 = 0;
+        let totalW = 0;
+
+        resizer.addEventListener('pointerdown', (e) => {
+            if (pane2.classList.contains('d-none')) return;
+            isDragging = true;
+            try { resizer.setPointerCapture(e.pointerId); } catch (_) {}
+            resizer.classList.add('dragging');
+            document.body.style.userSelect = 'none';
+            document.body.style.cursor = 'col-resize';
+            startX = e.clientX;
+            startW1 = pane1.getBoundingClientRect().width;
+            totalW = wrap.getBoundingClientRect().width;
+        });
+
+        resizer.addEventListener('pointermove', (e) => {
+            if (!isDragging) return;
+            const deltaX = e.clientX - startX;
+            const newW1 = startW1 + deltaX;
+            const minW = Math.max(100, totalW * 0.15);
+            const maxW = Math.min(totalW - 100, totalW * 0.85);
+            const clampedW1 = Math.max(minW, Math.min(newW1, maxW));
+            const pct1 = (clampedW1 / totalW) * 100;
+            const pct2 = 100 - pct1;
+            pane1.style.width = pct1 + '%';
+            pane2.style.width = pct2 + '%';
+            if (_primaryEditor) _primaryEditor.layout();
+            if (_secondaryEditor) _secondaryEditor.layout();
+        });
+
+        const stopDrag = (e) => {
+            if (!isDragging) return;
+            isDragging = false;
+            try { resizer.releasePointerCapture(e.pointerId); } catch (_) {}
+            resizer.classList.remove('dragging');
+            document.body.style.userSelect = '';
+            document.body.style.cursor = '';
+            if (_primaryEditor) _primaryEditor.layout();
+            if (_secondaryEditor) _secondaryEditor.layout();
+            remeasureMonacoFonts();
+        };
+
+        resizer.addEventListener('pointerup', stopDrag);
+        resizer.addEventListener('pointercancel', stopDrag);
+    }
+
+    function updateSplitPaneTabSelect(targetTabId = null) {
+        const select = document.getElementById('split-pane-tab-select');
+        if (!select) return;
+
+        const tabsList = (typeof window.getTabsList === 'function')
+            ? window.getTabsList().filter(t => t.tabType === 'query')
+            : [];
+
+        const activeId = (typeof window.getActiveTabId === 'function') ? window.getActiveTabId() : null;
+
+        select.innerHTML = '';
+        if (tabsList.length === 0) {
+            const opt = document.createElement('option');
+            opt.value = '';
+            opt.textContent = '(Empty Editor)';
+            select.appendChild(opt);
+            return;
+        }
+
+        // Determine which tab to select
+        let selectedId = targetTabId;
+        if (!selectedId) {
+            // Pick a different tab than activeId if available
+            const other = tabsList.find(t => t.id !== activeId);
+            selectedId = other ? other.id : activeId;
+        }
+
+        tabsList.forEach(t => {
+            const opt = document.createElement('option');
+            opt.value = t.id;
+            opt.textContent = t.title + (t.id === activeId ? ' (Active)' : '');
+            if (t.id === selectedId) opt.selected = true;
+            select.appendChild(opt);
+        });
+
+        loadTabIntoSecondaryEditor(selectedId);
+
+        select.onchange = () => {
+            loadTabIntoSecondaryEditor(select.value);
+        };
+    }
+
+    function loadTabIntoSecondaryEditor(tabId) {
+        if (!_secondaryEditor) return;
+        _secondaryTabId = tabId;
+        const tabData = (typeof window.getTabData === 'function') ? window.getTabData(tabId) : null;
+        if (tabData) {
+            _secondaryEditor.setValue(tabData.content || '');
+        } else if (window.AppEditor) {
+            _secondaryEditor.setValue(window.AppEditor.getValue());
+        }
+    }
+
+    window.splitEditor = function (targetTabId = null) {
+        const resizer = document.getElementById('editor-resizer');
+        const pane1 = document.getElementById('editor-pane-1');
         const pane2 = document.getElementById('editor-pane-2');
         const container2 = document.getElementById('monaco-sql-editor-2');
 
         if (!pane2 || !container2) return;
 
+        if (pane1) pane1.style.width = '50%';
+        pane2.style.width = '50%';
         pane2.classList.remove('d-none');
         if (resizer) resizer.classList.remove('d-none');
 
@@ -1241,10 +1382,35 @@
             _secondaryEditor = createMonacoInstance(container2, currentContent);
             window.AppEditor2 = createAppEditorWrapper(() => _secondaryEditor, 'monaco-sql-editor-2');
             window.AppEditor2._bindPendingListeners(_secondaryEditor);
+
+            _secondaryEditor.onDidFocusEditorText(() => {
+                _lastFocusedPane = 'secondary';
+                if (window.EditorStatusBar) {
+                    window.EditorStatusBar.setActiveEditor(_secondaryEditor);
+                }
+            });
+
+            _secondaryEditor.onDidChangeModelContent(() => {
+                if (_secondaryTabId && typeof window.updateTabContent === 'function') {
+                    window.updateTabContent(_secondaryTabId, _secondaryEditor.getValue());
+                }
+            });
+
             if (window.AppIntelliSense && typeof window.AppIntelliSense.attachEditor === 'function') {
                 window.AppIntelliSense.attachEditor(window.AppEditor2);
             }
         }
+
+        if (_primaryEditor) {
+            _primaryEditor.onDidFocusEditorText(() => {
+                _lastFocusedPane = 'primary';
+                if (window.EditorStatusBar) {
+                    window.EditorStatusBar.setActiveEditor(_primaryEditor);
+                }
+            });
+        }
+
+        updateSplitPaneTabSelect(targetTabId);
 
         setTimeout(() => {
             if (_primaryEditor) _primaryEditor.layout();
@@ -1255,8 +1421,10 @@
 
     window.unsplitEditor = function () {
         const resizer = document.getElementById('editor-resizer');
+        const pane1 = document.getElementById('editor-pane-1');
         const pane2 = document.getElementById('editor-pane-2');
 
+        if (pane1) pane1.style.width = '100%';
         if (pane2) pane2.classList.add('d-none');
         if (resizer) resizer.classList.add('d-none');
 
@@ -1265,11 +1433,177 @@
             _secondaryEditor = null;
             window.AppEditor2 = null;
         }
+        _secondaryTabId = null;
+        _lastFocusedPane = 'primary';
+        if (_primaryEditor && window.EditorStatusBar) {
+            window.EditorStatusBar.setActiveEditor(_primaryEditor);
+        }
 
         setTimeout(() => {
             if (_primaryEditor) _primaryEditor.layout();
             remeasureMonacoFonts();
         }, 50);
+    };
+
+    window.toggleSplitEditor = function () {
+        if (window.isEditorSplit()) {
+            window.unsplitEditor();
+        } else {
+            window.splitEditor();
+        }
+    };
+
+    // ── 5.5. Monaco Diff / Compare Editor Support ─────────────────────────────
+    let _diffEditor = null;
+    let _diffOriginalModel = null;
+    let _diffModifiedModel = null;
+    let _diffNavi = null;
+
+    function initDiffEditor() {
+        const container = document.getElementById('monaco-diff-editor');
+        if (!container || _diffEditor) return;
+
+        let themeName = 'ide-dark';
+        if (typeof monaco !== 'undefined') {
+            const isDark = document.body.classList.contains('theme-dark') || document.documentElement.getAttribute('data-theme') !== 'light';
+            themeName = isDark ? 'ide-dark' : 'ide-light';
+        }
+
+        const editorSize = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--ide-editor-font-size'), 10) || 14;
+        const editorFont = getComputedStyle(document.documentElement).getPropertyValue('--ide-editor-font-family').trim() || "'JetBrains Mono', Consolas, monospace";
+
+        _diffEditor = monaco.editor.createDiffEditor(container, {
+            theme: themeName,
+            fontSize: editorSize,
+            fontFamily: editorFont,
+            renderSideBySide: true,
+            readOnly: false,
+            originalEditable: false,
+            automaticLayout: true,
+            ignoreTrimWhitespace: false,
+            lineNumbers: 'on',
+            scrollBeyondLastLine: false,
+            diffWordWrap: 'off'
+        });
+
+        if (typeof monaco.editor.createDiffNavigator === 'function') {
+            _diffNavi = monaco.editor.createDiffNavigator(_diffEditor, {
+                followsCaret: true,
+                ignoreCharChanges: true
+            });
+        }
+
+        // Wire Diff Toolbar Buttons
+        const btnSwap = document.getElementById('btn-diff-swap');
+        if (btnSwap) {
+            btnSwap.onclick = () => {
+                if (!_diffEditor || !_diffOriginalModel || !_diffModifiedModel) return;
+                const tempOrig = _diffOriginalModel;
+                _diffOriginalModel = _diffModifiedModel;
+                _diffModifiedModel = tempOrig;
+                _diffEditor.setModel({
+                    original: _diffOriginalModel,
+                    modified: _diffModifiedModel
+                });
+                const leftEl = document.getElementById('diff-title-left');
+                const rightEl = document.getElementById('diff-title-right');
+                if (leftEl && rightEl) {
+                    const tmp = leftEl.textContent;
+                    leftEl.textContent = rightEl.textContent;
+                    rightEl.textContent = tmp;
+                }
+            };
+        }
+
+        const btnToggleInline = document.getElementById('btn-diff-inline-toggle');
+        if (btnToggleInline) {
+            let isSideBySide = true;
+            btnToggleInline.onclick = () => {
+                if (!_diffEditor) return;
+                isSideBySide = !isSideBySide;
+                _diffEditor.updateOptions({ renderSideBySide: isSideBySide });
+                btnToggleInline.innerHTML = isSideBySide
+                    ? '<i class="fa-solid fa-table-columns me-1"></i>Side by Side'
+                    : '<i class="fa-solid fa-bars me-1"></i>Inline';
+            };
+        }
+
+        const btnPrev = document.getElementById('btn-diff-prev');
+        if (btnPrev) {
+            btnPrev.onclick = () => {
+                if (_diffNavi) _diffNavi.previous();
+            };
+        }
+
+        const btnNext = document.getElementById('btn-diff-next');
+        if (btnNext) {
+            btnNext.onclick = () => {
+                if (_diffNavi) _diffNavi.next();
+            };
+        }
+
+        const btnClose = document.getElementById('btn-diff-close');
+        if (btnClose) {
+            btnClose.onclick = () => {
+                if (typeof window.closeActiveDiffTab === 'function') {
+                    window.closeActiveDiffTab();
+                } else {
+                    window.hideDiffView();
+                }
+            };
+        }
+    }
+
+    window.showDiffView = function (originalText, modifiedText, originalTitle = 'Original', modifiedTitle = 'Modified', lang = 'sql') {
+        const diffWrap = document.getElementById('editor-diff-container');
+        if (!diffWrap) return;
+
+        initDiffEditor();
+
+        const leftEl = document.getElementById('diff-title-left');
+        const rightEl = document.getElementById('diff-title-right');
+        if (leftEl) leftEl.textContent = originalTitle;
+        if (rightEl) rightEl.textContent = modifiedTitle;
+
+        if (_diffOriginalModel) _diffOriginalModel.dispose();
+        if (_diffModifiedModel) _diffModifiedModel.dispose();
+
+        _diffOriginalModel = monaco.editor.createModel(originalText || '', lang);
+        _diffModifiedModel = monaco.editor.createModel(modifiedText || '', lang);
+
+        if (_diffEditor) {
+            _diffEditor.setModel({
+                original: _diffOriginalModel,
+                modified: _diffModifiedModel
+            });
+        }
+
+        diffWrap.classList.remove('d-none');
+        diffWrap.style.display = 'flex';
+
+        setTimeout(() => {
+            if (_diffEditor) _diffEditor.layout();
+        }, 30);
+    };
+
+    window.hideDiffView = function () {
+        const diffWrap = document.getElementById('editor-diff-container');
+        if (diffWrap) {
+            diffWrap.classList.add('d-none');
+            diffWrap.style.display = 'none';
+        }
+    };
+
+    window.closeDiffView = function () {
+        window.hideDiffView();
+        if (_diffOriginalModel) {
+            _diffOriginalModel.dispose();
+            _diffOriginalModel = null;
+        }
+        if (_diffModifiedModel) {
+            _diffModifiedModel.dispose();
+            _diffModifiedModel = null;
+        }
     };
 
     // ── 6. Listen to Global Theme Changes ─────────────────────────────────────
@@ -1380,6 +1714,10 @@
                 ed.setPosition(pos);
             }
         });
+        if (_diffEditor) {
+            _diffEditor.updateOptions(opts);
+            _diffEditor.layout();
+        }
         remeasureMonacoFonts();
         setTimeout(() => {
             [_primaryEditor, _secondaryEditor].forEach(ed => {
@@ -1388,6 +1726,7 @@
                     remeasureMonacoFonts();
                 }
             });
+            if (_diffEditor) _diffEditor.layout();
         }, 50);
     }
 
