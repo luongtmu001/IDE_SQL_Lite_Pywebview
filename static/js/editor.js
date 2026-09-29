@@ -1459,15 +1459,26 @@
     let _diffModifiedModel = null;
     let _diffNavi = null;
 
+    function getCurrentMonacoTheme() {
+        try {
+            const curTheme = document.documentElement.getAttribute('data-bs-theme') || 'dark';
+            if (window.MonacoInit && typeof window.MonacoInit.getMonacoTheme === 'function') {
+                return window.MonacoInit.getMonacoTheme(curTheme);
+            }
+            const reg = window.ThemeRegistry || (window.parent && window.parent.ThemeRegistry);
+            const themeObj = (reg && typeof reg.getThemeById === 'function') ? reg.getThemeById(curTheme) : null;
+            const isDark = themeObj ? Boolean(themeObj.isDark) : (curTheme === 'darcula' || curTheme === 'dark' || curTheme === 'ide-dark' || (!curTheme.toLowerCase().includes('light') && curTheme !== 'win-nt' && curTheme !== 'win-xp'));
+            return isDark ? 'ide-dark' : 'ide-light';
+        } catch (_) {
+            return 'ide-light';
+        }
+    }
+
     function initDiffEditor() {
         const container = document.getElementById('monaco-diff-editor');
         if (!container || _diffEditor) return;
 
-        let themeName = 'ide-dark';
-        if (typeof monaco !== 'undefined') {
-            const isDark = document.body.classList.contains('theme-dark') || document.documentElement.getAttribute('data-theme') !== 'light';
-            themeName = isDark ? 'ide-dark' : 'ide-light';
-        }
+        const themeName = getCurrentMonacoTheme();
 
         const editorSize = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--ide-editor-font-size'), 10) || 14;
         const editorFont = getComputedStyle(document.documentElement).getPropertyValue('--ide-editor-font-family').trim() || "'JetBrains Mono', Consolas, monospace";
@@ -1573,6 +1584,11 @@
 
         initDiffEditor();
 
+        const activeMonacoTheme = getCurrentMonacoTheme();
+        if (typeof monaco !== 'undefined' && monaco.editor && typeof monaco.editor.setTheme === 'function') {
+            monaco.editor.setTheme(activeMonacoTheme);
+        }
+
         const leftEl = document.getElementById('diff-title-left');
         const rightEl = document.getElementById('diff-title-right');
         if (leftEl) {
@@ -1635,6 +1651,10 @@
             diffWrap.classList.add('d-none');
             diffWrap.style.display = 'none';
         }
+        const activeMonacoTheme = getCurrentMonacoTheme();
+        if (typeof monaco !== 'undefined' && monaco.editor && typeof monaco.editor.setTheme === 'function') {
+            monaco.editor.setTheme(activeMonacoTheme);
+        }
     };
 
     window.closeDiffView = function () {
@@ -1654,6 +1674,13 @@
         const themeName = e.detail?.theme;
         if (window.AppEditor) {
             window.AppEditor.setOption('theme', themeName);
+        }
+        if (window.AppEditor2) {
+            window.AppEditor2.setOption('theme', themeName);
+        }
+        if (typeof monaco !== 'undefined' && monaco.editor && typeof monaco.editor.setTheme === 'function') {
+            const mTheme = getCurrentMonacoTheme();
+            monaco.editor.setTheme(mTheme);
         }
         remeasureMonacoFonts();
     });
