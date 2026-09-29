@@ -129,7 +129,9 @@ function initTabs() {
             originalText:   opts.originalText   !== undefined ? opts.originalText : '',
             modifiedText:   opts.modifiedText   !== undefined ? opts.modifiedText : '',
             originalTitle:  opts.originalTitle  || '',
-            modifiedTitle:  opts.modifiedTitle  || ''
+            modifiedTitle:  opts.modifiedTitle  || '',
+            originalTabId:  opts.originalTabId  !== undefined ? opts.originalTabId : null,
+            modifiedTabId:  opts.modifiedTabId  !== undefined ? opts.modifiedTabId : null
         });
 
         const tabEl = document.createElement('li');
@@ -189,6 +191,7 @@ function initTabs() {
             const prev = tabsData.get(activeTabId);
             if (prev.tabType !== 'designer' && prev.tabType !== 'diff' && window.AppEditor) {
                 prev.content = window.AppEditor.getValue();
+                syncDiffTabsWithSourceTab(activeTabId, prev.content);
             } else if (prev.tabType === 'diff' && typeof window.getDiffEditorValues === 'function') {
                 const diffVals = window.getDiffEditorValues();
                 if (diffVals) {
@@ -245,6 +248,26 @@ function initTabs() {
             if (resizer) resizer.classList.add('d-none');
             if (resultsPane) resultsPane.classList.add('d-none');
             if (queryControls) queryControls.classList.add('opacity-50', 'pe-none');
+
+            // Refresh latest content and titles from source tabs if they still exist
+            if (state.originalTabId && tabsData.has(state.originalTabId)) {
+                const srcTab = tabsData.get(state.originalTabId);
+                if (srcTab && srcTab.content !== undefined) {
+                    state.originalText = srcTab.content;
+                }
+                if (srcTab && srcTab.title) {
+                    state.originalTitle = srcTab.title;
+                }
+            }
+            if (state.modifiedTabId && tabsData.has(state.modifiedTabId)) {
+                const modTab = tabsData.get(state.modifiedTabId);
+                if (modTab && modTab.content !== undefined) {
+                    state.modifiedText = modTab.content;
+                }
+                if (modTab && modTab.title) {
+                    state.modifiedTitle = modTab.title;
+                }
+            }
 
             if (typeof window.showDiffView === 'function') {
                 window.showDiffView(state.originalText || '', state.modifiedText || '', state.originalTitle || 'Original', state.modifiedTitle || 'Modified');
@@ -889,7 +912,9 @@ function initTabs() {
                 originalText: sourceContent,
                 modifiedText: targetContent,
                 originalTitle: sourceTab.title,
-                modifiedTitle: targetTab.title
+                modifiedTitle: targetTab.title,
+                originalTabId: sourceTabId,
+                modifiedTabId: targetId
             });
             return;
         }
@@ -981,7 +1006,9 @@ function initTabs() {
                     originalText: sourceContent,
                     modifiedText: targetContent,
                     originalTitle: sourceTab.title,
-                    modifiedTitle: targetTab.title
+                    modifiedTitle: targetTab.title,
+                    originalTabId: sourceTabId,
+                    modifiedTabId: targetId
                 });
             };
         });
@@ -1014,7 +1041,9 @@ function initTabs() {
                     originalText: sourceContent,
                     modifiedText: fileContent,
                     originalTitle: sourceTitle + ' (Editor)',
-                    modifiedTitle: file.name + ' (Disk)'
+                    modifiedTitle: file.name + ' (Disk)',
+                    originalTabId: sourceTabId,
+                    modifiedTabId: null
                 });
             };
             reader.readAsText(file);
@@ -1157,14 +1186,45 @@ function initTabs() {
         return list;
     }
 
+    function syncDiffTabsWithSourceTab(changedTabId, newContent) {
+        if (!changedTabId) return;
+        tabsData.forEach((tabState, tabId) => {
+            if (tabState && tabState.tabType === 'diff') {
+                if (tabState.originalTabId === changedTabId) {
+                    tabState.originalText = newContent;
+                    if (tabId === activeTabId && typeof window.updateDiffOriginalModel === 'function') {
+                        window.updateDiffOriginalModel(newContent);
+                    }
+                }
+                if (tabState.modifiedTabId === changedTabId) {
+                    tabState.modifiedText = newContent;
+                    if (tabId === activeTabId && typeof window.updateDiffModifiedModel === 'function') {
+                        window.updateDiffModifiedModel(newContent);
+                    }
+                }
+            }
+        });
+    }
+
+    function updateTabContentFromDiff(tabId, val) {
+        const t = tabsData.get(tabId);
+        if (t && t.content !== val) {
+            t.content = val;
+            setTabDirty(tabId, true);
+        }
+    }
+
     window.getTabsList = getTabsList;
     window.getActiveTabId = () => activeTabId;
     window.getTabData = (id) => tabsData.get(id);
+    window.syncDiffTabsWithSourceTab = syncDiffTabsWithSourceTab;
+    window.updateTabContentFromDiff = updateTabContentFromDiff;
     window.updateTabContent = (id, content) => {
         const t = tabsData.get(id);
         if (t) {
             t.content = content;
             setTabDirty(id, true);
+            syncDiffTabsWithSourceTab(id, content);
         }
     };
     window.closeActiveDiffTab = () => {
@@ -1210,6 +1270,8 @@ function initTabs() {
         getTabsList,
         updateActiveTabContext,
         setDefaultContext,
-        getDefaultContext
+        getDefaultContext,
+        syncDiffTabsWithSourceTab,
+        updateTabContentFromDiff
     };
 }

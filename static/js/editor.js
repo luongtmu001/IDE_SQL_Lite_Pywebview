@@ -820,6 +820,17 @@
                     state.content = val;
                 }
             }
+            if (window.AppTabs && typeof window.AppTabs.syncDiffTabsWithSourceTab === 'function') {
+                const curTabId = (window.AppTabs.getActiveTabId ? window.AppTabs.getActiveTabId() : null);
+                if (curTabId) {
+                    window.AppTabs.syncDiffTabsWithSourceTab(curTabId, val);
+                }
+            } else if (typeof window.syncDiffTabsWithSourceTab === 'function') {
+                const curTabId = (window.getActiveTabId ? window.getActiveTabId() : null);
+                if (curTabId) {
+                    window.syncDiffTabsWithSourceTab(curTabId, val);
+                }
+            }
             if (window.EditorStatusBar && window.EditorStatusBar.getActiveEditor() === editor) {
                 window.EditorStatusBar.updateCursor(editor);
                 window.EditorStatusBar.updateEOL(editor);
@@ -1534,6 +1545,9 @@
                         const tmpTitle = st.originalTitle;
                         st.originalTitle = st.modifiedTitle;
                         st.modifiedTitle = tmpTitle;
+                        const tmpTabId = st.originalTabId;
+                        st.originalTabId = st.modifiedTabId;
+                        st.modifiedTabId = tmpTabId;
                     }
                 }
             };
@@ -1578,6 +1592,22 @@
         }
     }
 
+    let _isInternalDiffUpdating = false;
+    window.updateDiffOriginalModel = function (text) {
+        if (_diffOriginalModel && _diffOriginalModel.getValue() !== text) {
+            _isInternalDiffUpdating = true;
+            _diffOriginalModel.setValue(text || '');
+            _isInternalDiffUpdating = false;
+        }
+    };
+    window.updateDiffModifiedModel = function (text) {
+        if (_diffModifiedModel && _diffModifiedModel.getValue() !== text) {
+            _isInternalDiffUpdating = true;
+            _diffModifiedModel.setValue(text || '');
+            _isInternalDiffUpdating = false;
+        }
+    };
+
     window.showDiffView = function (originalText, modifiedText, originalTitle = 'Original', modifiedTitle = 'Modified', lang = 'sql') {
         const diffWrap = document.getElementById('editor-diff-container');
         if (!diffWrap) return;
@@ -1607,18 +1637,25 @@
         _diffModifiedModel = monaco.editor.createModel(modifiedText || '', lang);
 
         _diffOriginalModel.onDidChangeContent(() => {
+            if (_isInternalDiffUpdating) return;
+            const val = _diffOriginalModel.getValue();
             if (window.AppTabs && window.AppTabs.getActiveTabState) {
                 const st = window.AppTabs.getActiveTabState();
                 if (st && st.tabType === 'diff') {
-                    st.originalText = _diffOriginalModel.getValue();
+                    st.originalText = val;
                 }
             }
         });
         _diffModifiedModel.onDidChangeContent(() => {
+            if (_isInternalDiffUpdating) return;
+            const val = _diffModifiedModel.getValue();
             if (window.AppTabs && window.AppTabs.getActiveTabState) {
                 const st = window.AppTabs.getActiveTabState();
                 if (st && st.tabType === 'diff') {
-                    st.modifiedText = _diffModifiedModel.getValue();
+                    st.modifiedText = val;
+                    if (st.modifiedTabId && typeof window.AppTabs.updateTabContentFromDiff === 'function') {
+                        window.AppTabs.updateTabContentFromDiff(st.modifiedTabId, val);
+                    }
                 }
             }
         });

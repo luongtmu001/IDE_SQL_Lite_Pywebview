@@ -217,4 +217,24 @@ def test_diff_tab_stores_original_and_modified_content():
     assert "window.getDiffEditorValues" in editor_content
 
 
+def test_diff_tab_live_sync_with_source_tabs():
+    tabs_js_path = Path("static/js/tabs.js")
+    assert tabs_js_path.exists()
+    tabs_content = tabs_js_path.read_text(encoding="utf-8")
+
+    assert "originalTabId:" in tabs_content
+    assert "modifiedTabId:" in tabs_content
+    assert "syncDiffTabsWithSourceTab" in tabs_content
+    assert "updateTabContentFromDiff" in tabs_content
+
+    editor_js_path = Path("static/js/editor.js")
+    assert editor_js_path.exists()
+    editor_content = editor_js_path.read_text(encoding="utf-8")
+
+    assert "window.updateDiffOriginalModel" in editor_content
+    assert "window.updateDiffModifiedModel" in editor_content
+    assert "syncDiffTabsWithSourceTab" in editor_content
+
+
+
 

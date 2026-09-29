@@ -28,8 +28,8 @@
         "fontSize": 14
     },
     "messages": {
-        "fontFamily": "JetBrains Mono",
-        "fontSize": 13
+        "fontFamily": "Roboto",
+        "fontSize": 14
     },
     "sql": {
         "maxRows": 0
