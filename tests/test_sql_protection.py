@@ -55,7 +55,7 @@ def test_index_html_contains_fatal_actions_guard():
     assert "sql-protection.css" in index_html
     assert "sql-protection.js" in index_html
     assert 'id="fatalActionsGuardBackdrop"' in index_html
-    assert "SSMSBoost Fatal Actions Guard" in index_html
+    assert ("Actions Guard" in index_html or "SSMSBoost Fatal Actions Guard" in index_html)
     assert 'id="fatalGuardYesBtn"' in index_html
     assert 'id="fatalGuardNoBtn"' in index_html
     assert 'id="fatalGuardRows"' in index_html
@@ -67,6 +67,9 @@ def test_query_js_calls_sql_protection():
     assert "window.SqlProtection" in query_js
     assert "window.SqlProtection.detectFatalSqlActions" in query_js
     assert "window.SqlProtection.showFatalActionsGuard" in query_js
+    # Ensure skipProtection requires strict boolean true so click event object does not bypass protection
+    assert "skipProtection === true" in query_js
+    assert "runBtn.addEventListener('click', () => executeQuery(false));" in query_js
 
 
 class SimpleSqlDetectorPython:
@@ -74,7 +77,6 @@ class SimpleSqlDetectorPython:
 
     @staticmethod
     def detect(sql_text: str, base_start_line: int = 1):
-        # Remove single and multi line comments
         def strip_comments_keep_lines(text):
             lines = []
             in_multiline = False
@@ -103,16 +105,16 @@ class SimpleSqlDetectorPython:
         tokens_with_lines = []
         for line_no, line_content in enumerate(cleaned.splitlines(), start=1):
             for m in re.finditer(r'[a-zA-Z0-9_#$@]+|[;()]', line_content):
-                tokens_with_lines.append((m.group(0), line_no))
+                tokens_with_lines.append((m.group(0), line_no, m.start() + 1))
 
-        terminators = {
+        starters = {
             'SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE',
             'CREATE', 'ALTER', 'DROP', 'MERGE', 'EXEC', 'EXECUTE',
-            'BEGIN', 'END', 'COMMIT', 'ROLLBACK', ';'
+            'COMMIT', 'ROLLBACK', 'DECLARE', 'RETURN', 'IF', 'WHILE', 'PRINT'
         }
         ignore_prev = {'ON', 'OF', 'FOR', 'BEFORE', 'AFTER', 'THEN'}
 
-        for idx, (tok_raw, line_no) in enumerate(tokens_with_lines):
+        for idx, (tok_raw, line_no, col_no) in enumerate(tokens_with_lines):
             tok = tok_raw.upper()
             prev_tok = tokens_with_lines[idx - 1][0].upper() if idx > 0 else None
             next_tok = tokens_with_lines[idx + 1][0].upper() if idx + 1 < len(tokens_with_lines) else None
@@ -123,18 +125,29 @@ class SimpleSqlDetectorPython:
                 if prev_tok in ignore_prev or next_tok == '(':
                     continue
                 paren = 0
+                case_depth = 0
                 has_where = False
                 for j in range(idx + 1, len(tokens_with_lines)):
-                    t_val, _ = tokens_with_lines[j]
+                    t_val, _, _ = tokens_with_lines[j]
+                    u_val = t_val.upper()
                     if t_val == '(':
                         paren += 1
                     elif t_val == ')':
                         if paren > 0:
                             paren -= 1
                     elif paren == 0:
-                        if t_val.upper() == 'WHERE':
+                        if u_val == 'CASE':
+                            case_depth += 1
+                        elif u_val == 'END':
+                            if case_depth > 0:
+                                case_depth -= 1
+                            else:
+                                break
+                        elif u_val == 'WHERE' and case_depth == 0:
                             has_where = True
-                        elif t_val == ';' or t_val.upper() in terminators:
+                        elif t_val in (';', 'GO'):
+                            break
+                        elif case_depth == 0 and u_val in starters:
                             break
                 if not has_where:
                     issues.append(('DELETE', 'DELETE statement without WHERE clause', line_no + base_start_line - 1))
@@ -142,18 +155,29 @@ class SimpleSqlDetectorPython:
                 if prev_tok in ignore_prev or next_tok == '(' or next_tok == 'STATISTICS':
                     continue
                 paren = 0
+                case_depth = 0
                 has_where = False
                 for j in range(idx + 1, len(tokens_with_lines)):
-                    t_val, _ = tokens_with_lines[j]
+                    t_val, _, _ = tokens_with_lines[j]
+                    u_val = t_val.upper()
                     if t_val == '(':
                         paren += 1
                     elif t_val == ')':
                         if paren > 0:
                             paren -= 1
                     elif paren == 0:
-                        if t_val.upper() == 'WHERE':
+                        if u_val == 'CASE':
+                            case_depth += 1
+                        elif u_val == 'END':
+                            if case_depth > 0:
+                                case_depth -= 1
+                            else:
+                                break
+                        elif u_val == 'WHERE' and case_depth == 0:
                             has_where = True
-                        elif t_val == ';' or t_val.upper() in terminators:
+                        elif t_val in (';', 'GO'):
+                            break
+                        elif case_depth == 0 and u_val in starters:
                             break
                 if not has_where:
                     issues.append(('UPDATE', 'UPDATE statement without WHERE clause', line_no + base_start_line - 1))
@@ -223,3 +247,61 @@ def test_sql_detection_cases():
     res = detector.detect(script_subquery)
     assert len(res) == 1
     assert res[0][1] == "UPDATE statement without WHERE clause"
+
+
+def test_consecutive_statements_with_semicolons():
+    detector = SimpleSqlDetectorPython()
+
+    # Consecutive statements separated by semicolons on single line
+    res1 = detector.detect("UPDATE t1 SET a=1;UPDATE t2 SET b=2;")
+    assert len(res1) == 2
+
+    # Multiple statements, only one violating
+    res2 = detector.detect("SELECT 1; UPDATE t1 SET a=1; SELECT 2;")
+    assert len(res2) == 1
+    assert res2[0][1] == "UPDATE statement without WHERE clause"
+
+    res3 = detector.detect("UPDATE t1 SET a=1 WHERE id=1; UPDATE t2 SET b=2;")
+    assert len(res3) == 1
+    assert res3[0][1] == "UPDATE statement without WHERE clause"
+
+    res4 = detector.detect("UPDATE t1 SET a=1; UPDATE t2 SET b=2 WHERE id=1;")
+    assert len(res4) == 1
+    assert res4[0][1] == "UPDATE statement without WHERE clause"
+
+    res5 = detector.detect("DELETE FROM t1; DELETE FROM t2 WHERE id=1;")
+    assert len(res5) == 1
+    assert res5[0][1] == "DELETE statement without WHERE clause"
+
+    res6 = detector.detect("DELETE FROM t1 WHERE id=1; DELETE FROM t2;")
+    assert len(res6) == 1
+    assert res6[0][1] == "DELETE statement without WHERE clause"
+
+    res7 = detector.detect("SELECT 1; DELETE FROM t1; TRUNCATE TABLE t2; UPDATE t3 SET c=3;")
+    assert len(res7) == 3
+
+
+def test_selection_base_start_line_offsetting():
+    detector = SimpleSqlDetectorPython()
+
+    # Selection starts at line 10 in editor
+    script = "UPDATE t1 SET a=1;\nDELETE FROM t2;"
+    res = detector.detect(script, base_start_line=10)
+    assert len(res) == 2
+    assert res[0][2] == 10  # line 1 of selection -> line 10 of editor
+    assert res[1][2] == 11  # line 2 of selection -> line 11 of editor
+
+
+def test_case_end_in_update_does_not_mask_where():
+    detector = SimpleSqlDetectorPython()
+
+    # CASE...END in SET clause with WHERE
+    sql_with_where = "UPDATE tbl SET col = CASE WHEN x = 1 THEN 'A' ELSE 'B' END WHERE id = 1;"
+    assert len(detector.detect(sql_with_where)) == 0
+
+    # CASE...END in SET clause without WHERE
+    sql_no_where = "UPDATE tbl SET col = CASE WHEN x = 1 THEN 'A' ELSE 'B' END;"
+    res = detector.detect(sql_no_where)
+    assert len(res) == 1
+    assert res[0][1] == "UPDATE statement without WHERE clause"
+

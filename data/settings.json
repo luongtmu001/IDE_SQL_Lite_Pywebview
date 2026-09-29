@@ -1,38 +1,32 @@
 {
-    "theme": "github-light-colorblind-beta-light",
+    "editor": {
+        "fontFamily": "JetBrains Mono",
+        "fontSize": 14,
+        "tabSize": 4,
+        "lineHeight": 0,
+        "letterSpacing": 0
+    },
     "appearance": {
-        "theme": "github-light-colorblind-beta-light",
-        "iconSize": 14,
-        "uiFontFamily": "Roboto",
-        "uiFontSize": 15,
-        "fontSize": 13
+        "theme": "github-dark-default-dark",
+        "uiFontFamily": "Inter",
+        "uiFontSize": 14
     },
     "addons": {
         "bravo_tool": {
             "enabled": true
         }
     },
-    "editor": {
-        "fontFamily": "JetBrains Mono",
-        "fontSize": 15,
-        "lineHeight": 1.5,
-        "letterSpacing": 0,
-        "tabSize": 4,
-        "insertSpaces": true,
-        "wordWrap": false,
-        "minimap": true,
-        "keywordCase": "upper"
-    },
     "grid": {
         "fontFamily": "Roboto",
         "fontSize": 14
     },
     "messages": {
-        "fontFamily": "Roboto",
-        "fontSize": 14
+        "fontFamily": "Consolas",
+        "fontSize": 13
     },
+    "theme": "github-dark-default-dark",
     "sql": {
-        "maxRows": 0,
+        "timeoutSeconds": 30,
         "sqlprotection": 1
     }
 }

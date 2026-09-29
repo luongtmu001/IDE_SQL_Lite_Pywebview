@@ -1056,7 +1056,10 @@ function initQuery() {
         }
 
         // Fatal Actions Guard (SSMSBoost Fatal Actions Protection)
-        if (!skipProtection && window.SqlProtection && typeof window.SqlProtection.isProtectionEnabled === 'function' && window.SqlProtection.isProtectionEnabled()) {
+        // Note: skipProtection must be strictly boolean true to bypass,
+        // preventing Event objects from click listeners from accidentally bypassing protection.
+        const shouldBypassProtection = (skipProtection === true);
+        if (!shouldBypassProtection && window.SqlProtection && typeof window.SqlProtection.isProtectionEnabled === 'function' && window.SqlProtection.isProtectionEnabled()) {
             const detectedIssues = window.SqlProtection.detectFatalSqlActions(sql, baseStartLine);
             if (detectedIssues && detectedIssues.length > 0) {
                 window.SqlProtection.showFatalActionsGuard(detectedIssues, {
@@ -1730,9 +1733,9 @@ function initQuery() {
     });
 
     // ── Bind buttons & Message interactions ───────────────────────────────────
-    if (runBtn)  runBtn.addEventListener('click', executeQuery);
-    if (stopBtn) stopBtn.addEventListener('click', cancelQuery);
-    if (planBtn) planBtn.addEventListener('click', requestPlan);
+    if (runBtn)  runBtn.addEventListener('click', () => executeQuery(false));
+    if (stopBtn) stopBtn.addEventListener('click', () => cancelQuery());
+    if (planBtn) planBtn.addEventListener('click', () => requestPlan());
 
     // Copy Messages button
     const copyMsgBtn = document.getElementById('ide-btn-copy-messages');

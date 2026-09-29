@@ -193,14 +193,14 @@
     }
 
     /**
-     * Statement terminators that indicate the end of an UPDATE or DELETE statement
-     * when encountered at the statement's root parenthesis nesting level.
+     * Statement starters that indicate the beginning of a new statement
+     * when encountered at root nesting level (parenDepth === 0 && caseDepth === 0)
      */
-    const STATEMENT_TERMINATORS = new Set([
+    const STATEMENT_STARTERS = new Set([
         'SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE',
         'CREATE', 'ALTER', 'DROP', 'MERGE',
         'EXEC', 'EXECUTE', 'DECLARE',
-        'BEGIN', 'END', 'COMMIT', 'ROLLBACK',
+        'COMMIT', 'ROLLBACK',
         'RETURN', 'IF', 'WHILE', 'PRINT'
     ]);
 
@@ -216,6 +216,10 @@
      * - DELETE statement without WHERE clause
      * - UPDATE statement without WHERE clause
      * - TRUNCATE statement
+     *
+     * Correctly handles multiple statements written in sequence, separated by
+     * semicolons (;) or statement delimiters, temp tables (#temp, ##temp),
+     * table variables, and CASE...END blocks.
      *
      * @param {string} sqlText - SQL script to analyze
      * @param {number} baseStartLine - 1-based start line of selection in editor (default 1)
@@ -258,8 +262,9 @@
                     continue;
                 }
 
-                // Scan forward to check if a root-level WHERE clause exists
+                // Scan forward to check if a root-level WHERE clause exists in this statement
                 let parenDepth = 0;
+                let caseDepth = 0;
                 let hasWhere = false;
                 let j = idx + 1;
 
@@ -271,11 +276,20 @@
                     } else if (t.value === ')') {
                         if (parenDepth > 0) parenDepth--;
                     } else if (parenDepth === 0) {
-                        if (t.value === 'WHERE') {
+                        if (t.value === 'CASE') {
+                            caseDepth++;
+                        } else if (t.value === 'END') {
+                            if (caseDepth > 0) {
+                                caseDepth--;
+                            } else {
+                                // Root END finishes block/statement
+                                break;
+                            }
+                        } else if (t.value === 'WHERE' && caseDepth === 0) {
                             hasWhere = true;
                         } else if (t.value === ';' || t.value === 'GO') {
                             break;
-                        } else if (t.type === 'WORD' && STATEMENT_TERMINATORS.has(t.value)) {
+                        } else if (caseDepth === 0 && t.type === 'WORD' && STATEMENT_STARTERS.has(t.value)) {
                             // A new statement started without a semicolon
                             break;
                         }
@@ -309,8 +323,9 @@
                     continue;
                 }
 
-                // Scan forward to check if a root-level WHERE clause exists
+                // Scan forward to check if a root-level WHERE clause exists in this statement
                 let parenDepth = 0;
+                let caseDepth = 0;
                 let hasWhere = false;
                 let j = idx + 1;
 
@@ -322,11 +337,20 @@
                     } else if (t.value === ')') {
                         if (parenDepth > 0) parenDepth--;
                     } else if (parenDepth === 0) {
-                        if (t.value === 'WHERE') {
+                        if (t.value === 'CASE') {
+                            caseDepth++;
+                        } else if (t.value === 'END') {
+                            if (caseDepth > 0) {
+                                caseDepth--;
+                            } else {
+                                // Root END finishes block/statement
+                                break;
+                            }
+                        } else if (t.value === 'WHERE' && caseDepth === 0) {
                             hasWhere = true;
                         } else if (t.value === ';' || t.value === 'GO') {
                             break;
-                        } else if (t.type === 'WORD' && STATEMENT_TERMINATORS.has(t.value)) {
+                        } else if (caseDepth === 0 && t.type === 'WORD' && STATEMENT_STARTERS.has(t.value)) {
                             // A new statement started without a semicolon
                             break;
                         }
@@ -346,8 +370,8 @@
             }
         }
 
-        // Sort by line number ascending
-        issues.sort((a, b) => a.line - b.line);
+        // Sort by line number ascending, then column ascending
+        issues.sort((a, b) => (a.line - b.line) || (a.col - b.col));
         return issues;
     }
 
@@ -357,11 +381,16 @@
     let _activeModalCallbacks = null;
     let _selectedIndex = 0;
     let _currentIssues = [];
+    let _activeKeyHandler = null;
 
     /**
      * Closes the Fatal Actions Guard modal
      */
     function hideFatalActionsGuard() {
+        if (_activeKeyHandler) {
+            window.removeEventListener('keydown', _activeKeyHandler);
+            _activeKeyHandler = null;
+        }
         const backdrop = document.getElementById('fatalActionsGuardBackdrop');
         if (backdrop) {
             backdrop.classList.add('d-none');
@@ -542,6 +571,11 @@
             }
         };
 
+        if (_activeKeyHandler) {
+            window.removeEventListener('keydown', _activeKeyHandler);
+            _activeKeyHandler = null;
+        }
+        _activeKeyHandler = keyHandler;
         window.addEventListener('keydown', keyHandler);
 
         // Show dialog
