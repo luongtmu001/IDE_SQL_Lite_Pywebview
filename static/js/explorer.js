@@ -482,6 +482,7 @@ function initExplorer() {
         const fragment = document.createDocumentFragment();
         data.items.forEach(obj => {
             const objName = obj.name || obj;
+            const objSchema = obj.schema || schema || 'dbo';
             const mappedType = typeMap[objType] || objType;
             const isLeaf = objType === 'sequences' || objType === 'user_types';
             renderNode(fragment, {
@@ -490,8 +491,8 @@ function initExplorer() {
                 icon: iconMap[objType] || 'file-code', 
                 iconColor: objType === 'sequences' ? '#8892b0' : (objType === 'user_types' ? '#98c379' : '#c7cfcf'),
                 hasChildren: !isLeaf,
-                loadCallback: isLeaf ? null : (ul => fetchObjectFolders(ul, connId, connName, dbName, schema, mappedType, objName, effectiveDbType)),
-                nodeData: { connId, connName, database: dbName, schema, type: mappedType, dbType: effectiveDbType },
+                loadCallback: isLeaf ? null : (ul => fetchObjectFolders(ul, connId, connName, dbName, objSchema, mappedType, objName, effectiveDbType)),
+                nodeData: { connId, connName, database: dbName, schema: objSchema, name: objName, type: mappedType, dbType: effectiveDbType },
             });
         });
         containerUl.appendChild(fragment);

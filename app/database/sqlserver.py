@@ -7,6 +7,19 @@ try:
 except ImportError:
     pyodbc = None
 
+def _convert_sql_variant(val):
+    if val is None:
+        return None
+    if isinstance(val, bytes):
+        try:
+            return val.decode("utf-8")
+        except UnicodeDecodeError:
+            try:
+                return val.decode("latin1")
+            except Exception:
+                return "0x" + val.hex()
+    return str(val)
+
 def serialize_cell(val):
     if val is None:
         return None
@@ -98,6 +111,10 @@ class SqlServerAdapter(DatabaseAdapter):
                     timeout=timeout,
                     autocommit=True,
                 )
+                try:
+                    self.connection.add_output_converter(-25, _convert_sql_variant)
+                except Exception:
+                    pass
                 return
             except pyodbc.Error as exc:
                 last_exc = exc
@@ -405,54 +422,150 @@ class SqlServerAdapter(DatabaseAdapter):
             "views": "V",
             "procedures": "P",
             "triggers": "TR",
+            "sequences": "SO",
+            "sequence": "SO",
         }
 
-        db_prefix = f"[{database}]." if database else ""
+        clean_db = str(database).replace("]", "]]") if database else None
+        db_prefix = f"[{clean_db}]." if clean_db else ""
 
-        if object_type == "sequences":
+        if object_type in ("sequences", "sequence"):
             sql = f"""
                 SELECT s.name, sq.name, sq.object_id
                 FROM {db_prefix}sys.sequences AS sq
                 JOIN {db_prefix}sys.schemas AS s
                   ON s.schema_id = sq.schema_id
-                WHERE s.name = ?
+                WHERE 1=1
             """
-            params = [schema]
+            params = []
+            if schema:
+                clean_schema = schema.strip("[]")
+                sql += " AND (s.name = ? OR LOWER(s.name) = LOWER(?))"
+                params.extend([clean_schema, clean_schema])
             if search:
-                sql += "  AND sq.name LIKE ?"
+                sql += " AND sq.name LIKE ?"
                 params.append(f"%{search}%")
             sql += "\n            ORDER BY sq.name"
-            result = self.execute(sql, tuple(params), database=database)
+
+            rows = []
+            try:
+                result = self.execute(sql, tuple(params), database=database)
+                rows = result.get("rows", [])
+            except Exception:
+                rows = []
+
+            # Fallback without db_prefix if database was specified
+            if not rows and database:
+                fallback_sql = """
+                    SELECT s.name, sq.name, sq.object_id
+                    FROM sys.sequences AS sq
+                    JOIN sys.schemas AS s
+                      ON s.schema_id = sq.schema_id
+                    WHERE 1=1
+                """
+                fb_params = []
+                if schema:
+                    clean_schema = schema.strip("[]")
+                    fallback_sql += " AND (s.name = ? OR LOWER(s.name) = LOWER(?))"
+                    fb_params.extend([clean_schema, clean_schema])
+                if search:
+                    fallback_sql += " AND sq.name LIKE ?"
+                    fb_params.append(f"%{search}%")
+                fallback_sql += "\n            ORDER BY sq.name"
+                try:
+                    result = self.execute(fallback_sql, tuple(fb_params), database=database)
+                    rows = result.get("rows", [])
+                except Exception:
+                    pass
+
+            # Secondary fallback to sys.objects with type 'SO'
+            if not rows:
+                so_sql = f"""
+                    SELECT s.name, o.name, o.object_id
+                    FROM {db_prefix}sys.objects AS o
+                    JOIN {db_prefix}sys.schemas AS s
+                      ON s.schema_id = o.schema_id
+                    WHERE o.type = 'SO'
+                """
+                so_params = []
+                if schema:
+                    clean_schema = schema.strip("[]")
+                    so_sql += " AND (s.name = ? OR LOWER(s.name) = LOWER(?))"
+                    so_params.extend([clean_schema, clean_schema])
+                if search:
+                    so_sql += " AND o.name LIKE ?"
+                    so_params.append(f"%{search}%")
+                so_sql += "\n            ORDER BY o.name"
+                try:
+                    result = self.execute(so_sql, tuple(so_params), database=database)
+                    rows = result.get("rows", [])
+                except Exception:
+                    pass
+
             return [
                 {
                     "schema": row[0],
                     "name": row[1],
                     "id": row[2],
                 }
-                for row in result.get("rows", [])
+                for row in rows
             ]
 
-        elif object_type in ("user_types", "types"):
+        elif object_type in ("user_types", "types", "user_type", "type"):
             sql = f"""
                 SELECT s.name, t.name, t.user_type_id
                 FROM {db_prefix}sys.types AS t
                 JOIN {db_prefix}sys.schemas AS s
                   ON s.schema_id = t.schema_id
-                WHERE t.is_user_defined = 1 AND s.name = ?
+                WHERE t.is_user_defined = 1
             """
-            params = [schema]
+            params = []
+            if schema:
+                clean_schema = schema.strip("[]")
+                sql += " AND (s.name = ? OR LOWER(s.name) = LOWER(?))"
+                params.extend([clean_schema, clean_schema])
             if search:
-                sql += "  AND t.name LIKE ?"
+                sql += " AND t.name LIKE ?"
                 params.append(f"%{search}%")
             sql += "\n            ORDER BY t.name"
-            result = self.execute(sql, tuple(params), database=database)
+
+            rows = []
+            try:
+                result = self.execute(sql, tuple(params), database=database)
+                rows = result.get("rows", [])
+            except Exception:
+                rows = []
+
+            if not rows and database:
+                fallback_sql = """
+                    SELECT s.name, t.name, t.user_type_id
+                    FROM sys.types AS t
+                    JOIN sys.schemas AS s
+                      ON s.schema_id = t.schema_id
+                    WHERE t.is_user_defined = 1
+                """
+                fb_params = []
+                if schema:
+                    clean_schema = schema.strip("[]")
+                    fallback_sql += " AND (s.name = ? OR LOWER(s.name) = LOWER(?))"
+                    fb_params.extend([clean_schema, clean_schema])
+                if search:
+                    fallback_sql += " AND t.name LIKE ?"
+                    fb_params.append(f"%{search}%")
+                fallback_sql += "\n            ORDER BY t.name"
+                try:
+                    result = self.execute(fallback_sql, tuple(fb_params), database=database)
+                    rows = result.get("rows", [])
+                except Exception:
+                    pass
+
             return [
                 {
                     "schema": row[0],
                     "name": row[1],
                     "id": row[2],
                 }
-                for row in result.get("rows", [])
+                for row in rows
             ]
 
         sql = f"""
@@ -689,22 +802,85 @@ class SqlServerAdapter(DatabaseAdapter):
                 return result["rows"][0][0]
 
         if object_type in ("sequence", "sequences"):
+            clean_schema = (schema or "dbo").strip("[] \t\r\n")
+            clean_name = (name or "").strip("[] \t\r\n")
+            clean_db = str(database).replace("]", "]]") if database else None
+            db_prefix = f"[{clean_db}]." if clean_db else ""
+
             seq_sql = f"""
                 SELECT 
                     'CREATE SEQUENCE ' + QUOTENAME(s.name) + '.' + QUOTENAME(sq.name) + CHAR(13) + CHAR(10) +
-                    '    AS ' + TYPE_NAME(sq.user_type_id) + CHAR(13) + CHAR(10) +
-                    '    START WITH ' + CAST(sq.start_value AS VARCHAR(30)) + CHAR(13) + CHAR(10) +
-                    '    INCREMENT BY ' + CAST(sq.increment AS VARCHAR(30)) + CHAR(13) + CHAR(10) +
-                    '    MINVALUE ' + CAST(sq.minimum_value AS VARCHAR(30)) + CHAR(13) + CHAR(10) +
-                    '    MAXVALUE ' + CAST(sq.maximum_value AS VARCHAR(30)) + CHAR(13) + CHAR(10) +
-                    CASE WHEN sq.is_cycling = 1 THEN '    CYCLE' ELSE '    NO CYCLE' END + ';'
+                    '    AS ' + COALESCE(TYPE_NAME(sq.user_type_id), TYPE_NAME(sq.system_type_id), 'bigint') + 
+                    CASE 
+                        WHEN TYPE_NAME(sq.system_type_id) IN ('decimal', 'numeric') 
+                        THEN '(' + CAST(sq.precision AS VARCHAR(10)) + ', ' + CAST(sq.scale AS VARCHAR(10)) + ')' 
+                        ELSE '' 
+                    END + CHAR(13) + CHAR(10) +
+                    '    START WITH ' + CAST(sq.start_value AS VARCHAR(35)) + CHAR(13) + CHAR(10) +
+                    '    INCREMENT BY ' + CAST(sq.increment AS VARCHAR(35)) + CHAR(13) + CHAR(10) +
+                    CASE 
+                        WHEN sq.minimum_value IS NULL THEN '    NO MINVALUE' 
+                        ELSE '    MINVALUE ' + CAST(sq.minimum_value AS VARCHAR(35)) 
+                    END + CHAR(13) + CHAR(10) +
+                    CASE 
+                        WHEN sq.maximum_value IS NULL THEN '    NO MAXVALUE' 
+                        ELSE '    MAXVALUE ' + CAST(sq.maximum_value AS VARCHAR(35)) 
+                    END + CHAR(13) + CHAR(10) +
+                    CASE WHEN sq.is_cycling = 1 THEN '    CYCLE' ELSE '    NO CYCLE' END + CHAR(13) + CHAR(10) +
+                    CASE 
+                        WHEN sq.is_cached = 0 THEN '    NO CACHE' 
+                        WHEN sq.cache_size IS NOT NULL THEN '    CACHE ' + CAST(sq.cache_size AS VARCHAR(20)) 
+                        ELSE '    CACHE' 
+                    END + ';'
                 FROM {db_prefix}sys.sequences AS sq
                 JOIN {db_prefix}sys.schemas AS s ON s.schema_id = sq.schema_id
-                WHERE s.name = ? AND sq.name = ?
+                WHERE (s.name = ? OR LOWER(s.name) = LOWER(?))
+                  AND (sq.name = ? OR LOWER(sq.name) = LOWER(?))
             """
-            result = self.execute(seq_sql, (schema, name), database=database)
-            if result.get("rows"):
-                return result["rows"][0][0]
+            try:
+                result = self.execute(seq_sql, (clean_schema, clean_schema, clean_name, clean_name), database=database)
+                if result.get("rows") and result["rows"][0][0]:
+                    return result["rows"][0][0]
+            except Exception:
+                pass
+
+            # Fallback without db_prefix
+            fallback_sql = """
+                SELECT 
+                    'CREATE SEQUENCE ' + QUOTENAME(s.name) + '.' + QUOTENAME(sq.name) + CHAR(13) + CHAR(10) +
+                    '    AS ' + COALESCE(TYPE_NAME(sq.user_type_id), TYPE_NAME(sq.system_type_id), 'bigint') + 
+                    CASE 
+                        WHEN TYPE_NAME(sq.system_type_id) IN ('decimal', 'numeric') 
+                        THEN '(' + CAST(sq.precision AS VARCHAR(10)) + ', ' + CAST(sq.scale AS VARCHAR(10)) + ')' 
+                        ELSE '' 
+                    END + CHAR(13) + CHAR(10) +
+                    '    START WITH ' + CAST(sq.start_value AS VARCHAR(35)) + CHAR(13) + CHAR(10) +
+                    '    INCREMENT BY ' + CAST(sq.increment AS VARCHAR(35)) + CHAR(13) + CHAR(10) +
+                    CASE 
+                        WHEN sq.minimum_value IS NULL THEN '    NO MINVALUE' 
+                        ELSE '    MINVALUE ' + CAST(sq.minimum_value AS VARCHAR(35)) 
+                    END + CHAR(13) + CHAR(10) +
+                    CASE 
+                        WHEN sq.maximum_value IS NULL THEN '    NO MAXVALUE' 
+                        ELSE '    MAXVALUE ' + CAST(sq.maximum_value AS VARCHAR(35)) 
+                    END + CHAR(13) + CHAR(10) +
+                    CASE WHEN sq.is_cycling = 1 THEN '    CYCLE' ELSE '    NO CYCLE' END + CHAR(13) + CHAR(10) +
+                    CASE 
+                        WHEN sq.is_cached = 0 THEN '    NO CACHE' 
+                        WHEN sq.cache_size IS NOT NULL THEN '    CACHE ' + CAST(sq.cache_size AS VARCHAR(20)) 
+                        ELSE '    CACHE' 
+                    END + ';'
+                FROM sys.sequences AS sq
+                JOIN sys.schemas AS s ON s.schema_id = sq.schema_id
+                WHERE (s.name = ? OR LOWER(s.name) = LOWER(?))
+                  AND (sq.name = ? OR LOWER(sq.name) = LOWER(?))
+            """
+            try:
+                result = self.execute(fallback_sql, (clean_schema, clean_schema, clean_name, clean_name), database=database)
+                if result.get("rows") and result["rows"][0][0]:
+                    return result["rows"][0][0]
+            except Exception:
+                pass
 
         if object_type in ("user_type", "user_types", "type", "types"):
             udt_sql = f"""
@@ -749,7 +925,11 @@ class SqlServerAdapter(DatabaseAdapter):
         object_type,
         child_type,
     ):
-        db_prefix = f"[{database}]." if database else ""
+        if object_type in ("sequence", "sequences", "user_type", "user_types", "type", "types"):
+            return []
+
+        clean_db = str(database).replace("]", "]]") if database else None
+        db_prefix = f"[{clean_db}]." if clean_db else ""
         obj_sql = f"""
             SELECT o.object_id 
             FROM {db_prefix}sys.objects o
@@ -960,6 +1140,10 @@ class SqlServerAdapter(DatabaseAdapter):
                 while (def_val.startswith("'") and def_val.endswith("'")) or (def_val.startswith('"') and def_val.endswith('"')):
                     def_val = def_val[1:-1].strip()
 
+            # Check if default value is a sequence (e.g. NEXT VALUE FOR [dbo].[SeqName])
+            seq_match = re.search(r'NEXT\s+VALUE\s+FOR\s+([^\s\)]+)', raw_default, flags=re.IGNORECASE)
+            seq_name = seq_match.group(1).strip("[]") if seq_match else ""
+
             columns.append({
                 "name": r[1],
                 "type": type_name,
@@ -971,6 +1155,7 @@ class SqlServerAdapter(DatabaseAdapter):
                 "is_computed": bool(r[17]) if len(r) > 17 else False,
                 "identity_seed": int(r[8]) if r[8] is not None else 1,
                 "identity_increment": int(r[9]) if r[9] is not None else 1,
+                "sequence_name": seq_name,
                 "default_value": def_val,
                 "collation": r[11] or "",
                 "comment": r[13] or ""

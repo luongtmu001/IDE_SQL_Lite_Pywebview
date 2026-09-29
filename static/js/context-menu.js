@@ -84,6 +84,7 @@
             { id: 'drop', label: 'Drop Trigger', icon: 'fa-circle-minus', danger: true },
         ],
         sequence: [
+            { id: 'view-definition', label: 'View Definition', icon: 'fa-eye' },
             { id: 'script-create', label: 'Script as CREATE', icon: 'fa-code' },
             { id: 'script-drop', label: 'Script as DROP', icon: 'fa-trash', danger: true },
             { separator: true },
@@ -95,6 +96,7 @@
             { id: 'refresh', label: 'Refresh', icon: 'fa-rotate-right' },
         ],
         user_type: [
+            { id: 'view-definition', label: 'View Definition', icon: 'fa-eye' },
             { id: 'script-create', label: 'Script as CREATE', icon: 'fa-code' },
             { id: 'script-drop', label: 'Script as DROP', icon: 'fa-trash', danger: true },
             { separator: true },

@@ -22,6 +22,10 @@ def test_sqlserver_sequences_and_user_types():
     assert "sys.sequences" in call_args[0][0]
     assert call_args[1]["database"] == "TestDB"
 
+    # Test singular "sequence"
+    seqs_singular = adapter.list_objects("TestDB", "dbo", "sequence")
+    assert len(seqs_singular) == 2
+
     # 2. list_objects for user_types
     adapter.execute.return_value = {
         "rows": [["dbo", "PhoneNumber", 257], ["dbo", "TaxCode", 258]]
