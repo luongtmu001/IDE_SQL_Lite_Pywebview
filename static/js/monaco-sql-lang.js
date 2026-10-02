@@ -177,6 +177,11 @@
                 ]
             }
         });
+
+        // Phase 6: Register Signature Help Provider if available
+        if (window.SqlSignatureHelpResolver && typeof window.SqlSignatureHelpResolver.registerMonacoProvider === 'function') {
+            window.SqlSignatureHelpResolver.registerMonacoProvider();
+        }
     }
 
     // Expose registration hook

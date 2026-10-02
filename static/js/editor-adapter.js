@@ -153,6 +153,14 @@
                 this._editor.on(event, handler);
             }
         }
+
+        // ── Signature Help & Parameter Hints (Phase 6) ─────────────────────────────
+        triggerSignatureHelp() {
+            const raw = this.rawEditor;
+            if (raw && typeof raw.trigger === 'function') {
+                raw.trigger('keyboard', 'editor.action.triggerParameterHints', {});
+            }
+        }
     }
 
     window.EditorAdapter = EditorAdapter;

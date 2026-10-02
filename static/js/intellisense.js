@@ -889,6 +889,19 @@
             adapter._intellisenseAttached = true;
             this.activeAdapter = adapter;
 
+            // Phase 6: Ensure Monaco Signature Help Provider is registered and synced
+            if (window.SqlSignatureHelpResolver) {
+                if (this.dataProvider && typeof window.SqlSignatureHelpResolver.setDataProvider === 'function') {
+                    window.SqlSignatureHelpResolver.setDataProvider(this.dataProvider);
+                }
+                if (window.AppMetadataCache && typeof window.SqlSignatureHelpResolver.setMetadataCache === 'function') {
+                    window.SqlSignatureHelpResolver.setMetadataCache(window.AppMetadataCache);
+                }
+                if (typeof window.SqlSignatureHelpResolver.registerMonacoProvider === 'function') {
+                    window.SqlSignatureHelpResolver.registerMonacoProvider();
+                }
+            }
+
             adapter.on('change', (editor, changeObj) => {
                 if (changeObj && changeObj.origin === 'setValue') return;
                 if (this.isConfirmingCompletion) {
@@ -1755,7 +1768,15 @@
         getCompletionEngine: () => controller.completionEngine,
         getTriggerController: () => controller.triggerController,
         get triggerController() { return controller.triggerController; },
-        get dataProvider() { return dataProvider; }
+        get dataProvider() { return dataProvider; },
+        // Phase 6 Signature Help API
+        getSignatureHelp: (sql, offset, tabCtx) => {
+            if (window.SqlSignatureHelpResolver) {
+                return window.SqlSignatureHelpResolver.resolve(sql, offset, tabCtx);
+            }
+            return null;
+        },
+        getActiveTabContext: () => controller.getActiveTabContext()
     };
 
     document.addEventListener('DOMContentLoaded', () => {
