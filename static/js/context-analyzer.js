@@ -1576,6 +1576,7 @@
         let currentWord = "";
         let qualifier = "";
         let fullQualifier = "";
+        let qualifierStartOffset = cursorIndex;
         let triggerChar = "";
         let previousToken = "";
         let previousTokens = [];
@@ -1719,7 +1720,9 @@
                             qualifier = cleanIdentifier(prevCodeTok.value);
                             // Multi-part qualifier: db.schema.
                             let parts = [];
+                            let firstPartIdx = dotIdx - 1;
                             for (let p = dotIdx - 1; p >= 0; p -= 2) {
+                                firstPartIdx = p;
                                 parts.unshift(cleanIdentifier(codeTokens[p].value));
                                 if (p >= 2 && codeTokens[p - 1].value === '.') {
                                     // continue walking back
@@ -1728,6 +1731,7 @@
                                 }
                             }
                             fullQualifier = parts.join('.');
+                            qualifierStartOffset = codeTokens[firstPartIdx].start;
                         }
                     }
                 }
@@ -2019,6 +2023,7 @@
             hasClosingQuoteAfterCursor,
             prefixRange,
             replacementRange,
+            qualifierStartOffset,
             selectAliases,
             // Phase 4 DML additions:
             isInsert: dmlContext.isInsert,

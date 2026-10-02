@@ -1593,6 +1593,12 @@
                 toPos = adapter.posFromIndex(currentContext.replacementRange.end);
             }
 
+            // Phase 9: Item-level custom replacement range (e.g. Star Expansion replacing qualifier.*)
+            if (item.replacementRange && typeof adapter.posFromIndex === 'function') {
+                fromPos = adapter.posFromIndex(item.replacementRange.start);
+                toPos = adapter.posFromIndex(item.replacementRange.end);
+            }
+
             // 1. Snippet completion
             if (item.type === 'snippet' && item.snippetData && window.AppSnippets && typeof window.AppSnippets.expandSnippetBody === 'function') {
                 const expanded = window.AppSnippets.expandSnippetBody(item.snippetData);

@@ -663,6 +663,18 @@
                 const nameClean = (nameLower.startsWith('#') || nameLower.startsWith('@')) ? nameLower.replace(/^#+|^@+/, '') : nameLower;
                 const queryClean = (cleanQuery.startsWith('#') || cleanQuery.startsWith('@')) ? cleanQuery.replace(/^#+|^@+/, '') : cleanQuery;
 
+                // Phase 9: Star Expansion query matching (*, expand, all, star, columns)
+                if (item.type === 'star_expansion') {
+                    if (cleanQuery === '*' || 'expand'.startsWith(cleanQuery) || 'columns'.startsWith(cleanQuery) || 'all'.startsWith(cleanQuery) || 'star'.startsWith(cleanQuery)) {
+                        prefixMatches.push({
+                            ...item,
+                            _matchType: cleanQuery === '*' ? 'exact' : 'prefix',
+                            _matchScore: cleanQuery === '*' ? 100 : 88
+                        });
+                        return;
+                    }
+                }
+
                 // 1. Exact match
                 if (nameLower === cleanQuery || (queryClean && nameClean === queryClean)) {
                     prefixMatches.push({
@@ -798,7 +810,9 @@
 
                 // 3. SELECT / WHERE / ON / ORDER BY clause priorities (Section 24, 27, 28, 47)
                 if ((isSelectClause || isWhereClause || isOrderClause) && !context.qualifier) {
-                    if (type === 'scalar_variable') {
+                    if (type === 'star_expansion') {
+                        contextScore += 85;
+                    } else if (type === 'scalar_variable') {
                         contextScore += isWhereClause ? 80 : 65;
                     } else if (type === 'pk_column') {
                         contextScore += 75;
@@ -903,7 +917,9 @@
 
                 // 5. Qualifier Priority (Section 24, 39, 40, 46)
                 if (context.qualifier) {
-                    if (type === 'pk_column') {
+                    if (type === 'star_expansion') {
+                        contextScore += 100;
+                    } else if (type === 'pk_column') {
                         contextScore += 95;
                     } else if (type === 'column') {
                         contextScore += 90;
@@ -985,6 +1001,171 @@
             }
 
             return name;
+        }
+
+        /**
+         * Phase 9: Star Expansion (* Expansion to explicit column list - Spec Section 8.4 & 10.6)
+         * Expands '*' in SELECT queries into a comma-separated list of columns.
+         * Supports:
+         * - Unqualified star expansion: SELECT * FROM Customers c (uses c.CustomerId, ...)
+         * - Single table without alias: SELECT * FROM Customers (uses CustomerId, ...)
+         * - Multi-table JOIN: SELECT * FROM Customers c JOIN Orders o ... (c.Col, ..., o.Col, ...)
+         * - Qualified star expansion: SELECT c.* FROM Customers c ... (c.CustomerId, ...)
+         * - Table variables, CTEs, Temp Tables, and Subqueries
+         * - Dialect quoting for reserved keywords or special characters
+         */
+        async expandStarColumns(context, tabCtx, qualifier = null) {
+            const isExprClause = (context.clause === 'SELECT' || !context.clause || ['WHERE', 'ON', 'GROUP BY', 'ORDER BY', 'HAVING', 'SET'].includes(context.clause) || context.isInRoutineBody);
+            if (!isExprClause) return null;
+
+            // Helper to get columns for a table object
+            const getTableColumns = async (tbl) => {
+                const targetSchema = tbl.schema || tabCtx.schema;
+                const tblName = tbl.table || tbl.name;
+                if (!tblName) return [];
+
+                const isPhysical = !['subquery', 'cte', 'temp_table', 'table_variable', 'pseudo_table'].includes(tbl.type);
+
+                // 1. For physical tables, query Metadata Cache / Data Provider for full schema
+                if (isPhysical && tabCtx.connectionId) {
+                    let cols = null;
+                    if (this.metadataCache && typeof this.metadataCache.getColumns === 'function') {
+                        cols = this.metadataCache.getColumns(tabCtx.connectionId, tabCtx.database, targetSchema, tblName);
+                    }
+                    if (!cols && this.dataProvider && typeof this.dataProvider.fetchColumns === 'function') {
+                        cols = await this.dataProvider.fetchColumns(tabCtx.connectionId, tabCtx.database, targetSchema, tblName);
+                    } else if (!cols && this.dataProvider && typeof this.dataProvider.getColumns === 'function') {
+                        cols = await this.dataProvider.getColumns(tabCtx.connectionId, tabCtx.database, targetSchema, tblName);
+                    }
+                    if (cols && cols.length > 0) {
+                        return cols;
+                    }
+                }
+
+                // 2. Direct columns on object (CTE, subquery, temp_table, table_variable)
+                if (tbl.columns && Array.isArray(tbl.columns) && tbl.columns.length > 0) {
+                    return tbl.columns;
+                }
+
+                // 3. Active scope symbol lookup
+                if (context.activeScope && typeof context.activeScope.getAllVisibleSymbols === 'function') {
+                    const symbols = context.activeScope.getAllVisibleSymbols();
+                    for (const [_, sym] of symbols) {
+                        const symName = sym.name || sym.alias;
+                        if (symName && symName.toLowerCase() === tblName.toLowerCase() && sym.columns && Array.isArray(sym.columns) && sym.columns.length > 0) {
+                            return sym.columns;
+                        }
+                    }
+                }
+
+                return [];
+            };
+
+            // Case A: Qualified star expansion (e.g. c.* or Customers.*)
+            if (qualifier) {
+                const qualLower = qualifier.toLowerCase();
+                let targetTable = null;
+                let targetSchema = tabCtx.schema;
+                let matchedTbl = null;
+
+                if (context.resolvedObject && context.resolvedObject.object) {
+                    targetTable = context.resolvedObject.object;
+                    if (context.resolvedObject.schema) targetSchema = context.resolvedObject.schema;
+                    matchedTbl = { table: targetTable, schema: targetSchema, type: context.resolvedObject.type, columns: context.resolvedObject.columns };
+                } else if (context.aliasMap && context.aliasMap[qualLower]) {
+                    const mapped = context.aliasMap[qualLower];
+                    targetTable = mapped.table || mapped.object || mapped.name;
+                    if (mapped.schema) targetSchema = mapped.schema;
+                    matchedTbl = { table: targetTable, schema: targetSchema, type: mapped.type, columns: mapped.columns };
+                } else if (context.queryTables && context.queryTables.length > 0) {
+                    const found = context.queryTables.find(t => (t.alias && t.alias.toLowerCase() === qualLower) || (t.table && t.table.toLowerCase() === qualLower));
+                    if (found) {
+                        targetTable = found.table;
+                        targetSchema = found.schema || tabCtx.schema;
+                        matchedTbl = found;
+                    }
+                }
+
+                if (!matchedTbl) {
+                    matchedTbl = { table: qualifier, schema: targetSchema };
+                }
+
+                const rawCols = await getTableColumns(matchedTbl);
+                if (!rawCols || rawCols.length === 0) return null;
+
+                const qualPrefix = qualifier;
+                const formattedList = rawCols.map(c => {
+                    const cName = c.name || c;
+                    const quotedName = this.formatInsertText(cName, 'column', context, tabCtx);
+                    return `${qualPrefix}.${quotedName}`;
+                }).join(', ');
+
+                let repRange = context.replacementRange;
+                if (context.qualifierStartOffset !== undefined && context.replacementRange) {
+                    repRange = { start: context.qualifierStartOffset, end: context.replacementRange.end };
+                }
+
+                return {
+                    name: '*',
+                    label: `* (All columns of ${qualifier})`,
+                    type: 'star_expansion',
+                    kind: 'snippet',
+                    level: 0.8,
+                    displayType: 'Star Expansion',
+                    detail: `Expand * to columns of ${qualifier}`,
+                    documentation: `Inserts columns of ${matchedTbl.table || qualifier}:\n${formattedList}`,
+                    insertText: formattedList,
+                    replacementRange: repRange,
+                    isStarExpansion: true
+                };
+            }
+
+            // Case B: Unqualified star expansion (SELECT * FROM ...)
+            if (context.queryTables && context.queryTables.length > 0) {
+                const totalTables = context.queryTables.length;
+                const allParts = [];
+
+                for (const tbl of context.queryTables) {
+                    const rawCols = await getTableColumns(tbl);
+                    if (!rawCols || rawCols.length === 0) continue;
+
+                    let prefix = '';
+                    if (totalTables > 1) {
+                        prefix = tbl.alias || tbl.table || '';
+                    } else if (tbl.alias) {
+                        prefix = tbl.alias;
+                    }
+
+                    rawCols.forEach(c => {
+                        const cName = c.name || c;
+                        const quotedName = this.formatInsertText(cName, 'column', context, tabCtx);
+                        if (prefix) {
+                            allParts.push(`${prefix}.${quotedName}`);
+                        } else {
+                            allParts.push(quotedName);
+                        }
+                    });
+                }
+
+                if (allParts.length === 0) return null;
+
+                const formattedList = allParts.join(', ');
+                return {
+                    name: '*',
+                    label: '* (Expand columns)',
+                    type: 'star_expansion',
+                    kind: 'snippet',
+                    level: 0.8,
+                    displayType: 'Star Expansion',
+                    detail: 'Expand * to column list',
+                    documentation: `Inserts explicit column list:\n${formattedList}`,
+                    insertText: formattedList,
+                    replacementRange: context.replacementRange,
+                    isStarExpansion: true
+                };
+            }
+
+            return null;
         }
 
         async generate(context, tabCtx, wordLower = '') {
@@ -1297,6 +1478,14 @@
                             }
                         }
                     }
+
+                    // Phase 9: Star Expansion (* Expansion to column list per Spec Section 8.4 & 10.6)
+                    if ((context.clause === 'SELECT' || !context.clause) && !isInsertCols && !isUpdateSet) {
+                        const starItem = await this.expandStarColumns(context, tabCtx, null);
+                        if (starItem) {
+                            allCandidates.push(starItem);
+                        }
+                    }
                 }
 
                 // Phase 5: Gợi ý ON dựa trên Foreign Key & Heuristic fallback (Spec 11.4)
@@ -1485,6 +1674,14 @@
                             insertText: this.formatInsertText(obj.name, obj.type, context, tabCtx)
                         });
                     });
+                }
+
+                // Phase 9: Qualified Star Expansion (alias.* per Spec Section 8.4)
+                if (context.clause === 'SELECT' || !context.clause) {
+                    const starItem = await this.expandStarColumns(context, tabCtx, context.qualifier);
+                    if (starItem) {
+                        allCandidates.push(starItem);
+                    }
                 }
             } else if (tabCtx.connectionId && this.dataProvider && typeof this.dataProvider.fetchObjects === 'function') {
                 // Phase 5: Gợi ý JOIN dựa trên Foreign Key (Spec 11.4)
@@ -2093,6 +2290,15 @@
             }
 
             return ranked;
+        }
+
+        async expandStar(documentText, cursorOffset, context, tabCtx) {
+            if (!context) {
+                context = (window.SqlContextAnalyzer && typeof window.SqlContextAnalyzer.analyze === 'function')
+                    ? window.SqlContextAnalyzer.analyze(documentText, cursorOffset)
+                    : { clause: 'SELECT', queryTables: [] };
+            }
+            return this.generator.expandStarColumns(context, tabCtx, context.qualifier || null);
         }
     }
 
