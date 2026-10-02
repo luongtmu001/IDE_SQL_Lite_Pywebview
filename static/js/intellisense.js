@@ -22,7 +22,8 @@
         parameter: 'fa-cube text-warning',
         data_type: 'fa-cube text-info',
         user_data_type: 'fa-shapes text-warning',
-        snippet: 'fa-wand-magic-sparkles text-warning'
+        snippet: 'fa-wand-magic-sparkles text-warning',
+        join_condition: 'fa-link text-warning'
     };
 
     function formatDisplayType(type) {
@@ -43,7 +44,8 @@
             parameter: 'Parameter',
             data_type: 'Data Type',
             user_data_type: 'UDT',
-            snippet: 'Snippet'
+            snippet: 'Snippet',
+            join_condition: 'FK Join'
         };
         return map[type] || (type.charAt(0).toUpperCase() + type.slice(1));
     }
@@ -57,6 +59,7 @@
             this.objectsCache = new Map();
             this.columnsCache = new Map();
             this.parametersCache = new Map();
+            this.foreignKeysCache = new Map();
             this.definitionsCache = new Map();
             this.dataTypesCache = new Map();
 
@@ -227,6 +230,46 @@
                 console.warn('[IntelliSense] fetchDefinition error:', e);
             }
             return null;
+        }
+
+        async fetchForeignKeys(connectionId, database, schema, table, dbType) {
+            if (!connectionId) return [];
+            const cacheKey = `${connectionId}::${database || ''}::${schema || ''}::${table || ''}`;
+
+            // Check Multi-Tier Cache (Phase 5)
+            if (this.cache) {
+                const cached = this.cache.getForeignKeys(connectionId, database, schema, table);
+                if (cached) return cached;
+            } else if (this.foreignKeysCache.has(cacheKey)) {
+                return this.foreignKeysCache.get(cacheKey);
+            }
+
+            try {
+                const provider = this.getProvider(connectionId, dbType);
+                if (provider && typeof provider.getForeignKeys === 'function') {
+                    const items = await provider.getForeignKeys(connectionId, database, schema, table);
+                    if (items && Array.isArray(items)) {
+                        if (this.cache) this.cache.setForeignKeys(connectionId, database, schema, table, items);
+                        this.foreignKeysCache.set(cacheKey, items);
+                        return items;
+                    }
+                }
+                const params = new URLSearchParams();
+                if (database) params.append('database', database);
+                if (schema) params.append('schema', schema);
+                if (table) params.append('table', table);
+                const q = params.toString() ? `?${params.toString()}` : '';
+                const res = await fetch(`/api/metadata/${connectionId}/foreign_keys${q}`);
+                const data = await res.json();
+                if (data.success && Array.isArray(data.items)) {
+                    if (this.cache) this.cache.setForeignKeys(connectionId, database, schema, table, data.items);
+                    this.foreignKeysCache.set(cacheKey, data.items);
+                    return data.items;
+                }
+            } catch (e) {
+                console.warn('[IntelliSense] fetchForeignKeys error:', e);
+            }
+            return [];
         }
 
         async fetchDataTypes(connectionId, database, dbType) {

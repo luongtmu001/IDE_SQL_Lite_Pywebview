@@ -2610,6 +2610,14 @@ class BravoApi:
         except Exception as exc:
             return {"success": False, "error": str(exc)}
 
+    def get_foreign_keys(self, connection_id, database=None, schema=None, table=None):
+        try:
+            conn = self._get_connection(connection_id)
+            items = conn.metadata_service.get_foreign_keys(database, schema, table)
+            return {"success": True, "items": items}
+        except Exception as exc:
+            return {"success": False, "error": str(exc)}
+
 
 
 class SettingsSubwindowApi:

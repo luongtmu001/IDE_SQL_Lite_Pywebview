@@ -1163,6 +1163,76 @@ class PostgreSqlAdapter(DatabaseAdapter):
         finally:
             self.connection.autocommit = True
 
+    def get_foreign_keys(self, database=None, schema=None, table=None):
+        sql = """
+            SELECT
+                tc.constraint_name,
+                tc.table_schema AS from_schema,
+                tc.table_name AS from_table,
+                kcu.column_name AS from_column,
+                ccu.table_schema AS to_schema,
+                ccu.table_name AS to_table,
+                ccu.column_name AS to_column,
+                kcu.ordinal_position
+            FROM information_schema.table_constraints tc
+            JOIN information_schema.key_column_usage kcu
+                ON tc.constraint_name = kcu.constraint_name AND tc.table_schema = kcu.table_schema
+            JOIN information_schema.constraint_column_usage ccu
+                ON ccu.constraint_name = tc.constraint_name AND ccu.table_schema = tc.table_schema
+            WHERE tc.constraint_type = 'FOREIGN KEY'
+        """
+
+        where_clauses = []
+        params = []
+
+        if table:
+            clean_tbl = table.strip('" \t\r\n')
+            if schema:
+                clean_sch = schema.strip('" \t\r\n')
+                where_clauses.append(
+                    "(((tc.table_schema = %s OR LOWER(tc.table_schema) = LOWER(%s)) AND (tc.table_name = %s OR LOWER(tc.table_name) = LOWER(%s))) "
+                    "OR ((ccu.table_schema = %s OR LOWER(ccu.table_schema) = LOWER(%s)) AND (ccu.table_name = %s OR LOWER(ccu.table_name) = LOWER(%s))))"
+                )
+                params.extend([clean_sch, clean_sch, clean_tbl, clean_tbl, clean_sch, clean_sch, clean_tbl, clean_tbl])
+            else:
+                where_clauses.append(
+                    "((tc.table_name = %s OR LOWER(tc.table_name) = LOWER(%s)) "
+                    "OR (ccu.table_name = %s OR LOWER(ccu.table_name) = LOWER(%s)))"
+                )
+                params.extend([clean_tbl, clean_tbl, clean_tbl, clean_tbl])
+        elif schema:
+            clean_sch = schema.strip('" \t\r\n')
+            where_clauses.append("(tc.table_schema = %s OR ccu.table_schema = %s)")
+            params.extend([clean_sch, clean_sch])
+
+        if where_clauses:
+            sql += " AND " + " AND ".join(where_clauses)
+
+        sql += " ORDER BY tc.constraint_name, kcu.ordinal_position"
+
+        try:
+            res = self.execute(sql, tuple(params) if params else None, database=database)
+            fk_map = {}
+            for r in res.get("rows", []):
+                c_name, f_sch, f_tbl, f_col, t_sch, t_tbl, t_col, _ = r
+                key = f"{f_sch}::{f_tbl}::{c_name}::{t_sch}::{t_tbl}"
+                if key not in fk_map:
+                    fk_map[key] = {
+                        "constraint_name": c_name,
+                        "from_schema": f_sch,
+                        "from_table": f_tbl,
+                        "from_columns": [],
+                        "to_schema": t_sch,
+                        "to_table": t_tbl,
+                        "to_columns": []
+                    }
+                fk_map[key]["from_columns"].append(f_col)
+                fk_map[key]["to_columns"].append(t_col)
+
+            return list(fk_map.values())
+        except Exception:
+            return []
+
 # Alias for compatibility
 PostgresAdapter = PostgreSqlAdapter
 

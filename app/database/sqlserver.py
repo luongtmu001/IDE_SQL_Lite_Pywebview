@@ -1427,3 +1427,85 @@ class SqlServerAdapter(DatabaseAdapter):
             raise exc
         finally:
             self.connection.autocommit = True
+
+    def get_foreign_keys(self, database=None, schema=None, table=None):
+        clean_db = str(database).replace("]", "]]") if database else None
+        db_prefix = f"[{clean_db}]." if clean_db else ""
+
+        sql = f"""
+            SELECT 
+                fk.name AS constraint_name,
+                s_from.name AS from_schema,
+                t_from.name AS from_table,
+                c_from.name AS from_column,
+                s_to.name AS to_schema,
+                t_to.name AS to_table,
+                c_to.name AS to_column,
+                fkc.constraint_column_id
+            FROM {db_prefix}sys.foreign_keys fk
+            JOIN {db_prefix}sys.foreign_key_columns fkc 
+                ON fkc.constraint_object_id = fk.object_id
+            JOIN {db_prefix}sys.tables t_from 
+                ON t_from.object_id = fkc.parent_object_id
+            JOIN {db_prefix}sys.schemas s_from 
+                ON s_from.schema_id = t_from.schema_id
+            JOIN {db_prefix}sys.columns c_from 
+                ON c_from.object_id = fkc.parent_object_id AND c_from.column_id = fkc.parent_column_id
+            JOIN {db_prefix}sys.tables t_to 
+                ON t_to.object_id = fkc.referenced_object_id
+            JOIN {db_prefix}sys.schemas s_to 
+                ON s_to.schema_id = t_to.schema_id
+            JOIN {db_prefix}sys.columns c_to 
+                ON c_to.object_id = fkc.referenced_object_id AND c_to.column_id = fkc.referenced_column_id
+        """
+
+        where_clauses = []
+        params = []
+
+        if table:
+            clean_tbl = table.strip("[] \t\r\n")
+            if schema:
+                clean_sch = schema.strip("[] \t\r\n")
+                where_clauses.append(
+                    "(((s_from.name = ? OR LOWER(s_from.name) = LOWER(?)) AND (t_from.name = ? OR LOWER(t_from.name) = LOWER(?))) "
+                    "OR ((s_to.name = ? OR LOWER(s_to.name) = LOWER(?)) AND (t_to.name = ? OR LOWER(t_to.name) = LOWER(?))))"
+                )
+                params.extend([clean_sch, clean_sch, clean_tbl, clean_tbl, clean_sch, clean_sch, clean_tbl, clean_tbl])
+            else:
+                where_clauses.append(
+                    "((t_from.name = ? OR LOWER(t_from.name) = LOWER(?)) "
+                    "OR (t_to.name = ? OR LOWER(t_to.name) = LOWER(?)))"
+                )
+                params.extend([clean_tbl, clean_tbl, clean_tbl, clean_tbl])
+        elif schema:
+            clean_sch = schema.strip("[] \t\r\n")
+            where_clauses.append("(s_from.name = ? OR s_to.name = ?)")
+            params.extend([clean_sch, clean_sch])
+
+        if where_clauses:
+            sql += " WHERE " + " AND ".join(where_clauses)
+
+        sql += " ORDER BY fk.name, fkc.constraint_column_id"
+
+        try:
+            res = self.execute(sql, tuple(params) if params else None, database=database)
+            fk_map = {}
+            for r in res.get("rows", []):
+                c_name, f_sch, f_tbl, f_col, t_sch, t_tbl, t_col, _ = r
+                key = f"{f_sch}::{f_tbl}::{c_name}::{t_sch}::{t_tbl}"
+                if key not in fk_map:
+                    fk_map[key] = {
+                        "constraint_name": c_name,
+                        "from_schema": f_sch,
+                        "from_table": f_tbl,
+                        "from_columns": [],
+                        "to_schema": t_sch,
+                        "to_table": t_tbl,
+                        "to_columns": []
+                    }
+                fk_map[key]["from_columns"].append(f_col)
+                fk_map[key]["to_columns"].append(t_col)
+
+            return list(fk_map.values())
+        except Exception:
+            return []

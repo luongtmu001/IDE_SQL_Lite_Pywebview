@@ -69,6 +69,10 @@
             throw new Error('[MetadataProvider] getSupportedTypes must be implemented by subclass');
         }
 
+        async getForeignKeys(connectionId, database, schema, table) {
+            throw new Error('[MetadataProvider] getForeignKeys must be implemented by subclass');
+        }
+
         async getObjects(connectionId, database, schema) {
             throw new Error('[MetadataProvider] getObjects must be implemented by subclass');
         }
@@ -159,6 +163,17 @@
             const data = await this._fetchJson(`/api/metadata/${connectionId}/intellisense/types${q}`);
             return data && Array.isArray(data.items) ? data.items : [];
         }
+
+        async getForeignKeys(connectionId, database, schema, table) {
+            if (!connectionId) return [];
+            const params = new URLSearchParams();
+            if (database) params.append('database', database);
+            if (schema) params.append('schema', schema);
+            if (table) params.append('table', table);
+            const q = params.toString() ? `?${params.toString()}` : '';
+            const data = await this._fetchJson(`/api/metadata/${connectionId}/foreign_keys${q}`);
+            return data && Array.isArray(data.items) ? data.items : [];
+        }
     }
 
     // ─────────────────────────────────────────────────────────────────────────────
@@ -187,6 +202,12 @@
             const cleanSchema = this.cleanIdentifier(schema);
             return super.getColumns(connectionId, database, cleanSchema, cleanTable);
         }
+
+        async getForeignKeys(connectionId, database, schema, table) {
+            const cleanTable = table ? this.cleanIdentifier(table) : null;
+            const cleanSchema = schema ? this.cleanIdentifier(schema) : null;
+            return super.getForeignKeys(connectionId, database, cleanSchema, cleanTable);
+        }
     }
 
     class PostgresMetadataProvider extends ProjectMetadataAdapter {
@@ -212,6 +233,12 @@
             // Default PostgreSQL schema to 'public' if not specified
             const cleanSchema = this.cleanIdentifier(schema) || 'public';
             return super.getColumns(connectionId, database, cleanSchema, cleanTable);
+        }
+
+        async getForeignKeys(connectionId, database, schema, table) {
+            const cleanTable = table ? this.cleanIdentifier(table) : null;
+            const cleanSchema = schema ? this.cleanIdentifier(schema) : null;
+            return super.getForeignKeys(connectionId, database, cleanSchema, cleanTable);
         }
     }
 

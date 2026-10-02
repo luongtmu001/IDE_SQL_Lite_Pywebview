@@ -444,14 +444,26 @@
 
                 // 4d. Snippet Priority: When user types snippet prefix, prioritize snippets at the top!
                 if (type === 'snippet') {
-                    const snipName = (item.name || '').toLowerCase();
-                    if (cleanQuery && snipName === cleanQuery) {
-                        contextScore += 160; // Exact snippet prefix match -> #1
-                    } else if (cleanQuery && snipName.startsWith(cleanQuery)) {
-                        contextScore += 130; // Prefix snippet match -> top priority above keywords
+                    if (item.displayType === 'FK Join Snippet') {
+                        contextScore += 190; // Top snippet in JOIN clause!
                     } else {
-                        contextScore += 50;
+                        const snipName = (item.name || '').toLowerCase();
+                        if (cleanQuery && snipName === cleanQuery) {
+                            contextScore += 160; // Exact snippet prefix match -> #1
+                        } else if (cleanQuery && snipName.startsWith(cleanQuery)) {
+                            contextScore += 130; // Prefix snippet match -> top priority above keywords
+                        } else {
+                            contextScore += 50;
+                        }
                     }
+                }
+
+                // Phase 5: JOIN & ON Clause Priorities (Spec 11.4)
+                if (type === 'join_condition') {
+                    contextScore += 200; // #1 candidate in ON clause!
+                }
+                if (item.isFkTarget) {
+                    contextScore += 180; // Boost FK-related tables to the top in JOIN clause!
                 }
 
                 // Phase 3: ORDER BY & GROUP BY Select Alias Visibility
@@ -864,6 +876,11 @@
                     }
                 }
 
+                // Phase 5: Gợi ý ON dựa trên Foreign Key & Heuristic fallback (Spec 11.4)
+                if (context.clause === 'ON' && tabCtx.connectionId) {
+                    await this._generateJoinOnCandidates(allCandidates, context, tabCtx);
+                }
+
                 // F. Data Types
                 if (this.dataProvider && typeof this.dataProvider.fetchDataTypes === 'function') {
                     const dtData = await this.dataProvider.fetchDataTypes(tabCtx.connectionId, tabCtx.database);
@@ -1039,8 +1056,16 @@
                     });
                 }
             } else if (tabCtx.connectionId && this.dataProvider && typeof this.dataProvider.fetchObjects === 'function') {
+                // Phase 5: Gợi ý JOIN dựa trên Foreign Key (Spec 11.4)
+                let fkRelatedTables = new Map();
+                if (context.clause === 'JOIN') {
+                    fkRelatedTables = await this._generateJoinTargetCandidates(allCandidates, context, tabCtx);
+                }
+
                 // No qualifier: Fetch database objects for active schema
                 const dbObjects = await this.dataProvider.fetchObjects(tabCtx.connectionId, tabCtx.database, tabCtx.schema);
+                const seenTableNames = new Set();
+
                 (dbObjects || []).forEach(obj => {
                     // SQL Prompt-style keyword filtering
                     if (isStrictAlter) {
@@ -1057,19 +1082,48 @@
                         qt => (qt.table || '').toLowerCase() === (obj.name || '').toLowerCase() && qt.alias
                     );
 
+                    const objLower = (obj.name || '').toLowerCase();
+                    seenTableNames.add(objLower);
+
+                    // Phase 5: Boost FK related tables when in JOIN clause
+                    const isFk = fkRelatedTables.has(objLower);
+                    const fkInfo = isFk ? fkRelatedTables.get(objLower) : null;
+
                     allCandidates.push({
                         name: obj.name,
                         label: obj.name,
                         type: obj.type,
                         kind: obj.type,
-                        level: 2,
-                        displayType: this._formatDisplayType(obj.type),
+                        level: isFk ? 0.7 : 2,
+                        isFkTarget: Boolean(isFk),
+                        displayType: isFk ? 'Table (FK)' : this._formatDisplayType(obj.type),
+                        detail: fkInfo ? fkInfo.detail : (obj.target_object || ''),
                         schema: obj.schema,
                         targetObject: obj.target_object,
                         isMaskedByAlias: Boolean(hasAlias),
                         insertText: this.formatInsertText(obj.name, obj.type, context, tabCtx)
                     });
                 });
+
+                // Phase 5: If any FK-related table was not in dbObjects (e.g. different schema), add it
+                if (fkRelatedTables.size > 0) {
+                    fkRelatedTables.forEach((fkInfo, tLower) => {
+                        if (!seenTableNames.has(tLower)) {
+                            allCandidates.push({
+                                name: fkInfo.tableName,
+                                label: fkInfo.tableName,
+                                type: 'table',
+                                kind: 'table',
+                                level: 0.7,
+                                isFkTarget: true,
+                                displayType: 'Table (FK)',
+                                detail: fkInfo.detail,
+                                schema: fkInfo.schema || tabCtx.schema,
+                                insertText: this.formatInsertText(fkInfo.tableName, 'table', context, tabCtx)
+                            });
+                        }
+                    });
+                }
             }
 
             return allCandidates;
@@ -1141,6 +1195,247 @@
                         insertText: snip.body || snip.prefix
                     });
                 });
+            }
+        }
+
+        async _generateJoinTargetCandidates(allCandidates, context, tabCtx) {
+            const fkRelatedTables = new Map();
+            if (!tabCtx.connectionId || !this.dataProvider || typeof this.dataProvider.fetchForeignKeys !== 'function') {
+                return fkRelatedTables;
+            }
+
+            let precedingTables = context.queryTables || [];
+            if (precedingTables.length === 0 && (context.fullSql || context.statementRange)) {
+                const textToScan = context.statementRange ? context.fullSql.substring(context.statementRange.start, context.statementRange.end) : context.fullSql;
+                if (window.SqlContextAnalyzer && typeof window.SqlContextAnalyzer.extractAllTablesInQuery === 'function') {
+                    precedingTables = window.SqlContextAnalyzer.extractAllTablesInQuery(textToScan);
+                }
+            }
+
+            const existingAliases = new Set(precedingTables.map(t => (t.alias || '').toLowerCase()).filter(Boolean));
+
+            for (const pt of precedingTables) {
+                if (['subquery', 'cte', 'temp_table', 'table_variable'].includes(pt.type)) continue;
+
+                const ptSchema = pt.schema || tabCtx.schema;
+                const ptName = pt.table;
+                const ptLower = (ptName || '').toLowerCase();
+                const fks = await this.dataProvider.fetchForeignKeys(tabCtx.connectionId, tabCtx.database, ptSchema, ptName, tabCtx.dbType);
+
+                (fks || []).forEach(fk => {
+                    const fromLower = (fk.from_table || '').toLowerCase();
+                    const toLower = (fk.to_table || '').toLowerCase();
+                    let relatedName = null;
+                    let relatedSchema = null;
+                    let isPtParent = false;
+                    let fromCols = fk.from_columns || [];
+                    let toCols = fk.to_columns || [];
+
+                    if (fromLower === ptLower) {
+                        // pt is child, related table is parent (to_table)
+                        relatedName = fk.to_table;
+                        relatedSchema = fk.to_schema;
+                        isPtParent = false;
+                    } else if (toLower === ptLower) {
+                        // pt is parent, related table is child (from_table)
+                        relatedName = fk.from_table;
+                        relatedSchema = fk.from_schema;
+                        isPtParent = true;
+                    }
+
+                    if (relatedName && relatedName.toLowerCase() !== ptLower) {
+                        const rLower = relatedName.toLowerCase();
+                        const ptRef = pt.alias || pt.table;
+                        const rAlias = CompletionEngine.generateTableAlias(relatedName, existingAliases);
+
+                        const condParts = [];
+                        const len = Math.min(fromCols.length, toCols.length);
+                        for (let i = 0; i < len; i++) {
+                            if (isPtParent) {
+                                condParts.push(`${rAlias}.${fromCols[i]} = ${ptRef}.${toCols[i]}`);
+                            } else {
+                                condParts.push(`${rAlias}.${toCols[i]} = ${ptRef}.${fromCols[i]}`);
+                            }
+                        }
+                        const condStr = condParts.join(' AND ');
+                        const fkDesc = `${fk.from_table}.${fromCols.join(', ')} → ${fk.to_table}.${toCols.join(', ')}`;
+
+                        if (!fkRelatedTables.has(rLower)) {
+                            fkRelatedTables.set(rLower, {
+                                tableName: relatedName,
+                                schema: relatedSchema,
+                                alias: rAlias,
+                                condition: condStr,
+                                detail: `FK: ${fkDesc}`
+                            });
+                        }
+                    }
+                });
+            }
+
+            // Generate JOIN snippet candidate for each related table
+            fkRelatedTables.forEach(info => {
+                const formattedTbl = this.formatInsertText(info.tableName, 'table', context, tabCtx);
+                const snipText = `${formattedTbl} ${info.alias} ON ${info.condition}`;
+                allCandidates.push({
+                    name: `${info.tableName} ${info.alias} ON ${info.condition}`,
+                    label: `${info.tableName} ${info.alias} ON ${info.condition}`,
+                    type: 'snippet',
+                    kind: 'snippet',
+                    level: 0.6,
+                    displayType: 'FK Join Snippet',
+                    detail: info.detail,
+                    insertText: snipText
+                });
+            });
+
+            return fkRelatedTables;
+        }
+
+        async _generateJoinOnCandidates(allCandidates, context, tabCtx) {
+            if (!tabCtx.connectionId) {
+                return;
+            }
+
+            let queryTables = context.queryTables || [];
+            if (queryTables.length < 2 && (context.fullSql || context.statementRange)) {
+                const textToScan = context.statementRange ? context.fullSql.substring(context.statementRange.start, context.statementRange.end) : context.fullSql;
+                if (window.SqlContextAnalyzer && typeof window.SqlContextAnalyzer.extractAllTablesInQuery === 'function') {
+                    const extraTables = window.SqlContextAnalyzer.extractAllTablesInQuery(textToScan);
+                    if (extraTables.length > queryTables.length) {
+                        queryTables = extraTables;
+                    }
+                }
+            }
+
+            if (queryTables.length < 2) return;
+
+            const rightTable = queryTables[queryTables.length - 1];
+            const leftTables = queryTables.slice(0, queryTables.length - 1);
+            const rightRef = rightTable.alias || rightTable.table;
+            let foundFkMatch = false;
+
+            if (this.dataProvider && typeof this.dataProvider.fetchForeignKeys === 'function') {
+                const rtSchema = rightTable.schema || tabCtx.schema;
+                const fks = await this.dataProvider.fetchForeignKeys(tabCtx.connectionId, tabCtx.database, rtSchema, rightTable.table, tabCtx.dbType);
+
+                for (const lt of leftTables) {
+                    const leftRef = lt.alias || lt.table;
+                    const ltLower = (lt.table || '').toLowerCase();
+                    const rtLower = (rightTable.table || '').toLowerCase();
+
+                    (fks || []).forEach(fk => {
+                        const fromLower = (fk.from_table || '').toLowerCase();
+                        const toLower = (fk.to_table || '').toLowerCase();
+                        let matched = false;
+                        const condParts = [];
+                        const fromCols = fk.from_columns || [];
+                        const toCols = fk.to_columns || [];
+
+                        if (fromLower === rtLower && toLower === ltLower) {
+                            // rightTable is child referencing leftTable
+                            matched = true;
+                            const len = Math.min(fromCols.length, toCols.length);
+                            for (let i = 0; i < len; i++) {
+                                condParts.push(`${rightRef}.${fromCols[i]} = ${leftRef}.${toCols[i]}`);
+                            }
+                        } else if (fromLower === ltLower && toLower === rtLower) {
+                            // leftTable is child referencing rightTable
+                            matched = true;
+                            const len = Math.min(fromCols.length, toCols.length);
+                            for (let i = 0; i < len; i++) {
+                                condParts.push(`${rightRef}.${toCols[i]} = ${leftRef}.${fromCols[i]}`);
+                            }
+                        }
+
+                        if (matched && condParts.length > 0) {
+                            foundFkMatch = true;
+                            const condition = condParts.join(' AND ');
+                            const fkDesc = `FK: ${fk.from_table}.${fromCols.join(', ')} → ${fk.to_table}.${toCols.join(', ')}`;
+                            allCandidates.push({
+                                name: condition,
+                                label: condition,
+                                type: 'join_condition',
+                                kind: 'snippet',
+                                level: 0.5, // Highest priority!
+                                displayType: 'FK Join',
+                                detail: fkDesc,
+                                insertText: condition
+                            });
+                        }
+                    });
+                }
+            }
+
+            // Heuristic fallback if no explicit FK constraint found
+            if (!foundFkMatch && this.dataProvider && typeof this.dataProvider.fetchColumns === 'function') {
+                const rtSchema = rightTable.schema || tabCtx.schema;
+                const rightCols = await this.dataProvider.fetchColumns(tabCtx.connectionId, tabCtx.database, rtSchema, rightTable.table, tabCtx.dbType);
+
+                const genericIgnore = new Set([
+                    'name', 'code', 'status', 'type', 'description', 'notes', 'comment', 'comments',
+                    'created_at', 'updated_at', 'created_date', 'modified_date', 'created_by', 'updated_by',
+                    'deleted', 'is_active', 'active', 'rowguid', 'version', 'flag'
+                ]);
+
+                for (const lt of leftTables) {
+                    const ltSchema = lt.schema || tabCtx.schema;
+                    const leftCols = await this.dataProvider.fetchColumns(tabCtx.connectionId, tabCtx.database, ltSchema, lt.table, tabCtx.dbType);
+                    const leftRef = lt.alias || lt.table;
+                    const ltNameClean = CompletionEngine.cleanIdentifier(lt.table).toLowerCase();
+                    const rtNameClean = CompletionEngine.cleanIdentifier(rightTable.table).toLowerCase();
+                    const ltSingular = ltNameClean.endsWith('s') ? ltNameClean.slice(0, -1) : ltNameClean;
+                    const rtSingular = rtNameClean.endsWith('s') ? rtNameClean.slice(0, -1) : rtNameClean;
+
+                    const matchedPairs = [];
+
+                    (rightCols || []).forEach(rc => {
+                        const rcName = rc.name;
+                        const rcLower = (rcName || '').toLowerCase();
+                        if (genericIgnore.has(rcLower)) return;
+
+                        (leftCols || []).forEach(lc => {
+                            const lcName = lc.name;
+                            const lcLower = (lcName || '').toLowerCase();
+                            if (genericIgnore.has(lcLower)) return;
+
+                            // Match 1: Exact column name match (e.g. CustomerId == CustomerId)
+                            if (rcLower === lcLower && rcLower !== 'id') {
+                                matchedPairs.push({ rightCol: rcName, leftCol: lcName, priority: 1 });
+                            }
+                            // Match 2: Pattern: rightCol is CustomerId and left table is Customer/Customers and lc is Id / PK
+                            else if (rcLower === `${ltNameClean}id` || rcLower === `${ltNameClean}_id` || 
+                                     rcLower === `${ltSingular}id` || rcLower === `${ltSingular}_id`) {
+                                if (lcLower === 'id' || lc.is_pk) {
+                                    matchedPairs.push({ rightCol: rcName, leftCol: lcName, priority: 2 });
+                                }
+                            }
+                            // Match 3: Pattern: leftCol is OrderId and right table is Order/Orders and rc is Id / PK
+                            else if (lcLower === `${rtNameClean}id` || lcLower === `${rtNameClean}_id` || 
+                                     lcLower === `${rtSingular}id` || lcLower === `${rtSingular}_id`) {
+                                if (rcLower === 'id' || rc.is_pk) {
+                                    matchedPairs.push({ rightCol: rcName, leftCol: lcName, priority: 2 });
+                                }
+                            }
+                        });
+                    });
+
+                    matchedPairs.sort((a, b) => b.priority - a.priority);
+
+                    matchedPairs.forEach(pair => {
+                        const condition = `${rightRef}.${pair.rightCol} = ${leftRef}.${pair.leftCol}`;
+                        allCandidates.push({
+                            name: condition,
+                            label: condition,
+                            type: 'join_condition',
+                            kind: 'snippet',
+                            level: 0.6,
+                            displayType: 'Join Condition',
+                            detail: 'Suggested by matching column names',
+                            insertText: condition
+                        });
+                    });
+                }
             }
         }
     }
@@ -1256,6 +1551,40 @@
             } else {
                 return `[${clean.replace(/\]/g, ']]')}]`;
             }
+        }
+
+        static generateTableAlias(tableName, existingAliases = new Set()) {
+            if (!tableName) return 't';
+            const clean = CompletionEngine.cleanIdentifier(tableName);
+            // 1. Check PascalCase/camelCase with multiple capital letters (e.g. OrderDetails -> od)
+            const caps = clean.match(/[A-Z]/g);
+            let candidate = '';
+            if (caps && caps.length >= 2) {
+                candidate = caps.join('').toLowerCase();
+            } else if (clean.includes('_')) {
+                const parts = clean.split('_').filter(Boolean);
+                if (parts.length >= 2) {
+                    candidate = parts.map(p => p[0]).join('').toLowerCase();
+                }
+            }
+            if (!candidate) {
+                candidate = clean.charAt(0).toLowerCase();
+            }
+            if (!/^[a-z_]/i.test(candidate)) {
+                candidate = 't';
+            }
+
+            const aliasSet = existingAliases instanceof Set 
+                ? existingAliases 
+                : new Set(Array.isArray(existingAliases) ? existingAliases.map(a => String(a).toLowerCase()) : []);
+
+            let finalAlias = candidate;
+            let counter = 2;
+            while (aliasSet.has(finalAlias.toLowerCase())) {
+                finalAlias = `${candidate}${counter}`;
+                counter++;
+            }
+            return finalAlias;
         }
 
         static getFunctionSignature(name) {

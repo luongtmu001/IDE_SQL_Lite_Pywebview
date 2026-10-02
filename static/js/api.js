@@ -122,6 +122,8 @@
                     result = await api.get_objects(connId, searchParams.get('database'), searchParams.get('schema'), searchParams.get('type') || 'tables', searchParams.get('search'));
                 } else if (action === 'definition') {
                     result = await api.get_definition(connId, searchParams.get('database'), searchParams.get('schema'), searchParams.get('name'), searchParams.get('type'));
+                } else if (action === 'foreign_keys') {
+                    result = await api.get_foreign_keys(connId, searchParams.get('database'), searchParams.get('schema'), searchParams.get('table'));
                 } else if (action === 'object_children') {
                     result = await api.get_object_children(connId, searchParams.get('database'), searchParams.get('schema'), searchParams.get('name'), searchParams.get('type'), searchParams.get('child_type'));
                 } else if (action === 'table-design') {

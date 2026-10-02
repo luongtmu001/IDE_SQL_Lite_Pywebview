@@ -123,6 +123,18 @@ class MetadataService:
                     self.session.metadata_cache[key] = []
         return self.session.metadata_cache[key]
 
+    def get_foreign_keys(self, database=None, schema=None, table=None):
+        key = self._cache_key("foreign_keys", database, schema, table)
+        if key not in self.session.metadata_cache:
+            with self.session.lock:
+                if hasattr(self.session.adapter, "get_foreign_keys"):
+                    self.session.metadata_cache[key] = (
+                        self.session.adapter.get_foreign_keys(database, schema, table)
+                    )
+                else:
+                    self.session.metadata_cache[key] = []
+        return self.session.metadata_cache[key]
+
     def invalidate(self):
         with self.session.lock:
             self.session.metadata_cache.clear()

@@ -251,5 +251,18 @@ def intellisense_types(connection_id):
         return jsonify(success=False, error=str(exc)), 400
 
 
+@metadata_bp.get("/<connection_id>/foreign_keys")
+def foreign_keys(connection_id):
+    try:
+        connection = get_connection(connection_id)
+        database = request.args.get("database")
+        schema = request.args.get("schema")
+        table = request.args.get("table")
+        items = connection.metadata_service.get_foreign_keys(database, schema, table)
+        return jsonify(success=True, items=items)
+    except Exception as exc:
+        return jsonify(success=False, error=str(exc)), 400
+
+
 
 

@@ -19,6 +19,7 @@
     const OBJECTS_TTL = 300000;       // 5 minutes (300000 ms)
     const COLUMNS_TTL = 600000;       // 10 minutes (600000 ms)
     const PARAMETERS_TTL = 600000;    // 10 minutes (600000 ms)
+    const FOREIGN_KEYS_TTL = 600000;  // 10 minutes (600000 ms)
     const DEFINITIONS_TTL = 900000;   // 15 minutes
     const DATA_TYPES_TTL = 1800000;   // 30 minutes
     const COMPLETIONS_TTL = 10000;    // 10 seconds (short-lived)
@@ -155,6 +156,7 @@
             this.objectsTTL = options.objectsTTL || OBJECTS_TTL;
             this.columnsTTL = options.columnsTTL || COLUMNS_TTL;
             this.parametersTTL = options.parametersTTL || PARAMETERS_TTL;
+            this.foreignKeysTTL = options.foreignKeysTTL || FOREIGN_KEYS_TTL;
             this.definitionsTTL = options.definitionsTTL || DEFINITIONS_TTL;
             this.dataTypesTTL = options.dataTypesTTL || DATA_TYPES_TTL;
             this.completionTTL = options.completionTTL || COMPLETIONS_TTL;
@@ -165,9 +167,10 @@
             this.schemasTier = new StorageTier('schemas', this.defaultTTL, this.maxEntries);
             this.objectsTier = new StorageTier('objects', this.objectsTTL, this.maxEntries);
 
-            // Level 2: Object-level Tiers (Columns, Parameters, Definitions, Types)
+            // Level 2: Object-level Tiers (Columns, Parameters, ForeignKeys, Definitions, Types)
             this.columnsTier = new StorageTier('columns', this.columnsTTL, this.maxEntries);
             this.parametersTier = new StorageTier('parameters', this.parametersTTL, this.maxEntries);
+            this.foreignKeysTier = new StorageTier('foreignKeys', this.foreignKeysTTL, this.maxEntries);
             this.definitionsTier = new StorageTier('definitions', this.definitionsTTL, this.maxEntries);
             this.typesTier = new StorageTier('types', this.dataTypesTTL, this.maxEntries);
 
@@ -190,6 +193,7 @@
         get _objects() { return this.objectsTier; }
         get _columns() { return this.columnsTier; }
         get _parameters() { return this.parametersTier; }
+        get _foreignKeys() { return this.foreignKeysTier; }
         get _definitions() { return this.definitionsTier; }
         get _types() { return this.typesTier; }
         get _completions() { return this.completionsTier; }
@@ -229,6 +233,7 @@
                     objects: this.objectsTier.size,
                     columns: this.columnsTier.size,
                     parameters: this.parametersTier.size,
+                    foreignKeys: this.foreignKeysTier.size,
                     definitions: this.definitionsTier.size,
                     types: this.typesTier.size,
                     completions: this.completionsTier.size
@@ -341,6 +346,23 @@
             this.parametersTier.set(key, parameters, ttlMs);
         }
 
+        getForeignKeys(connectionId, database, schema, table) {
+            const t0 = performance.now();
+            const key = this._buildKey(connectionId, database, schema, table || '');
+            const data = this.foreignKeysTier.get(key);
+            if (data !== null) {
+                this._recordHit(performance.now() - t0);
+                return data;
+            }
+            this._recordMiss(performance.now() - t0);
+            return null;
+        }
+
+        setForeignKeys(connectionId, database, schema, table, foreignKeys, ttlMs = this.foreignKeysTTL) {
+            const key = this._buildKey(connectionId, database, schema, table || '');
+            this.foreignKeysTier.set(key, foreignKeys, ttlMs);
+        }
+
         getDefinition(connectionId, database, schema, name, type) {
             const t0 = performance.now();
             const key = this._buildKey(connectionId, database, schema, name, type);
@@ -411,6 +433,7 @@
             this.objectsTier.clear();
             this.columnsTier.clear();
             this.parametersTier.clear();
+            this.foreignKeysTier.clear();
             this.definitionsTier.clear();
             this.typesTier.clear();
             this.completionsTier.clear();
@@ -437,6 +460,7 @@
             cleanTier(this.objectsTier);
             cleanTier(this.columnsTier);
             cleanTier(this.parametersTier);
+            cleanTier(this.foreignKeysTier);
             cleanTier(this.definitionsTier);
             cleanTier(this.typesTier);
             cleanTier(this.completionsTier);
@@ -465,6 +489,7 @@
             cleanTier(this.objectsTier);
             cleanTier(this.columnsTier);
             cleanTier(this.parametersTier);
+            cleanTier(this.foreignKeysTier);
             cleanTier(this.definitionsTier);
             cleanTier(this.completionsTier);
             console.log(`[MetadataCache] InvalidateDatabase: Cleared for ${connectionId}::${database}`);
@@ -490,6 +515,7 @@
 
             cleanTier(this.columnsTier);
             cleanTier(this.parametersTier);
+            cleanTier(this.foreignKeysTier);
             cleanTier(this.definitionsTier);
             cleanTier(this.completionsTier);
             console.log(`[MetadataCache] InvalidateSchema: Cleared for ${connectionId}::${database}::${schema}`);
@@ -508,6 +534,13 @@
 
             // Invalidate parameters
             this.parametersTier.delete(objKeyPrefix);
+
+            // Invalidate foreign keys associated with this object
+            const fksToDelete = [];
+            for (const k of this.foreignKeysTier.keys()) {
+                if (k.includes(`::${cleanObj}`) || k.endsWith(`::${cleanObj}`)) fksToDelete.push(k);
+            }
+            fksToDelete.forEach(k => this.foreignKeysTier.delete(k));
 
             // Invalidate definitions
             const defsToDelete = [];

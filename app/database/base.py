@@ -68,6 +68,10 @@ class DatabaseAdapter(ABC):
     def get_supported_types(self, database=None):
         ...
 
+    def get_foreign_keys(self, database=None, schema=None, table=None):
+        """Returns list of foreign key relationships."""
+        return []
+
     def execute_migration_transaction(self, batches: list[str], database: str = None):
         """Executes a list of SQL batches within a single atomic transaction.
         Must rollback and re-raise if any statement fails.
