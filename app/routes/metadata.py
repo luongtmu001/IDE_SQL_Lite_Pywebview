@@ -71,11 +71,16 @@ def objects(connection_id):
 def definition(connection_id):
     try:
         connection = get_connection(connection_id)
+        name = request.args.get("name")
+        if not name:
+            return jsonify(success=False, error="Name parameter is required"), 400
+        schema = request.args.get("schema") or "dbo"
+        obj_type = request.args.get("type", "")
         value = connection.metadata_service.get_object_definition(
             request.args.get("database"),
-            request.args["schema"],
-            request.args["name"],
-            request.args["type"],
+            schema,
+            name,
+            obj_type,
         )
         return jsonify(success=True, definition=value)
     except Exception as exc:

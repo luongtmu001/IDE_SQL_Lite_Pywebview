@@ -3,11 +3,13 @@
         "fontFamily": "JetBrains Mono",
         "fontSize": 14,
         "tabSize": 4,
-        "lineHeight": 0,
+        "minimap": true,
+        "insertSpaces": false,
+        "lineHeight": 1.5,
         "letterSpacing": 0
     },
     "appearance": {
-        "theme": "github-dark-default-dark",
+        "theme": "github-light-default-light",
         "uiFontFamily": "Inter",
         "uiFontSize": 14
     },
@@ -17,15 +19,16 @@
         }
     },
     "grid": {
-        "fontFamily": "Roboto",
+        "fontFamily": "Cascadia Code",
         "fontSize": 14
     },
     "messages": {
-        "fontFamily": "Consolas",
+        "fontFamily": "Source Code Pro",
         "fontSize": 13
     },
-    "theme": "github-dark-default-dark",
+    "theme": "github-light-default-light",
     "sql": {
+        "maxRows": 1000,
         "timeoutSeconds": 30,
         "sqlprotection": 1
     }

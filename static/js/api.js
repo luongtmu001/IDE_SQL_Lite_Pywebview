@@ -6,20 +6,48 @@
 (function (global) {
     'use strict';
 
+    let _cachedNativeApi = null;
     global.waitForPywebview = function () {
+        if (_cachedNativeApi) return Promise.resolve(_cachedNativeApi);
+        if (window.pywebview && window.pywebview.api) {
+            _cachedNativeApi = window.pywebview.api;
+            return Promise.resolve(_cachedNativeApi);
+        }
         return new Promise((resolve) => {
-            if (window.pywebview && window.pywebview.api) {
-                resolve(window.pywebview.api);
-            } else {
-                const onReady = () => {
-                    window.removeEventListener('pywebviewready', onReady);
-                    resolve(window.pywebview.api);
-                };
-                window.addEventListener('pywebviewready', onReady);
-                setTimeout(() => resolve(window.pywebview?.api || null), 2000);
-            }
+            let done = false;
+            const finish = (api) => {
+                if (done) return;
+                done = true;
+                window.removeEventListener('pywebviewready', onReady);
+                if (api) _cachedNativeApi = api;
+                resolve(api || null);
+            };
+
+            const onReady = () => {
+                finish(window.pywebview?.api || null);
+            };
+            window.addEventListener('pywebviewready', onReady);
+
+            // Active interval polling (up to 8 seconds) in case event was fired early or missed
+            let elapsed = 0;
+            const poll = setInterval(() => {
+                elapsed += 100;
+                if (window.pywebview && window.pywebview.api) {
+                    clearInterval(poll);
+                    finish(window.pywebview.api);
+                } else if (elapsed >= 8000) {
+                    clearInterval(poll);
+                    finish(null);
+                }
+            }, 100);
         });
     };
+
+    window.addEventListener('pywebviewready', () => {
+        if (window.pywebview && window.pywebview.api) {
+            _cachedNativeApi = window.pywebview.api;
+        }
+    });
 
     const originalFetch = global.fetch;
 

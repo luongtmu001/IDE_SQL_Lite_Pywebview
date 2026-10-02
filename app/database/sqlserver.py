@@ -681,7 +681,9 @@ class SqlServerAdapter(DatabaseAdapter):
                 c.precision,
                 c.scale,
                 c.is_nullable,
-                CASE WHEN pk.column_id IS NOT NULL THEN 1 ELSE 0 END AS is_pk
+                CASE WHEN pk.column_id IS NOT NULL THEN 1 ELSE 0 END AS is_pk,
+                c.is_identity,
+                c.is_computed
             FROM {db_prefix}sys.columns c
             JOIN {db_prefix}sys.types t ON c.user_type_id = t.user_type_id
             JOIN {db_prefix}sys.objects o ON c.object_id = o.object_id
@@ -706,6 +708,8 @@ class SqlServerAdapter(DatabaseAdapter):
                 scale = row[4]
                 is_null = bool(row[5])
                 is_pk = bool(row[6])
+                is_identity = bool(row[7]) if len(row) > 7 else False
+                is_computed = bool(row[8]) if len(row) > 8 else False
 
                 type_str = type_name
                 if type_name in ["varchar", "nvarchar", "char", "nchar", "varbinary", "binary"]:
@@ -720,8 +724,34 @@ class SqlServerAdapter(DatabaseAdapter):
                     "schema": schema or "",
                     "data_type": type_str,
                     "is_nullable": is_null,
-                    "is_pk": is_pk
+                    "is_pk": is_pk,
+                    "is_identity": is_identity,
+                    "is_computed": is_computed
                 })
+
+            # If no columns found directly, check if table_name is a SYNONYM (common in BRAVO ERP)
+            if not items:
+                try:
+                    syn_query = f"""
+                        SELECT 
+                            PARSENAME(sn.base_object_name, 3) AS target_db,
+                            PARSENAME(sn.base_object_name, 2) AS target_schema,
+                            PARSENAME(sn.base_object_name, 1) AS target_table
+                        FROM {db_prefix}sys.synonyms sn
+                        JOIN {db_prefix}sys.schemas s ON sn.schema_id = s.schema_id
+                        WHERE 1=1 {schema_filter} AND sn.name = ?
+                    """
+                    syn_res = self.execute(syn_query, params, limit=1, database=database)
+                    syn_rows = syn_res.get("rows", [])
+                    if syn_rows and syn_rows[0]:
+                        target_db, target_sch, target_tbl = syn_rows[0]
+                        resolved_db = target_db or database
+                        resolved_sch = target_sch or schema
+                        resolved_tbl = target_tbl or table_name
+                        return self.get_intellisense_columns(database=resolved_db, schema=resolved_sch, table_name=resolved_tbl)
+                except Exception:
+                    pass
+
             return items
         except Exception:
             return []
@@ -901,6 +931,9 @@ class SqlServerAdapter(DatabaseAdapter):
             if result.get("rows"):
                 return result["rows"][0][0]
 
+        clean_schema = (schema or "dbo").strip("[] \t\r\n")
+        clean_name = (name or "").strip("[] \t\r\n")
+
         result = self.execute(
             f"""
             SELECT sm.definition
@@ -909,13 +942,27 @@ class SqlServerAdapter(DatabaseAdapter):
               ON o.object_id = sm.object_id
             JOIN {db_prefix}sys.schemas AS s
               ON s.schema_id = o.schema_id
-            WHERE s.name = ?
-              AND o.name = ?
+            WHERE (s.name = ? OR LOWER(s.name) = LOWER(?))
+              AND (o.name = ? OR LOWER(o.name) = LOWER(?))
             """,
-            (schema, name),
+            (clean_schema, clean_schema, clean_name, clean_name),
         )
 
-        return result["rows"][0][0] if result["rows"] else None
+        if result.get("rows") and result["rows"][0][0]:
+            return result["rows"][0][0]
+
+        # Fallback by object name alone
+        fallback_res = self.execute(
+            f"""
+            SELECT sm.definition
+            FROM {db_prefix}sys.sql_modules AS sm
+            JOIN {db_prefix}sys.objects AS o
+              ON o.object_id = sm.object_id
+            WHERE (o.name = ? OR LOWER(o.name) = LOWER(?))
+            """,
+            (clean_name, clean_name),
+        )
+        return fallback_res["rows"][0][0] if fallback_res.get("rows") else None
 
     def list_object_children(
         self,

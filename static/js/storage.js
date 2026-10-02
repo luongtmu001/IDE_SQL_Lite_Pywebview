@@ -24,18 +24,48 @@
             }
         }
         return new Promise((resolve) => {
+            if (window.pywebview && window.pywebview.api) {
+                _cachedApi = window.pywebview.api;
+                return resolve(_cachedApi);
+            }
+            let finished = false;
             const onReady = () => {
+                if (finished) return;
+                finished = true;
                 window.removeEventListener('pywebviewready', onReady);
                 _cachedApi = window.pywebview?.api || null;
                 resolve(_cachedApi);
             };
             window.addEventListener('pywebviewready', onReady);
-            setTimeout(() => {
-                _cachedApi = window.pywebview?.api || null;
-                resolve(_cachedApi);
-            }, 1000);
+
+            let elapsed = 0;
+            const poll = setInterval(() => {
+                elapsed += 100;
+                if (window.pywebview && window.pywebview.api) {
+                    clearInterval(poll);
+                    if (!finished) {
+                        finished = true;
+                        window.removeEventListener('pywebviewready', onReady);
+                        _cachedApi = window.pywebview.api;
+                        resolve(_cachedApi);
+                    }
+                } else if (elapsed >= 5000) {
+                    clearInterval(poll);
+                    if (!finished) {
+                        finished = true;
+                        window.removeEventListener('pywebviewready', onReady);
+                        resolve(null);
+                    }
+                }
+            }, 100);
         });
     }
+
+    window.addEventListener('pywebviewready', () => {
+        if (window.pywebview && window.pywebview.api) {
+            _cachedApi = window.pywebview.api;
+        }
+    });
 
     const AppStorage = {
         async getSettings() {
@@ -142,8 +172,11 @@
                 const res = await fetch('/api/connections');
                 if (res && res.ok) {
                     const data = await res.json();
-                    if (data && Array.isArray(data.saved_connections)) {
+                    if (data && Array.isArray(data.saved_connections) && data.saved_connections.length > 0) {
                         return data.saved_connections;
+                    }
+                    if (data && Array.isArray(data.connections) && data.connections.length > 0) {
+                        return data.connections;
                     }
                 }
             } catch (_) {}

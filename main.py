@@ -60,6 +60,15 @@ _OWNER_SESSION = "desktop_user"
 
 def _read_json(file_path, default):
     try:
+        if not file_path.exists():
+            # Check BUNDLE_DIR fallback if available
+            fallback = BUNDLE_DIR / "data" / file_path.name
+            if fallback.exists():
+                file_path = fallback
+            elif hasattr(file_path, "name"):
+                alt_app = APP_DIR / "data" / file_path.name
+                if alt_app.exists():
+                    file_path = alt_app
         if file_path.exists():
             with open(file_path, "r", encoding="utf-8-sig") as f:
                 return json.load(f)

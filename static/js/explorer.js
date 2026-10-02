@@ -1057,6 +1057,9 @@ function initExplorer() {
         if (btnRefresh) {
             btnRefresh.addEventListener('click', (e) => {
                 e.stopPropagation();
+                if (window.AppMetadataCache && typeof window.AppMetadataCache.invalidateConnection === 'function') {
+                    window.AppMetadataCache.invalidateConnection(connId);
+                }
                 if (dbNodeCtrl) dbNodeCtrl.reload();
             });
         }
@@ -2121,6 +2124,9 @@ function initExplorer() {
     // ── Refresh button ────────────────────────────────────────────────────────
     if (refreshBtn) {
         refreshBtn.addEventListener('click', () => {
+            if (window.AppMetadataCache && typeof window.AppMetadataCache.invalidateAll === 'function') {
+                window.AppMetadataCache.invalidateAll();
+            }
             rootUl.innerHTML = '';
             window.ActiveConnectionId = null;
             window.ActiveDatabase     = null;
@@ -2178,6 +2184,12 @@ function initExplorer() {
 
     loadActiveConnections();
 
+    // Reload active connections automatically if pywebview becomes ready after DOM initialization
+    window.addEventListener('pywebviewready', () => {
+        loadActiveConnections();
+    });
+
+    window.promptReconnectPassword = promptReconnectPassword;
     return {
         addConnectionNode,
         disconnect,
@@ -2196,4 +2208,3 @@ function initExplorer() {
         getSchemaFilter: (connId, db) => schemaFilters[`${connId}::${db}`]
     };
 }
-window.promptReconnectPassword = promptReconnectPassword;

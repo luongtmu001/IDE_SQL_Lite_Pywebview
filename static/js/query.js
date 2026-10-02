@@ -1157,6 +1157,11 @@ function initQuery() {
                 window.AppTabs.updateActiveTabContext({ database: data.current_database });
             }
 
+            // Phase 5: Automatically invalidate metadata cache if query was a DDL statement
+            if (data && data.success && window.AppMetadataCache && typeof window.AppMetadataCache.handleDdlExecution === 'function') {
+                window.AppMetadataCache.handleDdlExecution(connId, dbName, sql);
+            }
+
             const state = window.AppTabs ? window.AppTabs.getActiveTabState() : null;
             if (state) state.resultData = { ...data, durationMs: ms };
 

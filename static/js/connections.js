@@ -588,6 +588,10 @@ function initConnections() {
         saveBtn.addEventListener("click", handleSaveAndConnect);
     }
 
+    window.addEventListener('pywebviewready', () => {
+        refreshGroupList();
+    });
+
     window.editConnection = editConnection;
     return {
         editConnection,

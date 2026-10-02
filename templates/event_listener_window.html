@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="vi" data-bs-theme="dark">
+
+<head>
+    <style>
+        html, body {
+            background-color: #1e1e1e !important;
+            color: #d4d4d4;
+        }
+        html[data-bs-theme="light"], html[data-bs-theme="light"] body,
+        html[data-bs-theme="win-nt"], html[data-bs-theme="win-nt"] body,
+        html[data-bs-theme="win-xp"], html[data-bs-theme="win-xp"] body {
+            background-color: #f3f3f3 !important;
+            color: #1e1e1e;
+        }
+    </style>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PostgreSQL Event Listener — luoBTool IDE</title>
+
+    <!-- Immediate Theme & Typography Restore -->
+    <script>
+        (function () {
+            try {
+                var saved = localStorage.getItem('ide-theme');
+                if (saved) {
+                    document.documentElement.setAttribute('data-bs-theme', saved);
+                }
+                var fontFam = localStorage.getItem('ide-ui-font-family');
+                var fontSz = localStorage.getItem('ide-ui-font-size');
+                if (fontFam) {
+                    var stack = fontFam;
+                    if (fontFam === 'Segoe UI') stack = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif";
+                    else if (fontFam === 'Inter') stack = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif";
+                    else if (fontFam === 'Roboto') stack = "'Roboto', 'Segoe UI', Arial, sans-serif";
+                    else if (fontFam === 'Arial') stack = "Arial, 'Helvetica Neue', Helvetica, sans-serif";
+                    else if (fontFam === 'Tahoma') stack = "Tahoma, Verdana, 'Segoe UI', sans-serif";
+                    else if (fontFam === 'System UI') stack = "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+                    document.documentElement.style.setProperty('--ide-ui-font-family', stack);
+                    document.documentElement.style.setProperty('--bs-body-font-family', stack);
+                }
+                if (fontSz) {
+                    var szNum = parseInt(fontSz, 10);
+                    if (!isNaN(szNum) && szNum >= 10 && szNum <= 24) {
+                        document.documentElement.style.setProperty('--ide-ui-font-size', szNum + 'px');
+                        document.documentElement.style.setProperty('--bs-body-font-size', szNum + 'px');
+                    }
+                }
+            } catch (e) { }
+        })();
+    </script>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+
+    <!-- Vendor CSS -->
+    <link rel="stylesheet" href="../static/vendor/bootstrap/bootstrap.min.css">
+    <link rel="stylesheet" href="../static/vendor/fontawesome/all.min.css">
+    <link rel="stylesheet" href="../static/vendor/tabulator/tabulator.min.css">
+
+    <!-- IDE Theme Variables & Event Listener Styles -->
+    <link rel="stylesheet" href="../static/css/theme-variables.css">
+    <link rel="stylesheet" href="../static/css/themes.css">
+    <link rel="stylesheet" href="../static/css/event-listener.css">
+</head>
+
+<body class="event-listener-body">
+
+    <!-- ═══════════════ Top Toolbar ═══════════════ -->
+    <header class="el-toolbar" id="elToolbar">
+        <div class="el-toolbar-section">
+            <!-- Brand -->
+            <div class="el-brand">
+                <i class="fa-solid fa-tower-broadcast"></i>
+                <span>Event Listener</span>
+                <span class="el-brand-sub">PostgreSQL</span>
+            </div>
+
+            <!-- Connection Status Pill -->
+            <div class="el-conn-status" id="elConnStatus" title="Nhấn để mở cấu hình kết nối">
+                <span class="status-dot stopped" id="elStatusDot"></span>
+                <span id="elConnLabel">Chưa kết nối</span>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="el-action-group">
+                <button id="btnConnect" class="btn btn-sm btn-outline-secondary" title="Mở cấu hình kết nối">
+                    <i class="fa-solid fa-plug"></i> Kết nối
+                </button>
+                <button id="btnStartListen" class="btn btn-sm btn-success" disabled title="Bắt đầu lắng nghe sự kiện">
+                    <i class="fa-solid fa-play"></i> Lắng nghe
+                </button>
+                <button id="btnPause" class="btn btn-sm btn-outline-warning" disabled title="Tạm dừng/Tiếp tục">
+                    <i class="fa-solid fa-pause"></i> Tạm dừng
+                </button>
+                <button id="btnStop" class="btn btn-sm btn-danger" disabled title="Dừng lắng nghe">
+                    <i class="fa-solid fa-stop"></i> Dừng
+                </button>
+                <button id="btnClear" class="btn btn-sm btn-outline-secondary" title="Xóa toàn bộ sự kiện">
+                    <i class="fa-solid fa-eraser"></i> Xóa
+                </button>
+            </div>
+        </div>
+
+        <div class="el-toolbar-section">
+            <!-- Quick Search -->
+            <div class="el-search-wrap">
+                <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                <input type="text" id="elQuickSearch" placeholder="Lọc nhanh (Table, Operation, DB)...">
+            </div>
+
+            <!-- Auto-Scroll -->
+            <button id="btnAutoScroll" class="btn btn-sm btn-outline-info active" title="Bật/Tắt tự động cuộn">
+                <i class="fa-solid fa-arrows-down-to-line me-1"></i>Auto-Scroll
+            </button>
+        </div>
+
+        <div class="el-toolbar-section">
+            <!-- Export Dropdown -->
+            <div class="dropdown">
+                <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                    <i class="fa-solid fa-file-export me-1"></i>Xuất
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end dropdown-menu-dark shadow">
+                    <li><a class="dropdown-item" href="#" id="exportJsonBtn"><i class="fa-solid fa-code me-2 text-warning"></i>Xuất JSON</a></li>
+                    <li><a class="dropdown-item" href="#" id="exportCsvBtn"><i class="fa-solid fa-file-csv me-2 text-success"></i>Xuất CSV</a></li>
+                </ul>
+            </div>
+
+            <!-- Event Counter -->
+            <div class="el-stat-badge" id="elEventCounter" title="Tổng số sự kiện">
+                <span class="status-dot stopped" id="elCounterDot"></span>
+                <span id="elCounterText">Events: 0</span>
+                <span class="text-muted ms-1" id="elRateText">(0 ev/s)</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- ═══════════════ Filter Summary Bar ═══════════════ -->
+    <section class="el-filter-bar" id="elFilterBar">
+        <div class="el-filter-bar-left">
+            <div class="el-filter-presets" id="elFilterPresets">
+                <button type="button" class="el-preset-btn" data-filter="database_event" title="Chỉ hiện Database Event">
+                    <i class="fa-solid fa-database text-info"></i><span>DB Event</span>
+                </button>
+                <button type="button" class="el-preset-btn" data-filter="application_event" title="Chỉ hiện Application Event">
+                    <i class="fa-solid fa-cube text-warning"></i><span>App Event</span>
+                </button>
+                <button type="button" class="el-preset-btn" data-filter="insert" title="Chỉ hiện INSERT">
+                    <i class="fa-solid fa-plus text-success"></i><span>INSERT</span>
+                </button>
+                <button type="button" class="el-preset-btn" data-filter="update" title="Chỉ hiện UPDATE">
+                    <i class="fa-solid fa-pen text-info"></i><span>UPDATE</span>
+                </button>
+                <button type="button" class="el-preset-btn" data-filter="delete" title="Chỉ hiện DELETE">
+                    <i class="fa-solid fa-trash text-danger"></i><span>DELETE</span>
+                </button>
+            </div>
+
+            <div class="el-chips-container" id="elFilterChips">
+                <span class="el-empty-filter-hint">Chưa áp dụng bộ lọc nào. Toàn bộ sự kiện đang được hiển thị.</span>
+            </div>
+        </div>
+        <div class="el-filter-bar-right">
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="btnFilterSettings" title="Cấu hình bộ lọc nâng cao">
+                <i class="fa-solid fa-sliders text-info me-1"></i>Bộ lọc
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-danger" id="btnClearFilters" title="Xóa toàn bộ bộ lọc">
+                <i class="fa-solid fa-trash me-1"></i>Xóa lọc
+            </button>
+        </div>
+    </section>
+
+    <!-- ═══════════════ Main Master-Detail Work Area ═══════════════ -->
+    <main class="el-main" id="elMain">
+        <!-- Master: Event Grid -->
+        <div class="el-grid-container" id="elGridContainer">
+            <div id="eventTable" class="el-grid-tabulator"></div>
+        </div>
+
+        <!-- Splitter -->
+        <div class="el-splitter" id="elSplitter" title="Kéo thả để điều chỉnh tỷ lệ bảng và chi tiết">
+            <div class="el-splitter-handle"></div>
+        </div>
+
+        <!-- Detail Pane -->
+        <div class="el-detail" id="elDetail">
+            <div class="el-detail-header">
+                <div class="el-detail-tabs">
+                    <div class="el-detail-tab active" data-tab="detail" id="tabDetail">
+                        <i class="fa-solid fa-circle-info"></i>
+                        <span>Chi tiết sự kiện</span>
+                    </div>
+                    <div class="el-detail-tab" data-tab="payload" id="tabPayload">
+                        <i class="fa-solid fa-code"></i>
+                        <span>Payload</span>
+                    </div>
+                    <div class="el-detail-tab" data-tab="log" id="tabLog">
+                        <i class="fa-solid fa-scroll"></i>
+                        <span>Nhật ký</span>
+                    </div>
+                </div>
+                <div class="el-detail-actions">
+                    <button type="button" class="btn btn-sm btn-outline-secondary" id="btnCopyEvent" title="Sao chép sự kiện">
+                        <i class="fa-solid fa-copy me-1"></i>Copy
+                    </button>
+                </div>
+            </div>
+
+            <!-- Detail Tab: Event Detail -->
+            <div class="el-detail-body" id="elDetailBody">
+                <div class="el-modal-tab-content active" data-tab-content="detail" id="detailContent">
+                    <div class="el-event-fields" id="eventDetailFields">
+                        <span class="field-label">Event ID</span>
+                        <span class="field-value" id="detEventId">—</span>
+                        <span class="field-label">Source</span>
+                        <span class="field-value" id="detSource">—</span>
+                        <span class="field-label">Event Type</span>
+                        <span class="field-value" id="detEventType">—</span>
+                        <span class="field-label">Database</span>
+                        <span class="field-value accent" id="detDatabase">—</span>
+                        <span class="field-label">Schema</span>
+                        <span class="field-value" id="detSchema">—</span>
+                        <span class="field-label">Table</span>
+                        <span class="field-value accent" id="detTable">—</span>
+                        <span class="field-label">Operation</span>
+                        <span class="field-value" id="detOperation">—</span>
+                        <span class="field-label">Timestamp</span>
+                        <span class="field-value" id="detTimestamp">—</span>
+                        <span class="field-label">Transaction ID</span>
+                        <span class="field-value" id="detTransactionId">—</span>
+                        <span class="field-label">LSN</span>
+                        <span class="field-value" id="detLSN">—</span>
+                        <span class="field-label">Latency</span>
+                        <span class="field-value" id="detLatency">—</span>
+                    </div>
+                    <div class="el-payload-section">
+                        <div class="el-payload-header">
+                            <i class="fa-solid fa-code text-info"></i>
+                            <span>Metadata</span>
+                        </div>
+                        <div class="el-payload-area" id="detMetadata">Chọn một sự kiện từ bảng phía trên để xem chi tiết.</div>
+                    </div>
+                </div>
+
+                <div class="el-modal-tab-content" data-tab-content="payload" id="payloadContent">
+                    <div class="el-payload-section">
+                        <div class="el-payload-header">
+                            <i class="fa-solid fa-file-code text-warning"></i>
+                            <span>Event Payload</span>
+                        </div>
+                        <div class="el-payload-area" id="detPayload" style="min-height: 200px;">Chọn một sự kiện để xem payload.</div>
+                    </div>
+                </div>
+
+                <div class="el-modal-tab-content" data-tab-content="log" id="logContent">
+                    <div class="el-log-list" id="elLogList">
+                        <div class="el-log-entry">
+                            <span class="el-log-ts">--:--:--</span>
+                            <span class="el-log-level log-info">READY</span>
+                            <span class="el-log-msg">Sẵn sàng. Kết nối và nhấn "Lắng nghe" để bắt đầu.</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- ═══════════════ Status Bar ═══════════════ -->
+    <footer class="el-statusbar">
+        <div class="el-statusbar-item">
+            <i class="fa-solid fa-circle-info text-info"></i>
+            <span id="elStatusMessage">Sẵn sàng. Kết nối và nhấn "Lắng nghe" để theo dõi sự kiện PostgreSQL.</span>
+        </div>
+        <div class="el-statusbar-item ms-auto">
+            <span class="text-muted">Bộ nhớ đệm: 10,000 events</span>
+            <span class="text-muted" style="margin: 0 6px;">|</span>
+            <span class="text-muted">Unified Event Model</span>
+        </div>
+    </footer>
+
+    <!-- ═══════════════ CONNECTION WIZARD MODAL ═══════════════ -->
+    <div class="el-modal-backdrop d-none" id="connModalBackdrop">
+        <div class="el-modal-card">
+            <!-- Header -->
+            <div class="el-modal-header">
+                <div class="el-modal-header-title">
+                    <i class="fa-solid fa-tower-broadcast"></i>
+                    <span>Chọn phương thức truy cập</span>
+                </div>
+                <button type="button" class="el-modal-close-btn" id="connModalCloseBtn">&times;</button>
+            </div>
+
+            <!-- Tabs -->
+            <div class="el-modal-tabs">
+                <div class="el-modal-tab active" data-conn-tab="local">Bravo Cloud Native tại máy chủ</div>
+                <div class="el-modal-tab" data-conn-tab="backend">Kết nối trực tiếp từ cấu hình Backend</div>
+                <div class="el-modal-tab" data-conn-tab="platform">Bravo Platform</div>
+            </div>
+
+            <!-- Body -->
+            <div class="el-modal-body" id="connModalBody">
+
+                <!-- ──── Tab 1: Local BRAVO Backend ──── -->
+                <div class="el-modal-tab-content active" data-conn-content="local" id="connTabLocal">
+                    <div class="el-form-group">
+                        <label class="el-form-label"><i class="fa-solid fa-server me-1 text-info"></i>Chọn Backend đã cài đặt tại máy chủ</label>
+                        <select class="el-form-select" id="localBackendSelect">
+                            <option value="">-- Quét và chọn Backend (IIS / Service) --</option>
+                        </select>
+                    </div>
+
+                    <button type="button" class="el-btn el-btn-outline-primary" id="btnDiscoverBackend" style="margin-bottom: 14px;">
+                        <i class="fa-solid fa-magnifying-glass me-1"></i>Quét lại Backend
+                    </button>
+
+                    <div class="el-form-group">
+                        <label class="el-form-label"><i class="fa-solid fa-circle-check me-1 text-success"></i>Trạng thái</label>
+                        <div style="padding: 4px 0; font-size: 12px;">
+                            <span class="text-muted" id="localBackendStatus">Chưa quét. Nhấn "Quét lại Backend" để dò tìm.</span>
+                        </div>
+                    </div>
+
+                    <hr class="el-section-divider">
+
+                    <div class="el-form-group">
+                        <label class="el-form-label"><i class="fa-solid fa-satellite-dish me-1 text-warning"></i>Event Source</label>
+                        <select class="el-form-select" id="localEventSource">
+                            <option value="backend">Backend Event</option>
+                            <option value="redis">Redis (nếu nhiều Backend)</option>
+                        </select>
+                    </div>
+
+                    <!-- Test Connection Results -->
+                    <div class="el-test-results" id="localTestResults">
+                        <div class="el-test-item pending">
+                            <i class="fa-solid fa-circle-notch fa-spin check-icon"></i>
+                            <span>Đang kiểm tra...</span>
+                        </div>
+                    </div>
+
+                    <div class="el-modal-info-text">
+                        <i class="fa-solid fa-circle-info"></i>
+                        <span>Phát hiện tự động Backend qua IIS, Windows Service hoặc cấu hình cục bộ trên máy chủ BRAVO.</span>
+                    </div>
+                </div>
+
+                <!-- ──── Tab 2: Remote Backend ──── -->
+                <div class="el-modal-tab-content" data-conn-content="backend" id="connTabBackend">
+                    <!-- Sub-tabs: Cấu hình từ Bravo Hosting / Import file -->
+                    <div class="el-form-group">
+                        <label class="el-form-label fw-semibold"><i class="fa-solid fa-download me-1 text-info"></i>Nhập cấu hình từ nguồn có sẵn</label>
+                    </div>
+                    <div class="el-sub-tabs" id="backendSubTabs">
+                        <button class="el-sub-tab active" data-sub-tab="hosting">Cấu hình từ Bravo Hosting</button>
+                        <button class="el-sub-tab" data-sub-tab="import">Import file cấu hình</button>
+                    </div>
+
+                    <!-- Bravo Hosting Sub-tab -->
+                    <div id="subTabHosting">
+                        <div class="el-form-group">
+                            <label class="el-form-label">Mã cài đặt</label>
+                            <input type="text" class="el-form-input" id="bravoInstallCode" placeholder="Nhập mã cài đặt Bravo Hosting...">
+                        </div>
+                        <button type="button" class="el-load-config-btn" id="btnLoadConfig">
+                            <i class="fa-solid fa-cloud-arrow-down me-1"></i>Tải cấu hình
+                        </button>
+                    </div>
+
+                    <!-- Import file sub-tab (hidden by default) -->
+                    <div id="subTabImport" style="display: none;">
+                        <button type="button" class="el-load-config-btn" id="btnImportFile">
+                            <i class="fa-solid fa-file-import me-1"></i>Chọn file cấu hình (.json)
+                        </button>
+                    </div>
+
+                    <hr class="el-section-divider">
+
+                    <!-- Backend Model Selection -->
+                    <div class="el-radio-group">
+                        <label class="el-radio-label">
+                            <input type="radio" name="backendModel" value="single" checked>
+                            <span><strong>Mô hình cài đặt một Backend</strong> (Cơ bản)</span>
+                        </label>
+                        <label class="el-radio-label">
+                            <input type="radio" name="backendModel" value="dual">
+                            <span><strong>Mô hình cài đặt hai Backend</strong> (WAN/LAN)</span>
+                        </label>
+                    </div>
+
+                    <!-- Backend Connection Fields -->
+                    <div class="el-form-row">
+                        <div class="el-form-group">
+                            <label class="el-form-label">Địa chỉ truy cập server</label>
+                            <input type="text" class="el-form-input" id="backendHost" placeholder="VD: 10.10.10.100">
+                        </div>
+                        <div class="el-form-group">
+                            <label class="el-form-label">Port (Cổng kết nối)</label>
+                            <input type="text" class="el-form-input" id="backendPort" placeholder="VD: 8001">
+                        </div>
+                    </div>
+
+                    <div class="el-form-group">
+                        <label class="el-form-label">Access token để xác thực kết nối từ client tracer</label>
+                        <div class="el-form-password-wrap">
+                            <input type="password" class="el-form-input" id="backendToken" placeholder="Nhập Access Token...">
+                            <button type="button" class="el-form-password-toggle" id="btnToggleToken" title="Hiện/Ẩn token">
+                                <i class="fa-solid fa-eye"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Dual Backend: Redis Config (hidden initially) -->
+                    <div id="dualBackendSection" style="display: none;">
+                        <hr class="el-section-divider">
+                        <div class="el-form-group">
+                            <label class="el-form-label fw-semibold"><i class="fa-solid fa-database me-1 text-danger"></i>Cấu hình Redis Cache</label>
+                        </div>
+                        <div class="el-form-row">
+                            <div class="el-form-group">
+                                <label class="el-form-label">Redis Host</label>
+                                <input type="text" class="el-form-input" id="redisHost" placeholder="VD: 10.10.10.101">
+                            </div>
+                            <div class="el-form-group">
+                                <label class="el-form-label">Redis Port</label>
+                                <input type="text" class="el-form-input" id="redisPort" placeholder="6379" value="6379">
+                            </div>
+                        </div>
+                        <div class="el-form-group">
+                            <label class="el-form-label">Redis Password</label>
+                            <div class="el-form-password-wrap">
+                                <input type="password" class="el-form-input" id="redisPassword" placeholder="(Tùy chọn)">
+                                <button type="button" class="el-form-password-toggle" id="btnToggleRedisPass" title="Hiện/Ẩn">
+                                    <i class="fa-solid fa-eye"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="el-form-row">
+                            <div class="el-form-group">
+                                <label class="el-form-label">Channel / Stream</label>
+                                <input type="text" class="el-form-input" id="redisChannel" placeholder="VD: bravo_event">
+                            </div>
+                            <div class="el-form-group">
+                                <label class="el-form-label">TLS</label>
+                                <select class="el-form-select" id="redisTLS">
+                                    <option value="false">Không</option>
+                                    <option value="true">Có</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Test Results -->
+                    <div class="el-test-results" id="backendTestResults"></div>
+
+                    <div class="el-modal-info-text">
+                        <i class="fa-solid fa-circle-info"></i>
+                        <span>Sử dụng trực tiếp cấu hình Backend để truy cập Bravo PostgreSQL Profiler.</span>
+                    </div>
+                </div>
+
+                <!-- ──── Tab 3: Bravo Platform ──── -->
+                <div class="el-modal-tab-content" data-conn-content="platform" id="connTabPlatform">
+                    <div class="el-form-group">
+                        <label class="el-form-label fw-semibold"><i class="fa-solid fa-globe me-1 text-info"></i>Tùy chọn môi trường Bravo Platform</label>
+                    </div>
+
+                    <div class="el-radio-group">
+                        <label class="el-radio-label">
+                            <input type="radio" name="platformEnv" value="dev" checked>
+                            <span><strong>DEV</strong></span>
+                        </label>
+                        <label class="el-radio-label">
+                            <input type="radio" name="platformEnv" value="uat">
+                            <span><strong>UAT</strong> <small class="text-muted">(đang phát triển)</small></span>
+                        </label>
+                    </div>
+
+                    <div class="el-form-group">
+                        <label class="el-form-label">Application ID</label>
+                        <input type="text" class="el-form-input" id="platformAppId" placeholder="Nhập Application ID...">
+                    </div>
+
+                    <hr class="el-section-divider">
+
+                    <div class="el-form-group">
+                        <label class="el-form-label fw-semibold"><i class="fa-solid fa-key me-1 text-warning"></i>Tài khoản đăng nhập PostgreSQL được cấp bởi Bravo Platform</label>
+                    </div>
+
+                    <div class="el-form-group">
+                        <label class="el-form-label">User name</label>
+                        <input type="text" class="el-form-input" id="platformUsername" placeholder="Nhập tên đăng nhập...">
+                    </div>
+
+                    <div class="el-form-group">
+                        <label class="el-form-label">Password</label>
+                        <div class="el-form-password-wrap">
+                            <input type="password" class="el-form-input" id="platformPassword" placeholder="Nhập mật khẩu...">
+                            <button type="button" class="el-form-password-toggle" id="btnTogglePlatformPass" title="Hiện/Ẩn">
+                                <i class="fa-solid fa-eye"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Test Results -->
+                    <div class="el-test-results" id="platformTestResults"></div>
+
+                    <div class="el-modal-info-text">
+                        <i class="fa-solid fa-circle-info"></i>
+                        <span>Nhập Application ID của ứng dụng Bravo được cài đặt tại Bravo Platform, để truy cập Bravo PostgreSQL Profiler.</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Footer -->
+            <div class="el-modal-footer">
+                <button type="button" class="el-btn el-btn-secondary" id="btnTestConn">
+                    <i class="fa-solid fa-vial me-1"></i>Kiểm tra kết nối
+                </button>
+                <button type="button" class="el-btn el-btn-primary" id="btnConnectNow">
+                    <i class="fa-solid fa-bolt me-1"></i>Truy cập ngay
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════════ Notification Popup ═══════════════ -->
+    <div class="el-popup-backdrop d-none" id="elPopupBackdrop">
+        <div class="el-popup-card">
+            <div class="el-popup-header">
+                <div id="elPopupTitle">
+                    <i class="fa-solid fa-circle-exclamation text-danger me-1"></i>
+                    <span>Thông báo</span>
+                </div>
+                <button type="button" class="el-modal-close-btn" id="elPopupCloseBtn">&times;</button>
+            </div>
+            <div class="el-popup-body" id="elPopupMessage">
+                Nội dung thông báo
+            </div>
+            <div class="el-popup-footer">
+                <button type="button" class="el-btn el-btn-primary" id="elPopupOkBtn">Đồng ý</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Vendor Scripts -->
+    <script src="../static/vendor/bootstrap/bootstrap.bundle.min.js"></script>
+    <script src="../static/vendor/tabulator/tabulator.min.js"></script>
+
+    <!-- App Scripts -->
+    <script src="../static/js/api.js"></script>
+    <script src="../static/js/clipboard-bridge.js"></script>
+    <script src="../static/js/storage.js"></script>
+    <script src="../static/js/theme-registry.js"></script>
+    <script src="../static/js/theme.js"></script>
+    <script src="../static/js/typography.js"></script>
+    <script src="../static/js/event-listener.js"></script>
+</body>
+
+</html>
