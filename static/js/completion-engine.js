@@ -417,12 +417,71 @@
 
     /**
      * CandidateFilter - Multi-Stage Candidate Filtering (Section 31)
-     * Exact Prefix -> Prefix -> Substring -> Fuzzy
+     * CandidateFilter - Multi-Stage Candidate Filtering (Section 31 & Spec 11.2)
+     * Exact Prefix -> Prefix -> Sub-Word -> Substring -> Fuzzy
      */
     class CandidateFilter {
         constructor(options = {}) {
             this.fuzzyThreshold = options.fuzzyThreshold || 2; // Min chars to activate fuzzy search
             this.maxPrefixToSkipFuzzy = options.maxPrefixToSkipFuzzy || 8; // If prefix matches >= 8, skip fuzzy to avoid noise
+        }
+
+        static splitSubWords(candidateName) {
+            if (!candidateName || typeof candidateName !== 'string') return [];
+            let clean = candidateName.trim();
+            // Strip surrounding quotes or brackets
+            if ((clean.startsWith('[') && clean.endsWith(']')) ||
+                (clean.startsWith('"') && clean.endsWith('"')) ||
+                (clean.startsWith('`') && clean.endsWith('`'))) {
+                clean = clean.substring(1, clean.length - 1);
+            }
+            // Strip leading # or @
+            clean = clean.replace(/^[#@]+/, '');
+            if (!clean) return [];
+
+            // Normalize Unicode (NFC) per Spec 11.2
+            try {
+                clean = clean.normalize('NFC');
+            } catch (_) {}
+
+            // Split by punctuation / separators: underscores, hyphens, spaces, dots
+            const chunks = clean.split(/[-_\s.]+/).filter(Boolean);
+            const subWords = [];
+
+            for (const chunk of chunks) {
+                // Split camelCase, PascalCase, and Acronyms within each chunk
+                // E.g. "XMLParser" -> ["XML", "Parser"]
+                // E.g. "CustomerId" -> ["Customer", "Id"]
+                // E.g. "getHTTPResponseCode" -> ["get", "HTTP", "Response", "Code"]
+                // E.g. "col1Name" -> ["col1", "Name"]
+                let parts;
+                try {
+                    parts = chunk
+                        .replace(/([\p{Lu}]+)([\p{Lu}][\p{Ll}])/gu, '$1 $2')
+                        .replace(/([\p{Ll}\p{N}])([\p{Lu}])/gu, '$1 $2')
+                        .split(/\s+/)
+                        .filter(Boolean);
+                } catch (_) {
+                    parts = chunk
+                        .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
+                        .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+                        .split(/\s+/)
+                        .filter(Boolean);
+                }
+
+                for (const p of parts) {
+                    subWords.push({
+                        raw: p,
+                        lower: p.toLowerCase()
+                    });
+                }
+            }
+
+            return subWords;
+        }
+
+        splitSubWords(candidateName) {
+            return CandidateFilter.splitSubWords(candidateName);
         }
 
         matchExact(candidateName, query) {
@@ -431,6 +490,114 @@
 
         matchPrefix(candidateName, query) {
             return candidateName.toLowerCase().startsWith(query.toLowerCase());
+        }
+
+        matchSubWord(candidateName, query) {
+            if (!candidateName || !query) return null;
+            const rawQuery = String(query).trim();
+            if (rawQuery.length < 2) return null; // Single-char queries are prefix matches
+            const queryLower = rawQuery.toLowerCase();
+
+            // Clean candidate name (strip quotes, @, #)
+            let cleanCandidate = candidateName.trim();
+            if ((cleanCandidate.startsWith('[') && cleanCandidate.endsWith(']')) ||
+                (cleanCandidate.startsWith('"') && cleanCandidate.endsWith('"')) ||
+                (cleanCandidate.startsWith('`') && cleanCandidate.endsWith('`'))) {
+                cleanCandidate = cleanCandidate.substring(1, cleanCandidate.length - 1);
+            }
+            cleanCandidate = cleanCandidate.replace(/^[#@]+/, '');
+            const candidateLower = cleanCandidate.toLowerCase();
+
+            // If query is already a full prefix of the entire candidate, let matchPrefix handle it
+            if (candidateLower.startsWith(queryLower)) {
+                return null;
+            }
+
+            const subWords = CandidateFilter.splitSubWords(cleanCandidate);
+            if (!subWords || subWords.length < 2) return null;
+
+            // Recursive search: partition query across sub-word prefixes
+            function search(wordIdx, qIdx, matchedWordsCount, caseMatchesCount, skippedWordsCount) {
+                if (qIdx === queryLower.length) {
+                    return {
+                        matchedWordsCount,
+                        caseMatchesCount,
+                        skippedWordsCount
+                    };
+                }
+
+                if (wordIdx >= subWords.length) {
+                    return null;
+                }
+
+                const currentWord = subWords[wordIdx];
+                const firstCharQ = queryLower[qIdx];
+                let best = null;
+
+                // Option 1: Match prefix of currentWord starting with query[qIdx]
+                if (currentWord.lower[0] === firstCharQ) {
+                    const maxL = Math.min(currentWord.lower.length, queryLower.length - qIdx);
+                    for (let L = maxL; L >= 1; L--) {
+                        const qSlice = queryLower.substring(qIdx, qIdx + L);
+                        if (currentWord.lower.startsWith(qSlice)) {
+                            let caseBonus = 0;
+                            if (rawQuery[qIdx] === currentWord.raw[0]) {
+                                caseBonus++;
+                            }
+                            const res = search(wordIdx + 1, qIdx + L, matchedWordsCount + 1, caseMatchesCount + caseBonus, skippedWordsCount);
+                            if (res) {
+                                if (!best || res.skippedWordsCount < best.skippedWordsCount || res.caseMatchesCount > best.caseMatchesCount) {
+                                    best = res;
+                                }
+                                if (best && best.skippedWordsCount === 0 && best.caseMatchesCount > 0) {
+                                    return best;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Option 2: Skip currentWord
+                const remainingWords = subWords.length - (wordIdx + 1);
+                const remainingChars = queryLower.length - qIdx;
+                if (remainingWords >= remainingChars || (remainingWords > 0 && matchedWordsCount > 0)) {
+                    const resSkip = search(wordIdx + 1, qIdx, matchedWordsCount, caseMatchesCount, skippedWordsCount + (matchedWordsCount > 0 ? 1 : 0));
+                    if (resSkip) {
+                        if (!best || resSkip.skippedWordsCount < best.skippedWordsCount || resSkip.caseMatchesCount > best.caseMatchesCount) {
+                            best = resSkip;
+                        }
+                    }
+                }
+
+                return best;
+            }
+
+            const matchResult = search(0, 0, 0, 0, 0);
+            if (!matchResult || matchResult.matchedWordsCount < 2) {
+                return null;
+            }
+
+            // Calculate Sub-Word score strictly between 72 and 79
+            // (Strictly higher than Substring 50-70, strictly lower than Prefix 80-95)
+            let score = 75; // Baseline sub-word score
+
+            // Consecutive words bonus
+            if (matchResult.skippedWordsCount === 0) {
+                score += 2;
+            } else {
+                score -= Math.min(3, matchResult.skippedWordsCount);
+            }
+
+            // Case-match bonus (e.g. cO or CO matching CustomerOrder)
+            if (matchResult.caseMatchesCount > 0) {
+                score += Math.min(2, matchResult.caseMatchesCount);
+            }
+
+            // Coverage ratio bonus
+            const coverageRatio = queryLower.length / Math.max(queryLower.length, subWords.length);
+            score += Math.round(coverageRatio * 1);
+
+            return Math.max(72, Math.min(79, score));
         }
 
         matchSubstring(candidateName, query) {
@@ -472,7 +639,8 @@
 
         filter(candidates, query = '') {
             if (!candidates || !Array.isArray(candidates)) return [];
-            const cleanQuery = String(query || '').trim().toLowerCase();
+            const rawQuery = String(query || '').trim();
+            const cleanQuery = rawQuery.toLowerCase();
 
             if (!cleanQuery) {
                 return candidates.map(c => ({
@@ -483,6 +651,7 @@
             }
 
             const prefixMatches = [];
+            const subwordMatches = [];
             const substringMatches = [];
             const fuzzyMatches = [];
 
@@ -515,6 +684,18 @@
                     return;
                 }
 
+                // 2b. Phase 8: Sub-Word Match (PascalCase / camelCase / snake_case)
+                // e.g. 'cid' -> 'CustomerId', 'odi' -> 'order_detail_id', 'co' -> 'CustomerOrder'
+                const subwordScore = this.matchSubWord(name, rawQuery);
+                if (subwordScore !== null && subwordScore > 0) {
+                    subwordMatches.push({
+                        ...item,
+                        _matchType: 'subword',
+                        _matchScore: subwordScore
+                    });
+                    return;
+                }
+
                 // 3. Substring match
                 const subIdx = nameLower.indexOf(cleanQuery);
                 if (subIdx !== -1) {
@@ -543,7 +724,7 @@
                 return prefixMatches;
             }
 
-            return [...prefixMatches, ...substringMatches, ...fuzzyMatches];
+            return [...prefixMatches, ...subwordMatches, ...substringMatches, ...fuzzyMatches];
         }
     }
 
@@ -1040,7 +1221,15 @@
                             const targetSchema = tbl.schema || tabCtx.schema;
                             // Only query database for physical tables, views, synonyms
                             if (!['subquery', 'cte', 'temp_table', 'table_variable'].includes(tbl.type)) {
-                                const cols = await this.dataProvider.fetchColumns(tabCtx.connectionId, tabCtx.database, targetSchema, tbl.table);
+                                let cols = null;
+                                if (this.metadataCache && typeof this.metadataCache.getColumns === 'function') {
+                                    cols = this.metadataCache.getColumns(tabCtx.connectionId, tabCtx.database, targetSchema, tbl.table);
+                                }
+                                if (!cols && this.dataProvider && typeof this.dataProvider.fetchColumns === 'function') {
+                                    cols = await this.dataProvider.fetchColumns(tabCtx.connectionId, tabCtx.database, targetSchema, tbl.table);
+                                } else if (!cols && this.dataProvider && typeof this.dataProvider.getColumns === 'function') {
+                                    cols = await this.dataProvider.getColumns(tabCtx.connectionId, tabCtx.database, targetSchema, tbl.table);
+                                }
                                 (cols || []).forEach(c => {
                                     const colName = c.name;
                                     const colLower = (colName || '').toLowerCase();
@@ -1157,7 +1346,15 @@
 
                 // A. Columns from database connection (Only for physical tables/views)
                 if (tabCtx.connectionId && targetTable && !isLocalSymbol) {
-                    const cols = await this.dataProvider.fetchColumns(tabCtx.connectionId, tabCtx.database, targetSchema, targetTable);
+                    let cols = null;
+                    if (this.metadataCache && typeof this.metadataCache.getColumns === 'function') {
+                        cols = this.metadataCache.getColumns(tabCtx.connectionId, tabCtx.database, targetSchema, targetTable);
+                    }
+                    if (!cols && this.dataProvider && typeof this.dataProvider.fetchColumns === 'function') {
+                        cols = await this.dataProvider.fetchColumns(tabCtx.connectionId, tabCtx.database, targetSchema, targetTable);
+                    } else if (!cols && this.dataProvider && typeof this.dataProvider.getColumns === 'function') {
+                        cols = await this.dataProvider.getColumns(tabCtx.connectionId, tabCtx.database, targetSchema, targetTable);
+                    }
                     (cols || []).forEach(c => {
                         allCandidates.push({
                             name: c.name,
@@ -1878,11 +2075,12 @@
                 return null;
             }
 
-            // Step 2: Multi-Stage Filtering (Exact -> Prefix -> Substring -> Fuzzy)
-            const filtered = this.filter.filter(rawCandidates, wordLower);
+            // Step 2: Multi-Stage Filtering (Exact -> Prefix -> Sub-Word -> Substring -> Fuzzy)
+            const currentQuery = (context.currentWord || wordLower);
+            const filtered = this.filter.filter(rawCandidates, currentQuery);
 
             // Step 3: Contextual Ranking (Clause, Scope, Match Quality, Types)
-            const ranked = this.ranker.rank(filtered, context, wordLower);
+            const ranked = this.ranker.rank(filtered, context, currentQuery);
             if (ranked && Array.isArray(ranked)) {
                 ranked.rawCandidates = rawCandidates;
                 ranked.replacementRange = context.replacementRange || null;
