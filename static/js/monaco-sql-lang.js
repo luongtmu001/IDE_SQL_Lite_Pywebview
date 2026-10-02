@@ -182,6 +182,11 @@
         if (window.SqlSignatureHelpResolver && typeof window.SqlSignatureHelpResolver.registerMonacoProvider === 'function') {
             window.SqlSignatureHelpResolver.registerMonacoProvider();
         }
+
+        // Phase 7: Register Hover Provider if available
+        if (window.SqlHoverResolver && typeof window.SqlHoverResolver.registerMonacoProvider === 'function') {
+            window.SqlHoverResolver.registerMonacoProvider();
+        }
     }
 
     // Expose registration hook

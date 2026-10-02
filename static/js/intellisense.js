@@ -902,6 +902,19 @@
                 }
             }
 
+            // Phase 7: Ensure Monaco Hover Provider is registered and synced
+            if (window.SqlHoverResolver) {
+                if (this.dataProvider && typeof window.SqlHoverResolver.setDataProvider === 'function') {
+                    window.SqlHoverResolver.setDataProvider(this.dataProvider);
+                }
+                if (window.AppMetadataCache && typeof window.SqlHoverResolver.setMetadataCache === 'function') {
+                    window.SqlHoverResolver.setMetadataCache(window.AppMetadataCache);
+                }
+                if (typeof window.SqlHoverResolver.registerMonacoProvider === 'function') {
+                    window.SqlHoverResolver.registerMonacoProvider();
+                }
+            }
+
             adapter.on('change', (editor, changeObj) => {
                 if (changeObj && changeObj.origin === 'setValue') return;
                 if (this.isConfirmingCompletion) {
@@ -1773,6 +1786,13 @@
         getSignatureHelp: (sql, offset, tabCtx) => {
             if (window.SqlSignatureHelpResolver) {
                 return window.SqlSignatureHelpResolver.resolve(sql, offset, tabCtx);
+            }
+            return null;
+        },
+        // Phase 7 Hover Provider API
+        getHoverInfo: (sql, offset, tabCtx) => {
+            if (window.SqlHoverResolver) {
+                return window.SqlHoverResolver.resolve(sql, offset, tabCtx);
             }
             return null;
         },
