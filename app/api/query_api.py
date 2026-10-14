@@ -8,9 +8,18 @@ import contextlib
 import json
 import logging
 import webview
-from app.utils.sql_safety import check_query_safety
+from app.utils.sql_safety import check_query_safety, detect_fatal_actions
+from app.services.settings_store import _load_settings_file
 
 logger = logging.getLogger("luobtool.api.query")
+
+
+def _get_settings_loader():
+    import sys
+    main_mod = sys.modules.get("main")
+    if main_mod and hasattr(main_mod, "_load_settings_file"):
+        return main_mod._load_settings_file
+    return _load_settings_file
 
 
 class QueryApiMixin:
@@ -33,10 +42,13 @@ class QueryApiMixin:
 
             adapter_db_type = getattr(getattr(conn, "adapter", None), "db_type", "tsql")
             dialect_val = adapter_db_type if isinstance(adapter_db_type, str) else "tsql"
+            read_only_val = getattr(conn, "read_only", False) is True
+            env_raw = getattr(conn, "environment", None)
+            env_val = env_raw if isinstance(env_raw, str) else None
             safety = check_query_safety(
                 sql=sql,
-                read_only=getattr(conn, "read_only", False),
-                environment=getattr(conn, "environment", None),
+                read_only=read_only_val,
+                environment=env_val,
                 confirmed=confirmed,
                 dialect=dialect_val
             )
@@ -46,8 +58,32 @@ class QueryApiMixin:
                     "needs_confirmation": safety["needs_confirmation"],
                     "error_code": safety["error_code"],
                     "error": safety["message"],
-                    "classification": safety["classification"]
+                    "message": safety["message"],
+                    "classification": safety["classification"],
+                    "query_type": "PROD_SAFETY"
                 }
+
+            # Backend SQL Protection (DELETE/UPDATE without WHERE, TRUNCATE)
+            loader = _get_settings_loader()
+            settings = loader() if callable(loader) else {}
+            sql_settings = settings.get("sql", {}) if isinstance(settings, dict) else {}
+            sql_protection_val = sql_settings.get("sqlprotection", 1)
+            is_sql_protection_enabled = bool(sql_protection_val not in (0, "0", False))
+
+            if is_sql_protection_enabled and not confirmed:
+                fatal_actions = detect_fatal_actions(sql, dialect=dialect_val)
+                if fatal_actions:
+                    fatal_types = [a.get("type", "FATAL_ACTION") for a in fatal_actions]
+                    actions_summary = ", ".join(dict.fromkeys(fatal_types))
+                    return {
+                        "success": False,
+                        "needs_confirmation": True,
+                        "error_code": "ERR_FATAL_ACTION_CONFIRMATION_REQUIRED",
+                        "error": f"Cảnh báo bảo vệ SQL: Phát hiện câu lệnh nguy hiểm [{actions_summary}]. Yêu cầu xác nhận trước khi thực thi.",
+                        "message": f"Cảnh báo bảo vệ SQL: Phát hiện câu lệnh nguy hiểm [{actions_summary}]. Yêu cầu xác nhận trước khi thực thi.",
+                        "fatal_actions": fatal_actions,
+                        "query_type": "FATAL_ACTION"
+                    }
 
             def on_progress(event):
                 if not query_id:

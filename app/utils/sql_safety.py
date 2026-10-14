@@ -226,3 +226,120 @@ def check_query_safety(
         "message": None,
         "classification": classification
     }
+
+
+def detect_fatal_actions(sql: str, dialect: str = "tsql") -> List[Dict[str, Any]]:
+    """
+    Detects fatal table modification actions:
+    - DELETE without WHERE clause
+    - UPDATE without WHERE clause
+    - TRUNCATE (TRUNCATE TABLE / TRUNCATE)
+
+    Returns a list of detected fatal action descriptors.
+    """
+    if not sql or not sql.strip():
+        return []
+
+    norm_dialect = "tsql" if "sqlserver" in dialect.lower() or "mssql" in dialect.lower() else (
+        "postgres" if "postgre" in dialect.lower() else dialect
+    )
+
+    fatal_actions: List[Dict[str, Any]] = []
+
+    try:
+        expressions = sqlglot.parse(sql.strip(), read=norm_dialect)
+        parsed_successfully = bool(expressions)
+    except Exception:
+        expressions = []
+        parsed_successfully = False
+
+    if parsed_successfully and expressions:
+        for expr in expressions:
+            if expr is None:
+                continue
+
+            # 1. DELETE without WHERE
+            if isinstance(expr, exp.Delete):
+                if not expr.args.get("where"):
+                    fatal_actions.append({
+                        "type": "DELETE_WITHOUT_WHERE",
+                        "message": "Phát hiện câu lệnh DELETE không có mệnh đề WHERE",
+                        "statement": expr.sql(dialect=norm_dialect)
+                    })
+            # 2. UPDATE without WHERE
+            elif isinstance(expr, exp.Update):
+                if not expr.args.get("where"):
+                    fatal_actions.append({
+                        "type": "UPDATE_WITHOUT_WHERE",
+                        "message": "Phát hiện câu lệnh UPDATE không có mệnh đề WHERE",
+                        "statement": expr.sql(dialect=norm_dialect)
+                    })
+            # 3. TRUNCATE TABLE
+            elif isinstance(expr, exp.TruncateTable):
+                fatal_actions.append({
+                    "type": "TRUNCATE",
+                    "message": "Phát hiện câu lệnh TRUNCATE TABLE",
+                    "statement": expr.sql(dialect=norm_dialect)
+                })
+            elif isinstance(expr, exp.Command):
+                cmd_this = str(getattr(expr, "this", "")).upper()
+                if cmd_this.startswith("TRUNCATE"):
+                    fatal_actions.append({
+                        "type": "TRUNCATE",
+                        "message": "Phát hiện câu lệnh TRUNCATE",
+                        "statement": expr.sql(dialect=norm_dialect)
+                    })
+            else:
+                for d_node in expr.find_all(exp.Delete):
+                    if not d_node.args.get("where"):
+                        fatal_actions.append({
+                            "type": "DELETE_WITHOUT_WHERE",
+                            "message": "Phát hiện câu lệnh DELETE không có mệnh đề WHERE",
+                            "statement": d_node.sql(dialect=norm_dialect)
+                        })
+                for u_node in expr.find_all(exp.Update):
+                    if not u_node.args.get("where"):
+                        fatal_actions.append({
+                            "type": "UPDATE_WITHOUT_WHERE",
+                            "message": "Phát hiện câu lệnh UPDATE không có mệnh đề WHERE",
+                            "statement": u_node.sql(dialect=norm_dialect)
+                        })
+                for t_node in expr.find_all(exp.TruncateTable):
+                    fatal_actions.append({
+                        "type": "TRUNCATE",
+                        "message": "Phát hiện câu lệnh TRUNCATE TABLE",
+                        "statement": t_node.sql(dialect=norm_dialect)
+                    })
+
+    # Regex fallback if parser failed or as supplementary check
+    if not fatal_actions:
+        stripped = _strip_comments_and_strings(sql)
+        stmts = [s.strip() for s in re.split(r';|\bGO\b', stripped, flags=re.IGNORECASE) if s.strip()]
+        for s in stmts:
+            # Skip DDL table creation / foreign key constraints
+            if re.search(r'(?i)\b(CREATE|ALTER)\s+TABLE\b', s):
+                continue
+            if re.search(r'(?i)\bTRUNCATE\s+(TABLE\s+)?[a-zA-Z0-9_#$@.\[\]]+', s):
+                fatal_actions.append({
+                    "type": "TRUNCATE",
+                    "message": "Phát hiện câu lệnh TRUNCATE",
+                    "statement": s
+                })
+            elif re.search(r'(?i)\bDELETE\s+(FROM\s+)?[a-zA-Z0-9_#$@.\[\]]+', s):
+                if not re.search(r'(?i)\b(ON|BEFORE|AFTER)\s+DELETE\b', s) and not re.search(r'(?i)\bWHERE\b', s):
+                    fatal_actions.append({
+                        "type": "DELETE_WITHOUT_WHERE",
+                        "message": "Phát hiện câu lệnh DELETE không có mệnh đề WHERE",
+                        "statement": s
+                    })
+            elif re.search(r'(?i)\bUPDATE\s+[a-zA-Z0-9_#$@.\[\]]+\s+SET\b', s):
+                if not re.search(r'(?i)\b(ON|BEFORE|AFTER)\s+UPDATE\b', s) and not re.search(r'(?i)\bWHERE\b', s):
+                    fatal_actions.append({
+                        "type": "UPDATE_WITHOUT_WHERE",
+                        "message": "Phát hiện câu lệnh UPDATE không có mệnh đề WHERE",
+                        "statement": s
+                    })
+
+    return fatal_actions
+
+
