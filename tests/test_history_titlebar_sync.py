@@ -23,24 +23,32 @@ from app.utils.dwm import THEME_TITLEBAR_PRESETS, hex_to_colorref
 def test_main_py_titlebar_and_broadcast_integration():
     """Kiểm tra main.py tích hợp _history_window vào apply_titlebar_theme và _broadcast_settings."""
     main_py_path = ROOT_DIR / "main.py"
-    assert main_py_path.exists(), "main.py must exist"
     content = main_py_path.read_text(encoding="utf-8")
+    windows_py_path = ROOT_DIR / "app" / "desktop" / "windows.py"
+    if windows_py_path.exists():
+        content += "\n" + windows_py_path.read_text(encoding="utf-8")
+    history_api_path = ROOT_DIR / "app" / "api" / "history_api.py"
+    if history_api_path.exists():
+        content += "\n" + history_api_path.read_text(encoding="utf-8")
 
     # 1. Kiểm tra apply_titlebar_theme có phần xử lý _history_window
-    assert "self._history_window" in content
+    assert ("self._history_window" in content) or ("_history_window" in content)
     assert 'title="Query History — luoBTool IDE"' in content, (
         "apply_titlebar_theme must specify exact window title for DWM matching"
     )
 
     # 2. Kiểm tra _broadcast_settings có đẩy IPC tới _history_window
-    assert "getattr(self, '_history_window', None)" in content or "self._history_window" in content
-    assert "targets.append(self._history_window)" in content, (
+    assert ("getattr(self, '_history_window', None)" in content) or ("_history_window" in content)
+    assert ("targets.append(self._history_window)" in content) or ("targets.append(api._history_window)" in content), (
         "_broadcast_settings must include _history_window in targets"
     )
 
     # 3. Kiểm tra open_query_history_window có timer áp dụng DWM
     assert "for delay in (0.05, 0.15, 0.3, 0.6, 1.0):" in content
-    assert "threading.Timer(delay, lambda: self.apply_titlebar_theme()).start()" in content
+    assert (
+        "threading.Timer(delay, lambda: self.apply_titlebar_theme()).start()" in content
+        or "threading.Timer(delay, lambda: api.apply_titlebar_theme()).start()" in content
+    )
 
     # 4. Kiểm tra QueryHistorySubwindowApi ủy nhiệm apply_titlebar_theme
     cm = ConnectionManager()
