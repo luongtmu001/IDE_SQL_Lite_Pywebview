@@ -156,6 +156,9 @@ def load_settings_file() -> Dict[str, Any]:
     return settings
 
 
+load_settings = load_settings_file
+
+
 def save_settings_file(settings: Dict[str, Any]) -> bool:
     """Save IDE settings to primary user data directory and alt location if exists."""
     if isinstance(settings, dict):

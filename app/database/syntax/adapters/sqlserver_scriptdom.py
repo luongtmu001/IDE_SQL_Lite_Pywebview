@@ -50,18 +50,31 @@ class SqlServerScriptDomAdapter(BaseSyntaxAdapter):
         if custom_path is not None:
             return custom_path if (custom_path and os.path.isfile(custom_path)) else None
 
-        # Priority 1: User-specified environment variable
+        # Priority 1: User-specified path in data/settings.json
+        try:
+            from app.services.settings_store import load_settings
+            settings = load_settings()
+            if isinstance(settings, dict):
+                syntax_cfg = settings.get("syntax", {})
+                if isinstance(syntax_cfg, dict):
+                    settings_dll = syntax_cfg.get("scriptDomDllPath") or syntax_cfg.get("scriptdom_dll_path")
+                    if settings_dll and os.path.isfile(str(settings_dll).strip()):
+                        return str(settings_dll).strip()
+        except Exception:
+            pass
+
+        # Priority 2: User-specified environment variable
         env_path = os.environ.get("MSSQL_SCRIPTDOM_DLL", "").strip()
         if env_path and os.path.isfile(env_path):
             return env_path
 
-        # Priority 2: Bundled with the application (development & installed)
+        # Priority 3: Bundled with the application (development & installed)
         base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         bundled_local = os.path.join(base_dir, "bin", "Microsoft.SqlServer.TransactSql.ScriptDom.dll")
         if os.path.isfile(bundled_local):
             return bundled_local
 
-        # Priority 3: PyInstaller frozen executable bundle paths
+        # Priority 4: PyInstaller frozen executable bundle paths
         meipass = getattr(sys, "_MEIPASS", None)
         if meipass:
             pyinstaller_candidates = [
@@ -83,7 +96,7 @@ class SqlServerScriptDomAdapter(BaseSyntaxAdapter):
                 if os.path.isfile(candidate):
                     return candidate
 
-        # Priority 4: Known installed tool paths on Windows
+        # Priority 5: Known installed tool paths on Windows
         for candidate in _KNOWN_SCRIPTDOM_PATHS:
             if candidate and os.path.isfile(candidate):
                 return candidate
@@ -134,6 +147,16 @@ class SqlServerScriptDomAdapter(BaseSyntaxAdapter):
     def is_available(self) -> bool:
         """Returns True if ScriptDOM was loaded and is ready to parse."""
         return self._is_initialized and self._parser_class is not None
+
+    def get_status(self) -> dict[str, Any]:
+        """Provides status and diagnostics about ScriptDOM assembly availability."""
+        norm_path = self._dll_path.replace("\\", "/") if self._dll_path else ""
+        return {
+            "is_available": self.is_available,
+            "dll_path": self._dll_path,
+            "is_bundled": bool("syntax/bin" in norm_path or "app/database/syntax/bin" in norm_path),
+            "error": self._init_error,
+        }
 
     def _resolve_parser_class(self, connection_session: Any = None) -> Any:
         if not hasattr(self, "_parsers") or not self._parsers:
