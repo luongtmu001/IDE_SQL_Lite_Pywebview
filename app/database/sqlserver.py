@@ -3,6 +3,7 @@ import re
 import time
 from app.database.base import DatabaseAdapter
 from app.utils.db_message import clean_db_message, parse_error_details
+from app.database.sql_utils import quote_ident, quote_qualified
 
 logger = logging.getLogger(__name__)
 
@@ -119,7 +120,7 @@ def qualify_sql_with_schema(sql: str, schema: str) -> str:
             if not following.startswith(" ") or lower_table.startswith("fn_"):
                 return match.group(0)
 
-        return f"{prefix}[{clean_schema}].[{pure_table}]{following}"
+        return f"{prefix}{quote_qualified(clean_schema, pure_table, engine='sqlserver')}{following}"
 
     transformed_sql = clause_regex.sub(replace_table, masked_sql)
 
@@ -271,8 +272,7 @@ class SqlServerAdapter(DatabaseAdapter):
             # Switch database context if database is specified and query doesn't explicitly start with USE
             if database and not re.match(r'^\s*USE\s+', sql, flags=re.IGNORECASE):
                 try:
-                    clean_db = str(database).replace("]", "]]")
-                    cursor.execute(f"USE [{clean_db}]")
+                    cursor.execute(f"USE {quote_ident(database, 'sqlserver')}")
                 except Exception as exc:
                     raise RuntimeError(f"Không thể chuyển ngữ cảnh sang database [{database}]: {exc}") from exc
 
@@ -504,12 +504,10 @@ class SqlServerAdapter(DatabaseAdapter):
         ]
 
     def list_schemas(self, database=None):
-        clean_db = str(database).replace("]", "]]") if database else None
-        db_prefix = f"[{clean_db}]." if clean_db else ""
+        db_prefix = f"{quote_ident(database, 'sqlserver')}." if database else ""
         try:
             result = self.execute(
                 f"SELECT name FROM {db_prefix}sys.schemas ORDER BY name",
-                limit=0,
                 database=database
             )
             rows = result.get("rows", [])
@@ -521,7 +519,6 @@ class SqlServerAdapter(DatabaseAdapter):
         try:
             result = self.execute(
                 "SELECT name FROM sys.schemas ORDER BY name",
-                limit=0,
                 database=database
             )
             return [{"name": row[0]} for row in result.get("rows", [])]
@@ -540,8 +537,7 @@ class SqlServerAdapter(DatabaseAdapter):
             "synonym": "SN",
         }
 
-        clean_db = str(database).replace("]", "]]") if database else None
-        db_prefix = f"[{clean_db}]." if clean_db else ""
+        db_prefix = f"{quote_ident(database, 'sqlserver')}." if database else ""
 
         if object_type in ("sequences", "sequence"):
             sql = f"""
@@ -773,7 +769,7 @@ class SqlServerAdapter(DatabaseAdapter):
         ]
 
     def get_intellisense_objects(self, database=None, schema=None):
-        db_prefix = f"[{database}]." if database else ""
+        db_prefix = f"{quote_ident(database, 'sqlserver')}." if database else ""
         schema_filter = "AND (LOWER(s.name) = LOWER(?) OR o.type = 'SN')" if schema else ""
         params = [schema] if schema else []
 
@@ -841,7 +837,7 @@ class SqlServerAdapter(DatabaseAdapter):
     def get_intellisense_columns(self, database=None, schema=None, table_name=None):
         if not table_name:
             return []
-        db_prefix = f"[{database}]." if database else ""
+        db_prefix = f"{quote_ident(database, 'sqlserver')}." if database else ""
         schema_filter = "AND LOWER(s.name) = LOWER(?)" if schema else ""
         params = [schema, table_name] if schema else [table_name]
 
@@ -937,7 +933,7 @@ class SqlServerAdapter(DatabaseAdapter):
     def get_intellisense_parameters(self, database=None, schema=None, object_name=None):
         if not object_name:
             return []
-        db_prefix = f"[{database}]." if database else ""
+        db_prefix = f"{quote_ident(database, 'sqlserver')}." if database else ""
         schema_filter = "AND LOWER(s.name) = LOWER(?)" if schema else ""
         params = [schema, object_name] if schema else [object_name]
 
@@ -975,7 +971,7 @@ class SqlServerAdapter(DatabaseAdapter):
         name,
         object_type,
     ):
-        db_prefix = f"[{database}]." if database else ""
+        db_prefix = f"{quote_ident(database, 'sqlserver')}." if database else ""
 
         if object_type in ("trigger", "triggers"):
             result = self.execute(
@@ -1014,8 +1010,7 @@ class SqlServerAdapter(DatabaseAdapter):
         if object_type in ("sequence", "sequences"):
             clean_schema = (schema or "dbo").strip("[] \t\r\n")
             clean_name = (name or "").strip("[] \t\r\n")
-            clean_db = str(database).replace("]", "]]") if database else None
-            db_prefix = f"[{clean_db}]." if clean_db else ""
+            db_prefix = f"{quote_ident(database, 'sqlserver')}." if database else ""
 
             seq_sql = f"""
                 SELECT 
@@ -1114,8 +1109,7 @@ class SqlServerAdapter(DatabaseAdapter):
         if object_type in ("synonym", "synonyms"):
             clean_schema = (schema or "dbo").strip("[] \t\r\n")
             clean_name = (name or "").strip("[] \t\r\n")
-            clean_db = str(database).replace("]", "]]") if database else None
-            db_prefix = f"[{clean_db}]." if clean_db else ""
+            db_prefix = f"{quote_ident(database, 'sqlserver')}." if database else ""
 
             syn_sql = f"""
                 SELECT 
@@ -1164,8 +1158,8 @@ class SqlServerAdapter(DatabaseAdapter):
                     s_name = res["rows"][0][0]
                     sy_name = res["rows"][0][1]
                     base_obj = res["rows"][0][2]
-                    s_quoted = f"[{str(s_name).replace(']', ']]')}]"
-                    sy_quoted = f"[{str(sy_name).replace(']', ']]')}]"
+                    s_quoted = quote_ident(s_name, 'sqlserver')
+                    sy_quoted = quote_ident(sy_name, 'sqlserver')
                     return f"CREATE SYNONYM {s_quoted}.{sy_quoted}\r\nFOR {base_obj};"
             except Exception:
                 pass
@@ -1216,8 +1210,7 @@ class SqlServerAdapter(DatabaseAdapter):
         if object_type in ("sequence", "sequences", "user_type", "user_types", "type", "types"):
             return []
 
-        clean_db = str(database).replace("]", "]]") if database else None
-        db_prefix = f"[{clean_db}]." if clean_db else ""
+        db_prefix = f"{quote_ident(database, 'sqlserver')}." if database else ""
         obj_sql = f"""
             SELECT o.object_id 
             FROM {db_prefix}sys.objects o
@@ -1300,7 +1293,7 @@ class SqlServerAdapter(DatabaseAdapter):
     def get_supported_types(self, database=None):
         user_types = []
         try:
-            db_prefix = f"[{database}]." if database else ""
+            db_prefix = f"{quote_ident(database, 'sqlserver')}." if database else ""
             udt_sql = f"""
                 SELECT s.name, t.name 
                 FROM {db_prefix}sys.types t
@@ -1308,12 +1301,12 @@ class SqlServerAdapter(DatabaseAdapter):
                 WHERE t.is_user_defined = 1 
                 ORDER BY s.name, t.name
             """
-            res = self.execute(udt_sql, limit=0, database=database)
+            res = self.execute(udt_sql, database=database)
             if res and res.get("rows"):
                 user_types = []
                 for r in res["rows"]:
                     if len(r) >= 2:
-                        user_types.append(f"[{r[0]}].[{r[1]}]")
+                        user_types.append(quote_qualified(r[0], r[1], engine='sqlserver'))
                     elif len(r) == 1:
                         user_types.append(r[0])
         except Exception:
@@ -1340,7 +1333,7 @@ class SqlServerAdapter(DatabaseAdapter):
         }
 
     def get_table_design_metadata(self, database, schema, table):
-        db_prefix = f"[{database}]." if database else ""
+        db_prefix = f"{quote_ident(database, 'sqlserver')}." if database else ""
         obj_sql = f"""
             SELECT o.object_id 
             FROM {db_prefix}sys.tables o
@@ -1372,14 +1365,16 @@ class SqlServerAdapter(DatabaseAdapter):
                 t.is_user_defined,
                 st.name AS type_schema,
                 t.name AS type_raw_name,
-                c.is_computed
+                c.is_computed,
+                pk_cols.pk_name,
+                OBJECT_NAME(c.default_object_id) AS default_constraint_name
             FROM {db_prefix}sys.columns c
             JOIN {db_prefix}sys.types t ON t.user_type_id = c.user_type_id
             JOIN {db_prefix}sys.schemas st ON st.schema_id = t.schema_id
             LEFT JOIN {db_prefix}sys.identity_columns ic 
                 ON ic.object_id = c.object_id AND ic.column_id = c.column_id
             LEFT JOIN (
-                SELECT ic.column_id
+                SELECT ic.column_id, kc.name AS pk_name
                 FROM {db_prefix}sys.key_constraints kc
                 JOIN {db_prefix}sys.index_columns ic 
                     ON ic.object_id = kc.parent_object_id AND ic.index_id = kc.unique_index_id
@@ -1390,15 +1385,16 @@ class SqlServerAdapter(DatabaseAdapter):
             WHERE c.object_id = ?
             ORDER BY c.column_id
         """
-        col_res = self.execute(col_sql, (object_id, object_id), limit=0, database=database)
+        col_res = self.execute(col_sql, (object_id, object_id), database=database)
         columns = []
+        table_pk_name = ""
         for r in col_res.get("rows", []):
             is_udt = bool(r[14]) if len(r) > 14 else False
             type_schema = r[15] if len(r) > 15 else ""
             type_raw_name = r[16] if len(r) > 16 else ""
 
             if is_udt and type_raw_name:
-                type_name = f"[{type_schema}].[{type_raw_name}]"
+                type_name = quote_qualified(type_schema, type_raw_name, engine='sqlserver')
             else:
                 type_name = (r[2] or "").lower()
 
@@ -1432,6 +1428,11 @@ class SqlServerAdapter(DatabaseAdapter):
             seq_match = re.search(r'NEXT\s+VALUE\s+FOR\s+([^\s\)]+)', raw_default, flags=re.IGNORECASE)
             seq_name = seq_match.group(1).strip("[]") if seq_match else ""
 
+            col_pk_name = r[18] if len(r) > 18 and r[18] else ""
+            col_def_name = r[19] if len(r) > 19 and r[19] else ""
+            if col_pk_name and not table_pk_name:
+                table_pk_name = col_pk_name
+
             columns.append({
                 "name": r[1],
                 "type": type_name,
@@ -1439,12 +1440,14 @@ class SqlServerAdapter(DatabaseAdapter):
                 "scale": str(scale) if scale is not None and type_name in ("decimal", "numeric", "datetime2", "time") else "",
                 "nullable": bool(r[6]),
                 "is_pk": bool(r[12]),
+                "pk_name": col_pk_name,
                 "is_identity": bool(r[7]),
                 "is_computed": bool(r[17]) if len(r) > 17 else False,
                 "identity_seed": int(r[8]) if r[8] is not None else 1,
                 "identity_increment": int(r[9]) if r[9] is not None else 1,
                 "sequence_name": seq_name,
                 "default_value": def_val,
+                "default_constraint_name": col_def_name,
                 "collation": r[11] or "",
                 "comment": r[13] or ""
             })
@@ -1466,7 +1469,7 @@ class SqlServerAdapter(DatabaseAdapter):
             WHERE i.object_id = ? AND i.type > 0 AND i.is_primary_key = 0 AND i.is_unique_constraint = 0
             ORDER BY i.index_id, ic.key_ordinal
         """
-        idx_res = self.execute(idx_sql, (object_id,), limit=0, database=database)
+        idx_res = self.execute(idx_sql, (object_id,), database=database)
         idx_map = {}
         for r in idx_res.get("rows", []):
             iname = r[1]
@@ -1512,7 +1515,7 @@ class SqlServerAdapter(DatabaseAdapter):
             WHERE fk.parent_object_id = ?
             ORDER BY fk.name, fkc.constraint_column_id
         """
-        fk_res = self.execute(fk_sql, (object_id,), limit=0, database=database)
+        fk_res = self.execute(fk_sql, (object_id,), database=database)
         fk_map = {}
         for r in fk_res.get("rows", []):
             fk_name = r[0]
@@ -1549,7 +1552,7 @@ class SqlServerAdapter(DatabaseAdapter):
             WHERE kc.parent_object_id = ? AND kc.type = 'UQ'
             ORDER BY kc.name, ic.key_ordinal
         """
-        uq_res = self.execute(uq_sql, (object_id,), limit=0, database=database)
+        uq_res = self.execute(uq_sql, (object_id,), database=database)
         uq_map = {}
         for r in uq_res.get("rows", []):
             uq_name = r[0]
@@ -1574,7 +1577,7 @@ class SqlServerAdapter(DatabaseAdapter):
             WHERE cc.parent_object_id = ?
             ORDER BY cc.name
         """
-        chk_res = self.execute(chk_sql, (object_id,), limit=0, database=database)
+        chk_res = self.execute(chk_sql, (object_id,), database=database)
         checks = []
         for r in chk_res.get("rows", []):
             chk_def = (r[1] or "").strip()
@@ -1603,7 +1606,7 @@ class SqlServerAdapter(DatabaseAdapter):
             WHERE tr.parent_id = ?
             ORDER BY tr.name
         """
-        trig_res = self.execute(trig_sql, (object_id,), limit=0, database=database)
+        trig_res = self.execute(trig_sql, (object_id,), database=database)
         triggers = []
         for r in trig_res.get("rows", []):
             triggers.append({
@@ -1622,6 +1625,7 @@ class SqlServerAdapter(DatabaseAdapter):
             "schema": schema,
             "table": table,
             "engine": "sqlserver",
+            "pk_name": table_pk_name,
             "columns": columns,
             "indexes": indexes,
             "foreign_keys": foreign_keys,
@@ -1639,9 +1643,8 @@ class SqlServerAdapter(DatabaseAdapter):
 
         cursor = self.connection.cursor()
         if database and not re.match(r'^\s*USE\s+', batches[0] if batches else "", flags=re.IGNORECASE):
-            clean_db = str(database).replace("]", "]]")
             try:
-                cursor.execute(f"USE [{clean_db}]")
+                cursor.execute(f"USE {quote_ident(database, 'sqlserver')}")
             except Exception as exc:
                 raise RuntimeError(f"Không thể chuyển ngữ cảnh sang database [{database}]: {exc}") from exc
 
@@ -1670,8 +1673,7 @@ class SqlServerAdapter(DatabaseAdapter):
             self.connection.autocommit = True
 
     def get_foreign_keys(self, database=None, schema=None, table=None):
-        clean_db = str(database).replace("]", "]]") if database else None
-        db_prefix = f"[{clean_db}]." if clean_db else ""
+        db_prefix = f"{quote_ident(database, 'sqlserver')}." if database else ""
 
         sql = f"""
             SELECT 
