@@ -243,10 +243,18 @@ class TableDataEditorService:
         # 4. ORDER BY from Criteria
         order_clauses = []
         if criteria and isinstance(criteria, list):
+            def _safe_sort_order(val):
+                try:
+                    if val is None or str(val).strip() == "":
+                        return 999
+                    return int(float(str(val).strip()))
+                except (ValueError, TypeError):
+                    return 999
+
             # Sort by sort_order
             sorted_crit = sorted(
                 [r for r in criteria if r.get("sort_type") in ("ASC", "DESC", "Ascending", "Descending")],
-                key=lambda x: int(x.get("sort_order") or 999)
+                key=lambda x: _safe_sort_order(x.get("sort_order"))
             )
             for r in sorted_crit:
                 col_name = r.get("column")
@@ -276,9 +284,13 @@ class TableDataEditorService:
         if upper_s.startswith("IN (") or upper_s.startswith("NOT IN ("):
             return f"{quoted_col} {s}"
 
-        operators = ["=", "<>", "!=", ">=", "<=", ">", "<", "LIKE", "NOT LIKE"]
+        operators = ["NOT LIKE", "LIKE", "<>", "!=", ">=", "<=", "=", ">", "<"]
         for op in operators:
-            if s.startswith(op):
+            if upper_s.startswith(op):
+                if op in ("LIKE", "NOT LIKE"):
+                    rest = s[len(op):]
+                    if rest and not rest[0].isspace():
+                        continue
                 val = s[len(op):].strip()
                 return f"{quoted_col} {op} {val}"
 
