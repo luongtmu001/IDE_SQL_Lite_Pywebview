@@ -508,6 +508,7 @@ class SqlServerAdapter(DatabaseAdapter):
         try:
             result = self.execute(
                 f"SELECT name FROM {db_prefix}sys.schemas ORDER BY name",
+                limit=0,
                 database=database
             )
             rows = result.get("rows", [])

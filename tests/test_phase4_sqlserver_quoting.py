@@ -11,7 +11,7 @@ def test_sqlserver_db_prefix_escapes_brackets():
     adapter = SqlServerAdapter({'username': 'sa', 'password': 'pw', 'server': 'localhost'})
     executed_queries = []
 
-    def mock_execute(sql, params=None, database=None):
+    def mock_execute(sql, params=None, database=None, **kwargs):
         executed_queries.append(sql)
         return {"rows": []}
 
