@@ -313,8 +313,21 @@ class TableDataEditorService:
         Executes SELECT query to load data into the Data Grid.
         """
         engine = getattr(adapter, "db_type", "sqlserver").lower()
+        limit = None
         if custom_sql and custom_sql.strip():
             sql = custom_sql.strip()
+            try:
+                n = int(top_n) if top_n is not None and str(top_n).strip() != "" else 0
+            except (ValueError, TypeError):
+                n = 0
+            if n > 0:
+                limit = n
+            else:
+                try:
+                    from config import Config
+                    limit = int(getattr(Config, "MAX_QUERY_ROWS", 1000))
+                except Exception:
+                    limit = 1000
         else:
             if not select_cols:
                 try:
@@ -332,7 +345,7 @@ class TableDataEditorService:
                 database=database
             )
 
-        res = adapter.execute(sql, limit=None, database=database)
+        res = adapter.execute(sql, limit=limit, database=database)
         if not res.get("success", True) and res.get("error"):
             raise RuntimeError(res["error"])
 
