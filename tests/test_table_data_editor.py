@@ -5,6 +5,11 @@ from app.services.table_data_editor_service import TableDataEditorService
 
 
 class TestTableDataEditor(unittest.TestCase):
+    def setUp(self):
+        TableDataEditorService.clear_all_metadata_cache()
+
+    def tearDown(self):
+        TableDataEditorService.clear_all_metadata_cache()
 
     def test_html_includes_table_data_editor_assets(self):
         """Verify index.html includes table-data-editor CSS, JS, and DOM container."""

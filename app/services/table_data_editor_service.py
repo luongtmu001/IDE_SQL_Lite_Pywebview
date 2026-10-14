@@ -44,13 +44,17 @@ class TableDataEditorService:
         if adapter is None:
             return "default"
         session = getattr(adapter, "session", None)
-        if session and getattr(session, "connection_id", None):
-            return str(session.connection_id)
-        if hasattr(adapter, "connection_id") and adapter.connection_id:
-            return str(adapter.connection_id)
-        if hasattr(adapter, "_conn_id") and adapter._conn_id:
-            return str(adapter._conn_id)
-        return str(id(adapter))
+        if session is not None:
+            conn_id = getattr(session, "connection_id", None)
+            if isinstance(conn_id, str) and conn_id:
+                return conn_id
+        conn_id = getattr(adapter, "connection_id", None)
+        if isinstance(conn_id, str) and conn_id:
+            return conn_id
+        conn_id = getattr(adapter, "_conn_id", None)
+        if isinstance(conn_id, str) and conn_id:
+            return conn_id
+        return f"adapter_{id(adapter)}"
 
     @classmethod
     def _meta_cache_key(cls, adapter, database, schema, table):
