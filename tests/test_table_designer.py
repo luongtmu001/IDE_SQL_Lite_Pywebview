@@ -117,10 +117,10 @@ class TestTableDesigner(unittest.TestCase):
 
         diff = TableDesignerService.generate_diff(orig, mod)
         self.assertTrue(diff["has_destructive"])
-        self.assertTrue(any("drop column OldColumn" in s["sql"] for s in diff["statements"]))
+        self.assertTrue(any("drop column [OldColumn]" in s["sql"] for s in diff["statements"]))
         self.assertTrue(any(s["destructive"] for s in diff["statements"] if "drop column" in s["sql"].lower()))
-        self.assertTrue(any("add NewColumn nvarchar(100)" in s["sql"] for s in diff["statements"]))
-        self.assertTrue(any("alter column Price decimal(18, 2) not null" in s["sql"] for s in diff["statements"]))
+        self.assertTrue(any("add [NewColumn] nvarchar(100)" in s["sql"] for s in diff["statements"]))
+        self.assertTrue(any("alter column [Price] decimal(18, 2) not null" in s["sql"] for s in diff["statements"]))
         self.assertTrue(any("DROP INDEX [IX_Old]" in s["sql"] for s in diff["statements"]))
         self.assertTrue(any("CREATE NONCLUSTERED INDEX [IX_New]" in s["sql"] for s in diff["statements"]))
         self.assertTrue(any("add constraint [CK_Price] check ([Price] > 0)" in s["sql"] for s in diff["statements"]))
@@ -179,7 +179,7 @@ class TestTableDesigner(unittest.TestCase):
             })
             self.assertEqual(res.status_code, 200)
             self.assertTrue(res.json["success"])
-            self.assertIn("add username nvarchar(50) not null", res.json["diff"]["migration_sql"].lower())
+            self.assertIn("add [username] nvarchar(50) not null", res.json["diff"]["migration_sql"].lower())
 
             # 4. Test POST /apply
             res = self.client.post('/api/metadata/c1/table-design/apply', json={

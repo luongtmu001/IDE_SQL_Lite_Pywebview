@@ -3,26 +3,21 @@ Supports SQL Server and PostgreSQL.
 """
 from typing import Any, Dict, List
 
+from app.database.sql_utils import quote_ident, quote_qualified, escape_literal
+
 
 class TableDesignerService:
 
     @staticmethod
     def _quote_ident(name: str, engine: str) -> str:
-        clean = (name or "").strip()
-        if engine == "postgresql":
-            if clean.startswith('"') and clean.endswith('"'):
-                return clean
-            return f'"{clean}"'
-        else:
-            if clean.startswith('[') and clean.endswith(']'):
-                return clean
-            return f'[{clean}]'
+        """Wrapper around centralized sql_utils.quote_ident for backward compatibility."""
+        return quote_ident(name, engine)
 
     @staticmethod
     def _format_table_name(schema: str, table: str, engine: str) -> str:
-        q_schema = TableDesignerService._quote_ident(schema or ("public" if engine == "postgresql" else "dbo"), engine)
-        q_table = TableDesignerService._quote_ident(table, engine)
-        return f"{q_schema}.{q_table}"
+        """Formats schema.table using centralized quote_qualified."""
+        s = schema or ("public" if engine == "postgresql" else "dbo")
+        return quote_qualified(s, table, engine=engine)
 
     @classmethod
     def format_column_type(cls, col: Dict[str, Any], engine: str) -> str:
@@ -249,6 +244,53 @@ class TableDesignerService:
         return "\n\n".join(stmts) + "\n"
 
     @classmethod
+    def is_type_narrowed(cls, ocol: Dict[str, Any], mcol: Dict[str, Any], engine: str) -> bool:
+        """Determines if a column data type change represents narrowing (loss of precision/capacity)."""
+        otype = (ocol.get("type") or "").strip().lower()
+        mtype = (mcol.get("type") or "").strip().lower()
+        osize = str(ocol.get("size") or "").strip().lower()
+        msize = str(mcol.get("size") or "").strip().lower()
+        oscale = str(ocol.get("scale") or "").strip()
+        mscale = str(mcol.get("scale") or "").strip()
+
+        # 1. String/binary size narrowing
+        string_types = ("varchar", "nvarchar", "char", "nchar", "varbinary", "binary", "text", "ntext")
+        if otype in string_types and mtype in string_types:
+            if osize == "max" and msize.isdigit():
+                return True
+            if osize.isdigit() and msize.isdigit() and int(msize) < int(osize):
+                return True
+            if (otype in ("nvarchar", "nchar") and mtype in ("varchar", "char")) and (osize == msize or (osize.isdigit() and msize.isdigit() and int(msize) <= int(osize))):
+                return True
+            if otype in ("text", "ntext") and mtype in ("varchar", "nvarchar", "char", "nchar") and msize.isdigit():
+                return True
+
+        # 2. Integer hierarchy
+        int_hierarchy = {
+            "bigint": 4, "int8": 4,
+            "int": 3, "integer": 3, "int4": 3,
+            "smallint": 2, "int2": 2,
+            "tinyint": 1
+        }
+        if otype in int_hierarchy and mtype in int_hierarchy:
+            if int_hierarchy[mtype] < int_hierarchy[otype]:
+                return True
+
+        # 3. Decimal/numeric precision/scale narrowing
+        if otype in ("decimal", "numeric") and mtype in ("decimal", "numeric"):
+            if osize.isdigit() and msize.isdigit() and int(msize) < int(osize):
+                return True
+            if oscale.isdigit() and mscale.isdigit() and int(mscale) < int(oscale):
+                return True
+
+        # 4. Floating point narrowing
+        if otype in ("float", "double precision") and mtype in ("real", "float"):
+            if mtype == "real" or (msize.isdigit() and int(msize) <= 24 and (not osize.isdigit() or int(osize) > 24)):
+                return True
+
+        return False
+
+    @classmethod
     def generate_diff(cls, original: Dict[str, Any], modified: Dict[str, Any]) -> Dict[str, Any]:
         """Calculates differences between original schema and modified schema.
         Returns statements, full migration SQL, and warnings for destructive changes.
@@ -257,22 +299,7 @@ class TableDesignerService:
         schema = modified.get("schema") or (original and original.get("schema")) or ("public" if engine == "postgresql" else "dbo")
         table = modified.get("table") or (original and original.get("table")) or "Untitled"
         tbl_name = cls._format_table_name(schema, table, engine)
-
-        # Clean unquoted table identifier for alter table statements
-        if engine == "postgresql":
-            clean_tbl = table.strip('"')
-            clean_sch = (schema or "public").strip('"')
-            if clean_sch and clean_sch.lower() != "public":
-                alt_tbl_name = f"{clean_sch}.{clean_tbl}"
-            else:
-                alt_tbl_name = clean_tbl
-        else:
-            clean_tbl = table.strip('[]')
-            clean_sch = (schema or "dbo").strip('[]')
-            if clean_sch and clean_sch.lower() != "dbo":
-                alt_tbl_name = f"{clean_sch}.{clean_tbl}"
-            else:
-                alt_tbl_name = clean_tbl
+        alt_tbl_name = tbl_name
 
         statements = []
         warnings = []
@@ -318,15 +345,37 @@ class TableDesignerService:
         orig_cols = {c["name"]: c for c in original.get("columns", [])}
         mod_cols = {c["name"]: c for c in modified.get("columns", [])}
 
+        stmts_rename = []
+        stmts_drop_fk = []
+        stmts_drop_idx = []
+        stmts_drop_uq = []
+        stmts_drop_chk = []
+        stmts_drop_df = []
+        stmts_drop_pk = []
+        stmts_drop_col = []
+        stmts_add_col = []
+        stmts_alter_col = []
+        stmts_add_df = []
+        stmts_add_pk = []
+        stmts_add_uq = []
+        stmts_add_chk = []
+        stmts_add_fk = []
+        stmts_add_idx = []
+        stmts_drop_trig = []
+        stmts_add_trig = []
+
         # 0. Table Rename
-        orig_tbl_raw = str(original.get("table") or "").strip().strip('\"[]')
-        mod_tbl_raw = str(modified.get("table") or "").strip().strip('\"[]')
+        orig_tbl_raw = str(original.get("table") or "").strip()
+        mod_tbl_raw = str(modified.get("table") or "").strip()
         if orig_tbl_raw and mod_tbl_raw and orig_tbl_raw.lower() != mod_tbl_raw.lower():
             if engine == "sqlserver":
-                rename_sql = f"EXEC sp_rename @objname = N'[{clean_sch}].[{orig_tbl_raw}]', @newname = N'{mod_tbl_raw}', @objtype = N'OBJECT';"
+                orig_full = cls._format_table_name(schema, orig_tbl_raw, engine)
+                rename_sql = f"EXEC sp_rename @objname = N'{orig_full}', @newname = N'{mod_tbl_raw.strip('[]')}', @objtype = N'OBJECT';"
             else:
-                rename_sql = f'ALTER TABLE "{clean_sch}"."{orig_tbl_raw}" RENAME TO "{mod_tbl_raw}";'
-            statements.append({
+                orig_full = cls._format_table_name(schema, orig_tbl_raw, engine)
+                q_mod_tbl = cls._quote_ident(mod_tbl_raw, engine)
+                rename_sql = f"ALTER TABLE {orig_full} RENAME TO {q_mod_tbl};"
+            stmts_rename.append({
                 "sql": rename_sql,
                 "destructive": False,
                 "description": f"Rename table from {orig_tbl_raw} to {mod_tbl_raw}",
@@ -338,78 +387,308 @@ class TableDesignerService:
         if engine == "sqlserver":
             has_clustered = any(c.get("is_pk") for c in modified.get("columns", []))
 
-        # 1. Dropped Columns (Destructive)
+        # Foreign Keys Diff (definition comparison)
+        orig_fks = {f["name"]: f for f in original.get("foreign_keys", [])}
+        mod_fks = {f["name"]: f for f in modified.get("foreign_keys", [])}
+
+        def _fk_signature(fk):
+            local_cols = tuple(c.strip('\"[]') for c in fk.get("fields", []))
+            rschema = (fk.get("ref_schema") or schema or "").strip('\"[]')
+            rtbl = (fk.get("ref_table") or "").strip('\"[]')
+            rcols = tuple(c.strip('\"[]') for c in fk.get("ref_fields", []))
+            on_del = (fk.get("on_delete") or "NO ACTION").upper()
+            on_upd = (fk.get("on_update") or "NO ACTION").upper()
+            return (local_cols, rschema, rtbl, rcols, on_del, on_upd)
+
+        for f_name, ofk in orig_fks.items():
+            if f_name not in mod_fks or _fk_signature(ofk) != _fk_signature(mod_fks[f_name]):
+                q_fk = cls._quote_ident(f_name, engine)
+                stmts_drop_fk.append({
+                    "sql": f"alter table {alt_tbl_name}\n    drop constraint {q_fk};",
+                    "destructive": False,
+                    "description": f"Drop foreign key constraint {q_fk}",
+                    "type": "constraints"
+                })
+        for f_name, mfk in mod_fks.items():
+            if f_name not in orig_fks or _fk_signature(mfk) != _fk_signature(orig_fks[f_name]):
+                q_fk = cls._quote_ident(f_name, engine)
+                local_cols = ", ".join(cls._quote_ident(c, engine) for c in mfk.get("fields", []))
+                ref_schema = mfk.get("ref_schema") or schema
+                ref_tbl = mfk.get("ref_table", "")
+                ref_cols = ", ".join(cls._quote_ident(c, engine) for c in mfk.get("ref_fields", []))
+                ref_full = cls._format_table_name(ref_schema, ref_tbl, engine)
+                fk_sql = f"alter table {alt_tbl_name}\n    add constraint {q_fk} foreign key ({local_cols}) references {ref_full} ({ref_cols})"
+                if mfk.get("on_delete") and mfk["on_delete"].upper() != "NO ACTION":
+                    fk_sql += f" on delete {mfk['on_delete'].lower()}"
+                if mfk.get("on_update") and mfk["on_update"].upper() != "NO ACTION":
+                    fk_sql += f" on update {mfk['on_update'].lower()}"
+                fk_sql += ";"
+                stmts_add_fk.append({
+                    "sql": fk_sql,
+                    "destructive": False,
+                    "description": f"Add foreign key {q_fk}",
+                    "type": "constraints"
+                })
+
+        # Indexes Diff (definition comparison)
+        orig_idxs = {i["name"]: i for i in original.get("indexes", [])}
+        mod_idxs = {i["name"]: i for i in modified.get("indexes", [])}
+
+        def _idx_signature(idx):
+            cols = []
+            for f in idx.get("fields", []):
+                if isinstance(f, dict):
+                    cols.append((f["column"].strip('\"[]'), bool(f.get("desc"))))
+                else:
+                    cols.append((str(f).strip('\"[]'), False))
+            is_u = bool(idx.get("is_unique"))
+            itype = (idx.get("index_type") or ("NONCLUSTERED" if engine == "sqlserver" else "BTREE")).upper()
+            return (tuple(cols), is_u, itype)
+
+        for i_name, oidx in orig_idxs.items():
+            if i_name not in mod_idxs or _idx_signature(oidx) != _idx_signature(mod_idxs[i_name]):
+                q_idx = cls._quote_ident(i_name, engine)
+                if engine == "sqlserver":
+                    sql = f"DROP INDEX {q_idx} ON {tbl_name};"
+                else:
+                    sql = f"DROP INDEX {cls._quote_ident(schema, engine)}.{q_idx};"
+                stmts_drop_idx.append({
+                    "sql": sql,
+                    "destructive": False,
+                    "description": f"Drop index {q_idx}",
+                    "type": "indexes"
+                })
+        for i_name, midx in mod_idxs.items():
+            if i_name not in orig_idxs or _idx_signature(midx) != _idx_signature(orig_idxs[i_name]):
+                q_idx = cls._quote_ident(i_name, engine)
+                fields = midx.get("fields", [])
+                cols = []
+                for f in fields:
+                    if isinstance(f, dict):
+                        col_str = cls._quote_ident(f["column"], engine)
+                        if f.get("desc"):
+                            col_str += " DESC"
+                        cols.append(col_str)
+                    else:
+                        cols.append(cls._quote_ident(str(f), engine))
+                unique_str = "UNIQUE " if midx.get("is_unique") else ""
+                if engine == "sqlserver":
+                    raw_itype = (midx.get("index_type") or "NONCLUSTERED").upper()
+                    if raw_itype == "CLUSTERED":
+                        itype = "NONCLUSTERED" if has_clustered else "CLUSTERED"
+                        if itype == "CLUSTERED":
+                            has_clustered = True
+                    else:
+                        itype = raw_itype
+                    sql = f"CREATE {unique_str}{itype} INDEX {q_idx} ON {tbl_name} ({', '.join(cols)});"
+                else:
+                    itype = midx.get("index_type") or "BTREE"
+                    sql = f"CREATE {unique_str}INDEX {q_idx} ON {tbl_name} USING {itype.lower()} ({', '.join(cols)});"
+                stmts_add_idx.append({
+                    "sql": sql,
+                    "destructive": False,
+                    "description": f"Create index {q_idx}",
+                    "type": "indexes"
+                })
+
+        # Unique Constraints Diff (definition comparison)
+        orig_uqs = {u["name"]: u for u in original.get("uniques", [])}
+        mod_uqs = {u["name"]: u for u in modified.get("uniques", [])}
+
+        def _uq_signature(uq):
+            fields = tuple(c.strip('\"[]') for c in uq.get("fields", []))
+            clustered = bool(uq.get("is_clustered")) if engine == "sqlserver" else False
+            return (fields, clustered)
+
+        for u_name, ouq in orig_uqs.items():
+            if u_name not in mod_uqs or _uq_signature(ouq) != _uq_signature(mod_uqs[u_name]):
+                q_uq = cls._quote_ident(u_name, engine)
+                stmts_drop_uq.append({
+                    "sql": f"alter table {alt_tbl_name}\n    drop constraint {q_uq};",
+                    "destructive": False,
+                    "description": f"Drop unique constraint {q_uq}",
+                    "type": "constraints"
+                })
+        for u_name, muq in mod_uqs.items():
+            if u_name not in orig_uqs or _uq_signature(muq) != _uq_signature(orig_uqs[u_name]):
+                q_uq = cls._quote_ident(u_name, engine)
+                cols = ", ".join(cls._quote_ident(c, engine) for c in muq.get("fields", []))
+                is_clustered = bool(muq.get("is_clustered")) and not has_clustered and (engine == "sqlserver")
+                if is_clustered:
+                    has_clustered = True
+                clustered = " CLUSTERED" if is_clustered else ""
+                stmts_add_uq.append({
+                    "sql": f"alter table {alt_tbl_name}\n    add constraint {q_uq} unique{clustered} ({cols});",
+                    "destructive": False,
+                    "description": f"Add unique constraint {q_uq}",
+                    "type": "constraints"
+                })
+
+        # Check Constraints Diff (definition comparison)
+        orig_chks = {c["name"]: c for c in original.get("checks", [])}
+        mod_chks = {c["name"]: c for c in modified.get("checks", [])}
+
+        def _chk_signature(chk):
+            clause = (chk.get("check_clause") or "").strip()
+            while clause.startswith("(") and clause.endswith(")"):
+                clause = clause[1:-1].strip()
+            return clause
+
+        for c_name, ochk in orig_chks.items():
+            if c_name not in mod_chks or _chk_signature(ochk) != _chk_signature(mod_chks[c_name]):
+                q_chk = cls._quote_ident(c_name, engine)
+                stmts_drop_chk.append({
+                    "sql": f"alter table {alt_tbl_name}\n    drop constraint {q_chk};",
+                    "destructive": False,
+                    "description": f"Drop check constraint {q_chk}",
+                    "type": "constraints"
+                })
+        for c_name, mchk in mod_chks.items():
+            if c_name not in orig_chks or _chk_signature(mchk) != _chk_signature(orig_chks[c_name]):
+                q_chk = cls._quote_ident(c_name, engine)
+                clause = mchk.get("check_clause", "")
+                if clause:
+                    stmts_add_chk.append({
+                        "sql": f"alter table {alt_tbl_name}\n    add constraint {q_chk} check ({clause});",
+                        "destructive": False,
+                        "description": f"Add check constraint {q_chk}",
+                        "type": "constraints"
+                    })
+
+        # Primary Key Changes
+        orig_pk = [c["name"] for c in original.get("columns", []) if c.get("is_pk")]
+        mod_pk = [c["name"] for c in modified.get("columns", []) if c.get("is_pk")]
+        if set(orig_pk) != set(mod_pk):
+            orig_pk_name = original.get("pk_name")
+            if not orig_pk_name:
+                for c in original.get("columns", []):
+                    if c.get("is_pk") and c.get("pk_name"):
+                        orig_pk_name = c["pk_name"]
+                        break
+            if not orig_pk_name:
+                orig_pk_name = f"PK_{table}"
+            drop_pk_name = cls._quote_ident(orig_pk_name, engine)
+
+            if orig_pk:
+                stmts_drop_pk.append({
+                    "sql": f"alter table {alt_tbl_name}\n    drop constraint {drop_pk_name};",
+                    "destructive": True,
+                    "description": f"Drop primary key {drop_pk_name}",
+                    "type": "constraints"
+                })
+                warnings.append("Primary key constraint will be dropped and recreated.")
+            if mod_pk:
+                mod_pk_name = modified.get("pk_name")
+                if not mod_pk_name:
+                    for c in modified.get("columns", []):
+                        if c.get("is_pk") and c.get("pk_name"):
+                            mod_pk_name = c["pk_name"]
+                            break
+                if not mod_pk_name:
+                    mod_pk_name = orig_pk_name or f"PK_{table}"
+                add_pk_name = cls._quote_ident(mod_pk_name, engine)
+
+                q_cols = ", ".join(cls._quote_ident(c, engine) for c in mod_pk)
+                clustered = " CLUSTERED" if engine == "sqlserver" else ""
+                stmts_add_pk.append({
+                    "sql": f"alter table {alt_tbl_name}\n    add constraint {add_pk_name} primary key{clustered} ({q_cols});",
+                    "destructive": False,
+                    "description": f"Add primary key on ({q_cols})",
+                    "type": "constraints"
+                })
+
+        # Dropped Columns
         for col_name, ocol in orig_cols.items():
             if col_name not in mod_cols:
-                clean_col = col_name.strip('\"[]')
-                sql = f"alter table {alt_tbl_name}\n    drop column {clean_col};"
-                statements.append({
+                q_col = cls._quote_ident(col_name, engine)
+                if engine == "sqlserver" and (ocol.get("default_constraint_name") or ocol.get("default_value")):
+                    old_df = ocol.get("default_constraint_name") or f"DF_{table}_{col_name}"
+                    q_old_df = cls._quote_ident(old_df, engine)
+                    stmts_drop_df.append({
+                        "sql": f"alter table {alt_tbl_name}\n    drop constraint {q_old_df};",
+                        "destructive": False,
+                        "description": f"Drop default constraint {old_df} before dropping column",
+                        "type": "constraints"
+                    })
+                sql = f"alter table {alt_tbl_name}\n    drop column {q_col};"
+                stmts_drop_col.append({
                     "sql": sql,
                     "destructive": True,
-                    "description": f"Drop column {clean_col}",
+                    "description": f"Drop column {col_name}",
                     "type": "tables"
                 })
-                warnings.append(f"Column {clean_col} will be dropped and its data permanently deleted.")
+                warnings.append(f"Column {col_name} will be dropped and its data permanently deleted.")
 
-        # 2. Added Columns (Formatted per user sample: alter table <table>\n    add <column_name> <type>;)
+        # Added Columns
         for col_name, mcol in mod_cols.items():
             if col_name not in orig_cols:
-                clean_col = col_name.strip('\"[]')
+                q_col = cls._quote_ident(col_name, engine)
                 type_str = cls.format_column_type(mcol, engine).lower()
                 
-                parts = [f"    add {clean_col} {type_str}"]
+                parts = [f"    add {q_col} {type_str}"]
                 default_val = (mcol.get("default_value") or "").strip()
                 if default_val:
                     parts.append(f"default {default_val}")
                 if mcol.get("is_pk") or not mcol.get("nullable", True):
                     parts.append("not null")
 
+                is_not_null_no_def = (not mcol.get("nullable", True) and not mcol.get("is_pk") and not default_val and not mcol.get("is_identity"))
+                if is_not_null_no_def:
+                    warnings.append(f"Adding NOT NULL column {col_name} without default value may fail on non-empty tables.")
+
                 sql = f"alter table {alt_tbl_name}\n{' '.join(parts)};"
-                statements.append({
+                stmts_add_col.append({
                     "sql": sql,
-                    "destructive": False,
-                    "description": f"Add column {clean_col}",
+                    "destructive": is_not_null_no_def,
+                    "description": f"Add column {col_name}",
                     "type": "tables"
                 })
 
-        # 3. Modified Columns
+        # Modified Columns
         for col_name, mcol in mod_cols.items():
             if col_name in orig_cols:
                 ocol = orig_cols[col_name]
-                # Check for changes in type, size, scale, nullability, default
+                ocol_null = ocol.get("nullable", True)
+                mcol_null = mcol.get("nullable", True)
                 type_changed = (mcol.get("type") != ocol.get("type")) or (str(mcol.get("size")) != str(ocol.get("size"))) or (str(mcol.get("scale")) != str(ocol.get("scale")))
-                null_changed = (bool(mcol.get("nullable")) != bool(ocol.get("nullable")))
+                null_changed = (bool(mcol_null) != bool(ocol_null))
                 def_changed = (str(mcol.get("default_value")).strip() != str(ocol.get("default_value")).strip())
 
-                clean_col = col_name.strip('\"[]')
+                is_narrowed = cls.is_type_narrowed(ocol, mcol, engine)
+                if is_narrowed:
+                    warnings.append(f"Column {col_name} data type narrowed from {cls.format_column_type(ocol, engine)} to {cls.format_column_type(mcol, engine)}; data truncation may occur.")
+                if null_changed and not mcol_null:
+                    warnings.append(f"Column {col_name} changed to NOT NULL; existing NULL rows will cause migration failure.")
+
+                q_col = cls._quote_ident(col_name, engine)
                 if type_changed or null_changed:
                     if engine == "sqlserver":
                         type_str = cls.format_column_type(mcol, engine).lower()
-                        null_str = "null" if mcol.get("nullable", True) else "not null"
-                        sql = f"alter table {alt_tbl_name}\n    alter column {clean_col} {type_str} {null_str};"
-                        statements.append({
+                        null_str = "null" if mcol_null else "not null"
+                        sql = f"alter table {alt_tbl_name}\n    alter column {q_col} {type_str} {null_str};"
+                        stmts_alter_col.append({
                             "sql": sql,
-                            "destructive": False,
-                            "description": f"Alter column {clean_col} type/nullability",
+                            "destructive": is_narrowed,
+                            "description": f"Alter column {col_name} type/nullability",
                             "type": "tables"
                         })
                     else:
                         type_str = cls.format_column_type(mcol, engine).lower()
                         if type_changed:
-                            sql = f"alter table {alt_tbl_name}\n    alter column {clean_col} type {type_str} using {clean_col}::{type_str};"
-                            statements.append({
+                            sql = f"alter table {alt_tbl_name}\n    alter column {q_col} type {type_str} using {q_col}::{type_str};"
+                            stmts_alter_col.append({
                                 "sql": sql,
-                                "destructive": False,
-                                "description": f"Alter column {clean_col} data type to {type_str}",
+                                "destructive": is_narrowed,
+                                "description": f"Alter column {col_name} data type to {type_str}",
                                 "type": "tables"
                             })
                         if null_changed:
-                            null_action = "drop not null" if mcol.get("nullable", True) else "set not null"
-                            sql = f"alter table {alt_tbl_name}\n    alter column {clean_col} {null_action};"
-                            statements.append({
+                            null_action = "drop not null" if mcol_null else "set not null"
+                            sql = f"alter table {alt_tbl_name}\n    alter column {q_col} {null_action};"
+                            stmts_alter_col.append({
                                 "sql": sql,
                                 "destructive": False,
-                                "description": f"Alter column {clean_col} nullability",
+                                "description": f"Alter column {col_name} nullability",
                                 "type": "tables"
                             })
 
@@ -423,183 +702,37 @@ class TableDesignerService:
                             new_def = new_def[1:-1].strip()
 
                     if engine == "sqlserver":
-                        if new_def:
-                            df_name = cls._quote_ident(f"DF_{clean_tbl}_{clean_col}", engine)
-                            statements.append({
-                                "sql": f"alter table {alt_tbl_name}\n    add constraint {df_name} default {new_def} for {clean_col};",
+                        old_df = ocol.get("default_constraint_name") or (f"DF_{table}_{col_name}" if ocol.get("default_value") else "")
+                        if old_df:
+                            q_old_df = cls._quote_ident(old_df, engine)
+                            stmts_drop_df.append({
+                                "sql": f"alter table {alt_tbl_name}\n    drop constraint {q_old_df};",
                                 "destructive": False,
-                                "description": f"Set default value for {clean_col}",
-                                "type": "tables"
+                                "description": f"Drop default constraint {old_df} for {col_name}",
+                                "type": "constraints"
+                            })
+                        if new_def:
+                            new_df = mcol.get("default_constraint_name") or f"DF_{table}_{col_name}"
+                            df_name = cls._quote_ident(new_df, engine)
+                            stmts_add_df.append({
+                                "sql": f"alter table {alt_tbl_name}\n    add constraint {df_name} default {new_def} for {q_col};",
+                                "destructive": False,
+                                "description": f"Set default value for {col_name}",
+                                "type": "constraints"
                             })
                     else:
                         if new_def:
-                            sql = f"alter table {alt_tbl_name}\n    alter column {clean_col} set default {new_def};"
+                            sql = f"alter table {alt_tbl_name}\n    alter column {q_col} set default {new_def};"
                         else:
-                            sql = f"alter table {alt_tbl_name}\n    alter column {clean_col} drop default;"
-                        statements.append({
+                            sql = f"alter table {alt_tbl_name}\n    alter column {q_col} drop default;"
+                        stmts_alter_col.append({
                             "sql": sql,
                             "destructive": False,
-                            "description": f"Change default value for {clean_col}",
+                            "description": f"Change default value for {col_name}",
                             "type": "tables"
                         })
 
-        # 4. Primary Key Changes
-        orig_pk = [c["name"] for c in original.get("columns", []) if c.get("is_pk")]
-        mod_pk = [c["name"] for c in modified.get("columns", []) if c.get("is_pk")]
-        if set(orig_pk) != set(mod_pk):
-            pk_name = cls._quote_ident(f"PK_{table}", engine)
-            if orig_pk:
-                statements.append({
-                    "sql": f"alter table {alt_tbl_name}\n    drop constraint {pk_name};",
-                    "destructive": True,
-                    "description": f"Drop primary key {pk_name}",
-                    "type": "constraints"
-                })
-                warnings.append("Primary key constraint will be dropped and recreated.")
-            if mod_pk:
-                q_cols = ", ".join(cls._quote_ident(c, engine) for c in mod_pk)
-                clustered = " CLUSTERED" if engine == "sqlserver" else ""
-                statements.append({
-                    "sql": f"alter table {alt_tbl_name}\n    add constraint {pk_name} primary key{clustered} ({q_cols});",
-                    "destructive": False,
-                    "description": f"Add primary key on ({q_cols})",
-                    "type": "constraints"
-                })
-
-        # 5. Unique Constraints Diff
-        orig_uqs = {u["name"]: u for u in original.get("uniques", [])}
-        mod_uqs = {u["name"]: u for u in modified.get("uniques", [])}
-        for u_name in orig_uqs:
-            if u_name not in mod_uqs:
-                q_uq = cls._quote_ident(u_name, engine)
-                statements.append({
-                    "sql": f"alter table {alt_tbl_name}\n    drop constraint {q_uq};",
-                    "destructive": True,
-                    "description": f"Drop unique constraint {q_uq}",
-                    "type": "constraints"
-                })
-        for u_name, uq in mod_uqs.items():
-            if u_name not in orig_uqs:
-                q_uq = cls._quote_ident(u_name, engine)
-                cols = ", ".join(cls._quote_ident(c, engine) for c in uq.get("fields", []))
-                is_clustered = bool(uq.get("is_clustered")) and not has_clustered and (engine == "sqlserver")
-                if is_clustered:
-                    has_clustered = True
-                clustered = " CLUSTERED" if is_clustered else ""
-                statements.append({
-                    "sql": f"alter table {alt_tbl_name}\n    add constraint {q_uq} unique{clustered} ({cols});",
-                    "destructive": False,
-                    "description": f"Add unique constraint {q_uq}",
-                    "type": "constraints"
-                })
-
-        # 6. Check Constraints Diff
-        orig_chks = {c["name"]: c for c in original.get("checks", [])}
-        mod_chks = {c["name"]: c for c in modified.get("checks", [])}
-        for c_name in orig_chks:
-            if c_name not in mod_chks:
-                q_chk = cls._quote_ident(c_name, engine)
-                statements.append({
-                    "sql": f"alter table {alt_tbl_name}\n    drop constraint {q_chk};",
-                    "destructive": True,
-                    "description": f"Drop check constraint {q_chk}",
-                    "type": "constraints"
-                })
-        for c_name, chk in mod_chks.items():
-            if c_name not in orig_chks:
-                q_chk = cls._quote_ident(c_name, engine)
-                clause = chk.get("check_clause", "")
-                if clause:
-                    statements.append({
-                        "sql": f"alter table {alt_tbl_name}\n    add constraint {q_chk} check ({clause});",
-                        "destructive": False,
-                        "description": f"Add check constraint {q_chk}",
-                        "type": "constraints"
-                    })
-
-        # 7. Foreign Keys Diff
-        orig_fks = {f["name"]: f for f in original.get("foreign_keys", [])}
-        mod_fks = {f["name"]: f for f in modified.get("foreign_keys", [])}
-        for f_name in orig_fks:
-            if f_name not in mod_fks:
-                q_fk = cls._quote_ident(f_name, engine)
-                statements.append({
-                    "sql": f"alter table {alt_tbl_name}\n    drop constraint {q_fk};",
-                    "destructive": True,
-                    "description": f"Drop foreign key constraint {q_fk}",
-                    "type": "constraints"
-                })
-        for f_name, fk in mod_fks.items():
-            if f_name not in orig_fks:
-                q_fk = cls._quote_ident(f_name, engine)
-                local_cols = ", ".join(cls._quote_ident(c, engine) for c in fk.get("fields", []))
-                ref_schema = fk.get("ref_schema") or schema
-                ref_tbl = fk.get("ref_table", "")
-                ref_cols = ", ".join(cls._quote_ident(c, engine) for c in fk.get("ref_fields", []))
-                ref_full = cls._format_table_name(ref_schema, ref_tbl, engine)
-                fk_sql = f"alter table {alt_tbl_name}\n    add constraint {q_fk} foreign key ({local_cols}) references {ref_full} ({ref_cols})"
-                if fk.get("on_delete") and fk["on_delete"].upper() != "NO ACTION":
-                    fk_sql += f" on delete {fk['on_delete'].lower()}"
-                if fk.get("on_update") and fk["on_update"].upper() != "NO ACTION":
-                    fk_sql += f" on update {fk['on_update'].lower()}"
-                fk_sql += ";"
-                statements.append({
-                    "sql": fk_sql,
-                    "destructive": False,
-                    "description": f"Add foreign key {q_fk}",
-                    "type": "constraints"
-                })
-
-        # 8. Indexes Diff
-        orig_idxs = {i["name"]: i for i in original.get("indexes", [])}
-        mod_idxs = {i["name"]: i for i in modified.get("indexes", [])}
-        for i_name in orig_idxs:
-            if i_name not in mod_idxs:
-                q_idx = cls._quote_ident(i_name, engine)
-                if engine == "sqlserver":
-                    sql = f"DROP INDEX {q_idx} ON {tbl_name};"
-                else:
-                    sql = f"DROP INDEX {cls._quote_ident(schema, engine)}.{q_idx};"
-                statements.append({
-                    "sql": sql,
-                    "destructive": True,
-                    "description": f"Drop index {q_idx}",
-                    "type": "indexes"
-                })
-        for i_name, idx in mod_idxs.items():
-            if i_name not in orig_idxs:
-                q_idx = cls._quote_ident(i_name, engine)
-                fields = idx.get("fields", [])
-                cols = []
-                for f in fields:
-                    if isinstance(f, dict):
-                        col_str = cls._quote_ident(f["column"], engine)
-                        if f.get("desc"):
-                            col_str += " DESC"
-                        cols.append(col_str)
-                    else:
-                        cols.append(cls._quote_ident(str(f), engine))
-                unique_str = "UNIQUE " if idx.get("is_unique") else ""
-                if engine == "sqlserver":
-                    raw_itype = (idx.get("index_type") or "NONCLUSTERED").upper()
-                    if raw_itype == "CLUSTERED":
-                        itype = "NONCLUSTERED" if has_clustered else "CLUSTERED"
-                        if itype == "CLUSTERED":
-                            has_clustered = True
-                    else:
-                        itype = raw_itype
-                    sql = f"CREATE {unique_str}{itype} INDEX {q_idx} ON {tbl_name} ({', '.join(cols)});"
-                else:
-                    itype = idx.get("index_type") or "BTREE"
-                    sql = f"CREATE {unique_str}INDEX {q_idx} ON {tbl_name} USING {itype.lower()} ({', '.join(cols)});"
-                statements.append({
-                    "sql": sql,
-                    "destructive": False,
-                    "description": f"Create index {q_idx}",
-                    "type": "indexes"
-                })
-
-        # 9. Triggers Diff
+        # Triggers Diff
         orig_trigs = {t["name"]: t for t in original.get("triggers", [])}
         mod_trigs = {t["name"]: t for t in modified.get("triggers", [])}
         for t_name in orig_trigs:
@@ -609,22 +742,53 @@ class TableDesignerService:
                     sql = f"DROP TRIGGER {cls._quote_ident(schema, engine)}.{q_tr};"
                 else:
                     sql = f"DROP TRIGGER {q_tr} ON {tbl_name};"
-                statements.append({
+                stmts_drop_trig.append({
                     "sql": sql,
                     "destructive": True,
                     "description": f"Drop trigger {q_tr}",
                     "type": "triggers"
                 })
         for t_name, tr in mod_trigs.items():
-            if t_name not in orig_trigs or tr.get("definition") != orig_trigs[t_name].get("definition"):
+            if t_name not in orig_trigs or (tr.get("definition") or "").strip() != (orig_trigs[t_name].get("definition") or "").strip():
                 t_def = (tr.get("definition") or "").strip()
                 if t_def:
-                    statements.append({
+                    stmts_add_trig.append({
                         "sql": t_def,
                         "destructive": False,
                         "description": f"Deploy trigger {t_name}",
                         "type": "triggers"
                     })
+
+        # Assemble statements in dependency-safe order:
+        # 1. Rename
+        # 2. Drops: FK -> Index -> Unique -> Check -> Default -> PK
+        # 3. Drop columns
+        # 4. Add columns
+        # 5. Alter columns
+        # 6. Add defaults
+        # 7. Add constraints: PK -> Unique -> Check -> FK
+        # 8. Add indexes
+        # 9. Triggers: Drop -> Add
+        statements = (
+            stmts_rename +
+            stmts_drop_fk +
+            stmts_drop_idx +
+            stmts_drop_uq +
+            stmts_drop_chk +
+            stmts_drop_df +
+            stmts_drop_pk +
+            stmts_drop_col +
+            stmts_add_col +
+            stmts_alter_col +
+            stmts_add_df +
+            stmts_add_pk +
+            stmts_add_uq +
+            stmts_add_chk +
+            stmts_add_fk +
+            stmts_add_idx +
+            stmts_drop_trig +
+            stmts_add_trig
+        )
 
         # Build unified migration SQL string
         if not statements:
