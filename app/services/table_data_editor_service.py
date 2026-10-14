@@ -6,8 +6,14 @@ and safe parameterized INSERT, UPDATE, DELETE for table data editing.
 """
 
 from typing import Any, Dict, List, Optional, Tuple
+from contextlib import nullcontext
+import logging
+import threading
+import time
 
 from app.database.sql_utils import quote_ident, quote_qualified, escape_literal
+
+logger = logging.getLogger("luobtool.editor")
 
 
 def _quote_ident(name: str, engine: str) -> str:
@@ -28,50 +34,85 @@ def _param_placeholder(engine: str) -> str:
 
 class TableDataEditorService:
 
-    # Metadata TTL cache: key=(adapter_id, db, schema, table) -> (meta, expire_time)
+    # Metadata TTL cache: key=(connection_id, db, schema, table) -> (meta, expire_time)
     _meta_cache: Dict[tuple, Any] = {}
+    _meta_cache_lock: threading.RLock = threading.RLock()
     _META_TTL_SECONDS = 60  # Refresh metadata at most once per 60 seconds per table
 
     @classmethod
+    def _resolve_connection_id(cls, adapter) -> str:
+        if adapter is None:
+            return "default"
+        session = getattr(adapter, "session", None)
+        if session and getattr(session, "connection_id", None):
+            return str(session.connection_id)
+        if hasattr(adapter, "connection_id") and adapter.connection_id:
+            return str(adapter.connection_id)
+        if hasattr(adapter, "_conn_id") and adapter._conn_id:
+            return str(adapter._conn_id)
+        return str(id(adapter))
+
+    @classmethod
     def _meta_cache_key(cls, adapter, database, schema, table):
-        return (id(adapter), str(database), str(schema), str(table))
+        conn_id = cls._resolve_connection_id(adapter)
+        return (conn_id, str(database or ""), str(schema or ""), str(table or ""))
+
+    @classmethod
+    def _cleanup_expired_cache(cls, now: float = None):
+        if now is None:
+            now = time.time()
+        expired_keys = [k for k, (_, exp) in cls._meta_cache.items() if exp <= now]
+        for k in expired_keys:
+            cls._meta_cache.pop(k, None)
 
     @classmethod
     def _get_cached_metadata(cls, adapter, database, schema, table):
-        import time
+        now = time.time()
         key = cls._meta_cache_key(adapter, database, schema, table)
-        entry = cls._meta_cache.get(key)
-        if entry:
-            meta, expires = entry
-            if time.time() < expires:
-                return meta
+        with cls._meta_cache_lock:
+            entry = cls._meta_cache.get(key)
+            if entry:
+                meta, expires = entry
+                if now < expires:
+                    return meta
+                else:
+                    cls._meta_cache.pop(key, None)
         return None
 
     @classmethod
     def _set_cached_metadata(cls, adapter, database, schema, table, meta):
-        import time
+        now = time.time()
         key = cls._meta_cache_key(adapter, database, schema, table)
-        cls._meta_cache[key] = (meta, time.time() + cls._META_TTL_SECONDS)
+        with cls._meta_cache_lock:
+            cls._cleanup_expired_cache(now)
+            cls._meta_cache[key] = (meta, now + cls._META_TTL_SECONDS)
 
     @classmethod
     def invalidate_metadata_cache(cls, adapter=None, database=None, schema=None, table=None):
         """Invalidate cache on schema change or after submit_changes."""
-        if adapter and database and schema and table:
-            key = cls._meta_cache_key(adapter, database, schema, table)
-            cls._meta_cache.pop(key, None)
-        else:
+        with cls._meta_cache_lock:
+            if adapter and database and schema and table:
+                key = cls._meta_cache_key(adapter, database, schema, table)
+                cls._meta_cache.pop(key, None)
+            else:
+                cls._meta_cache.clear()
+
+    @classmethod
+    def clear_all_metadata_cache(cls):
+        with cls._meta_cache_lock:
             cls._meta_cache.clear()
 
     @classmethod
-    def get_metadata(cls, adapter, database: str, schema: str, table: str) -> Dict[str, Any]:
+    def get_metadata(cls, adapter, database: str, schema: str, table: str, lock=None) -> Dict[str, Any]:
         """
         Retrieves column metadata, identifying PKs, Identity, and Computed columns.
         Results are cached for _META_TTL_SECONDS to avoid repeated DB schema queries
         during cell-by-cell validation.
         """
-        cached = cls._get_cached_metadata(adapter, database, schema, table)
-        if cached is not None:
-            return cached
+        with (lock or nullcontext()):
+            cached = cls._get_cached_metadata(adapter, database, schema, table)
+            if cached is not None:
+                return cached
 
         raw_meta = adapter.get_table_design_metadata(database, schema, table)
         if not raw_meta:
