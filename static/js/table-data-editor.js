@@ -39,6 +39,9 @@
 
     // Helper: Escape HTML
     function esc(s) {
+        if (typeof window !== 'undefined' && typeof window.escapeHtml === 'function') {
+            return window.escapeHtml(s);
+        }
         if (s === null || s === undefined) return '';
         return String(s)
             .replace(/&/g, '&amp;')

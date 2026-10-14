@@ -62,6 +62,9 @@ function initExplorer() {
     }
 
     function escapeHtml(str) {
+        if (typeof window !== 'undefined' && typeof window.escapeHtml === 'function') {
+            return window.escapeHtml(str);
+        }
         if (str === null || str === undefined) return '';
         return String(str)
             .replace(/&/g, '&amp;')
@@ -312,7 +315,7 @@ function initExplorer() {
                         await loadCallback(childUl);
                         loaded = true;
                     } catch (err) {
-                        childUl.innerHTML = `<li><div class="tree-item" style="color: var(--ide-danger); font-size: 11px;">Error: ${err.message}</div></li>`;
+                        childUl.innerHTML = `<li><div class="tree-item" style="color: var(--ide-danger); font-size: 11px;">Error: ${escapeHtml(err.message)}</div></li>`;
                     }
                 }
             } else {
@@ -1063,7 +1066,7 @@ function initExplorer() {
         containerUl.innerHTML = '';
         
         if (!res.ok || !data.success) {
-            containerUl.innerHTML = `<li><div class="tree-item" style="color:var(--ide-danger);font-size:11px;">Error: ${data.error || 'Unknown error'}</div></li>`;
+            containerUl.innerHTML = `<li><div class="tree-item" style="color:var(--ide-danger);font-size:11px;">Error: ${escapeHtml(data.error || 'Unknown error')}</div></li>`;
             return;
         }
 

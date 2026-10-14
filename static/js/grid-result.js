@@ -47,6 +47,9 @@
 
     // ── HTML & Structured Data Formatting ────────────────────────────────────
     function escapeHtml(str) {
+        if (typeof window !== 'undefined' && typeof window.escapeHtml === 'function') {
+            return window.escapeHtml(str);
+        }
         if (str === null || str === undefined) return '';
         return String(str)
             .replace(/&/g, '&amp;')
