@@ -1743,20 +1743,40 @@ class BravoApi:
     def run_program(self, program_data):
         try:
             import subprocess, os
-            if not program_data or not isinstance(program_data, dict):
+            from app.utils.crypto import CredentialDecryptError
+            if not program_data:
                 return {"success": False, "error": "Thiếu thông tin chương trình"}
 
-            path = (program_data.get("path") or "").strip()
+            prog_id = program_data.get("id") if isinstance(program_data, dict) else program_data
+            if not prog_id:
+                return {"success": False, "error": "ID chương trình không được để trống"}
+
+            stored_programs = _read_json(PROGRAM_LIST_FILE, [])
+            target = None
+            for p in stored_programs:
+                if str(p.get("id")) == str(prog_id):
+                    target = p
+                    break
+
+            if not target:
+                return {"success": False, "error": f"Không tìm thấy chương trình ID '{prog_id}' trong danh sách đã cấu hình"}
+
+            path = (target.get("path") or "").strip()
             if not path:
-                return {"success": False, "error": "Đường dẫn chương trình không được để trống"}
+                return {"success": False, "error": "Đường dẫn chương trình đã lưu không hợp lệ"}
 
             if not os.path.exists(path):
                 return {"success": False, "error": f"Không tìm thấy file tại đường dẫn: {path}"}
 
-            username = (program_data.get("username") or "").strip()
-            password = program_data.get("password") or ""
-            if password.startswith("ENC:"):
-                password = decrypt_password(password)
+            username = (target.get("username") or "").strip()
+            raw_password = target.get("password") or ""
+            password = ""
+            if raw_password:
+                try:
+                    password = decrypt_password(raw_password)
+                except CredentialDecryptError as dec_err:
+                    logger.error("[run_program] Password decrypt error for %s: %s", prog_id, dec_err)
+                    return {"success": False, "error": "Mật khẩu đã lưu không thể giải mã. Vui lòng nhập lại mật khẩu trong danh sách chương trình."}
 
             cmd = [path]
             if username:
@@ -1766,8 +1786,10 @@ class BravoApi:
 
             work_dir = os.path.dirname(path) if os.path.isdir(os.path.dirname(path)) else None
             subprocess.Popen(cmd, cwd=work_dir)
-            return {"success": True, "message": f"Đã khởi chạy: {program_data.get('name') or path}"}
+            logger.info("[run_program] Executed program id=%s, name=%s", prog_id, target.get("name"))
+            return {"success": True, "message": f"Đã khởi chạy: {target.get('name') or path}"}
         except Exception as exc:
+            logger.error("[run_program] Exception: %s", exc)
             return {"success": False, "error": str(exc)}
 
 
@@ -2196,15 +2218,22 @@ class BravoApi:
 
     def get_connection_password(self, profile_id_or_name):
         try:
+            from app.utils.crypto import CredentialDecryptError
+            logger.info("[get_connection_password] Profile password requested for: %s", profile_id_or_name)
             saved = _read_json(CONNECTIONS_FILE, [])
             target_str = str(profile_id_or_name).strip().lower()
             for p in saved:
                 if p.get("id") == profile_id_or_name or str(p.get("name", "")).strip().lower() == target_str:
                     if p.get("password"):
-                        return {"success": True, "password": decrypt_password(p["password"])}
+                        try:
+                            return {"success": True, "password": decrypt_password(p["password"])}
+                        except CredentialDecryptError as dec_err:
+                            logger.error("[get_connection_password] Failed to decrypt password: %s", dec_err)
+                            return {"success": False, "error": "Mật khẩu không thể giải mã trên thiết bị này. Vui lòng nhập lại.", "password": ""}
                     break
             return {"success": True, "password": ""}
         except Exception as exc:
+            logger.error("[get_connection_password] Unexpected error: %s", exc)
             return {"success": False, "error": str(exc), "password": ""}
 
     def save_connection_profile(self, profile):
