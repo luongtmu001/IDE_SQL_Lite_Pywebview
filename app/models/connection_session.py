@@ -1,9 +1,12 @@
 # -*- coding: utf-8 -*-
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+import logging
 from typing import Any, Optional
 from contextlib import contextmanager
 import threading
+
+logger = logging.getLogger("luobtool.connection_session")
 
 
 @dataclass
@@ -61,8 +64,8 @@ class ConnectionSession:
                         mode = "READ ONLY" if self.read_only else "READ WRITE"
                         cursor.execute(f"SET SESSION CHARACTERISTICS AS TRANSACTION {mode};")
                         conn.commit()
-                    except Exception:
-                        pass
+                    except Exception as ex:
+                        logger.warning("Failed to set PostgreSQL session characteristics for %s: %s", self.connection_id, ex)
             self.touch()
             return {"success": True, "read_only": self.read_only, "connection_id": self.connection_id}
 
@@ -72,7 +75,8 @@ class ConnectionSession:
                 if hasattr(self.adapter, "ping"):
                     return bool(self.adapter.ping())
                 return True
-            except Exception:
+            except Exception as ex:
+                logger.debug("is_alive check failed for connection %s: %s", self.connection_id, ex)
                 return False
 
     def begin_transaction(self) -> dict:
@@ -132,13 +136,13 @@ class ConnectionSession:
             if self.in_transaction:
                 try:
                     self.rollback_transaction()
-                except Exception:
-                    pass
+                except Exception as ex:
+                    logger.warning("Error rolling back uncommitted transaction during session %s close: %s", self.connection_id, ex)
             if hasattr(self.adapter, "close"):
                 try:
                     self.adapter.close()
-                except Exception:
-                    pass
+                except Exception as ex:
+                    logger.warning("Error closing adapter for session %s: %s", self.connection_id, ex)
 
     def public_info(self):
         tx_duration = None

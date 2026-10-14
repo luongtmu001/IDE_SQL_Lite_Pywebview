@@ -365,15 +365,16 @@ class TableDataEditorService:
                 try:
                     from config import Config
                     limit = int(getattr(Config, "MAX_QUERY_ROWS", 1000))
-                except Exception:
+                except Exception as ex:
+                    logger.debug("Config.MAX_QUERY_ROWS lookup failed: %s, using fallback 1000", ex)
                     limit = 1000
         else:
             if not select_cols:
                 try:
                     meta = cls.get_metadata(adapter, database, schema, table)
                     select_cols = [c["name"] for c in meta.get("columns", [])]
-                except Exception:
-                    pass
+                except Exception as ex:
+                    logger.debug("Metadata fetch for select_cols in fetch_data failed: %s", ex)
             sql = cls.build_select_sql(
                 engine=engine,
                 schema=schema,
@@ -705,11 +706,12 @@ class TableDataEditorService:
                         cursor.execute("SAVEPOINT sp_setval;")
                         cursor.execute(seq_sql)
                         cursor.execute("RELEASE SAVEPOINT sp_setval;")
-                    except Exception:
+                    except Exception as ex:
+                        logger.debug("pg_get_serial_sequence setval failed: %s", ex)
                         try:
                             cursor.execute("ROLLBACK TO SAVEPOINT sp_setval;")
-                        except Exception:
-                            pass
+                        except Exception as rb_ex:
+                            logger.debug("Failed rollback to SAVEPOINT sp_setval: %s", rb_ex)
 
             # 5. Execute UPDATES
             updated_count = 0
@@ -851,15 +853,15 @@ class TableDataEditorService:
             if not in_explicit_tx:
                 try:
                     conn.rollback()
-                except Exception:
-                    pass
+                except Exception as rb_ex:
+                    logger.debug("Failed rollback in submit_changes exception handler: %s", rb_ex)
             raise exc
         finally:
             if not in_explicit_tx:
                 try:
                     conn.autocommit = old_autocommit
-                except Exception:
-                    pass
+                except Exception as ac_ex:
+                    logger.debug("Failed restoring autocommit in submit_changes: %s", ac_ex)
 
     @classmethod
     def validate_insert_rows(
@@ -982,8 +984,8 @@ class TableDataEditorService:
                     except Exception as ex:
                         try:
                             conn.rollback()
-                        except Exception:
-                            pass
+                        except Exception as rb_ex:
+                            logger.debug("Failed rollback during row error in validate_insert_rows: %s", rb_ex)
                         err_msg = _clean_sql_error(ex)
                         results.append({"row_index": idx, "valid": False, "error": err_msg, "data": raw_row})
 
@@ -1001,12 +1003,12 @@ class TableDataEditorService:
             finally:
                 try:
                     conn.rollback()
-                except Exception:
-                    pass
+                except Exception as rb_ex:
+                    logger.debug("Failed final rollback in validate_insert_rows: %s", rb_ex)
                 try:
                     conn.autocommit = old_autocommit
-                except Exception:
-                    pass
+                except Exception as ac_ex:
+                    logger.debug("Failed restoring autocommit in validate_insert_rows: %s", ac_ex)
 
     @classmethod
     def validate_row(
@@ -1297,8 +1299,8 @@ class TableDataEditorService:
         except Exception as ex:
             try:
                 conn.rollback()
-            except Exception:
-                pass
+            except Exception as rb_ex:
+                logger.debug("Failed rollback in validate_row exception handler: %s", rb_ex)
             raw_msg = str(ex)
             err_msg = _clean_sql_error(ex)
             constraint_type = "CHECK" if "CHECK constraint" in raw_msg else "DATABASE ERROR"
@@ -1317,12 +1319,12 @@ class TableDataEditorService:
         finally:
             try:
                 conn.rollback()
-            except Exception:
-                pass
+            except Exception as rb_ex:
+                logger.debug("Failed final rollback in validate_row: %s", rb_ex)
             try:
                 conn.autocommit = old_autocommit
-            except Exception:
-                pass
+            except Exception as ac_ex:
+                logger.debug("Failed restoring autocommit in validate_row: %s", ac_ex)
 
     @classmethod
     def validate_insert_row(

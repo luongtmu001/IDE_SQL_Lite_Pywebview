@@ -95,8 +95,8 @@ def list_orphaned_sessions(conn_config: Any) -> List[Dict[str, Any]]:
         if should_close:
             try:
                 conn.close()
-            except Exception:
-                pass
+            except Exception as ex:
+                logger.debug("Error closing temporary connection in list_orphaned_sessions: %s", ex)
 
 
 def cleanup_orphaned_sessions(conn_config: Any, session_names: Optional[List[str]] = None) -> int:
@@ -148,8 +148,8 @@ def cleanup_orphaned_sessions(conn_config: Any, session_names: Optional[List[str
         if should_close:
             try:
                 conn.close()
-            except Exception:
-                pass
+            except Exception as ex:
+                logger.debug("Error closing temporary connection in cleanup_orphaned_sessions: %s", ex)
 
 
 class MssqlProfilerSession(BaseProfilerSession):
@@ -327,7 +327,8 @@ class MssqlProfilerSession(BaseProfilerSession):
                         # e.g., 2026-09-13T16:20:01.123Z
                         dt = datetime.datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
                         time_display = dt.strftime("%H:%M:%S")
-                    except Exception:
+                    except Exception as ex:
+                        logger.debug("Failed to parse event timestamp %r: %s", timestamp_str, ex)
                         time_display = timestamp_str[-12:-4]
                 if not time_display:
                     time_display = datetime.datetime.now().strftime("%H:%M:%S")
@@ -368,6 +369,6 @@ class MssqlProfilerSession(BaseProfilerSession):
         finally:
             try:
                 self._raw_conn.close()
-            except Exception:
-                pass
+            except Exception as ex:
+                logger.debug("Error closing raw connection in profiler _cleanup_session: %s", ex)
             self._raw_conn = None
