@@ -325,6 +325,15 @@ class TableDesignerService:
         for col_name, ocol in orig_cols.items():
             if col_name not in mod_cols:
                 q_col = cls._quote_ident(col_name, engine)
+                if engine == "sqlserver" and (ocol.get("default_constraint_name") or ocol.get("default_value")):
+                    old_df = ocol.get("default_constraint_name") or f"DF_{table}_{col_name}"
+                    q_old_df = cls._quote_ident(old_df, engine)
+                    statements.append({
+                        "sql": f"alter table {alt_tbl_name}\n    drop constraint {q_old_df};",
+                        "destructive": False,
+                        "description": f"Drop default constraint {old_df} before dropping column",
+                        "type": "constraints"
+                    })
                 sql = f"alter table {alt_tbl_name}\n    drop column {q_col};"
                 statements.append({
                     "sql": sql,
@@ -406,13 +415,23 @@ class TableDesignerService:
                             new_def = new_def[1:-1].strip()
 
                     if engine == "sqlserver":
+                        old_df = ocol.get("default_constraint_name") or (f"DF_{table}_{col_name}" if ocol.get("default_value") else "")
+                        if old_df:
+                            q_old_df = cls._quote_ident(old_df, engine)
+                            statements.append({
+                                "sql": f"alter table {alt_tbl_name}\n    drop constraint {q_old_df};",
+                                "destructive": False,
+                                "description": f"Drop default constraint {old_df} for {col_name}",
+                                "type": "constraints"
+                            })
                         if new_def:
-                            df_name = cls._quote_ident(f"DF_{table}_{col_name}", engine)
+                            new_df = mcol.get("default_constraint_name") or f"DF_{table}_{col_name}"
+                            df_name = cls._quote_ident(new_df, engine)
                             statements.append({
                                 "sql": f"alter table {alt_tbl_name}\n    add constraint {df_name} default {new_def} for {q_col};",
                                 "destructive": False,
                                 "description": f"Set default value for {col_name}",
-                                "type": "tables"
+                                "type": "constraints"
                             })
                     else:
                         if new_def:
@@ -430,20 +449,39 @@ class TableDesignerService:
         orig_pk = [c["name"] for c in original.get("columns", []) if c.get("is_pk")]
         mod_pk = [c["name"] for c in modified.get("columns", []) if c.get("is_pk")]
         if set(orig_pk) != set(mod_pk):
-            pk_name = cls._quote_ident(f"PK_{table}", engine)
+            orig_pk_name = original.get("pk_name")
+            if not orig_pk_name:
+                for c in original.get("columns", []):
+                    if c.get("is_pk") and c.get("pk_name"):
+                        orig_pk_name = c["pk_name"]
+                        break
+            if not orig_pk_name:
+                orig_pk_name = f"PK_{table}"
+            drop_pk_name = cls._quote_ident(orig_pk_name, engine)
+
             if orig_pk:
                 statements.append({
-                    "sql": f"alter table {alt_tbl_name}\n    drop constraint {pk_name};",
+                    "sql": f"alter table {alt_tbl_name}\n    drop constraint {drop_pk_name};",
                     "destructive": True,
-                    "description": f"Drop primary key {pk_name}",
+                    "description": f"Drop primary key {drop_pk_name}",
                     "type": "constraints"
                 })
                 warnings.append("Primary key constraint will be dropped and recreated.")
             if mod_pk:
+                mod_pk_name = modified.get("pk_name")
+                if not mod_pk_name:
+                    for c in modified.get("columns", []):
+                        if c.get("is_pk") and c.get("pk_name"):
+                            mod_pk_name = c["pk_name"]
+                            break
+                if not mod_pk_name:
+                    mod_pk_name = orig_pk_name or f"PK_{table}"
+                add_pk_name = cls._quote_ident(mod_pk_name, engine)
+
                 q_cols = ", ".join(cls._quote_ident(c, engine) for c in mod_pk)
                 clustered = " CLUSTERED" if engine == "sqlserver" else ""
                 statements.append({
-                    "sql": f"alter table {alt_tbl_name}\n    add constraint {pk_name} primary key{clustered} ({q_cols});",
+                    "sql": f"alter table {alt_tbl_name}\n    add constraint {add_pk_name} primary key{clustered} ({q_cols});",
                     "destructive": False,
                     "description": f"Add primary key on ({q_cols})",
                     "type": "constraints"
