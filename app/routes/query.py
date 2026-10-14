@@ -202,17 +202,40 @@ def syntax_check():
 
     cached_tables = data.get("cached_tables")
 
+    use_pipeline = False
     try:
-        from app.database.syntax.coordinator import validate_sql_pipeline
-        diagnostics = validate_sql_pipeline(
-            sql=sql,
-            dialect=dialect,
-            connection_session=conn_session,
-            database=database,
-            schema=schema,
-            is_debug=is_debug,
-            cached_tables_dict=cached_tables,
-        )
+        from app.services.settings_store import load_settings
+        settings = load_settings()
+        if isinstance(settings, dict):
+            syntax_cfg = settings.get("syntax", {})
+            if isinstance(syntax_cfg, dict):
+                use_pipeline = bool(syntax_cfg.get("pipeline", False))
+    except Exception:
+        pass
+
+    try:
+        if use_pipeline:
+            from app.database.syntax.coordinator import validate_sql_pipeline
+            diagnostics = validate_sql_pipeline(
+                sql=sql,
+                dialect=dialect,
+                connection_session=conn_session,
+                database=database,
+                schema=schema,
+                is_debug=is_debug,
+                cached_tables_dict=cached_tables,
+            )
+        else:
+            from app.database.syntax.validator import validate_sql
+            diagnostics = validate_sql(
+                sql=sql,
+                dialect=dialect,
+                connection_session=conn_session,
+                database=database,
+                schema=schema,
+                is_debug=is_debug,
+                cached_tables_dict=cached_tables,
+            )
         return jsonify(success=True, diagnostics=diagnostics)
     except Exception as exc:
         return jsonify(success=False, error=str(exc), diagnostics=[]), 400

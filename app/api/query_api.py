@@ -155,18 +155,43 @@ class QueryApiMixin:
             except Exception:
                 conn_session = None
 
+            # Phase 7: Check syntax.pipeline setting toggle (default: False)
+            use_pipeline = False
             try:
-                from app.database.syntax.coordinator import validate_sql_pipeline
-                diagnostics = validate_sql_pipeline(
-                    sql=sql,
-                    dialect=dialect,
-                    connection_session=conn_session,
-                    database=database,
-                    schema=schema,
-                    is_debug=bool(is_debug),
-                    cached_tables_dict=cached_tables,
-                )
-            except Exception as pipe_err:
+                from app.services.settings_store import load_settings
+                settings = load_settings()
+                if isinstance(settings, dict):
+                    syntax_cfg = settings.get("syntax", {})
+                    if isinstance(syntax_cfg, dict):
+                        use_pipeline = bool(syntax_cfg.get("pipeline", False))
+            except Exception:
+                pass
+
+            if use_pipeline:
+                try:
+                    from app.database.syntax.coordinator import validate_sql_pipeline
+                    diagnostics = validate_sql_pipeline(
+                        sql=sql,
+                        dialect=dialect,
+                        connection_session=conn_session,
+                        database=database,
+                        schema=schema,
+                        is_debug=bool(is_debug),
+                        cached_tables_dict=cached_tables,
+                    )
+                except Exception as pipe_err:
+                    logger.warning("[SyntaxCheck] validate_sql_pipeline error, falling back to legacy: %s", pipe_err)
+                    from app.database.syntax.validator import validate_sql
+                    diagnostics = validate_sql(
+                        sql=sql,
+                        dialect=dialect,
+                        connection_session=conn_session,
+                        database=database,
+                        schema=schema,
+                        is_debug=bool(is_debug),
+                        cached_tables_dict=cached_tables,
+                    )
+            else:
                 from app.database.syntax.validator import validate_sql
                 diagnostics = validate_sql(
                     sql=sql,
