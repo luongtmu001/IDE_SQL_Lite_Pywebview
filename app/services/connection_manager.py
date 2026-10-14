@@ -1,10 +1,15 @@
+from datetime import datetime, timezone
+import logging
 from threading import RLock
+from typing import Any, Dict, List, Optional, Tuple
 from uuid import uuid4
 
 from app.database.factory import create_adapter
 from app.models.connection_session import ConnectionSession
 from app.services.metadata_service import MetadataService
 from app.services.query_service import QueryService
+
+logger = logging.getLogger("luobtool.connection_manager")
 
 class ConnectionManager:
 
@@ -173,7 +178,8 @@ class ConnectionManager:
         try:
             conn = self.get(owner_session_id, connection_id)
             return conn.is_alive()
-        except Exception:
+        except Exception as ex:
+            logger.debug("Ping failed for connection %s: %s", connection_id, ex)
             return False
 
     def reconnect(self, owner_session_id, connection_id, password=None):
@@ -191,8 +197,8 @@ class ConnectionManager:
         with conn.lock:
             try:
                 conn.adapter.close()
-            except Exception:
-                pass
+            except Exception as ex:
+                logger.warning("Error closing old adapter during reconnect for %s: %s", connection_id, ex)
 
             # Create new adapter and connect
             adapter = create_adapter(config_to_use)
@@ -210,15 +216,94 @@ class ConnectionManager:
             connection_id,
         )
 
-        with connection.lock:
-            connection.adapter.close()
+        try:
+            with connection.lock:
+                if getattr(connection, "adapter", None):
+                    connection.adapter.close()
+        except Exception as ex:
+            logger.warning("Error closing adapter for connection %s: %s", connection_id, ex)
+            raise
+        finally:
+            with self._lock:
+                self._connections.pop(connection_id, None)
+
+    def close_all(self, owner_session_id) -> int:
+        closed_count = 0
+        for connection in self.list(owner_session_id):
+            try:
+                self.close(
+                    owner_session_id,
+                    connection.connection_id,
+                )
+                closed_count += 1
+            except Exception as ex:
+                logger.warning("Error closing connection %s in close_all: %s", connection.connection_id, ex)
+        return closed_count
+
+    def close_all_for_window(self, window_id: str) -> int:
+        """Closes all connections owned by a specific window or session ID."""
+        return self.close_all(window_id)
+
+    def close_all_sessions(self) -> int:
+        """Closes all connections across all sessions/windows."""
+        closed_count = 0
+        with self._lock:
+            all_conns = list(self._connections.values())
+
+        for conn in all_conns:
+            try:
+                with conn.lock:
+                    if getattr(conn, "adapter", None):
+                        conn.adapter.close()
+            except Exception as ex:
+                logger.warning("Error closing connection %s in close_all_sessions: %s", conn.connection_id, ex)
+            finally:
+                with self._lock:
+                    self._connections.pop(conn.connection_id, None)
+                closed_count += 1
+        return closed_count
+
+    def cleanup_idle(self, max_idle_seconds: int = 3600, owner_session_id: Optional[str] = None) -> int:
+        """
+        Close connections that have been idle for >= max_idle_seconds.
+        Connections in an active transaction (in_transaction=True) are skipped.
+        Returns the number of connections closed.
+        """
+        if max_idle_seconds <= 0:
+            return 0
+
+        now = datetime.now(timezone.utc)
+        to_close = []
 
         with self._lock:
-            self._connections.pop(connection_id, None)
+            for conn in list(self._connections.values()):
+                if owner_session_id and conn.owner_session_id != owner_session_id:
+                    continue
+                if getattr(conn, "in_transaction", False):
+                    continue
 
-    def close_all(self, owner_session_id):
-        for connection in self.list(owner_session_id):
-            self.close(
-                owner_session_id,
-                connection.connection_id,
-            )
+                last_used = getattr(conn, "last_used_at", None)
+                if last_used is None:
+                    continue
+                if last_used.tzinfo is None:
+                    last_used = last_used.replace(tzinfo=timezone.utc)
+
+                elapsed = (now - last_used).total_seconds()
+                if elapsed >= max_idle_seconds:
+                    to_close.append(conn)
+
+        closed_count = 0
+        for conn in to_close:
+            try:
+                with conn.lock:
+                    if getattr(conn, "adapter", None):
+                        conn.adapter.close()
+            except Exception as ex:
+                logger.warning("Error closing idle adapter for connection %s: %s", conn.connection_id, ex)
+            finally:
+                with self._lock:
+                    self._connections.pop(conn.connection_id, None)
+                closed_count += 1
+                logger.info("Closed idle connection %s (idle >= %ss)", conn.connection_id, max_idle_seconds)
+
+        return closed_count

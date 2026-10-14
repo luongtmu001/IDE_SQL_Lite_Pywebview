@@ -4572,6 +4572,15 @@ def main():
 
     window.events.loaded += on_main_loaded
 
+    def on_main_closed():
+        try:
+            closed = connection_manager.close_all_sessions()
+            logger.info("Cleaned up %d connection(s) on main window close", closed)
+        except Exception as ex:
+            logger.warning("Error cleaning up connections on main window close: %s", ex)
+
+    window.events.closed += on_main_closed
+
     # Safety fallback timer: sau 10.0s đảm bảo chuyển tiếp nếu frontend gặp lỗi nghiêm trọng không gọi về được
     def on_fallback():
         nonlocal splash_min_timer_done, frontend_ready
