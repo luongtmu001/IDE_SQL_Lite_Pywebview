@@ -1,7 +1,18 @@
-pywebview>=5.0
-pythonnet>=3.0.0
-pyodbc>=5.0.0
-psycopg2-binary>=2.9.0
-psycopg[binary]>=3.1.0
-openpyxl>=3.1.0
-sqlglot>=25.0.0
+# Core Desktop GUI Bridge
+pywebview>=6.2.0
+pythonnet>=3.1.0
+
+# Database Connectivity
+pyodbc>=5.3.0
+psycopg[binary]==3.3.5
+psycopg2-binary>=2.9.13
+
+# Cryptography & Security
+cryptography==50.0.1
+
+# Data Processing & Parsing
+openpyxl>=3.1.5
+sqlglot>=30.0.0
+
+# Optional: Secondary local HTTP channel (Flask routes)
+Flask>=3.1.0
