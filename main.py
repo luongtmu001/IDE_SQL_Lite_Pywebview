@@ -2890,38 +2890,6 @@ class BravoApi:
         except Exception as exc:
             return {"success": False, "error": str(exc)}
 
-    def get_intellisense_objects(self, connection_id, database=None, schema=None):
-        try:
-            conn = self._get_connection(connection_id)
-            items = conn.metadata_service.get_intellisense_objects(database, schema)
-            return {"success": True, "items": items}
-        except Exception as exc:
-            return {"success": False, "error": str(exc)}
-
-    def get_intellisense_columns(self, connection_id, database=None, schema=None, table=None):
-        try:
-            conn = self._get_connection(connection_id)
-            items = conn.metadata_service.get_intellisense_columns(database, schema, table)
-            return {"success": True, "items": items}
-        except Exception as exc:
-            return {"success": False, "error": str(exc)}
-
-    def get_intellisense_parameters(self, connection_id, database=None, schema=None, name=None):
-        try:
-            conn = self._get_connection(connection_id)
-            items = conn.metadata_service.get_intellisense_parameters(database, schema, name)
-            return {"success": True, "items": items}
-        except Exception as exc:
-            return {"success": False, "error": str(exc)}
-
-    def get_intellisense_types(self, connection_id, database=None):
-        try:
-            conn = self._get_connection(connection_id)
-            items = conn.metadata_service.get_supported_types(database=database)
-            return {"success": True, "items": items}
-        except Exception as exc:
-            return {"success": False, "error": str(exc)}
-
     # Table Designer Methods
     def get_table_design(self, connection_id, database=None, schema=None, table=None):
         try:
