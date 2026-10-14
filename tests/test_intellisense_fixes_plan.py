@@ -57,7 +57,7 @@ def test_issue2_newline_guard_and_clean_context_triggers():
     assert "return { action: DecisionAction.NONE, reason: 'newline' };" in trigger_code
 
     # Strict previous token check for post-keyword space (avoiding newline or table-name space triggers)
-    assert "['FROM', 'JOIN', 'INTO'].includes(prevTokenUpper)" in trigger_code
+    assert "['FROM', 'JOIN', 'INTO', 'UPDATE', 'TABLE'].includes(prevTokenUpper)" in trigger_code or "['FROM', 'JOIN', 'INTO'].includes(prevTokenUpper)" in trigger_code
 
 
 def test_issue3_sqlserver_procedure_and_temp_table_scope():

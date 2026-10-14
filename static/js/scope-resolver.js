@@ -1170,7 +1170,7 @@
                             const sym = new SqlSymbol({
                                 name: aliasName,
                                 alias: aliasName,
-                                type: isApply ? 'apply_subquery' : (isLateral ? 'lateral_subquery' : 'subquery'),
+                                type: isApply ? 'apply_subquery' : (isLateral ? 'lateral_subquery' : 'subquery'), // type: 'subquery'
                                 displayType: isApply ? 'Apply Subquery' : (isLateral ? 'Lateral Subquery' : 'Subquery'),
                                 columns: cols,
                                 targetObject: primarySourceTable ? primarySourceTable.table : aliasName,

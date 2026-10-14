@@ -48,16 +48,16 @@ from app.desktop.windows import (
     EventListenerSubwindowApi,
     open_bravo_window as _desktop_open_bravo_window,
 )
-from app.api.connections_api import ConnectionsApiMixin
-from app.api.settings_api import SettingsApiMixin
-from app.api.table_editor_api import TableEditorApiMixin
-from app.api.designer_api import DesignerApiMixin
-from app.api.profiler_api import ProfilerApiMixin
-from app.api.metadata_api import MetadataApiMixin, MainMetadataApiMixin
-from app.bravo.api import BravoApiMixin
-from app.api.query_api import QueryApiMixin
-from app.api.history_api import HistoryApiMixin
-from app.api.session_api import SessionApiMixin
+from app.api.connections_api import ConnectionsApiMixin as _ConnectionsApiMixin
+from app.api.settings_api import SettingsApiMixin as _SettingsApiMixin
+from app.api.table_editor_api import TableEditorApiMixin as _TableEditorApiMixin
+from app.api.designer_api import DesignerApiMixin as _DesignerApiMixin
+from app.api.profiler_api import ProfilerApiMixin as _ProfilerApiMixin
+from app.api.metadata_api import MetadataApiMixin as _MetadataApiMixin, MainMetadataApiMixin as _MainMetadataApiMixin
+from app.bravo.api import BravoApiMixin as _BravoApiMixin
+from app.api.query_api import QueryApiMixin as _QueryApiMixin
+from app.api.history_api import HistoryApiMixin as _HistoryApiMixin
+from app.api.session_api import SessionApiMixin as _SessionApiMixin
 
 logger = logging.getLogger("luobtool.main")
 connection_manager = ConnectionManager()
@@ -69,13 +69,13 @@ _OWNER_SESSION = "desktop_user"
 
 
 class BravoApi(
-    SettingsApiMixin,
-    TableEditorApiMixin,
-    DesignerApiMixin,
-    MetadataApiMixin,
-    ConnectionsApiMixin,
-    ProfilerApiMixin,
-    BravoApiMixin,
+    _SettingsApiMixin,
+    _TableEditorApiMixin,
+    _DesignerApiMixin,
+    _MetadataApiMixin,
+    _ConnectionsApiMixin,
+    _ProfilerApiMixin,
+    _BravoApiMixin,
 ):
     def __init__(self, cm: ConnectionManager, owner_session_id: str = None, initial_context: dict = None, main_api=None):
         self.cm = cm
@@ -93,10 +93,10 @@ class BravoApi(
 
 
 class MainApi(
-    QueryApiMixin,
-    HistoryApiMixin,
-    SessionApiMixin,
-    MainMetadataApiMixin,
+    _QueryApiMixin,
+    _HistoryApiMixin,
+    _SessionApiMixin,
+    _MainMetadataApiMixin,
     BravoApi,
 ):
     def __init__(self, cm: ConnectionManager = connection_manager):

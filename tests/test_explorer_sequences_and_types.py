@@ -107,7 +107,7 @@ def test_metadata_api_sequences_and_types():
     with app.test_client() as client:
         with patch('app.routes.metadata.get_connection') as mock_get_conn:
             mock_conn = MagicMock()
-            mock_conn.metadata_service.list_objects.side_effect = lambda db, sch, obj_type, search=None: (
+            mock_conn.metadata_service.list_objects.side_effect = lambda db, sch, obj_type, search=None, **kwargs: (
                 [{"name": "seq1", "schema": sch}] if obj_type == "sequences" else
                 [{"name": "udt1", "schema": sch}] if obj_type == "user_types" else []
             )

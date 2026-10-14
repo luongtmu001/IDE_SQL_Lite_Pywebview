@@ -15,8 +15,17 @@ logger = logging.getLogger("luobtool.api.query")
 
 class QueryApiMixin:
     def _get_connection(self, connection_id):
-        """Resolved by ConnectionsApiMixin in BravoApi/MainApi MRO."""
-        raise NotImplementedError("ConnectionsApiMixin must be included in MRO")
+        """Cooperative resolution through MRO to ConnectionsApiMixin."""
+        next_method = getattr(super(), "_get_connection", None)
+        if callable(next_method):
+            return next_method(connection_id)
+        if hasattr(self, "cm") and self.cm:
+            try:
+                owner = getattr(self, "owner_session_id", "desktop_user")
+                return self.cm.get(owner, connection_id)
+            except Exception:
+                return None
+        return None
 
     def execute_query(self, connection_id, sql, limit=1000, database=None, schema=None, query_id=None, mode="normal", debug_session_id=None, traces=None, confirmed=False, parameters=None, stop_on_error=True):
         try:
