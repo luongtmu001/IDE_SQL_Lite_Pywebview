@@ -40,6 +40,12 @@ class TestClipboardAndGridCopy(unittest.TestCase):
 
         with open(self.main_py_path, "r", encoding="utf-8") as f:
             self.main_py = f.read()
+        clipboard_py_path = BASE_DIR / "app" / "desktop" / "clipboard.py"
+        if clipboard_py_path.exists():
+            with open(clipboard_py_path, "r", encoding="utf-8") as f:
+                self.clipboard_py = f.read()
+        else:
+            self.clipboard_py = ""
         with open(self.clipboard_js_path, "r", encoding="utf-8") as f:
             self.clipboard_js = f.read()
         with open(self.grid_js_path, "r", encoding="utf-8") as f:
@@ -68,12 +74,21 @@ class TestClipboardAndGridCopy(unittest.TestCase):
         self.assertEqual(get_res.get("text"), "MainApi_Test_Val_888")
 
     def test_main_py_supports_hwnd_and_fallbacks(self):
-        """Verify main.py implementation has HWND parameter and Tkinter/PowerShell fallbacks."""
-        self.assertIn("def _native_set_clipboard(text: str, hwnd=None)", self.main_py)
-        self.assertIn("def _native_get_clipboard(hwnd=None)", self.main_py)
-        self.assertIn("import tkinter as tk", self.main_py)
-        self.assertIn("Set-Clipboard", self.main_py)
-        self.assertIn("Get-Clipboard", self.main_py)
+        """Verify clipboard implementation has HWND parameter and Tkinter/PowerShell fallbacks."""
+        source = (self.clipboard_py + "\n" + self.main_py)
+        self.assertTrue(
+            ("def _native_set_clipboard(text: str, hwnd=None)" in source) or
+            ("def native_set_clipboard(text: str, hwnd=None)" in source),
+            "native_set_clipboard must accept hwnd parameter"
+        )
+        self.assertTrue(
+            ("def _native_get_clipboard(hwnd=None)" in source) or
+            ("def native_get_clipboard(hwnd=None)" in source),
+            "native_get_clipboard must accept hwnd parameter"
+        )
+        self.assertIn("import tkinter as tk", source)
+        self.assertIn("Set-Clipboard", source)
+        self.assertIn("Get-Clipboard", source)
 
     # ── 2. Frontend Clipboard Bridge ──────────────────────────────────────────
     def test_clipboard_bridge_exports_and_prevent_default(self):

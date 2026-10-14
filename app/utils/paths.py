@@ -21,6 +21,22 @@ def get_app_dir() -> Path:
     return Path(__file__).resolve().parent.parent.parent
 
 
+def get_bundle_dir() -> Path:
+    """Return the resource bundle directory (supports PyInstaller _MEIPASS and development mode)."""
+    app_dir = get_app_dir()
+    if getattr(sys, "frozen", False):
+        meipass = getattr(sys, "_MEIPASS", None)
+        if meipass and (Path(meipass) / "templates").exists():
+            return Path(meipass).resolve()
+        elif (app_dir / "_internal" / "templates").exists():
+            return app_dir / "_internal"
+        elif (app_dir / "templates").exists():
+            return app_dir
+        else:
+            return app_dir
+    return app_dir
+
+
 def get_user_data_dir() -> Path:
     """
     Return the user data directory.
