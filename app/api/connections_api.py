@@ -10,6 +10,7 @@ from app.services.settings_store import (
     CONNECTIONS_FILE,
     _read_json,
     _write_json,
+    get_saved_connections as load_saved_connections,
 )
 from app.utils.crypto import (
     encrypt_password,
@@ -22,13 +23,7 @@ logger = logging.getLogger("luobtool.api.connections")
 
 class ConnectionsApiMixin:
     def get_saved_connections(self):
-        data = _read_json(CONNECTIONS_FILE, [])
-        for d in data:
-            if d.get("password"):
-                d["has_password"] = True
-                d.pop("password", None)
-            else:
-                d["has_password"] = False
+        data = load_saved_connections(filter_groups=False)
         return {"success": True, "connections": data}
 
 

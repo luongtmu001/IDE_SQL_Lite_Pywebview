@@ -214,6 +214,27 @@ def import_redgate_snippets() -> List[Dict[str, Any]]:
     return snippets
 
 
+def get_saved_connections(filter_groups: bool = False) -> List[Dict[str, Any]]:
+    """Load saved connection profiles with password masked and has_password boolean flag."""
+    raw = read_json(CONNECTIONS_FILE, [])
+    saved = []
+    if isinstance(raw, list):
+        for item in raw:
+            if not isinstance(item, dict):
+                continue
+            d = dict(item)
+            db_type = (d.get("type") or "").strip().lower()
+            if filter_groups and (db_type == "group_marker" or str(d.get("name", "")).startswith("__group__")):
+                continue
+            if d.get("password"):
+                d["has_password"] = True
+                d.pop("password", None)
+            else:
+                d["has_password"] = False
+            saved.append(d)
+    return saved
+
+
 # Aliases for backward compatibility
 _read_json = read_json
 _write_json = write_json
@@ -223,3 +244,4 @@ _save_settings_file = save_settings_file
 _load_snippets_file = load_snippets_file
 _save_snippets_file = save_snippets_file
 _import_redgate_snippets = import_redgate_snippets
+

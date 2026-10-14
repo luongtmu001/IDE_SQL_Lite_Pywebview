@@ -169,8 +169,8 @@ class SettingsApiMixin:
 
     def get_code_styles(self):
         try:
-            from app.routes.styles import _load_styles_file
-            data = _load_styles_file()
+            from app.services.styles_service import load_styles_file
+            data = load_styles_file()
             return {"success": True, **data}
         except Exception as e:
             return {"success": False, "error": str(e)}
@@ -178,8 +178,8 @@ class SettingsApiMixin:
 
     def save_code_styles(self, payload):
         try:
-            from app.routes.styles import _save_styles_file
-            ok = _save_styles_file(payload)
+            from app.services.styles_service import save_styles_file
+            ok = save_styles_file(payload)
             return {"success": ok}
         except Exception as e:
             return {"success": False, "error": str(e)}
@@ -187,9 +187,8 @@ class SettingsApiMixin:
 
     def reset_code_styles(self):
         try:
-            from app.routes.styles import _get_default_styles_data, _save_styles_file
-            data = _get_default_styles_data()
-            _save_styles_file(data)
+            from app.services.styles_service import reset_styles_file
+            data = reset_styles_file()
             return {"success": True, **data}
         except Exception as e:
             return {"success": False, "error": str(e)}

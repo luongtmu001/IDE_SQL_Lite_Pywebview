@@ -13,16 +13,7 @@ from app.routes._common import get_connection_manager, get_owner_session_id
 
 bravo_bp = Blueprint("bravo", __name__)
 
-_SETTINGS_PATH = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), "..", "..", "settings", "settings.json"
-)
-
-def _load_settings():
-    try:
-        with open(_SETTINGS_PATH, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception:
-        return {}
+from app.services.settings_store import load_settings as _load_settings
 
 from app.utils.crypto import encrypt_password, decrypt_password
 
@@ -222,176 +213,13 @@ def get_session(bravo_session_id):
 
 
 # ── Codec & Helper functions for Layout Editor (Specification 4.1 & 7.1) ──────
+from app.bravo.xml_codec import (
+    beautify_xml_string as _beautify_xml_string,
+    decode_xml_payload as _decode_xml_payload,
+    encode_xml_payload as _encode_xml_payload,
+    validate_xml_syntax as _validate_xml_syntax,
+)
 
-def _beautify_xml_string(xml_str):
-    if not xml_str or not xml_str.strip():
-        return ""
-    s = xml_str.strip()
-
-    # 1. Try standard minidom parse
-    try:
-        dom = xml.dom.minidom.parseString(s)
-        pretty = dom.toprettyxml(indent="  ")
-        lines = [line for line in pretty.splitlines() if line.strip()]
-        return "\n".join(lines)
-    except Exception:
-        pass
-
-    # 2. Try wrapping in dummy root if fragment or unrooted text
-    try:
-        wrapped = f"<root>{s}</root>"
-        dom = xml.dom.minidom.parseString(wrapped)
-        pretty = dom.toprettyxml(indent="  ")
-        lines = [line for line in pretty.splitlines() if line.strip()]
-        lines = [l for l in lines if not l.startswith('<?xml')]
-        if len(lines) >= 2 and lines[0].strip() == '<root>' and lines[-1].strip() == '</root>':
-            inner_lines = lines[1:-1]
-            outdented = [l[2:] if l.startswith('  ') else l for l in inner_lines]
-            return "\n".join(outdented)
-    except Exception:
-        pass
-
-    # 3. Fallback regex beautifier
-    try:
-        clean = s.replace('><', '>\n<')
-        formatted = []
-        pad = 0
-        for line in clean.split('\n'):
-            line = line.strip()
-            if not line:
-                continue
-            if line.startswith('</'):
-                if pad > 0: pad -= 1
-            indent_str = '  ' * pad
-            formatted.append(indent_str + line)
-            if line.startswith('<') and not line.startswith('</') and not line.startswith('<?') and not line.endswith('/>') and '</' not in line:
-                pad += 1
-        return "\n".join(formatted)
-    except Exception:
-        return xml_str
-
-
-def _decode_xml_payload(raw_val, version):
-    """
-    Decode XML payload from DB based on version & content format.
-    Handles:
-    - ZIP Compressed Stream starting with 0x504B0304 ('PK\\x03\\x04')
-    - Base64 encoded ZIP or Base64 UTF-8 string (Bravo 10)
-    - Base64 GZIP / ZLIB compressed binary
-    - UTF-8 Plain text XML (Bravo 7, Bravo 8, or unencoded DB records)
-    """
-    if not raw_val:
-        return ""
-
-    raw_bytes = None
-
-    if isinstance(raw_val, bytes):
-        raw_bytes = raw_val
-    elif isinstance(raw_val, str):
-        str_val = raw_val.strip()
-
-        # Check Hex string starting with 0x or raw hex (from serialize_cell or DB varbinary)
-        if str_val.lower().startswith("0x"):
-            try:
-                raw_bytes = bytes.fromhex(str_val[2:])
-            except Exception:
-                pass
-        elif str_val.lower().startswith("504b0304"):
-            try:
-                raw_bytes = bytes.fromhex(str_val)
-            except Exception:
-                pass
-
-        # Check if already plain-text XML
-        if raw_bytes is None and (str_val.startswith("<") or str_val.startswith("<?xml")):
-            return _beautify_xml_string(str_val)
-
-        # Try Base64 decode
-        if raw_bytes is None:
-            try:
-                raw_bytes = base64.b64decode(str_val)
-            except Exception:
-                raw_bytes = str_val.encode("utf-8", errors="replace")
-
-    if not raw_bytes:
-        return ""
-
-    result_text = ""
-
-    # 1. Check ZIP Archive signature b"PK\x03\x04" (Hex 0x504B0304)
-    if len(raw_bytes) >= 4 and raw_bytes[:4] == b"PK\x03\x04":
-        try:
-            with zipfile.ZipFile(io.BytesIO(raw_bytes)) as z:
-                names = z.namelist()
-                if names:
-                    result_text = z.read(names[0]).decode("utf-8", errors="replace")
-        except Exception:
-            pass
-
-    # 2. Check GZIP signature b"\x1f\x8b"
-    if not result_text and len(raw_bytes) >= 2 and raw_bytes[:2] == b"\x1f\x8b":
-        try:
-            result_text = gzip.decompress(raw_bytes).decode("utf-8", errors="replace")
-        except Exception:
-            pass
-
-    # 3. Check ZLIB header
-    if not result_text and len(raw_bytes) >= 2 and raw_bytes[0] == 0x78:
-        try:
-            result_text = zlib.decompress(raw_bytes).decode("utf-8", errors="replace")
-        except Exception:
-            pass
-
-    # 4. Standard UTF-8 / UTF-16 text (and nested Base64)
-    if not result_text:
-        try:
-            result_text = raw_bytes.decode("utf-8")
-        except UnicodeDecodeError:
-            result_text = raw_bytes.decode("utf-16", errors="replace")
-
-        # If decoded text is not yet XML, test if it is a Base64 encoded payload
-        trimmed = result_text.strip()
-        if not (trimmed.startswith("<") or trimmed.startswith("<?xml")):
-            try:
-                b64_bytes = base64.b64decode(trimmed)
-                if len(b64_bytes) >= 4 and b64_bytes[:4] == b"PK\x03\x04":
-                    with zipfile.ZipFile(io.BytesIO(b64_bytes)) as z:
-                        names = z.namelist()
-                        if names:
-                            result_text = z.read(names[0]).decode("utf-8", errors="replace")
-                else:
-                    b64_str = b64_bytes.decode("utf-8", errors="replace")
-                    if b64_str.strip().startswith("<"):
-                        result_text = b64_str
-            except Exception:
-                pass
-
-    return _beautify_xml_string(result_text)
-
-
-
-def _encode_xml_payload(xml_str, version=None, format_type="zip"):
-    """
-    Encode XML payload to store back into Database.
-    Bravo Win & Mobile store LayoutData as a ZIP archive (Deflate)
-    containing an internal entry named 'Xml' (b'PK\x03\x04...').
-    """
-    if not xml_str:
-        return b""
-    buffer = io.BytesIO()
-    with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_DEFLATED) as z:
-        z.writestr("Xml", xml_str.encode("utf-8"))
-    return buffer.getvalue()
-
-
-def _validate_xml_syntax(xml_str):
-    if not xml_str or not xml_str.strip():
-        return True, None
-    try:
-        ET.fromstring(xml_str.strip())
-        return True, None
-    except ET.ParseError as err:
-        return False, str(err)
 
 
 # ── Layout Editor Backend API Endpoints (edit_layout.md Specification) ──────

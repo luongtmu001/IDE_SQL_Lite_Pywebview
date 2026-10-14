@@ -35,27 +35,11 @@ def list_connections():
         info = connection.public_info()
         info["is_alive"] = connection.is_alive()
         items.append(info)
-    saved_connections = []
     try:
-        from pathlib import Path
-        import json
-        conn_file = Path(__file__).resolve().parent.parent.parent / "data" / "connections.json"
-        if conn_file.exists():
-            with open(conn_file, "r", encoding="utf-8-sig") as f:
-                saved_raw = json.load(f)
-                for item in saved_raw:
-                    d = dict(item)
-                    db_type = (d.get("type") or "").strip().lower()
-                    if db_type == "group_marker" or str(d.get("name", "")).startswith("__group__"):
-                        continue
-                    if d.get("password"):
-                        d["has_password"] = True
-                        d.pop("password", None)
-                    else:
-                        d["has_password"] = False
-                    saved_connections.append(d)
+        from app.services.settings_store import get_saved_connections
+        saved_connections = get_saved_connections(filter_groups=True)
     except Exception:
-        pass
+        saved_connections = []
     return jsonify(success=True, connections=items, saved_connections=saved_connections, active_connections=items)
 
 @connections_bp.delete("/<connection_id>")
