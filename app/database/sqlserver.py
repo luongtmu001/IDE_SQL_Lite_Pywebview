@@ -279,8 +279,8 @@ class SqlServerAdapter(DatabaseAdapter):
                 try:
                     clean_db = str(database).replace("]", "]]")
                     cursor.execute(f"USE [{clean_db}]")
-                except Exception:
-                    pass
+                except Exception as exc:
+                    raise RuntimeError(f"Không thể chuyển ngữ cảnh sang database [{database}]: {exc}") from exc
 
             # Handle SSMS batch separator GO and track batch start lines
             raw_batches = re.split(r'^\s*GO\s*;?\s*(?:--.*)?$', sql, flags=re.MULTILINE | re.IGNORECASE)
@@ -1648,8 +1648,8 @@ class SqlServerAdapter(DatabaseAdapter):
             clean_db = str(database).replace("]", "]]")
             try:
                 cursor.execute(f"USE [{clean_db}]")
-            except Exception:
-                pass
+            except Exception as exc:
+                raise RuntimeError(f"Không thể chuyển ngữ cảnh sang database [{database}]: {exc}") from exc
 
         # Temporarily disable autocommit to create an explicit transaction
         self.connection.autocommit = False

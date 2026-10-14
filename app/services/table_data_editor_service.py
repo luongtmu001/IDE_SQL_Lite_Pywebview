@@ -564,8 +564,8 @@ class TableDataEditorService:
                 clean_db = str(database).replace("]", "]]")
                 try:
                     cursor.execute(f"USE [{clean_db}]")
-                except Exception:
-                    pass
+                except Exception as exc:
+                    raise RuntimeError(f"Không thể chuyển ngữ cảnh sang database [{database}]: {exc}") from exc
 
             # 2. Begin explicit transaction if not already in one
             if not in_explicit_tx:
@@ -812,8 +812,8 @@ class TableDataEditorService:
                 clean_db = str(database).replace("]", "]]")
                 try:
                     cursor.execute(f"USE [{clean_db}]")
-                except Exception:
-                    pass
+                except Exception as exc:
+                    raise RuntimeError(f"Không thể chuyển ngữ cảnh sang database [{database}]: {exc}") from exc
 
             conn.autocommit = False
 
@@ -914,8 +914,8 @@ class TableDataEditorService:
                 clean_db = str(database).replace("]", "]]")
                 try:
                     cursor.execute(f"USE [{clean_db}]")
-                except Exception:
-                    pass
+                except Exception as exc:
+                    raise RuntimeError(f"Không thể chuyển ngữ cảnh sang database [{database}]: {exc}") from exc
 
             columns_by_name = {str(c["name"]).strip().lower(): c for c in meta.get("columns", [])}
 
