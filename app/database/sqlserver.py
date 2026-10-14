@@ -1,12 +1,32 @@
+import logging
 import re
 import time
 from app.database.base import DatabaseAdapter
 from app.utils.db_message import clean_db_message, parse_error_details
 
+logger = logging.getLogger(__name__)
+
 try:
     import pyodbc
 except ImportError:
     pyodbc = None
+
+
+def escape_odbc_value(val) -> str:
+    """
+    Escape an ODBC connection string value according to Microsoft ODBC specification.
+    If the value contains ';', '{', '}', '=', or leading/trailing whitespace, wrap in '{...}'
+    and escape any closing brace '}' as '}}'.
+    """
+    if val is None:
+        return ""
+    s = str(val)
+    needs_braces = any(ch in s for ch in (";", "{", "}", "=")) or s.startswith(" ") or s.endswith(" ")
+    if needs_braces:
+        escaped = s.replace("}", "}}")
+        return f"{{{escaped}}}"
+    return s
+
 
 def _convert_sql_variant(val):
     if val is None:
@@ -118,55 +138,7 @@ class SqlServerAdapter(DatabaseAdapter):
 
         c = self.config
         requested_driver = c.get("driver")
-
-        # Build server string with port if provided and not already included
-        raw_server = str(c.get("server") or "localhost").strip()
-        port = c.get("port")
-        if port and "," not in raw_server and ":" not in raw_server:
-            server = f"{raw_server},{port}"
-        else:
-            server = raw_server
-
-        database = c.get("database") or "master"
         timeout = int(c.get("timeout") or 30)
-
-        raw_encrypt = c.get("encrypt", c.get("ssl", False))
-        if isinstance(raw_encrypt, str):
-            encrypt = "yes" if raw_encrypt.lower() in ("yes", "true", "1") else "no"
-        else:
-            encrypt = "yes" if raw_encrypt else "no"
-
-        raw_trust_cert = c.get("trust_server_certificate", True)
-        if isinstance(raw_trust_cert, str):
-            trust_cert = "yes" if raw_trust_cert.lower() in ("yes", "true", "1") else "no"
-        else:
-            trust_cert = "yes" if raw_trust_cert else "no"
-
-        app_name = c.get("app_name") or "luoBTool"
-
-        def _build_conn_str(drv):
-            app_part = f"APP={app_name};"
-            if c.get("trusted_connection"):
-                return (
-                    f"DRIVER={{{drv}}};"
-                    f"SERVER={server};"
-                    f"DATABASE={database};"
-                    "Trusted_Connection=yes;"
-                    f"Encrypt={encrypt};"
-                    f"TrustServerCertificate={trust_cert};"
-                    f"{app_part}"
-                )
-            else:
-                return (
-                    f"DRIVER={{{drv}}};"
-                    f"SERVER={server};"
-                    f"DATABASE={database};"
-                    f"UID={c.get('username', '')};"
-                    f"PWD={c.get('password', '')};"
-                    f"Encrypt={encrypt};"
-                    f"TrustServerCertificate={trust_cert};"
-                    f"{app_part}"
-                )
 
         drivers_to_try = []
         if requested_driver:
@@ -184,7 +156,7 @@ class SqlServerAdapter(DatabaseAdapter):
 
         last_exc = None
         for drv in drivers_to_try:
-            conn_str = _build_conn_str(drv)
+            conn_str = self._build_connection_string(drv)
             try:
                 self.connection = pyodbc.connect(
                     conn_str,
@@ -221,33 +193,55 @@ class SqlServerAdapter(DatabaseAdapter):
         drv = driver or c.get("driver") or "ODBC Driver 18 for SQL Server"
 
         raw_encrypt = c.get("encrypt", c.get("ssl", False))
-        encrypt = "yes" if (raw_encrypt and str(raw_encrypt).lower() in ("yes", "true", "1")) else "no"
+        if isinstance(raw_encrypt, str):
+            encrypt = "yes" if raw_encrypt.lower() in ("yes", "true", "1") else "no"
+        else:
+            encrypt = "yes" if raw_encrypt else "no"
 
         raw_trust_cert = c.get("trust_server_certificate", True)
-        trust_cert = "yes" if (raw_trust_cert and str(raw_trust_cert).lower() in ("yes", "true", "1")) else "no"
+        if isinstance(raw_trust_cert, str):
+            trust_cert = "yes" if raw_trust_cert.lower() in ("yes", "true", "1") else "no"
+        else:
+            trust_cert = "yes" if raw_trust_cert else "no"
+
+        if encrypt == "no":
+            logger.warning(
+                "SQL Server connection is using Encrypt=no. "
+                "Data transmitted across the network is unencrypted. Consider enabling encryption."
+            )
+        if trust_cert == "yes":
+            logger.warning(
+                "SQL Server connection is using TrustServerCertificate=yes. "
+                "Server certificate validation is disabled. Ensure this is intentional."
+            )
 
         app_name = c.get("app_name") or "luoBTool"
-        app_part = f"APP={app_name};"
+        app_part = f"APP={escape_odbc_value(app_name)};"
+
+        driver_part = f"DRIVER={{{drv}}};"
+        server_part = f"SERVER={escape_odbc_value(server)};"
+        db_part = f"DATABASE={escape_odbc_value(database)};"
+        enc_part = f"Encrypt={encrypt};TrustServerCertificate={trust_cert};"
 
         if c.get("trusted_connection"):
             return (
-                f"DRIVER={{{drv}}};"
-                f"SERVER={server};"
-                f"DATABASE={database};"
+                f"{driver_part}"
+                f"{server_part}"
+                f"{db_part}"
                 "Trusted_Connection=yes;"
-                f"Encrypt={encrypt};"
-                f"TrustServerCertificate={trust_cert};"
+                f"{enc_part}"
                 f"{app_part}"
             )
         else:
+            uid = escape_odbc_value(c.get("username", ""))
+            pwd = escape_odbc_value(c.get("password", ""))
             return (
-                f"DRIVER={{{drv}}};"
-                f"SERVER={server};"
-                f"DATABASE={database};"
-                f"UID={c.get('username', '')};"
-                f"PWD={c.get('password', '')};"
-                f"Encrypt={encrypt};"
-                f"TrustServerCertificate={trust_cert};"
+                f"{driver_part}"
+                f"{server_part}"
+                f"{db_part}"
+                f"UID={uid};"
+                f"PWD={pwd};"
+                f"{enc_part}"
                 f"{app_part}"
             )
 
