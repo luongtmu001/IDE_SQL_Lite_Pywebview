@@ -5,6 +5,11 @@ from app.services.table_data_editor_service import TableDataEditorService
 
 
 class TestTableDataEditor(unittest.TestCase):
+    def setUp(self):
+        TableDataEditorService.clear_all_metadata_cache()
+
+    def tearDown(self):
+        TableDataEditorService.clear_all_metadata_cache()
 
     def test_html_includes_table_data_editor_assets(self):
         """Verify index.html includes table-data-editor CSS, JS, and DOM container."""
@@ -345,7 +350,7 @@ class TestTableDataEditor(unittest.TestCase):
         ]
 
         res = TableDataEditorService.validate_insert_rows(
-            mock_adapter, 'TestDB', 'dbo', 'Orders', rows
+            mock_adapter, 'TestDB', 'dbo', 'Orders', rows, trial_insert=True
         )
 
         self.assertTrue(res['success'])
@@ -382,7 +387,7 @@ class TestTableDataEditor(unittest.TestCase):
         rows = [{'Id': 999, 'RowVer': 'dummy', 'Title': 'Test Book'}]
 
         res = TableDataEditorService.validate_insert_rows(
-            mock_adapter, 'TestDB', 'dbo', 'Books', rows
+            mock_adapter, 'TestDB', 'dbo', 'Books', rows, trial_insert=True
         )
 
         self.assertTrue(res['success'])
@@ -484,7 +489,8 @@ class TestTableDataEditor(unittest.TestCase):
             schema='dbo',
             table='TestTable',
             values={'Code': 'NEW_CODE', 'Name': 'New Name'},
-            is_new=True
+            is_new=True,
+            trial_insert=True
         )
         self.assertTrue(res_insert['valid'])
         mock_conn.rollback.assert_called()
@@ -497,7 +503,8 @@ class TestTableDataEditor(unittest.TestCase):
             table='TestTable',
             values={'Code': 'UPDATED_CODE'},
             keys={'Id': 10},
-            is_new=False
+            is_new=False,
+            trial_insert=True
         )
         self.assertTrue(res_update['valid'])
         self.assertIn("UPDATE [TestDB].[dbo].[TestTable] SET [Code] = ?", mock_cursor.execute.call_args[0][0])
@@ -512,7 +519,8 @@ class TestTableDataEditor(unittest.TestCase):
             table='TestTable',
             values={'Code': 'EXISTING'},
             keys={'Id': 11},
-            is_new=False
+            is_new=False,
+            trial_insert=True
         )
         self.assertFalse(res_error['valid'])
         self.assertIn("Violation of UNIQUE KEY constraint", res_error['error'])

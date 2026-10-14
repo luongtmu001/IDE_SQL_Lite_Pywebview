@@ -6,6 +6,23 @@ Complies with specs in .SKILL/profiler.md:
 - Server-side filter: client_app_name <> 'luoBTool_Profiler'
 - Deduplication via hash keys in circular set
 - Clean teardown: DROP EVENT SESSION ON SERVER
+
+Required SQL Server Permissions:
+--------------------------------
+To create, start, query, and drop Extended Events (XE) sessions, the database login
+must have appropriate server-level permissions:
+1. SQL Server 2008 through 2019:
+   - GRANT ALTER ANY EVENT SESSION TO [<login>];
+   - GRANT VIEW SERVER STATE TO [<login>];
+   (or membership in the 'sysadmin' fixed server role).
+2. SQL Server 2022 and newer:
+   - GRANT ALTER ANY EVENT SESSION TO [<login>];
+   - GRANT VIEW SERVER PERFORMANCE STATE TO [<login>];
+   (or membership in the 'sysadmin' fixed server role).
+3. System catalog / DMV access:
+   - Reading sys.server_event_sessions requires VIEW ANY DEFINITION or ALTER ANY EVENT SESSION.
+   - Reading sys.dm_xe_sessions / sys.dm_xe_session_targets requires VIEW SERVER STATE
+     (or VIEW SERVER PERFORMANCE STATE in SQL Server 2022+).
 """
 
 import collections
@@ -13,7 +30,7 @@ import datetime
 import logging
 import time
 import xml.etree.ElementTree as ET
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from app.database.sql_utils import quote_ident, escape_literal
 from .base import BaseProfilerSession
@@ -21,7 +38,129 @@ from .base import BaseProfilerSession
 logger = logging.getLogger("luobtool.profiler.mssql")
 
 
+def _resolve_connection_and_flag(conn_config: Any):
+    """
+    Returns (connection, should_close).
+    Supports raw DB-API connection, adapter instance, or conn_config dictionary.
+    """
+    if hasattr(conn_config, "cursor"):
+        return conn_config, False
+    if hasattr(conn_config, "connection") and hasattr(conn_config.connection, "cursor"):
+        return conn_config.connection, False
+    from app.database.sqlserver import SqlServerAdapter
+
+    cfg = dict(conn_config)
+    cfg["app_name"] = "luoBTool_Profiler_Cleanup"
+    adapter = SqlServerAdapter(cfg)
+    adapter.connect()
+    return adapter.connection, True
+
+
+def list_orphaned_sessions(conn_config: Any) -> List[Dict[str, Any]]:
+    """
+    Queries sys.server_event_sessions for orphaned Extended Events sessions
+    created by luoBTool (matching prefix 'luoBTool_XE_%').
+
+    Returns a list of dictionaries:
+        [{"name": session_name, "event_session_id": int, "is_running": bool}, ...]
+    """
+    conn, should_close = _resolve_connection_and_flag(conn_config)
+    try:
+        cursor = conn.cursor()
+        query = """
+        SELECT s.name,
+               s.event_session_id,
+               CASE WHEN dm.address IS NOT NULL THEN 1 ELSE 0 END AS is_running
+        FROM sys.server_event_sessions s
+        LEFT JOIN sys.dm_xe_sessions dm ON dm.name = s.name
+        WHERE s.name LIKE 'luoBTool_XE_%'
+        ORDER BY s.name;
+        """
+        cursor.execute(query)
+        rows = cursor.fetchall()
+        cursor.close()
+
+        results = []
+        for row in rows:
+            results.append({
+                "name": str(row[0]),
+                "event_session_id": int(row[1]) if row[1] is not None else None,
+                "is_running": bool(row[2]),
+            })
+        return results
+    except Exception as ex:
+        logger.warning("Error querying orphaned XE sessions: %s", ex)
+        raise
+    finally:
+        if should_close:
+            try:
+                conn.close()
+            except Exception as ex:
+                logger.debug("Error closing temporary connection in list_orphaned_sessions: %s", ex)
+
+
+def cleanup_orphaned_sessions(conn_config: Any, session_names: Optional[List[str]] = None) -> int:
+    """
+    Stops and drops orphaned Extended Events sessions with prefix 'luoBTool_XE_'.
+    If session_names is None, cleans up all orphaned sessions matching 'luoBTool_XE_%'.
+    If session_names is provided, only specified names are dropped (validating prefix).
+
+    Returns the number of sessions successfully dropped.
+    """
+    conn, should_close = _resolve_connection_and_flag(conn_config)
+    try:
+        if session_names is None:
+            orphaned = list_orphaned_sessions(conn)
+            names_to_clean = [s["name"] for s in orphaned]
+        else:
+            names_to_clean = list(session_names)
+
+        dropped_count = 0
+        cursor = conn.cursor()
+        for name in names_to_clean:
+            if not name or not name.startswith("luoBTool_XE_"):
+                logger.warning("Skipping cleanup for non-luoBTool XE session name: %s", name)
+                continue
+
+            q_name = quote_ident(name, "sqlserver")
+            lit_name = escape_literal(name, "sqlserver")
+
+            drop_sql = f"""
+            IF EXISTS (SELECT 1 FROM sys.server_event_sessions WHERE name = {lit_name})
+            BEGIN
+                IF EXISTS (SELECT 1 FROM sys.dm_xe_sessions WHERE name = {lit_name})
+                BEGIN
+                    ALTER EVENT SESSION {q_name} ON SERVER STATE = STOP;
+                END;
+                DROP EVENT SESSION {q_name} ON SERVER;
+            END;
+            """
+            try:
+                cursor.execute(drop_sql)
+                dropped_count += 1
+                logger.info("Successfully dropped orphaned XE session: %s", name)
+            except Exception as ex:
+                logger.warning("Failed to drop orphaned XE session %s: %s", name, ex)
+
+        cursor.close()
+        return dropped_count
+    finally:
+        if should_close:
+            try:
+                conn.close()
+            except Exception as ex:
+                logger.debug("Error closing temporary connection in cleanup_orphaned_sessions: %s", ex)
+
+
 class MssqlProfilerSession(BaseProfilerSession):
+    @classmethod
+    def list_orphaned_sessions(cls, conn_config: Any) -> List[Dict[str, Any]]:
+        return list_orphaned_sessions(conn_config)
+
+    @classmethod
+    def cleanup_orphaned_sessions(cls, conn_config: Any, session_names: Optional[List[str]] = None) -> int:
+        return cleanup_orphaned_sessions(conn_config, session_names=session_names)
+
     def __init__(
         self,
         session_id: str,
@@ -188,7 +327,8 @@ class MssqlProfilerSession(BaseProfilerSession):
                         # e.g., 2026-09-13T16:20:01.123Z
                         dt = datetime.datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
                         time_display = dt.strftime("%H:%M:%S")
-                    except Exception:
+                    except Exception as ex:
+                        logger.debug("Failed to parse event timestamp %r: %s", timestamp_str, ex)
                         time_display = timestamp_str[-12:-4]
                 if not time_display:
                     time_display = datetime.datetime.now().strftime("%H:%M:%S")
@@ -229,6 +369,6 @@ class MssqlProfilerSession(BaseProfilerSession):
         finally:
             try:
                 self._raw_conn.close()
-            except Exception:
-                pass
+            except Exception as ex:
+                logger.debug("Error closing raw connection in profiler _cleanup_session: %s", ex)
             self._raw_conn = None
