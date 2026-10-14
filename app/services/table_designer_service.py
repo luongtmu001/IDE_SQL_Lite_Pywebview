@@ -252,22 +252,7 @@ class TableDesignerService:
         schema = modified.get("schema") or (original and original.get("schema")) or ("public" if engine == "postgresql" else "dbo")
         table = modified.get("table") or (original and original.get("table")) or "Untitled"
         tbl_name = cls._format_table_name(schema, table, engine)
-
-        # Clean unquoted table identifier for alter table statements
-        if engine == "postgresql":
-            clean_tbl = table.strip('"')
-            clean_sch = (schema or "public").strip('"')
-            if clean_sch and clean_sch.lower() != "public":
-                alt_tbl_name = f"{clean_sch}.{clean_tbl}"
-            else:
-                alt_tbl_name = clean_tbl
-        else:
-            clean_tbl = table.strip('[]')
-            clean_sch = (schema or "dbo").strip('[]')
-            if clean_sch and clean_sch.lower() != "dbo":
-                alt_tbl_name = f"{clean_sch}.{clean_tbl}"
-            else:
-                alt_tbl_name = clean_tbl
+        alt_tbl_name = tbl_name
 
         statements = []
         warnings = []
@@ -314,13 +299,16 @@ class TableDesignerService:
         mod_cols = {c["name"]: c for c in modified.get("columns", [])}
 
         # 0. Table Rename
-        orig_tbl_raw = str(original.get("table") or "").strip().strip('\"[]')
-        mod_tbl_raw = str(modified.get("table") or "").strip().strip('\"[]')
+        orig_tbl_raw = str(original.get("table") or "").strip()
+        mod_tbl_raw = str(modified.get("table") or "").strip()
         if orig_tbl_raw and mod_tbl_raw and orig_tbl_raw.lower() != mod_tbl_raw.lower():
             if engine == "sqlserver":
-                rename_sql = f"EXEC sp_rename @objname = N'[{clean_sch}].[{orig_tbl_raw}]', @newname = N'{mod_tbl_raw}', @objtype = N'OBJECT';"
+                orig_full = cls._format_table_name(schema, orig_tbl_raw, engine)
+                rename_sql = f"EXEC sp_rename @objname = N'{orig_full}', @newname = N'{mod_tbl_raw.strip('[]')}', @objtype = N'OBJECT';"
             else:
-                rename_sql = f'ALTER TABLE "{clean_sch}"."{orig_tbl_raw}" RENAME TO "{mod_tbl_raw}";'
+                orig_full = cls._format_table_name(schema, orig_tbl_raw, engine)
+                q_mod_tbl = cls._quote_ident(mod_tbl_raw, engine)
+                rename_sql = f"ALTER TABLE {orig_full} RENAME TO {q_mod_tbl};"
             statements.append({
                 "sql": rename_sql,
                 "destructive": False,
@@ -336,23 +324,23 @@ class TableDesignerService:
         # 1. Dropped Columns (Destructive)
         for col_name, ocol in orig_cols.items():
             if col_name not in mod_cols:
-                clean_col = col_name.strip('\"[]')
-                sql = f"alter table {alt_tbl_name}\n    drop column {clean_col};"
+                q_col = cls._quote_ident(col_name, engine)
+                sql = f"alter table {alt_tbl_name}\n    drop column {q_col};"
                 statements.append({
                     "sql": sql,
                     "destructive": True,
-                    "description": f"Drop column {clean_col}",
+                    "description": f"Drop column {col_name}",
                     "type": "tables"
                 })
-                warnings.append(f"Column {clean_col} will be dropped and its data permanently deleted.")
+                warnings.append(f"Column {col_name} will be dropped and its data permanently deleted.")
 
         # 2. Added Columns (Formatted per user sample: alter table <table>\n    add <column_name> <type>;)
         for col_name, mcol in mod_cols.items():
             if col_name not in orig_cols:
-                clean_col = col_name.strip('\"[]')
+                q_col = cls._quote_ident(col_name, engine)
                 type_str = cls.format_column_type(mcol, engine).lower()
                 
-                parts = [f"    add {clean_col} {type_str}"]
+                parts = [f"    add {q_col} {type_str}"]
                 default_val = (mcol.get("default_value") or "").strip()
                 if default_val:
                     parts.append(f"default {default_val}")
@@ -363,7 +351,7 @@ class TableDesignerService:
                 statements.append({
                     "sql": sql,
                     "destructive": False,
-                    "description": f"Add column {clean_col}",
+                    "description": f"Add column {col_name}",
                     "type": "tables"
                 })
 
@@ -376,35 +364,35 @@ class TableDesignerService:
                 null_changed = (bool(mcol.get("nullable")) != bool(ocol.get("nullable")))
                 def_changed = (str(mcol.get("default_value")).strip() != str(ocol.get("default_value")).strip())
 
-                clean_col = col_name.strip('\"[]')
+                q_col = cls._quote_ident(col_name, engine)
                 if type_changed or null_changed:
                     if engine == "sqlserver":
                         type_str = cls.format_column_type(mcol, engine).lower()
                         null_str = "null" if mcol.get("nullable", True) else "not null"
-                        sql = f"alter table {alt_tbl_name}\n    alter column {clean_col} {type_str} {null_str};"
+                        sql = f"alter table {alt_tbl_name}\n    alter column {q_col} {type_str} {null_str};"
                         statements.append({
                             "sql": sql,
                             "destructive": False,
-                            "description": f"Alter column {clean_col} type/nullability",
+                            "description": f"Alter column {col_name} type/nullability",
                             "type": "tables"
                         })
                     else:
                         type_str = cls.format_column_type(mcol, engine).lower()
                         if type_changed:
-                            sql = f"alter table {alt_tbl_name}\n    alter column {clean_col} type {type_str} using {clean_col}::{type_str};"
+                            sql = f"alter table {alt_tbl_name}\n    alter column {q_col} type {type_str} using {q_col}::{type_str};"
                             statements.append({
                                 "sql": sql,
                                 "destructive": False,
-                                "description": f"Alter column {clean_col} data type to {type_str}",
+                                "description": f"Alter column {col_name} data type to {type_str}",
                                 "type": "tables"
                             })
                         if null_changed:
                             null_action = "drop not null" if mcol.get("nullable", True) else "set not null"
-                            sql = f"alter table {alt_tbl_name}\n    alter column {clean_col} {null_action};"
+                            sql = f"alter table {alt_tbl_name}\n    alter column {q_col} {null_action};"
                             statements.append({
                                 "sql": sql,
                                 "destructive": False,
-                                "description": f"Alter column {clean_col} nullability",
+                                "description": f"Alter column {col_name} nullability",
                                 "type": "tables"
                             })
 
@@ -419,22 +407,22 @@ class TableDesignerService:
 
                     if engine == "sqlserver":
                         if new_def:
-                            df_name = cls._quote_ident(f"DF_{clean_tbl}_{clean_col}", engine)
+                            df_name = cls._quote_ident(f"DF_{table}_{col_name}", engine)
                             statements.append({
-                                "sql": f"alter table {alt_tbl_name}\n    add constraint {df_name} default {new_def} for {clean_col};",
+                                "sql": f"alter table {alt_tbl_name}\n    add constraint {df_name} default {new_def} for {q_col};",
                                 "destructive": False,
-                                "description": f"Set default value for {clean_col}",
+                                "description": f"Set default value for {col_name}",
                                 "type": "tables"
                             })
                     else:
                         if new_def:
-                            sql = f"alter table {alt_tbl_name}\n    alter column {clean_col} set default {new_def};"
+                            sql = f"alter table {alt_tbl_name}\n    alter column {q_col} set default {new_def};"
                         else:
-                            sql = f"alter table {alt_tbl_name}\n    alter column {clean_col} drop default;"
+                            sql = f"alter table {alt_tbl_name}\n    alter column {q_col} drop default;"
                         statements.append({
                             "sql": sql,
                             "destructive": False,
-                            "description": f"Change default value for {clean_col}",
+                            "description": f"Change default value for {col_name}",
                             "type": "tables"
                         })
 
