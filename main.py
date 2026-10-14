@@ -66,7 +66,17 @@ SNIPPETS_FILE = DATA_DIR / "snippets.json"
 CODE_STYLES_FILE = DATA_DIR / "code_styles.json"
 PROGRAM_LIST_FILE = DATA_DIR / "programlist.json"
 PROGRAM_GROUPS_FILE = DATA_DIR / "programgroups.json"
-REDGATE_SNIPPETS_DIR = Path(r"C:\Users\luonght\AppData\Local\Red Gate\SQL Prompt 10\Snippets")
+REDGATE_SNIPPETS_DIR = None
+
+def _get_redgate_snippets_dir():
+    try:
+        settings = _load_settings_file()
+        custom_dir = settings.get("redgate_snippets_dir") or settings.get("editor", {}).get("redgate_snippets_dir") or ""
+        if custom_dir and os.path.exists(custom_dir):
+            return Path(custom_dir)
+    except Exception:
+        pass
+    return None
 
 connection_manager = ConnectionManager()
 _OWNER_SESSION = "desktop_user"
@@ -629,8 +639,9 @@ def _save_snippets_file(snippets):
 
 def _import_redgate_snippets():
     snippets = []
-    if REDGATE_SNIPPETS_DIR.exists():
-        for fp in REDGATE_SNIPPETS_DIR.glob("*.json"):
+    redgate_dir = _get_redgate_snippets_dir()
+    if redgate_dir and redgate_dir.exists():
+        for fp in redgate_dir.glob("*.json"):
             try:
                 with open(fp, "r", encoding="utf-8") as f:
                     snippets.append(json.load(f))
