@@ -27,6 +27,19 @@ class DatabaseAdapter(ABC):
         """Cancel currently executing query if supported."""
         return False
 
+    def ping(self) -> bool:
+        """Check if connection is alive and healthy."""
+        if not getattr(self, "connection", None):
+            return False
+        try:
+            cur = self.connection.cursor()
+            cur.execute("SELECT 1")
+            cur.fetchone()
+            cur.close()
+            return True
+        except Exception:
+            return False
+
     @abstractmethod
     def list_databases(self):
         ...
@@ -36,7 +49,7 @@ class DatabaseAdapter(ABC):
         ...
 
     @abstractmethod
-    def list_objects(self, database, schema, object_type, search=None):
+    def list_objects(self, database, schema, object_type, search=None, limit=0):
         ...
 
     @abstractmethod

@@ -23,7 +23,14 @@
         data_type: 'fa-cube text-info',
         user_data_type: 'fa-shapes text-warning',
         snippet: 'fa-wand-magic-sparkles text-warning',
-        join_condition: 'fa-link text-warning'
+        join_condition: 'fa-link text-warning',
+        linked_server: 'fa-server text-info',
+        foreign_server: 'fa-network-wired text-info',
+        remote_table: 'fa-table text-info',
+        remote_view: 'fa-table-columns text-info',
+        remote_column: 'fa-columns text-info',
+        remote_database: 'fa-database text-info',
+        remote_schema: 'fa-layer-group text-info'
     };
 
     function formatDisplayType(type) {
@@ -45,7 +52,14 @@
             data_type: 'Data Type',
             user_data_type: 'UDT',
             snippet: 'Snippet',
-            join_condition: 'FK Join'
+            join_condition: 'FK Join',
+            linked_server: 'Linked Server',
+            foreign_server: 'Foreign Server',
+            remote_table: 'Remote Table',
+            remote_view: 'Remote View',
+            remote_column: 'Remote Column',
+            remote_database: 'Database',
+            remote_schema: 'Schema'
         };
         return map[type] || (type.charAt(0).toUpperCase() + type.slice(1));
     }
@@ -218,8 +232,8 @@
                         return def;
                     }
                 }
-                const url = `/api/metadata/${connectionId}/definition?database=${encodeURIComponent(database || '')}&schema=${encodeURIComponent(schema || '')}&name=${encodeURIComponent(name)}&type=${encodeURIComponent(type || '')}`;
-                const res = await fetch(url);
+                const url = `/api/metadata/${connectionId}/definition?database=${encodeURIComponent(database || '')}&schema=${encodeURIComponent(schema || '')}&name=${encodeURIComponent(name)}&type=${encodeURIComponent(type || '')}&_t=${Date.now()}`;
+                const res = await fetch(url, { cache: 'no-store' });
                 const data = await res.json();
                 if (data.success && data.definition) {
                     if (this.cache) this.cache.setDefinition(connectionId, database, schema, name, type, data.definition);
@@ -230,6 +244,21 @@
                 console.warn('[IntelliSense] fetchDefinition error:', e);
             }
             return null;
+        }
+
+        invalidateDefinition(connectionId, database, schema, name) {
+            if (!name) return;
+            const cleanName = String(name).trim().toLowerCase().replace(/^[\["`]|[\]"`]$/g, '');
+            const cleanDb = database ? String(database).trim().toLowerCase() : '';
+            for (const k of this.definitionsCache.keys()) {
+                const parts = k.split('::');
+                const kConn = parts[0];
+                const kDb = parts[1] ? parts[1].toLowerCase() : '';
+                const kName = parts[3] ? parts[3].toLowerCase().replace(/^[\["`]|[\]"`]$/g, '') : '';
+                if (kConn === String(connectionId) && (!cleanDb || kDb === cleanDb) && kName === cleanName) {
+                    this.definitionsCache.delete(k);
+                }
+            }
         }
 
         async fetchForeignKeys(connectionId, database, schema, table, dbType) {
@@ -346,6 +375,128 @@
             this.columnsCache.delete(colKey);
             const objKey = `${connectionId}::${database || ''}::${schema || ''}`;
             this.objectsCache.delete(objKey);
+        }
+
+        async getLinkedServers(connectionId, dbType) {
+            if (!connectionId) return [];
+            try {
+                const provider = this.getProvider(connectionId, dbType);
+                if (provider && typeof provider.getLinkedServers === 'function') {
+                    return await provider.getLinkedServers(connectionId);
+                }
+                const res = await fetch(`/api/metadata/${connectionId}/linked_servers`);
+                const data = await res.json();
+                return data && data.success && Array.isArray(data.items) ? data.items : [];
+            } catch (e) {
+                console.warn('[IntelliSense] getLinkedServers error:', e);
+                return [];
+            }
+        }
+
+        async getRemoteDatabases(connectionId, server, dbType) {
+            if (!connectionId || !server) return [];
+            try {
+                const provider = this.getProvider(connectionId, dbType);
+                if (provider && typeof provider.getRemoteDatabases === 'function') {
+                    return await provider.getRemoteDatabases(connectionId, server);
+                }
+                const q = `?server=${encodeURIComponent(server)}`;
+                const res = await fetch(`/api/metadata/${connectionId}/linked_server/databases${q}`);
+                const data = await res.json();
+                return data && data.success && Array.isArray(data.items) ? data.items : [];
+            } catch (e) {
+                console.warn('[IntelliSense] getRemoteDatabases error:', e);
+                return [];
+            }
+        }
+
+        async getRemoteSchemas(connectionId, server, database, dbType) {
+            if (!connectionId || !server) return [];
+            try {
+                const provider = this.getProvider(connectionId, dbType);
+                if (provider && typeof provider.getRemoteSchemas === 'function') {
+                    return await provider.getRemoteSchemas(connectionId, server, database);
+                }
+                const params = new URLSearchParams({ server });
+                if (database) params.append('database', database);
+                const res = await fetch(`/api/metadata/${connectionId}/linked_server/schemas?${params.toString()}`);
+                const data = await res.json();
+                return data && data.success && Array.isArray(data.items) ? data.items : [];
+            } catch (e) {
+                console.warn('[IntelliSense] getRemoteSchemas error:', e);
+                return [];
+            }
+        }
+
+        async getRemoteObjects(connectionId, server, database, schema, dbType) {
+            if (!connectionId || !server) return [];
+            try {
+                const provider = this.getProvider(connectionId, dbType);
+                if (provider && typeof provider.getRemoteObjects === 'function') {
+                    return await provider.getRemoteObjects(connectionId, server, database, schema);
+                }
+                const params = new URLSearchParams({ server });
+                if (database) params.append('database', database);
+                if (schema) params.append('schema', schema);
+                const res = await fetch(`/api/metadata/${connectionId}/linked_server/objects?${params.toString()}`);
+                const data = await res.json();
+                return data && data.success && Array.isArray(data.items) ? data.items : [];
+            } catch (e) {
+                console.warn('[IntelliSense] getRemoteObjects error:', e);
+                return [];
+            }
+        }
+
+        async getRemoteColumns(connectionId, server, database, schema, table, dbType) {
+            if (!connectionId || !server || !table) return [];
+            try {
+                const provider = this.getProvider(connectionId, dbType);
+                if (provider && typeof provider.getRemoteColumns === 'function') {
+                    return await provider.getRemoteColumns(connectionId, server, database, schema, table);
+                }
+                const params = new URLSearchParams({ server, table });
+                if (database) params.append('database', database);
+                if (schema) params.append('schema', schema);
+                const res = await fetch(`/api/metadata/${connectionId}/linked_server/columns?${params.toString()}`);
+                const data = await res.json();
+                return data && data.success && Array.isArray(data.items) ? data.items : [];
+            } catch (e) {
+                console.warn('[IntelliSense] getRemoteColumns error:', e);
+                return [];
+            }
+        }
+
+        async getForeignServers(connectionId, dbType) {
+            if (!connectionId) return [];
+            try {
+                const provider = this.getProvider(connectionId, dbType);
+                if (provider && typeof provider.getForeignServers === 'function') {
+                    return await provider.getForeignServers(connectionId);
+                }
+                const res = await fetch(`/api/metadata/${connectionId}/foreign_servers`);
+                const data = await res.json();
+                return data && data.success && Array.isArray(data.items) ? data.items : [];
+            } catch (e) {
+                console.warn('[IntelliSense] getForeignServers error:', e);
+                return [];
+            }
+        }
+
+        async getForeignTables(connectionId, schema, dbType) {
+            if (!connectionId) return [];
+            try {
+                const provider = this.getProvider(connectionId, dbType);
+                if (provider && typeof provider.getForeignTables === 'function') {
+                    return await provider.getForeignTables(connectionId, schema);
+                }
+                const q = schema ? `?schema=${encodeURIComponent(schema)}` : '';
+                const res = await fetch(`/api/metadata/${connectionId}/foreign_tables${q}`);
+                const data = await res.json();
+                return data && data.success && Array.isArray(data.items) ? data.items : [];
+            } catch (e) {
+                console.warn('[IntelliSense] getForeignTables error:', e);
+                return [];
+            }
         }
     }
 
@@ -763,6 +914,25 @@
                     </div>
                 `;
                 this.scriptContent.textContent = `-- Variable / Parameter: ${item.name} ${item.dataType || ''}`;
+            } else if (item.type === 'linked_server') {
+                this.summaryContent.innerHTML = `
+                    <div class="p-2">
+                        <div class="fw-bold mb-1"><i class="fa-solid fa-server text-info me-1"></i>${item.name}</div>
+                        <div class="small text-muted">Type: <span class="fw-semibold text-info">Linked Server</span></div>
+                        ${item.detail ? `<div class="small text-muted mt-1">Detail: <span class="font-monospace text-secondary">${item.detail}</span></div>` : ''}
+                        <div class="small text-muted mt-2">Remote server reference. Format: <code>[Server].[Database].[Schema].[Table]</code></div>
+                    </div>
+                `;
+                this.scriptContent.textContent = `-- Linked Server: [${item.name}]\n-- Usage: SELECT * FROM [${item.name}].[database].[schema].[table];`;
+            } else if (item.type === 'foreign_server') {
+                this.summaryContent.innerHTML = `
+                    <div class="p-2">
+                        <div class="fw-bold mb-1"><i class="fa-solid fa-server text-info me-1"></i>${item.name}</div>
+                        <div class="small text-muted">Type: <span class="fw-semibold text-info">Foreign Server</span></div>
+                        ${item.detail ? `<div class="small text-muted mt-1">Detail: <span class="font-monospace text-secondary">${item.detail}</span></div>` : ''}
+                    </div>
+                `;
+                this.scriptContent.textContent = `-- Foreign Server: "${item.name}"`;
             } else {
                 this.summaryContent.innerHTML = `
                     <div class="p-2">
@@ -1003,6 +1173,17 @@
             const isVisible = this.popupUI.isVisible;
             const hasSelection = (typeof adapter.hasSelection === 'function') ? adapter.hasSelection() : false;
 
+            // 0. Single Tab Instant Snippet Expansion (apply ONLY to snippets)
+            const keyName = e.key || (e.browserEvent ? e.browserEvent.key : '');
+            const isTab = (keyName === 'Tab' || e.keyCode === 9) && !e.shiftKey && !e.ctrlKey && !e.altKey;
+            if (isTab && window.AppSnippets && typeof window.AppSnippets.tryExpandSnippet === 'function') {
+                const expanded = window.AppSnippets.tryExpandSnippet(adapter);
+                if (expanded) {
+                    this.hidePopup();
+                    return true;
+                }
+            }
+
             if (this.triggerController) {
                 const decision = this.triggerController.decideKeyDown(e, isVisible, hasSelection);
                 const tabCtx = this.getActiveTabContext();
@@ -1079,10 +1260,10 @@
                 const state = window.AppTabs.getActiveTabState();
                 if (state) {
                     return {
-                        connectionId: state.connectionId,
-                        database: state.database,
-                        schema: state.schema,
-                        dbType: state.dbType || 'sqlserver'
+                        connectionId: state.connectionId || window.ActiveConnectionId,
+                        database: state.database || window.ActiveDatabase,
+                        schema: state.schema || window.ActiveSchema,
+                        dbType: state.dbType || window.ActiveDbType || 'sqlserver'
                     };
                 }
             }
@@ -1164,9 +1345,11 @@
             const fullSql = adapter.getText();
 
             const context = window.SqlContextAnalyzer.analyze(fullSql, cursorOffset);
+            const prevQualifier = (this.activeContext && this.activeContext.qualifier) ? this.activeContext.qualifier.toLowerCase() : '';
+            const currQualifier = (context && context.qualifier) ? context.qualifier.toLowerCase() : '';
             const prevStmtStart = (this.activeContext && this.activeContext.statementRange) ? this.activeContext.statementRange.start : 0;
             const currStmtStart = (context && context.statementRange) ? context.statementRange.start : 0;
-            if (prevStmtStart !== currStmtStart) {
+            if (prevStmtStart !== currStmtStart || (context && context.triggerChar === '.') || (reason === 'character') || (prevQualifier !== currQualifier)) {
                 this.activeCandidates = null;
                 this.rawCandidates = null;
             }
@@ -1181,7 +1364,7 @@
             const isTriggerWord = context.currentWord.length > 0;
             const isDot = context.triggerChar === '.';
             const isFollowUp = context.hasFollowUp;
-            const isFromClause = (context.clause === 'FROM' || context.clause === 'JOIN');
+            const isFromClause = (context.clause === 'FROM' || context.clause === 'JOIN' || context.clause === 'ON');
             const isAlterContext = context.isAlterContext;
             const isExec = Boolean(context.execContext && context.execContext.isExec);
             const isRoutineBody = Boolean(context.isInRoutineBody);
@@ -1327,14 +1510,21 @@
                     if (isExprClause) {
                         for (const tbl of context.queryTables) {
                             const targetSchema = tbl.schema || tabCtx.schema;
-                            const cols = await this.dataProvider.fetchColumns(tabCtx.connectionId, tabCtx.database, targetSchema, tbl.table);
-                            cols.forEach(c => {
+                            let cols = [];
+                            if (tbl.server || tbl.sourceType === 'REMOTE_TABLE') {
+                                if (typeof this.dataProvider.getRemoteColumns === 'function') {
+                                    cols = await this.dataProvider.getRemoteColumns(tabCtx.connectionId, tbl.server, tbl.database || tabCtx.database, targetSchema, tbl.table);
+                                }
+                            } else {
+                                cols = await this.dataProvider.fetchColumns(tabCtx.connectionId, tabCtx.database, targetSchema, tbl.table);
+                            }
+                            (cols || []).forEach(c => {
                                 if (!wordLower || c.name.toLowerCase().startsWith(wordLower)) {
                                     allCandidates.push({
                                         name: c.name,
                                         type: c.is_pk ? 'pk_column' : 'column',
                                         level: 1.1,
-                                        displayType: 'Column',
+                                        displayType: tbl.server ? 'Remote Column' : 'Column',
                                         dataType: c.data_type,
                                         isNullable: c.is_nullable,
                                         isPk: c.is_pk,
@@ -1383,27 +1573,40 @@
                 let targetTable = null;
                 let targetSchema = tabCtx.schema;
 
+                let targetServer = null;
+                let targetDatabase = tabCtx.database;
                 if (context.resolvedObject && context.resolvedObject.object) {
                     targetTable = context.resolvedObject.object;
                     if (context.resolvedObject.schema) targetSchema = context.resolvedObject.schema;
+                    if (context.resolvedObject.database) targetDatabase = context.resolvedObject.database;
+                    if (context.resolvedObject.server) targetServer = context.resolvedObject.server;
                 } else if (context.aliasMap && context.aliasMap[qualLower]) {
                     const mapped = context.aliasMap[qualLower];
                     targetTable = mapped.table || mapped.object;
                     if (mapped.schema) targetSchema = mapped.schema;
+                    if (mapped.database) targetDatabase = mapped.database;
+                    if (mapped.server) targetServer = mapped.server;
                 } else {
                     targetTable = context.qualifier;
                 }
 
-                // A. Columns from active database connection
+                // A. Columns from active database connection (or remote linked server)
                 if (tabCtx.connectionId && targetTable) {
-                    const cols = await this.dataProvider.fetchColumns(tabCtx.connectionId, tabCtx.database, targetSchema, targetTable);
+                    let cols = [];
+                    if (targetServer || (context.resolvedObject && context.resolvedObject.sourceType === 'REMOTE_TABLE')) {
+                        if (typeof this.dataProvider.getRemoteColumns === 'function') {
+                            cols = await this.dataProvider.getRemoteColumns(tabCtx.connectionId, targetServer, targetDatabase, targetSchema, targetTable);
+                        }
+                    } else if (typeof this.dataProvider.fetchColumns === 'function') {
+                        cols = await this.dataProvider.fetchColumns(tabCtx.connectionId, tabCtx.database, targetSchema, targetTable);
+                    }
                     cols.forEach(c => {
                         if (!wordLower || c.name.toLowerCase().startsWith(wordLower)) {
                             allCandidates.push({
                                 name: c.name,
                                 type: c.is_pk ? 'pk_column' : 'column',
                                 level: 2,
-                                displayType: 'Column',
+                                displayType: targetServer ? 'Remote Column' : 'Column',
                                 dataType: c.data_type,
                                 isNullable: c.is_nullable,
                                 isPk: c.is_pk,
@@ -1638,28 +1841,36 @@
 
                 if (defScript) {
                     let transformedScript = defScript;
-                    const isCreateOrAlter = /\bCREATE\s+OR\s+ALTER\b/i.test(userTypedLine);
-                    const isCreateOrReplace = /\bCREATE\s+OR\s+REPLACE\b/i.test(userTypedLine);
-                    const isAlterOnly = /\bALTER\b/i.test(userTypedLine) && !isCreateOrAlter;
+                    let action = (currentContext && currentContext.alterAction) ? currentContext.alterAction.toUpperCase() : '';
+                    if (!action) {
+                        if (/\bCREATE\s+OR\s+ALTER\b/i.test(userTypedLine)) action = 'CREATE OR ALTER';
+                        else if (/\bCREATE\s+OR\s+REPLACE\b/i.test(userTypedLine)) action = 'CREATE OR REPLACE';
+                        else if (/\bALTER\b/i.test(userTypedLine)) action = 'ALTER';
+                        else action = 'ALTER';
+                    }
 
-                    if (isAlterOnly) {
+                    if (action === 'ALTER') {
                         transformedScript = transformedScript.replace(
-                            /\b(?:CREATE(?:\s+OR\s+(?:ALTER|REPLACE))?|ALTER)\s+(VIEW|PROCEDURE|PROC|FUNCTION|TRIGGER)\b/i,
+                            /^\s*(?:CREATE(?:\s+OR\s+(?:ALTER|REPLACE))?|ALTER)\s+(VIEW|PROCEDURE|PROC|FUNCTION|TRIGGER)\b/im,
                             'ALTER $1'
                         );
-                    } else if (isCreateOrAlter) {
+                    } else if (action === 'CREATE OR ALTER') {
                         transformedScript = transformedScript.replace(
-                            /\b(?:CREATE(?:\s+OR\s+(?:ALTER|REPLACE))?|ALTER)\s+(VIEW|PROCEDURE|PROC|FUNCTION|TRIGGER)\b/i,
+                            /^\s*(?:CREATE(?:\s+OR\s+(?:ALTER|REPLACE))?|ALTER)\s+(VIEW|PROCEDURE|PROC|FUNCTION|TRIGGER)\b/im,
                             'CREATE OR ALTER $1'
                         );
-                    } else if (isCreateOrReplace) {
+                    } else if (action === 'CREATE OR REPLACE') {
                         transformedScript = transformedScript.replace(
-                            /\b(?:CREATE(?:\s+OR\s+(?:ALTER|REPLACE))?|ALTER)\s+(VIEW|PROCEDURE|PROC|FUNCTION|TRIGGER)\b/i,
+                            /^\s*(?:CREATE(?:\s+OR\s+(?:ALTER|REPLACE))?|ALTER)\s+(VIEW|PROCEDURE|PROC|FUNCTION|TRIGGER)\b/im,
                             'CREATE OR REPLACE $1'
                         );
                     }
 
-                    adapter.replaceRange(transformedScript, { line: cursor.line, ch: 0 }, { line: cursor.line, ch: line.length });
+                    let replaceFrom = { line: cursor.line, ch: 0 };
+                    if (currentContext && typeof currentContext.alterStartOffset === 'number' && currentContext.alterStartOffset >= 0 && typeof adapter.posFromIndex === 'function') {
+                        replaceFrom = adapter.posFromIndex(currentContext.alterStartOffset);
+                    }
+                    adapter.replaceRange(transformedScript, replaceFrom, { line: cursor.line, ch: line.length });
 
                     const placeCursorAfterObjectName = () => {
                         const newText = adapter.getText();
@@ -1713,20 +1924,40 @@
             const tabCtx = this.getActiveTabContext();
             if (!tabCtx.connectionId) return;
 
-            const objects = await this.dataProvider.fetchObjects(tabCtx.connectionId, tabCtx.database, tabCtx.schema);
-            const match = objects.find(o => o.name.toLowerCase() === word.toLowerCase());
+            // Sanitize brackets, quotes, backticks
+            const cleanWord = word.replace(/^[\["`]+|[\]"`]+$/g, '').trim();
+            if (!cleanWord) return;
+
+            let targetSchema = tabCtx.schema;
+            let targetName = cleanWord;
+            if (cleanWord.includes('.')) {
+                const parts = cleanWord.split('.');
+                targetSchema = parts[0].replace(/^[\["`]+|[\]"`]+$/g, '').trim();
+                targetName = parts[1].replace(/^[\["`]+|[\]"`]+$/g, '').trim();
+            }
+
+            const objects = await this.dataProvider.fetchObjects(tabCtx.connectionId, tabCtx.database, targetSchema || tabCtx.schema);
+            const match = objects.find(o => o.name.toLowerCase() === targetName.toLowerCase());
 
             if (match) {
-                const defScript = await this.dataProvider.fetchDefinition(tabCtx.connectionId, tabCtx.database, match.schema || tabCtx.schema, match.name, match.type);
+                const defScript = await this.dataProvider.fetchDefinition(
+                    tabCtx.connectionId,
+                    tabCtx.database,
+                    match.schema || targetSchema || tabCtx.schema,
+                    match.name,
+                    match.type,
+                    tabCtx.dbType
+                );
                 if (defScript) {
                     if (window.AppTabs && typeof window.AppTabs.createTab === 'function') {
                         window.AppTabs.createTab({
                             title: `${match.name}.sql`,
                             content: defScript,
                             database: tabCtx.database,
-                            schema: match.schema || tabCtx.schema,
+                            schema: match.schema || targetSchema || tabCtx.schema,
                             connectionId: tabCtx.connectionId,
-                            connectionName: window.ActiveConnectionName
+                            connectionName: window.ActiveConnectionName,
+                            dbType: tabCtx.dbType
                         });
                     }
                     return;

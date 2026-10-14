@@ -1,0 +1,310 @@
+/* =============================================================================
+   File History Sidebar CSS (Docked & Resizable on Right of Text Editor)
+   ============================================================================= */
+
+/* ── Resizer Splitter ── */
+.ide-file-history-resizer {
+    width: 5px;
+    background: var(--ide-border, #333333);
+    cursor: col-resize;
+    z-index: 18;
+    flex-shrink: 0;
+    transition: background-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.ide-file-history-resizer:hover,
+.ide-file-history-resizer.dragging {
+    background: var(--ide-accent, #007acc) !important;
+    box-shadow: 0 0 6px rgba(0, 122, 204, 0.7);
+}
+
+/* ── Side Panel Container ── */
+.ide-file-history-panel {
+    display: flex;
+    flex-direction: column;
+    width: 380px;
+    min-width: 260px;
+    max-width: 900px;
+    background: var(--ide-bg-panel, #252526);
+    color: var(--ide-text-color, #cccccc);
+    border-left: 1px solid var(--ide-border, #333333);
+    font-family: var(--ide-ui-font-family, inherit);
+    user-select: none;
+    box-shadow: -2px 0 8px rgba(0, 0, 0, 0.15);
+}
+
+/* ── Header ── */
+.fhs-header {
+    height: 32px;
+    background: var(--ide-bg-toolbar, #1e1e1e);
+    border-bottom: 1px solid var(--ide-border, #333333);
+}
+
+.fhs-header .btn-icon-tool {
+    background: transparent;
+    border: none;
+    color: var(--ide-text-muted, #858585);
+    padding: 2px 6px;
+    font-size: 11px;
+    border-radius: 3px;
+    transition: all 0.12s ease;
+}
+
+.fhs-header .btn-icon-tool:hover {
+    background: var(--ide-hover-bg, rgba(255, 255, 255, 0.08));
+    color: var(--ide-text-color, #ffffff);
+}
+
+/* ── Toolbar & Filter Pills ── */
+.fhs-toolbar {
+    background: var(--ide-bg-panel, #252526);
+    padding: 5px 8px;
+    border-bottom: 1px solid var(--ide-border, #333333);
+}
+
+.fhs-search-box input {
+    background: var(--ide-bg-input, #1e1e1e);
+    color: var(--ide-text-color, #d4d4d4);
+    border: 1px solid var(--ide-border, #3c3c3c);
+    border-radius: 3px;
+}
+
+.fhs-search-box input:focus {
+    border-color: var(--ide-accent, #007acc);
+    box-shadow: 0 0 0 1px var(--ide-accent, #007acc);
+    background: var(--ide-bg-input, #1e1e1e);
+    color: var(--ide-text-color, #ffffff);
+}
+
+.fhs-pills-bar {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    overflow-x: auto;
+    padding-bottom: 2px;
+}
+
+.fhs-pill-btn {
+    background: transparent;
+    border: 1px solid var(--ide-border, #3c3c3c);
+    color: var(--ide-text-muted, #858585);
+    border-radius: 12px;
+    padding: 1px 8px;
+    font-size: 10px;
+    cursor: pointer;
+    transition: all 0.12s ease;
+    white-space: nowrap;
+}
+
+.fhs-pill-btn:hover {
+    background: var(--ide-hover-bg, rgba(255, 255, 255, 0.06));
+    color: var(--ide-text-color, #ffffff);
+}
+
+.fhs-pill-btn.active {
+    background: var(--ide-accent, #0e639c);
+    color: #ffffff;
+    border-color: var(--ide-accent, #0e639c);
+    font-weight: 600;
+}
+
+/* ── Entries List ── */
+.fhs-entries-container {
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 6px;
+    scroll-behavior: smooth;
+}
+
+.fhs-entries-container::-webkit-scrollbar {
+    width: 6px;
+}
+.fhs-entries-container::-webkit-scrollbar-thumb {
+    background: rgba(120, 120, 120, 0.35);
+    border-radius: 3px;
+}
+.fhs-entries-container::-webkit-scrollbar-thumb:hover {
+    background: rgba(120, 120, 120, 0.6);
+}
+
+/* ── Entry Card ── */
+.fhs-entry-card {
+    background: var(--ide-bg-toolbar, #1e1e1e);
+    border: 1px solid var(--ide-border, #333333);
+    border-radius: 4px;
+    padding: 7px 9px;
+    margin-bottom: 6px;
+    cursor: pointer;
+    transition: border-color 0.12s ease, background-color 0.12s ease, box-shadow 0.12s ease;
+    position: relative;
+}
+
+.fhs-entry-card:hover {
+    border-color: var(--ide-border-hover, #555555);
+    background: var(--ide-hover-bg, #2a2d2e);
+}
+
+.fhs-entry-card.active {
+    border-color: var(--ide-accent, #007acc) !important;
+    background: rgba(0, 122, 204, 0.12) !important;
+    box-shadow: inset 2px 0 0 var(--ide-accent, #007acc);
+}
+
+.fhs-entry-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 3px;
+    gap: 4px;
+}
+
+.fhs-entry-time {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--ide-text-color, #e0e0e0);
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.fhs-entry-time-rel {
+    font-size: 10px;
+    color: var(--ide-text-muted, #888888);
+    font-weight: normal;
+}
+
+.fhs-entry-meta {
+    font-size: 10.5px;
+    color: var(--ide-text-muted, #999999);
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.fhs-entry-sql-preview {
+    font-family: var(--ide-editor-font-family, 'Consolas', monospace);
+    font-size: 10.5px;
+    color: var(--ide-text-muted, #a0a0a0);
+    background: rgba(0, 0, 0, 0.25);
+    border-radius: 3px;
+    padding: 4px 6px;
+    white-space: pre;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-height: 40px;
+    line-height: 1.35;
+    margin: 0;
+    border: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.fhs-entry-card:hover .fhs-entry-sql-preview {
+    color: var(--ide-text-color, #d4d4d4);
+}
+
+.fhs-entry-actions {
+    display: none;
+    gap: 4px;
+    margin-top: 6px;
+    padding-top: 4px;
+    border-top: 1px dashed rgba(255, 255, 255, 0.06);
+}
+
+.fhs-entry-card:hover .fhs-entry-actions,
+.fhs-entry-card.active .fhs-entry-actions {
+    display: flex;
+}
+
+.fhs-card-btn {
+    background: transparent;
+    border: 1px solid var(--ide-border, #444444);
+    color: var(--ide-text-color, #cccccc);
+    border-radius: 3px;
+    padding: 1px 7px;
+    font-size: 10px;
+    cursor: pointer;
+    transition: all 0.12s ease;
+}
+
+.fhs-card-btn:hover {
+    background: var(--ide-accent, #0e639c);
+    color: #ffffff;
+    border-color: var(--ide-accent, #0e639c);
+}
+
+.fhs-card-btn.btn-diff:hover {
+    background: #0284c7;
+    border-color: #0284c7;
+}
+
+.fhs-card-btn.btn-apply:hover {
+    background: #d97706;
+    border-color: #d97706;
+}
+
+/* ── Badges ── */
+.fhs-badge {
+    font-size: 9.5px;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-weight: 500;
+}
+
+.fhs-badge-ok {
+    background: rgba(46, 160, 67, 0.18);
+    color: #3fb950;
+    border: 1px solid rgba(46, 160, 67, 0.4);
+}
+
+.fhs-badge-err {
+    background: rgba(248, 81, 73, 0.18);
+    color: #f85149;
+    border: 1px solid rgba(248, 81, 73, 0.4);
+}
+
+.fhs-badge-snap {
+    background: rgba(210, 153, 34, 0.18);
+    color: #d29922;
+    border: 1px solid rgba(210, 153, 34, 0.4);
+}
+
+.fhs-badge-tag {
+    background: rgba(13, 148, 136, 0.18);
+    color: #2dd4bf;
+    border: 1px solid rgba(13, 148, 136, 0.4);
+}
+
+/* ── Empty State ── */
+.fhs-empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 40px 15px;
+    color: var(--ide-text-muted, #888888);
+}
+
+.fhs-empty-state i {
+    font-size: 32px;
+    margin-bottom: 10px;
+    opacity: 0.6;
+}
+
+.fhs-empty-state p {
+    font-size: 12px;
+    margin: 0;
+    line-height: 1.5;
+}
+
+/* ── Selected Entry Detail Drawer ── */
+.fhs-detail-footer {
+    background: var(--ide-bg-toolbar, #1e1e1e);
+    border-top: 1px solid var(--ide-border, #333333);
+}
+
+/* Active indicator on toolbar button */
+#ide-btn-file-history.active {
+    background: var(--ide-accent, #0e639c) !important;
+    color: #ffffff !important;
+}

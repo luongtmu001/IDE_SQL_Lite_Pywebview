@@ -743,6 +743,9 @@
 #reconnectPasswordModal {
     z-index: 10060 !important;
 }
+#ide-modal-debug-extension-warning {
+    z-index: 100050 !important;
+}
 body > .modal-backdrop,
 .modal-backdrop.show {
     z-index: 10040 !important;

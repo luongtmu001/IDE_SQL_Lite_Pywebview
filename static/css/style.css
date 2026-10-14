@@ -232,12 +232,33 @@ body, html {
 }
 .form-control::placeholder { color: var(--ide-text-muted) !important; }
 
-/* ── Toolbar ─────────────────────────────────────────────────────────────────── */
+/* ── Toolbar / Navbar ─────────────────────────────────────────────────────────── */
 .ide-toolbar {
+    position: relative;
+    z-index: 10000 !important;
+    overflow: visible !important;
     background: var(--ide-bg-toolbar) !important;
     border-bottom: 1px solid var(--ide-border) !important;
     height: 36px;
     flex-shrink: 0;
+}
+
+/* Ensure navbar-nav and all sub-navs / dropdown menus float above all content with highest priority */
+.ide-toolbar .navbar-nav,
+.ide-toolbar .nav-item,
+.ide-toolbar .dropdown {
+    overflow: visible !important;
+}
+
+.ide-toolbar .dropdown-menu,
+.ide-toolbar .dropdown-menu .dropdown-menu,
+nav.navbar .dropdown-menu,
+nav.navbar .dropdown-menu .dropdown-menu,
+.navbar-nav .dropdown-menu,
+.navbar-nav .dropdown-menu .dropdown-menu {
+    position: absolute;
+    z-index: 10002 !important;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
 }
 .ide-brand {
     color: var(--ide-accent);
@@ -350,6 +371,7 @@ html[data-bs-theme="dark"] .btn-close { filter: invert(0.8); }
 
 /* ── Dropdown menus ──────────────────────────────────────────────────────────── */
 .dropdown-menu {
+    z-index: 10002 !important;
     background: var(--ide-bg-dropdown) !important;
     border: 1px solid var(--ide-border);
     border-radius: 3px;
@@ -442,15 +464,19 @@ html[data-bs-theme="dark"] .btn-close { filter: invert(0.8); }
 .ide-sidebar-resizer {
     width: 5px;
     cursor: col-resize;
-    background: transparent;
+    background: var(--ide-bg-toolbar, var(--ide-border, #3c3f41));
+    border-left: 1px solid var(--ide-border, #3c3f41);
+    border-right: 1px solid var(--ide-border, #3c3f41);
+    margin-left: -1px;
     flex-shrink: 0;
     z-index: 20;
     position: relative;
-    transition: background 0.15s;
+    transition: background 0.15s, border-color 0.15s;
 }
 .ide-sidebar-resizer:hover,
 .ide-sidebar-resizer.dragging {
-    background: var(--ide-accent);
+    background: var(--ide-accent, #CC7832);
+    border-color: var(--ide-accent, #CC7832);
 }
 
 /* ── Sidebar reopen (collapsed state) ────────────────────────────────────────── */
@@ -645,6 +671,22 @@ html[data-bs-theme="dark"] .btn-close { filter: invert(0.8); }
     overflow: hidden;
     border-top: 1px solid var(--ide-border);
     border-bottom: 1px solid var(--ide-border);
+    transition: height 0.12s ease;
+}
+
+.ide-tabs-container.display-all {
+    height: auto !important;
+    min-height: 31px;
+    overflow: visible !important;
+    align-items: flex-start !important;
+    padding-top: 2px;
+    padding-bottom: 2px;
+}
+
+#ide-tabs-bar.display-all {
+    flex-wrap: wrap !important;
+    overflow: visible !important;
+    row-gap: 2px;
 }
 
 .ide-tab {
@@ -680,17 +722,161 @@ html[data-bs-theme="dark"] .btn-close { filter: invert(0.8); }
     margin-bottom: -1px;
 }
 
+.ide-tab.tab-overflow-hidden {
+    display: none !important;
+}
+
+.ide-tab.pinned {
+    border-left: 2px solid var(--ide-accent, #3b82f6) !important;
+    background: var(--ide-tab-inactive-bg);
+    padding-left: 8px;
+}
+
+.ide-tab.pinned .tab-pin-icon {
+    font-size: 9px;
+    color: var(--ide-accent, #3b82f6);
+}
+
+.ide-tab[draggable="true"] {
+    cursor: grab;
+}
+
+.ide-tab.dragging {
+    opacity: 0.45;
+    cursor: grabbing;
+}
+
+.ide-tab.drag-over-left {
+    border-left: 2px solid var(--ide-accent, #3b82f6) !important;
+}
+
+.ide-tab.drag-over-right {
+    border-right: 2px solid var(--ide-accent, #3b82f6) !important;
+}
+
+#ide-tab-overflow-wrap {
+    margin-left: auto !important;
+}
+
+#ide-tabs-overflow-btn {
+    width: 26px;
+    height: 24px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: 1px solid transparent;
+    border-radius: 3px;
+    background: transparent;
+    color: var(--ide-text-muted);
+    cursor: pointer;
+    font-size: 12px;
+    transition: all 0.15s ease;
+}
+
+#ide-tabs-overflow-btn:hover {
+    background: var(--ide-hover-bg);
+    color: var(--ide-text-main);
+    border-color: var(--ide-border);
+}
+
+#ide-tabs-overflow-btn.active {
+    background: var(--ide-active-bg, rgba(59, 130, 246, 0.15));
+    color: var(--ide-accent, #3b82f6);
+    border-color: var(--ide-accent, #3b82f6);
+}
+
+#ide-tab-overflow-menu {
+    position: absolute;
+    z-index: 1065;
+    background: var(--ide-bg-dropdown, #202228);
+    border: 1px solid var(--ide-border, #3c3f41);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+    border-radius: 4px;
+    min-width: 250px;
+    max-width: 380px;
+    max-height: 420px;
+    overflow-y: auto;
+    padding: 4px 0;
+    font-size: 12px;
+}
+
+.ide-overflow-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 6px 12px;
+    cursor: pointer;
+    color: var(--ide-text-main);
+    background: transparent;
+    border: none;
+    text-align: left;
+    user-select: none;
+    transition: background 0.1s;
+    gap: 8px;
+}
+
+.ide-overflow-item:hover {
+    background: var(--ide-hover-bg, rgba(255, 255, 255, 0.08));
+}
+
+.ide-overflow-item.active {
+    background: var(--ide-active-bg, rgba(59, 130, 246, 0.15));
+    color: var(--ide-accent, #3b82f6);
+}
+
+/* Section 4: Visible tabs bold, overflow tabs normal */
+.ide-overflow-item.is-visible .tab-list-title {
+    font-weight: 700 !important;
+}
+
+.ide-overflow-item.is-overflow .tab-list-title {
+    font-weight: 400 !important;
+}
+
+.ide-overflow-toggle {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    padding: 6px 12px;
+    cursor: pointer;
+    color: var(--ide-text-main);
+    background: transparent;
+    border: none;
+    text-align: left;
+    user-select: none;
+    transition: background 0.1s;
+    gap: 8px;
+    font-size: 12px;
+}
+
+.ide-overflow-toggle:hover {
+    background: var(--ide-hover-bg, rgba(255, 255, 255, 0.08));
+}
+
 .tab-close {
-    margin-left: 8px;
-    font-size: 10px;
-    color: var(--ide-text-dim);
-    border-radius: 2px;
-    padding: 1px 2px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    min-width: 20px;
+    margin-left: 6px;
+    font-size: 11px;
+    color: var(--ide-text-dim, #888);
+    border-radius: 4px;
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-drag: none;
+    transition: background 0.15s, color 0.15s;
+    z-index: 5;
+    pointer-events: auto;
 }
 
 .tab-close:hover {
-    color: var(--ide-danger) !important;
-    background: rgba(255, 92, 92, 0.1);
+    color: #ffffff !important;
+    background: #e53935 !important;
 }
 
 /* ── Editor area ─────────────────────────────────────────────────────────────── */
@@ -719,10 +905,37 @@ html[data-bs-theme="dark"] .btn-close { filter: invert(0.8); }
 
 /* ── Action Bar ──────────────────────────────────────────────────────────────── */
 .ide-action-bar {
+    position: relative;
+    z-index: 1050;
+    z-index: 2050 !important;
     background: var(--ide-action-bar-bg);
     border-top: 1px solid var(--ide-border);
     height: 34px;
+    min-height: 34px;
+    max-height: 34px;
     flex-shrink: 0;
+    flex-wrap: nowrap !important;
+    overflow: visible !important;
+}
+
+.ide-ctx-selectors {
+    min-width: 0;
+    flex-shrink: 1;
+    flex-wrap: nowrap !important;
+    overflow: visible !important;
+    position: relative;
+    z-index: 2060 !important;
+}
+
+.ide-ctx-selectors .dropdown {
+    position: relative;
+    z-index: 2060;
+}
+
+.ide-action-bar-actions {
+    flex-shrink: 0;
+    flex-wrap: nowrap !important;
+    margin-left: auto;
 }
 
 .ide-ctx-badge {
@@ -738,6 +951,8 @@ html[data-bs-theme="dark"] .btn-close { filter: invert(0.8); }
     cursor: pointer;
     white-space: nowrap;
     max-width: 170px;
+    min-width: 0;
+    flex-shrink: 1;
     overflow: hidden;
     user-select: none;
     line-height: 1;
@@ -760,7 +975,50 @@ html[data-bs-theme="dark"] .btn-close { filter: invert(0.8); }
     border: 1px solid var(--ide-border);
     background: var(--ide-bg-dropdown, #202228);
     font-size: 12px;
-    z-index: 1060;
+    z-index: 10002 !important;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+
+#ide-ctx-conn-menu,
+#ide-ctx-db-menu,
+#ide-ctx-schema-menu,
+#ide-action-overflow-menu {
+    z-index: 10010 !important;
+}
+
+/* ── Connection Context Hover Tooltip Card ───────────────────────────────────── */
+/* z-index is 10005: higher than navbar (10000) & submenus (10002) so connection hover card is always visible */
+.ide-ctx-hover-card {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    z-index: 10005 !important;
+    background: var(--ide-bg-dropdown, #202228);
+    color: var(--ide-text-main, #cccccc);
+    border: 1px solid var(--ide-border, #3c3f41);
+    border-radius: 4px;
+    padding: 6px 10px;
+    font-size: 11px;
+    white-space: nowrap;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+    pointer-events: none;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.12s ease, visibility 0.12s ease;
+}
+
+.dropdown:hover > .ide-ctx-hover-card {
+    opacity: 1 !important;
+    visibility: visible !important;
+}
+
+.dropdown.show > .ide-ctx-hover-card,
+.dropdown:has(.dropdown-menu.show) > .ide-ctx-hover-card,
+.dropdown > button[aria-expanded="true"] ~ .ide-ctx-hover-card,
+.dropdown > button[aria-expanded="true"] + .ide-ctx-hover-card {
+    display: none !important;
+    opacity: 0 !important;
+    visibility: hidden !important;
 }
 
 .ide-ctx-selectors .dropdown-item {
@@ -775,6 +1033,33 @@ html[data-bs-theme="dark"] .btn-close { filter: invert(0.8); }
 .ide-ctx-selectors .dropdown-item:active {
     background: var(--ide-accent, #3b82f6);
     color: #fff !important;
+}
+
+/* ── Format Entire Document Confirm Modal Theme Sync ────────────────────────── */
+#ide-modal-format-confirm .modal-content {
+    background: var(--ide-bg-modal, #202228) !important;
+    color: var(--ide-text-main, #cccccc) !important;
+    border: 1px solid var(--ide-border, #3c3f41) !important;
+}
+#ide-modal-format-confirm .modal-header {
+    background: var(--ide-bg-panel-header, var(--ide-bg-toolbar, var(--ide-bg-modal, #202228))) !important;
+    color: var(--ide-text-main, #cccccc) !important;
+    border-bottom: 1px solid var(--ide-border, #3c3f41) !important;
+}
+#ide-modal-format-confirm .modal-footer {
+    background: var(--ide-bg-modal, #202228) !important;
+    border-top: 1px solid var(--ide-border, #3c3f41) !important;
+}
+
+/* ── Snippets Manager Modal Header Theme Sync ────────────────────────────────── */
+#ide-snippets-modal .ide-snippets-header {
+    background: var(--ide-bg-toolbar, var(--ide-bg-modal, #202228)) !important;
+    color: var(--ide-text-main, inherit) !important;
+    border-bottom: 1px solid var(--ide-border, #454545) !important;
+}
+#ide-snippets-modal .ide-snippets-header span,
+#ide-snippets-modal .ide-snippets-header .fw-bold {
+    color: var(--ide-text-main, inherit) !important;
 }
 
 .ide-ctx-search {
@@ -833,6 +1118,19 @@ html[data-bs-theme="dark"] .btn-close { filter: invert(0.8); }
 .ide-action-btn--run:hover {
     background: var(--ide-accent);
     color: #fff;
+}
+
+.ide-action-btn--debug {
+    background: rgba(255, 170, 0, 0.12);
+    color: #ffaa00;
+    border-color: rgba(255, 170, 0, 0.4);
+    font-weight: 600;
+}
+
+.ide-action-btn--debug:hover {
+    background: #ffaa00;
+    color: #1e1e1e;
+    border-color: #ffaa00;
 }
 
 .ide-action-btn--danger {
@@ -947,7 +1245,6 @@ html[data-bs-theme="dark"] .btn-close { filter: invert(0.8); }
 /* ── Results data grid ───────────────────────────────────────────────────────── */
 .ide-results-table {
     width: max-content;
-    min-width: 100%;
     border-collapse: collapse;
     table-layout: fixed;
 }
@@ -1000,6 +1297,17 @@ html[data-bs-theme="dark"] .btn-close { filter: invert(0.8); }
     color: var(--ide-text-main);
 }
 
+.ide-results-table tbody tr {
+    height: 26px;
+    max-height: 26px;
+    box-sizing: border-box;
+}
+
+.ide-results-table tbody tr td {
+    height: 26px;
+    box-sizing: border-box;
+}
+
 .ide-results-table tbody tr:nth-child(even) {
     background: var(--ide-grid-row-alt);
 }
@@ -1009,7 +1317,7 @@ html[data-bs-theme="dark"] .btn-close { filter: invert(0.8); }
 }
 
 .ide-row-number {
-    color: var(--ide-text-dim);
+    color: #b0b8c4;
     background: var(--ide-grid-header-bg) !important;
     text-align: center !important;
     font-size: 10px;
@@ -1020,6 +1328,7 @@ html[data-bs-theme="dark"] .btn-close { filter: invert(0.8); }
     position: sticky;
     left: 0;
     z-index: 6;
+    font-weight: 500;
 }
 
 th.ide-row-number {
@@ -1051,7 +1360,7 @@ th.ide-row-number {
 #ide-results-messages-view {
     padding: 6px 12px !important;
     height: 100%;
-    overflow: auto;
+    overflow: auto !important;
     background: var(--ide-bg-main);
     box-sizing: border-box;
 }
@@ -1063,7 +1372,9 @@ th.ide-row-number {
     font-size: var(--ide-msg-font-size, 12px);
     color: var(--ide-text-main);
     background: transparent;
-    word-break: break-word;
+    word-break: normal !important;
+    overflow-wrap: normal !important;
+    white-space: pre !important;
     line-height: 1.45;
     margin: 0 !important;
     padding: 0 !important;
@@ -1072,10 +1383,14 @@ th.ide-row-number {
     -moz-user-select: text !important;
     -ms-user-select: text !important;
     cursor: text;
+    min-width: 100%;
+    width: max-content;
 }
 
 .ide-messages-pre {
-    white-space: pre-wrap;
+    white-space: pre !important;
+    word-break: normal !important;
+    overflow-wrap: normal !important;
 }
 
 .ide-messages-container *,
@@ -1092,6 +1407,33 @@ th.ide-row-number {
     transition: background 0.15s;
     user-select: text !important;
     -webkit-user-select: text !important;
+    white-space: pre !important;
+    word-break: normal !important;
+    overflow-wrap: normal !important;
+    font-family: var(--ide-message-font-family, 'Consolas', 'Courier New', monospace) !important;
+    min-width: 100%;
+    width: max-content;
+}
+
+.ide-msg-line.ide-msg-table-line {
+    font-family: 'Consolas', 'Courier New', 'Fira Code', 'Lucida Console', monospace !important;
+    white-space: pre !important;
+    word-break: normal !important;
+    overflow-wrap: normal !important;
+    letter-spacing: 0 !important;
+    line-height: 1.25 !important;
+    display: block;
+    width: max-content;
+    min-width: 100%;
+}
+
+.ide-msg-line.ide-msg-separator {
+    height: 10px;
+    min-height: 10px;
+    line-height: 10px;
+    padding: 0;
+    margin: 0;
+    user-select: none !important;
 }
 
 .ide-msg-line.msg-error,
@@ -1441,8 +1783,9 @@ th.ide-row-number {
 #table-designer-container {
     background-color: var(--ide-bg-main, #1C1D23);
     color: var(--ide-text-main, #c7cfcf);
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-    font-size: 12px;
+    font-family: var(--ide-ui-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif);
+    font-size: var(--ide-ui-font-size, 13px);
+    line-height: var(--ide-ui-line-height, 1.45);
     height: 100%;
     display: flex;
     flex-direction: column;
@@ -2713,6 +3056,9 @@ html[data-bs-theme="light"] .td-select:focus {
 }
 #reconnectPasswordModal {
     z-index: 10060 !important;
+}
+#ide-modal-debug-extension-warning {
+    z-index: 100050 !important;
 }
 body > .modal-backdrop,
 .modal-backdrop.show {
@@ -5614,4 +5960,1151 @@ html[data-bs-theme="cobalt2"] {
     --ide-scroll-track:             #15232D;
     --ide-scroll-thumb:             #0d3a58;
     --ide-scroll-thumb-hover:       #aaa;
+}
+
+/* ── VSIX Imported Theme: Winter is Coming (Dark Blue) (Dark) (winter-is-coming-dark-blue-dark) ────────────────────────── */
+html[data-bs-theme="winter-is-coming-dark-blue-dark"] {
+    --ide-theme-id:                 "winter-is-coming-dark-blue-dark";
+    --ide-theme-name:               "Winter is Coming (Dark Blue) (Dark)";
+    --ide-titlebar-bg:              #112233;
+    --ide-titlebar-text:            #eeefff;
+
+    /* Bootstrap overrides */
+    --bs-body-bg:                   #011627;
+    --bs-body-color:                #a7dbf7;
+    --bs-border-color:              #219fd544;
+    --bs-border-color-translucent:  rgba(120, 120, 120, 0.35);
+    --bs-primary:                   #03648a;
+    --bs-primary-rgb:               3,100,138;
+    --bs-dark:                      #112233;
+    --bs-secondary:                 #219fd5;
+    --bs-link-color:                #03648a;
+    --bs-link-hover-color:          #03648a;
+
+    /* IDE surface layers */
+    --ide-bg-main:                  #011627;
+    --ide-bg-sidebar:               #011627;
+    --ide-bg-toolbar:               #112233;
+    --ide-bg-editor:                #011627;
+    --ide-bg-panel:                 #011627;
+    --ide-bg-result:                #011627;
+    --ide-bg-input:                 #0b253a;
+    --ide-bg-modal:                 #0b2942;
+    --ide-bg-dropdown:              #0b253a;
+    --ide-bg-context-menu:          #0b2942;
+
+    /* Borders */
+    --ide-border:                   #219fd544;
+    --ide-border-active:            #219fd5;
+
+    /* Typography */
+    --ide-text-main:                #a7dbf7;
+    --ide-text-muted:               #219fd5;
+    --ide-text-active:              #a7dbf7;
+    --ide-text-dim:                 #219fd5;
+
+    /* Interactive states */
+    --ide-hover-bg:                 rgba(128, 128, 128, 0.12);
+    --ide-active-bg:                rgba(3,100,138, 0.20);
+    --ide-selection-bg:             rgba(3,100,138, 0.25);
+
+    /* Accent */
+    --ide-accent:                   #03648a;
+    --ide-syntax-keyword:           #03648a;
+    --ide-accent-hover:             #03648a;
+    --ide-accent-subtle:            rgba(3,100,138, 0.15);
+
+    /* Status indicators */
+    --ide-danger:                   #EF5350;
+    --ide-success:                  #6A8759;
+    --ide-warning:                  #ffca28;
+    --ide-info:                     #6897BB;
+
+    /* Tabs */
+    --ide-tab-active-bg:            #0b2942;
+    --ide-tab-inactive-bg:          #010e1a;
+    --ide-tab-active-border:        #03648a;
+
+    /* Result Grid */
+    --ide-grid-header-bg:           #011627;
+    --ide-grid-row-alt:             rgba(128, 128, 128, 0.04);
+    --ide-grid-row-hover:           rgba(128, 128, 128, 0.08);
+
+    /* Action bar & Badges */
+    --ide-action-bar-bg:            #112233;
+    --ide-badge-bg:                 #010e1a;
+    --ide-badge-text:               #a7dbf7;
+    --ide-badge-hover:              #219fd544;
+
+    /* Context menu */
+    --ide-ctx-item-hover:           rgba(3,100,138, 0.18);
+    --ide-ctx-separator:            #219fd544;
+
+    /* Scrollbars */
+    --ide-scroll-track:             #112233;
+    --ide-scroll-thumb:             #219fd544;
+    --ide-scroll-thumb-hover:       #219fd5;
+}
+
+
+/* ── VSIX Imported Theme: Winter is Coming (Dark Blue - No Italics) (Dark) (winter-is-coming-dark-blue---no-italics-dark) ────────────────────────── */
+html[data-bs-theme="winter-is-coming-dark-blue---no-italics-dark"] {
+    --ide-theme-id:                 "winter-is-coming-dark-blue---no-italics-dark";
+    --ide-theme-name:               "Winter is Coming (Dark Blue - No Italics) (Dark)";
+    --ide-titlebar-bg:              #112233;
+    --ide-titlebar-text:            #eeefff;
+
+    /* Bootstrap overrides */
+    --bs-body-bg:                   #011627;
+    --bs-body-color:                #a7dbf7;
+    --bs-border-color:              #219fd544;
+    --bs-border-color-translucent:  rgba(120, 120, 120, 0.35);
+    --bs-primary:                   #03648a;
+    --bs-primary-rgb:               3,100,138;
+    --bs-dark:                      #112233;
+    --bs-secondary:                 #219fd5;
+    --bs-link-color:                #03648a;
+    --bs-link-hover-color:          #03648a;
+
+    /* IDE surface layers */
+    --ide-bg-main:                  #011627;
+    --ide-bg-sidebar:               #011627;
+    --ide-bg-toolbar:               #112233;
+    --ide-bg-editor:                #011627;
+    --ide-bg-panel:                 #011627;
+    --ide-bg-result:                #011627;
+    --ide-bg-input:                 #0b253a;
+    --ide-bg-modal:                 #0b2942;
+    --ide-bg-dropdown:              #0b253a;
+    --ide-bg-context-menu:          #0b2942;
+
+    /* Borders */
+    --ide-border:                   #219fd544;
+    --ide-border-active:            #219fd5;
+
+    /* Typography */
+    --ide-text-main:                #a7dbf7;
+    --ide-text-muted:               #219fd5;
+    --ide-text-active:              #a7dbf7;
+    --ide-text-dim:                 #219fd5;
+
+    /* Interactive states */
+    --ide-hover-bg:                 rgba(128, 128, 128, 0.12);
+    --ide-active-bg:                rgba(3,100,138, 0.20);
+    --ide-selection-bg:             rgba(3,100,138, 0.25);
+
+    /* Accent */
+    --ide-accent:                   #03648a;
+    --ide-syntax-keyword:           #03648a;
+    --ide-accent-hover:             #03648a;
+    --ide-accent-subtle:            rgba(3,100,138, 0.15);
+
+    /* Status indicators */
+    --ide-danger:                   #EF5350;
+    --ide-success:                  #6A8759;
+    --ide-warning:                  #ffca28;
+    --ide-info:                     #6897BB;
+
+    /* Tabs */
+    --ide-tab-active-bg:            #0b2942;
+    --ide-tab-inactive-bg:          #010e1a;
+    --ide-tab-active-border:        #03648a;
+
+    /* Result Grid */
+    --ide-grid-header-bg:           #011627;
+    --ide-grid-row-alt:             rgba(128, 128, 128, 0.04);
+    --ide-grid-row-hover:           rgba(128, 128, 128, 0.08);
+
+    /* Action bar & Badges */
+    --ide-action-bar-bg:            #112233;
+    --ide-badge-bg:                 #010e1a;
+    --ide-badge-text:               #a7dbf7;
+    --ide-badge-hover:              #219fd544;
+
+    /* Context menu */
+    --ide-ctx-item-hover:           rgba(3,100,138, 0.18);
+    --ide-ctx-separator:            #219fd544;
+
+    /* Scrollbars */
+    --ide-scroll-track:             #112233;
+    --ide-scroll-thumb:             #219fd544;
+    --ide-scroll-thumb-hover:       #219fd5;
+}
+
+
+/* ── VSIX Imported Theme: Winter is Coming (Light) (Light) (winter-is-coming-light-light) ────────────────────────── */
+html[data-bs-theme="winter-is-coming-light-light"] {
+    --ide-theme-id:                 "winter-is-coming-light-light";
+    --ide-theme-name:               "Winter is Coming (Light) (Light)";
+    --ide-titlebar-bg:              #112233;
+    --ide-titlebar-text:            #eeefff;
+
+    /* Bootstrap overrides */
+    --bs-body-bg:                   #F3F3F3;
+    --bs-body-color:                #236ebf;
+    --bs-border-color:              #e3e3e3;
+    --bs-border-color-translucent:  rgba(120, 120, 120, 0.35);
+    --bs-primary:                   #03648a;
+    --bs-primary-rgb:               3,100,138;
+    --bs-dark:                      #112233;
+    --bs-secondary:                 #2f86d2;
+    --bs-link-color:                #03648a;
+    --bs-link-hover-color:          #03648a;
+
+    /* IDE surface layers */
+    --ide-bg-main:                  #F3F3F3;
+    --ide-bg-sidebar:               #F3F3F3;
+    --ide-bg-toolbar:               #112233;
+    --ide-bg-editor:                #FFFFFF;
+    --ide-bg-panel:                 #fff;
+    --ide-bg-result:                #FFFFFF;
+    --ide-bg-input:                 #eee;
+    --ide-bg-modal:                 #ddd;
+    --ide-bg-dropdown:              #eee;
+    --ide-bg-context-menu:          #ddd;
+
+    /* Borders */
+    --ide-border:                   #e3e3e3;
+    --ide-border-active:            #2f86d2;
+
+    /* Typography */
+    --ide-text-main:                #236ebf;
+    --ide-text-muted:               #2f86d2;
+    --ide-text-active:              #236ebf;
+    --ide-text-dim:                 #2f86d2;
+
+    /* Interactive states */
+    --ide-hover-bg:                 rgba(128, 128, 128, 0.12);
+    --ide-active-bg:                rgba(3,100,138, 0.20);
+    --ide-selection-bg:             rgba(3,100,138, 0.25);
+
+    /* Accent */
+    --ide-accent:                   #03648a;
+    --ide-syntax-keyword:           #03648a;
+    --ide-accent-hover:             #03648a;
+    --ide-accent-subtle:            rgba(3,100,138, 0.15);
+
+    /* Status indicators */
+    --ide-danger:                   #EF5350;
+    --ide-success:                  #4a7c3f;
+    --ide-warning:                  #E8C859;
+    --ide-info:                     #6897BB;
+
+    /* Tabs */
+    --ide-tab-active-bg:            #FFFFFF;
+    --ide-tab-inactive-bg:          #112233;
+    --ide-tab-active-border:        #03648a;
+
+    /* Result Grid */
+    --ide-grid-header-bg:           #ddd;
+    --ide-grid-row-alt:             rgba(128, 128, 128, 0.04);
+    --ide-grid-row-hover:           rgba(128, 128, 128, 0.08);
+
+    /* Action bar & Badges */
+    --ide-action-bar-bg:            #112233;
+    --ide-badge-bg:                 #112233;
+    --ide-badge-text:               #236ebf;
+    --ide-badge-hover:              #e3e3e3;
+
+    /* Context menu */
+    --ide-ctx-item-hover:           rgba(3,100,138, 0.18);
+    --ide-ctx-separator:            #e3e3e3;
+
+    /* Scrollbars */
+    --ide-scroll-track:             #112233;
+    --ide-scroll-thumb:             #e3e3e3;
+    --ide-scroll-thumb-hover:       #2f86d2;
+}
+
+
+/* ── VSIX Imported Theme: Winter is Coming (Light - No Italics) (Light) (winter-is-coming-light---no-italics-light) ────────────────────────── */
+html[data-bs-theme="winter-is-coming-light---no-italics-light"] {
+    --ide-theme-id:                 "winter-is-coming-light---no-italics-light";
+    --ide-theme-name:               "Winter is Coming (Light - No Italics) (Light)";
+    --ide-titlebar-bg:              #112233;
+    --ide-titlebar-text:            #eeefff;
+
+    /* Bootstrap overrides */
+    --bs-body-bg:                   #F3F3F3;
+    --bs-body-color:                #236ebf;
+    --bs-border-color:              #e3e3e3;
+    --bs-border-color-translucent:  rgba(120, 120, 120, 0.35);
+    --bs-primary:                   #03648a;
+    --bs-primary-rgb:               3,100,138;
+    --bs-dark:                      #112233;
+    --bs-secondary:                 #2f86d2;
+    --bs-link-color:                #03648a;
+    --bs-link-hover-color:          #03648a;
+
+    /* IDE surface layers */
+    --ide-bg-main:                  #F3F3F3;
+    --ide-bg-sidebar:               #F3F3F3;
+    --ide-bg-toolbar:               #112233;
+    --ide-bg-editor:                #FFFFFF;
+    --ide-bg-panel:                 #fff;
+    --ide-bg-result:                #FFFFFF;
+    --ide-bg-input:                 #eee;
+    --ide-bg-modal:                 #ddd;
+    --ide-bg-dropdown:              #eee;
+    --ide-bg-context-menu:          #ddd;
+
+    /* Borders */
+    --ide-border:                   #e3e3e3;
+    --ide-border-active:            #2f86d2;
+
+    /* Typography */
+    --ide-text-main:                #236ebf;
+    --ide-text-muted:               #2f86d2;
+    --ide-text-active:              #236ebf;
+    --ide-text-dim:                 #2f86d2;
+
+    /* Interactive states */
+    --ide-hover-bg:                 rgba(128, 128, 128, 0.12);
+    --ide-active-bg:                rgba(3,100,138, 0.20);
+    --ide-selection-bg:             rgba(3,100,138, 0.25);
+
+    /* Accent */
+    --ide-accent:                   #03648a;
+    --ide-syntax-keyword:           #03648a;
+    --ide-accent-hover:             #03648a;
+    --ide-accent-subtle:            rgba(3,100,138, 0.15);
+
+    /* Status indicators */
+    --ide-danger:                   #EF5350;
+    --ide-success:                  #4a7c3f;
+    --ide-warning:                  #E8C859;
+    --ide-info:                     #6897BB;
+
+    /* Tabs */
+    --ide-tab-active-bg:            #FFFFFF;
+    --ide-tab-inactive-bg:          #112233;
+    --ide-tab-active-border:        #03648a;
+
+    /* Result Grid */
+    --ide-grid-header-bg:           #ddd;
+    --ide-grid-row-alt:             rgba(128, 128, 128, 0.04);
+    --ide-grid-row-hover:           rgba(128, 128, 128, 0.08);
+
+    /* Action bar & Badges */
+    --ide-action-bar-bg:            #112233;
+    --ide-badge-bg:                 #112233;
+    --ide-badge-text:               #236ebf;
+    --ide-badge-hover:              #e3e3e3;
+
+    /* Context menu */
+    --ide-ctx-item-hover:           rgba(3,100,138, 0.18);
+    --ide-ctx-separator:            #e3e3e3;
+
+    /* Scrollbars */
+    --ide-scroll-track:             #112233;
+    --ide-scroll-thumb:             #e3e3e3;
+    --ide-scroll-thumb-hover:       #2f86d2;
+}
+
+
+/* ── VSIX Imported Theme: Winter is Coming (Dark Black) (Dark) (winter-is-coming-dark-black-dark) ────────────────────────── */
+html[data-bs-theme="winter-is-coming-dark-black-dark"] {
+    --ide-theme-id:                 "winter-is-coming-dark-black-dark";
+    --ide-theme-name:               "Winter is Coming (Dark Black) (Dark)";
+    --ide-titlebar-bg:              #112233;
+    --ide-titlebar-text:            #eeefff;
+
+    /* Bootstrap overrides */
+    --bs-body-bg:                   #282822;
+    --bs-body-color:                #a7dbf7;
+    --bs-border-color:              #219fd544;
+    --bs-border-color-translucent:  rgba(120, 120, 120, 0.35);
+    --bs-primary:                   #4f4f4f;
+    --bs-primary-rgb:               79,79,79;
+    --bs-dark:                      #112233;
+    --bs-secondary:                 #219fd5;
+    --bs-link-color:                #4f4f4f;
+    --bs-link-hover-color:          #4f4f4f;
+
+    /* IDE surface layers */
+    --ide-bg-main:                  #282822;
+    --ide-bg-sidebar:               #282822;
+    --ide-bg-toolbar:               #112233;
+    --ide-bg-editor:                #282822;
+    --ide-bg-panel:                 #282822;
+    --ide-bg-result:                #282822;
+    --ide-bg-input:                 #0b253a;
+    --ide-bg-modal:                 #0b2942;
+    --ide-bg-dropdown:              #0b253a;
+    --ide-bg-context-menu:          #0b2942;
+
+    /* Borders */
+    --ide-border:                   #219fd544;
+    --ide-border-active:            #219fd5;
+
+    /* Typography */
+    --ide-text-main:                #a7dbf7;
+    --ide-text-muted:               #219fd5;
+    --ide-text-active:              #a7dbf7;
+    --ide-text-dim:                 #219fd5;
+
+    /* Interactive states */
+    --ide-hover-bg:                 rgba(128, 128, 128, 0.12);
+    --ide-active-bg:                rgba(79,79,79, 0.20);
+    --ide-selection-bg:             rgba(79,79,79, 0.25);
+
+    /* Accent */
+    --ide-accent:                   #4f4f4f;
+    --ide-syntax-keyword:           #4f4f4f;
+    --ide-accent-hover:             #4f4f4f;
+    --ide-accent-subtle:            rgba(79,79,79, 0.15);
+
+    /* Status indicators */
+    --ide-danger:                   #EF5350;
+    --ide-success:                  #6A8759;
+    --ide-warning:                  #ffca28;
+    --ide-info:                     #6897BB;
+
+    /* Tabs */
+    --ide-tab-active-bg:            #0b2942;
+    --ide-tab-inactive-bg:          #010e1a;
+    --ide-tab-active-border:        #4f4f4f;
+
+    /* Result Grid */
+    --ide-grid-header-bg:           #282822;
+    --ide-grid-row-alt:             rgba(128, 128, 128, 0.04);
+    --ide-grid-row-hover:           rgba(128, 128, 128, 0.08);
+
+    /* Action bar & Badges */
+    --ide-action-bar-bg:            #112233;
+    --ide-badge-bg:                 #010e1a;
+    --ide-badge-text:               #a7dbf7;
+    --ide-badge-hover:              #219fd544;
+
+    /* Context menu */
+    --ide-ctx-item-hover:           rgba(79,79,79, 0.18);
+    --ide-ctx-separator:            #219fd544;
+
+    /* Scrollbars */
+    --ide-scroll-track:             #112233;
+    --ide-scroll-thumb:             #219fd544;
+    --ide-scroll-thumb-hover:       #219fd5;
+}
+
+
+/* ── VSIX Imported Theme: Winter is Coming (Dark Black - No Italics) (Dark) (winter-is-coming-dark-black---no-italics-dark) ────────────────────────── */
+html[data-bs-theme="winter-is-coming-dark-black---no-italics-dark"] {
+    --ide-theme-id:                 "winter-is-coming-dark-black---no-italics-dark";
+    --ide-theme-name:               "Winter is Coming (Dark Black - No Italics) (Dark)";
+    --ide-titlebar-bg:              #112233;
+    --ide-titlebar-text:            #eeefff;
+
+    /* Bootstrap overrides */
+    --bs-body-bg:                   #282822;
+    --bs-body-color:                #a7dbf7;
+    --bs-border-color:              #219fd544;
+    --bs-border-color-translucent:  rgba(120, 120, 120, 0.35);
+    --bs-primary:                   #4f4f4f;
+    --bs-primary-rgb:               79,79,79;
+    --bs-dark:                      #112233;
+    --bs-secondary:                 #219fd5;
+    --bs-link-color:                #4f4f4f;
+    --bs-link-hover-color:          #4f4f4f;
+
+    /* IDE surface layers */
+    --ide-bg-main:                  #282822;
+    --ide-bg-sidebar:               #282822;
+    --ide-bg-toolbar:               #112233;
+    --ide-bg-editor:                #282822;
+    --ide-bg-panel:                 #282822;
+    --ide-bg-result:                #282822;
+    --ide-bg-input:                 #0b253a;
+    --ide-bg-modal:                 #0b2942;
+    --ide-bg-dropdown:              #0b253a;
+    --ide-bg-context-menu:          #0b2942;
+
+    /* Borders */
+    --ide-border:                   #219fd544;
+    --ide-border-active:            #219fd5;
+
+    /* Typography */
+    --ide-text-main:                #a7dbf7;
+    --ide-text-muted:               #219fd5;
+    --ide-text-active:              #a7dbf7;
+    --ide-text-dim:                 #219fd5;
+
+    /* Interactive states */
+    --ide-hover-bg:                 rgba(128, 128, 128, 0.12);
+    --ide-active-bg:                rgba(79,79,79, 0.20);
+    --ide-selection-bg:             rgba(79,79,79, 0.25);
+
+    /* Accent */
+    --ide-accent:                   #4f4f4f;
+    --ide-syntax-keyword:           #4f4f4f;
+    --ide-accent-hover:             #4f4f4f;
+    --ide-accent-subtle:            rgba(79,79,79, 0.15);
+
+    /* Status indicators */
+    --ide-danger:                   #EF5350;
+    --ide-success:                  #6A8759;
+    --ide-warning:                  #ffca28;
+    --ide-info:                     #6897BB;
+
+    /* Tabs */
+    --ide-tab-active-bg:            #0b2942;
+    --ide-tab-inactive-bg:          #010e1a;
+    --ide-tab-active-border:        #4f4f4f;
+
+    /* Result Grid */
+    --ide-grid-header-bg:           #282822;
+    --ide-grid-row-alt:             rgba(128, 128, 128, 0.04);
+    --ide-grid-row-hover:           rgba(128, 128, 128, 0.08);
+
+    /* Action bar & Badges */
+    --ide-action-bar-bg:            #112233;
+    --ide-badge-bg:                 #010e1a;
+    --ide-badge-text:               #a7dbf7;
+    --ide-badge-hover:              #219fd544;
+
+    /* Context menu */
+    --ide-ctx-item-hover:           rgba(79,79,79, 0.18);
+    --ide-ctx-separator:            #219fd544;
+
+    /* Scrollbars */
+    --ide-scroll-track:             #112233;
+    --ide-scroll-thumb:             #219fd544;
+    --ide-scroll-thumb-hover:       #219fd5;
+}
+
+/* ── VSIX Imported Theme: Arc Dark (arc-dark) ────────────────────────── */
+html[data-bs-theme="arc-dark"] {
+    --ide-theme-id:                 "arc-dark";
+    --ide-theme-name:               "Arc Dark";
+    --ide-titlebar-bg:              #2f343f;
+    --ide-titlebar-text:            #CCC;
+
+    /* Bootstrap overrides */
+    --bs-body-bg:                   #262b33;
+    --bs-body-color:                #CCC;
+    --bs-border-color:              #0000;
+    --bs-border-color-translucent:  rgba(120, 120, 120, 0.35);
+    --bs-primary:                   #383C4A;
+    --bs-primary-rgb:               56,60,74;
+    --bs-dark:                      #2f343f;
+    --bs-secondary:                 #FFF4;
+    --bs-link-color:                #383C4A;
+    --bs-link-hover-color:          #383C4A;
+
+    /* IDE surface layers */
+    --ide-bg-main:                  #262b33;
+    --ide-bg-sidebar:               #262b33;
+    --ide-bg-toolbar:               #2f343f;
+    --ide-bg-editor:                #2f343f;
+    --ide-bg-panel:                 #2f343f;
+    --ide-bg-result:                #2f343f;
+    --ide-bg-input:                 #393f4c;
+    --ide-bg-modal:                 #2f343f;
+    --ide-bg-dropdown:              #2f343f;
+    --ide-bg-context-menu:          #2f343f;
+
+    /* Borders */
+    --ide-border:                   #0000;
+    --ide-border-active:            #404552;
+
+    /* Typography */
+    --ide-text-main:                #CCC;
+    --ide-text-muted:               #FFF4;
+    --ide-text-active:              #CCC;
+    --ide-text-dim:                 #FFF4;
+
+    /* Interactive states */
+    --ide-hover-bg:                 rgba(128, 128, 128, 0.12);
+    --ide-active-bg:                rgba(56,60,74, 0.20);
+    --ide-selection-bg:             rgba(56,60,74, 0.25);
+
+    /* Accent */
+    --ide-accent:                   #383C4A;
+    --ide-syntax-keyword:           #383C4A;
+    --ide-accent-hover:             #383C4A;
+    --ide-accent-subtle:            rgba(56,60,74, 0.15);
+
+    /* Status indicators */
+    --ide-danger:                   #ff5c5c;
+    --ide-success:                  #6A8759;
+    --ide-warning:                  #E8C859;
+    --ide-info:                     #6897BB;
+
+    /* Tabs */
+    --ide-tab-active-bg:            #0000;
+    --ide-tab-inactive-bg:          #2f343f;
+    --ide-tab-active-border:        #5294E2;
+
+    /* Result Grid */
+    --ide-grid-header-bg:           #262b33;
+    --ide-grid-row-alt:             rgba(128, 128, 128, 0.04);
+    --ide-grid-row-hover:           rgba(128, 128, 128, 0.08);
+
+    /* Action bar & Badges */
+    --ide-action-bar-bg:            #2f343f;
+    --ide-badge-bg:                 #2f343f;
+    --ide-badge-text:               #CCC;
+    --ide-badge-hover:              #0000;
+
+    /* Context menu */
+    --ide-ctx-item-hover:           rgba(56,60,74, 0.18);
+    --ide-ctx-separator:            #0000;
+
+    /* Scrollbars */
+    --ide-scroll-track:             #2f343f;
+    --ide-scroll-thumb:             #0000;
+    --ide-scroll-thumb-hover:       #FFF4;
+}
+
+
+/* ── VSIX Imported Theme: Adapta Nokto (adapta-nokto) ────────────────────────── */
+html[data-bs-theme="adapta-nokto"] {
+    --ide-theme-id:                 "adapta-nokto";
+    --ide-theme-name:               "Adapta Nokto";
+    --ide-titlebar-bg:              #222D32;
+    --ide-titlebar-text:            #ffffff;
+
+    /* Bootstrap overrides */
+    --bs-body-bg:                   #243035;
+    --bs-body-color:                #c7cfcf;
+    --bs-border-color:              #3c3f41;
+    --bs-border-color-translucent:  rgba(120, 120, 120, 0.35);
+    --bs-primary:                   #2D3B42;
+    --bs-primary-rgb:               45,59,66;
+    --bs-dark:                      #222D32;
+    --bs-secondary:                 #848c94;
+    --bs-link-color:                #2D3B42;
+    --bs-link-hover-color:          #2D3B42;
+
+    /* IDE surface layers */
+    --ide-bg-main:                  #243035;
+    --ide-bg-sidebar:               #243035;
+    --ide-bg-toolbar:               #222D32;
+    --ide-bg-editor:                #29353b;
+    --ide-bg-panel:                 #29353b;
+    --ide-bg-result:                #29353b;
+    --ide-bg-input:                 #243035;
+    --ide-bg-modal:                 #29353b;
+    --ide-bg-dropdown:              #29353b;
+    --ide-bg-context-menu:          #29353b;
+
+    /* Borders */
+    --ide-border:                   #3c3f41;
+    --ide-border-active:            #0005;
+
+    /* Typography */
+    --ide-text-main:                #c7cfcf;
+    --ide-text-muted:               #848c94;
+    --ide-text-active:              #ffffff;
+    --ide-text-dim:                 #848c94;
+
+    /* Interactive states */
+    --ide-hover-bg:                 rgba(128, 128, 128, 0.12);
+    --ide-active-bg:                rgba(45,59,66, 0.20);
+    --ide-selection-bg:             rgba(45,59,66, 0.25);
+
+    /* Accent */
+    --ide-accent:                   #2D3B42;
+    --ide-syntax-keyword:           #2D3B42;
+    --ide-accent-hover:             #2D3B42;
+    --ide-accent-subtle:            rgba(45,59,66, 0.15);
+
+    /* Status indicators */
+    --ide-danger:                   #ff5c5c;
+    --ide-success:                  #6A8759;
+    --ide-warning:                  #E8C859;
+    --ide-info:                     #6897BB;
+
+    /* Tabs */
+    --ide-tab-active-bg:            #29353b;
+    --ide-tab-inactive-bg:          #222D32;
+    --ide-tab-active-border:        #2D3B42;
+
+    /* Result Grid */
+    --ide-grid-header-bg:           #222D32;
+    --ide-grid-row-alt:             rgba(128, 128, 128, 0.04);
+    --ide-grid-row-hover:           rgba(128, 128, 128, 0.08);
+
+    /* Action bar & Badges */
+    --ide-action-bar-bg:            #222D32;
+    --ide-badge-bg:                 #222D32;
+    --ide-badge-text:               #c7cfcf;
+    --ide-badge-hover:              #3c3f41;
+
+    /* Context menu */
+    --ide-ctx-item-hover:           rgba(45,59,66, 0.18);
+    --ide-ctx-separator:            #3c3f41;
+
+    /* Scrollbars */
+    --ide-scroll-track:             #222D32;
+    --ide-scroll-thumb:             #3c3f41;
+    --ide-scroll-thumb-hover:       #848c94;
+}
+
+
+/* ── VSIX Imported Theme: United Ubuntu (united-ubuntu) ────────────────────────── */
+html[data-bs-theme="united-ubuntu"] {
+    --ide-theme-id:                 "united-ubuntu";
+    --ide-theme-name:               "United Ubuntu";
+    --ide-titlebar-bg:              #111111;
+    --ide-titlebar-text:            #dddddd;
+
+    /* Bootstrap overrides */
+    --bs-body-bg:                   #242424;
+    --bs-body-color:                #dddddd;
+    --bs-border-color:              #00000000;
+    --bs-border-color-translucent:  rgba(120, 120, 120, 0.35);
+    --bs-primary:                   #48b258;
+    --bs-primary-rgb:               72,178,88;
+    --bs-dark:                      #111111;
+    --bs-secondary:                 #848c94;
+    --bs-link-color:                #48b258;
+    --bs-link-hover-color:          #48b258;
+
+    /* IDE surface layers */
+    --ide-bg-main:                  #242424;
+    --ide-bg-sidebar:               #242424;
+    --ide-bg-toolbar:               #111111;
+    --ide-bg-editor:                #1e1e1e;
+    --ide-bg-panel:                 #1e1e1e;
+    --ide-bg-result:                #1e1e1e;
+    --ide-bg-input:                 #242424;
+    --ide-bg-modal:                 #242424;
+    --ide-bg-dropdown:              #242424;
+    --ide-bg-context-menu:          #242424;
+
+    /* Borders */
+    --ide-border:                   #00000000;
+    --ide-border-active:            #48b258;
+
+    /* Typography */
+    --ide-text-main:                #dddddd;
+    --ide-text-muted:               #848c94;
+    --ide-text-active:              #dddddd;
+    --ide-text-dim:                 #848c94;
+
+    /* Interactive states */
+    --ide-hover-bg:                 rgba(128, 128, 128, 0.12);
+    --ide-active-bg:                rgba(72,178,88, 0.20);
+    --ide-selection-bg:             rgba(72,178,88, 0.25);
+
+    /* Accent */
+    --ide-accent:                   #48b258;
+    --ide-syntax-keyword:           #48b258;
+    --ide-accent-hover:             #48b258;
+    --ide-accent-subtle:            rgba(72,178,88, 0.15);
+
+    /* Status indicators */
+    --ide-danger:                   #ff5c5c;
+    --ide-success:                  #6A8759;
+    --ide-warning:                  #E8C859;
+    --ide-info:                     #6897BB;
+
+    /* Tabs */
+    --ide-tab-active-bg:            #1e1e1e;
+    --ide-tab-inactive-bg:          #181818;
+    --ide-tab-active-border:        #48b258;
+
+    /* Result Grid */
+    --ide-grid-header-bg:           #242424;
+    --ide-grid-row-alt:             rgba(128, 128, 128, 0.04);
+    --ide-grid-row-hover:           rgba(128, 128, 128, 0.08);
+
+    /* Action bar & Badges */
+    --ide-action-bar-bg:            #111111;
+    --ide-badge-bg:                 #181818;
+    --ide-badge-text:               #dddddd;
+    --ide-badge-hover:              #00000000;
+
+    /* Context menu */
+    --ide-ctx-item-hover:           rgba(72,178,88, 0.18);
+    --ide-ctx-separator:            #00000000;
+
+    /* Scrollbars */
+    --ide-scroll-track:             #111111;
+    --ide-scroll-thumb:             #00000000;
+    --ide-scroll-thumb-hover:       #848c94;
+}
+
+
+/* ── VSIX Imported Theme: Ambiance [beta] (ambiance-beta) ────────────────────────── */
+html[data-bs-theme="ambiance-beta"] {
+    --ide-theme-id:                 "ambiance-beta";
+    --ide-theme-name:               "Ambiance [beta]";
+    --ide-titlebar-bg:              #111111;
+    --ide-titlebar-text:            #dddddd;
+
+    /* Bootstrap overrides */
+    --bs-body-bg:                   #373633;
+    --bs-body-color:                #dddddd;
+    --bs-border-color:              #00000000;
+    --bs-border-color-translucent:  rgba(120, 120, 120, 0.35);
+    --bs-primary:                   #ec6a3f;
+    --bs-primary-rgb:               236,106,63;
+    --bs-dark:                      #111111;
+    --bs-secondary:                 #848c94;
+    --bs-link-color:                #ec6a3f;
+    --bs-link-hover-color:          #ec6a3f;
+
+    /* IDE surface layers */
+    --ide-bg-main:                  #373633;
+    --ide-bg-sidebar:               #373633;
+    --ide-bg-toolbar:               #111111;
+    --ide-bg-editor:                #31312e;
+    --ide-bg-panel:                 #31312e;
+    --ide-bg-result:                #31312e;
+    --ide-bg-input:                 #2d2c2a;
+    --ide-bg-modal:                 #373633;
+    --ide-bg-dropdown:              #2d2c2a;
+    --ide-bg-context-menu:          #373633;
+
+    /* Borders */
+    --ide-border:                   #00000000;
+    --ide-border-active:            #ec6a3f;
+
+    /* Typography */
+    --ide-text-main:                #dddddd;
+    --ide-text-muted:               #848c94;
+    --ide-text-active:              #dddddd;
+    --ide-text-dim:                 #848c94;
+
+    /* Interactive states */
+    --ide-hover-bg:                 rgba(128, 128, 128, 0.12);
+    --ide-active-bg:                rgba(236,106,63, 0.20);
+    --ide-selection-bg:             rgba(236,106,63, 0.25);
+
+    /* Accent */
+    --ide-accent:                   #ec6a3f;
+    --ide-syntax-keyword:           #ec6a3f;
+    --ide-accent-hover:             #ec6a3f;
+    --ide-accent-subtle:            rgba(236,106,63, 0.15);
+
+    /* Status indicators */
+    --ide-danger:                   #ff5c5c;
+    --ide-success:                  #6A8759;
+    --ide-warning:                  #E8C859;
+    --ide-info:                     #6897BB;
+
+    /* Tabs */
+    --ide-tab-active-bg:            #31312e;
+    --ide-tab-inactive-bg:          #373633;
+    --ide-tab-active-border:        #ec6a3f;
+
+    /* Result Grid */
+    --ide-grid-header-bg:           #3c3b37;
+    --ide-grid-row-alt:             rgba(128, 128, 128, 0.04);
+    --ide-grid-row-hover:           rgba(128, 128, 128, 0.08);
+
+    /* Action bar & Badges */
+    --ide-action-bar-bg:            #111111;
+    --ide-badge-bg:                 #373633;
+    --ide-badge-text:               #dddddd;
+    --ide-badge-hover:              #00000000;
+
+    /* Context menu */
+    --ide-ctx-item-hover:           rgba(236,106,63, 0.18);
+    --ide-ctx-separator:            #00000000;
+
+    /* Scrollbars */
+    --ide-scroll-track:             #111111;
+    --ide-scroll-thumb:             #00000000;
+    --ide-scroll-thumb-hover:       #848c94;
+}
+
+/* ── Monaco Find Widget Focus Fix (Bug 2) ─────────────────────────────────── */
+.monaco-editor .find-widget,
+.monaco-editor .monaco-find-widget,
+.overflowingContentWidgets .find-widget {
+    pointer-events: auto !important;
+    z-index: 1050 !important;
+}
+
+.monaco-editor .find-widget .monaco-findInput textarea.input,
+.overflowingContentWidgets .find-widget .monaco-findInput textarea.input {
+    pointer-events: auto !important;
+    user-select: text !important;
+    -webkit-user-select: text !important;
+    cursor: text !important;
+}
+
+/* ── Action Bar Responsive Overflow Menu (Bug 3) ─────────────────────────── */
+.ide-action-overflow-wrap {
+    display: none !important;
+}
+
+.ide-action-collapsible {
+    display: inline-flex !important;
+}
+
+.ide-action-btn--overflow {
+    padding: 2px 7px;
+    height: 24px;
+    font-size: 13px;
+}
+
+.ide-action-overflow-dropdown {
+    border: 1px solid var(--ide-border);
+    background: var(--ide-bg-dropdown, #202228);
+    font-size: 12px;
+    z-index: 1080;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+
+.ide-action-overflow-dropdown .dropdown-item {
+    padding: 5px 12px;
+    color: var(--ide-text-main);
+    cursor: pointer;
+    transition: background 0.1s, color 0.1s;
+}
+
+.ide-action-overflow-dropdown .dropdown-item:hover {
+    background: var(--ide-hover-bg);
+    color: var(--ide-text-active);
+}
+
+.ide-action-overflow-dropdown .dropdown-item.disabled,
+.ide-action-overflow-dropdown .dropdown-item:disabled {
+    opacity: 0.45;
+    pointer-events: none;
+}
+
+/* Compact Mode (triggered dynamically ONLY when action bar lacks space to fit all content) */
+.ide-action-bar.is-compact .ide-action-collapsible,
+.ide-action-bar.is-compact button.ide-action-collapsible,
+.ide-action-bar.is-compact span.ide-action-collapsible {
+    display: none !important;
+}
+
+.ide-action-bar.is-compact .ide-action-overflow-wrap {
+    display: inline-block !important;
+}
+
+/* Ensure essential controls (Run, Run Debug, Stop, Limit) remain visible in compact mode */
+.ide-action-bar.is-compact button.ide-action-essential,
+.ide-action-bar.is-compact div.ide-action-essential {
+    display: inline-flex !important;
+}
+
+/* ── PostgreSQL Debug Mode Toggle Icon Button (Bug 4) ─────────────────────── */
+.ide-action-btn--debug-toggle {
+    padding: 2px 7px;
+    height: 24px;
+    min-width: 28px;
+    border-radius: 3px;
+    background: transparent;
+    border: 1px solid var(--ide-border, #3a3f4b);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.ide-action-btn--debug-toggle .ide-debug-icon {
+    color: #858d98; /* Inactive: gray */
+    font-size: 13px;
+    transition: color 0.15s ease, transform 0.15s ease;
+}
+
+.ide-action-btn--debug-toggle:hover {
+    background: rgba(128, 128, 128, 0.1);
+}
+
+.ide-action-btn--debug-toggle:hover .ide-debug-icon {
+    transform: scale(1.1);
+}
+
+/* Active State */
+.ide-action-btn--debug-toggle.active {
+    background: rgba(245, 158, 11, 0.15);
+    border-color: rgba(245, 158, 11, 0.5);
+}
+
+/* Light Theme: Yellow/Amber (#d97706 or #eab308) */
+.ide-action-btn--debug-toggle.active .ide-debug-icon {
+    color: #eab308 !important;
+}
+
+/* Dark Theme: Orange (#f97316) */
+body.dark-theme .ide-action-btn--debug-toggle.active,
+[data-theme="dark"] .ide-action-btn--debug-toggle.active,
+body.vscode-dark .ide-action-btn--debug-toggle.active,
+.theme-dark .ide-action-btn--debug-toggle.active {
+    background: rgba(249, 115, 22, 0.18);
+    border-color: rgba(249, 115, 22, 0.6);
+}
+
+body.dark-theme .ide-action-btn--debug-toggle.active .ide-debug-icon,
+[data-theme="dark"] .ide-action-btn--debug-toggle.active .ide-debug-icon,
+body.vscode-dark .ide-action-btn--debug-toggle.active .ide-debug-icon,
+.theme-dark .ide-action-btn--debug-toggle.active .ide-debug-icon {
+    color: #f97316 !important;
+}
+
+/* ── VSIX Imported Theme: | Dark | JetBrains New UI Color Theme (Dark) (dark-jetbrains-color-theme) ────────────────────────── */
+html[data-bs-theme="dark-jetbrains-color-theme"] {
+    --ide-theme-id:                 "dark-jetbrains-color-theme";
+    --ide-theme-name:               "| Dark | JetBrains New UI Color Theme (Dark)";
+    --ide-titlebar-bg:              #2b2d30;
+    --ide-titlebar-text:            #ffffff;
+
+    /* Bootstrap overrides */
+    --bs-body-bg:                   #2b2d30;
+    --bs-body-color:                #c7cfcf;
+    --bs-border-color:              #2b2d30;
+    --bs-border-color-translucent:  rgba(120, 120, 120, 0.35);
+    --bs-primary:                   #3574f0;
+    --bs-primary-rgb:               53,116,240;
+    --bs-dark:                      #2b2d30;
+    --bs-secondary:                 #444953;
+    --bs-link-color:                #3574f0;
+    --bs-link-hover-color:          #3574f0;
+
+    /* IDE surface layers */
+    --ide-bg-main:                  #2b2d30;
+    --ide-bg-sidebar:               #2b2d30;
+    --ide-bg-toolbar:               #2b2d30;
+    --ide-bg-editor:                #1e1f22;
+    --ide-bg-panel:                 #2b2d30;
+    --ide-bg-result:                #1e1f22;
+    --ide-bg-input:                 #45494A;
+    --ide-bg-modal:                 #313335;
+    --ide-bg-dropdown:              #313335;
+    --ide-bg-context-menu:          #2b2d30;
+
+    /* Borders */
+    --ide-border:                   #2b2d30;
+    --ide-border-active:            #3574f0;
+
+    /* Typography */
+    --ide-text-main:                #c7cfcf;
+    --ide-text-muted:               #444953;
+    --ide-text-active:              #ffffff;
+    --ide-text-dim:                 #444953;
+
+    /* Interactive states */
+    --ide-hover-bg:                 rgba(128, 128, 128, 0.12);
+    --ide-active-bg:                rgba(53,116,240, 0.20);
+    --ide-selection-bg:             rgba(53,116,240, 0.25);
+
+    /* Accent */
+    --ide-accent:                   #3574f0;
+    --ide-syntax-keyword:           #3574f0;
+    --ide-accent-hover:             #3574f0;
+    --ide-accent-subtle:            rgba(53,116,240, 0.15);
+
+    /* Status indicators */
+    --ide-danger:                   #c45464;
+    --ide-success:                  #6A8759;
+    --ide-warning:                  #BA9752;
+    --ide-info:                     #3592C4;
+
+    /* Tabs */
+    --ide-tab-active-bg:            #1e1f22;
+    --ide-tab-inactive-bg:          #1e1f22;
+    --ide-tab-active-border:        #3574f0;
+
+    /* Result Grid */
+    --ide-grid-header-bg:           #43454a;
+    --ide-grid-row-alt:             rgba(128, 128, 128, 0.04);
+    --ide-grid-row-hover:           rgba(128, 128, 128, 0.08);
+
+    /* Action bar & Badges */
+    --ide-action-bar-bg:            #2b2d30;
+    --ide-badge-bg:                 #1e1f22;
+    --ide-badge-text:               #c7cfcf;
+    --ide-badge-hover:              #2b2d30;
+
+    /* Context menu */
+    --ide-ctx-item-hover:           rgba(53,116,240, 0.18);
+    --ide-ctx-separator:            #2b2d30;
+
+    /* Scrollbars */
+    --ide-scroll-track:             #2b2d30;
+    --ide-scroll-thumb:             #2b2d30;
+    --ide-scroll-thumb-hover:       #444953;
+}
+
+
+/* ── VSIX Imported Theme: | Light | JetBrains New UI Color Theme (Light) (light-jetbrains-color-theme) ────────────────────────── */
+html[data-bs-theme="light-jetbrains-color-theme"] {
+    --ide-theme-id:                 "light-jetbrains-color-theme";
+    --ide-theme-name:               "| Light | JetBrains New UI Color Theme (Light)";
+    --ide-titlebar-bg:              #dddddd;
+    --ide-titlebar-text:            #333333;
+
+    /* Bootstrap overrides */
+    --bs-body-bg:                   #f7f8fa;
+    --bs-body-color:                #000000;
+    --bs-border-color:              #ebecf0;
+    --bs-border-color-translucent:  rgba(120, 120, 120, 0.35);
+    --bs-primary:                   #3574f0;
+    --bs-primary-rgb:               53,116,240;
+    --bs-dark:                      #dddddd;
+    --bs-secondary:                 #aeb3c2;
+    --bs-link-color:                #3574f0;
+    --bs-link-hover-color:          #3574f0;
+
+    /* IDE surface layers */
+    --ide-bg-main:                  #f7f8fa;
+    --ide-bg-sidebar:               #f7f8fa;
+    --ide-bg-toolbar:               #dddddd;
+    --ide-bg-editor:                #ffffff;
+    --ide-bg-panel:                 #ffffff;
+    --ide-bg-result:                #ffffff;
+    --ide-bg-input:                 #ffffff;
+    --ide-bg-modal:                 #f3f3f3;
+    --ide-bg-dropdown:              #ffffff;
+    --ide-bg-context-menu:          #ffffff;
+
+    /* Borders */
+    --ide-border:                   #ebecf0;
+    --ide-border-active:            #3574f0;
+
+    /* Typography */
+    --ide-text-main:                #000000;
+    --ide-text-muted:               #aeb3c2;
+    --ide-text-active:              #000000;
+    --ide-text-dim:                 #aeb3c2;
+
+    /* Interactive states */
+    --ide-hover-bg:                 rgba(128, 128, 128, 0.12);
+    --ide-active-bg:                rgba(53,116,240, 0.20);
+    --ide-selection-bg:             rgba(53,116,240, 0.25);
+
+    /* Accent */
+    --ide-accent:                   #3574f0;
+    --ide-syntax-keyword:           #3574f0;
+    --ide-accent-hover:             #3574f0;
+    --ide-accent-subtle:            rgba(53,116,240, 0.15);
+
+    /* Status indicators */
+    --ide-danger:                   #da4337;
+    --ide-success:                  #4a7c3f;
+    --ide-warning:                  #e9a700;
+    --ide-info:                     #75beff;
+
+    /* Tabs */
+    --ide-tab-active-bg:            #ffffff;
+    --ide-tab-inactive-bg:          #ececec;
+    --ide-tab-active-border:        #00000000;
+
+    /* Result Grid */
+    --ide-grid-header-bg:           #e8e8e8;
+    --ide-grid-row-alt:             rgba(128, 128, 128, 0.04);
+    --ide-grid-row-hover:           rgba(128, 128, 128, 0.08);
+
+    /* Action bar & Badges */
+    --ide-action-bar-bg:            #dddddd;
+    --ide-badge-bg:                 #ececec;
+    --ide-badge-text:               #000000;
+    --ide-badge-hover:              #ebecf0;
+
+    /* Context menu */
+    --ide-ctx-item-hover:           rgba(53,116,240, 0.18);
+    --ide-ctx-separator:            #ebecf0;
+
+    /* Scrollbars */
+    --ide-scroll-track:             #dddddd;
+    --ide-scroll-thumb:             #ebecf0;
+    --ide-scroll-thumb-hover:       #aeb3c2;
 }

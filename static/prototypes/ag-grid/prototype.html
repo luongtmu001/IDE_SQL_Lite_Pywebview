@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="vi" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AG Grid Community Prototype - SQL IDE Result Grid</title>
+    
+    <!-- Local Vendor Assets (Offline WebView2 Compatible) -->
+    <link rel="stylesheet" href="../../vendor/fontawesome/all.min.css">
+    <link rel="stylesheet" href="../../vendor/ag-grid/ag-grid.css">
+    <link rel="stylesheet" href="../../vendor/ag-grid/ag-theme-quartz.css">
+    <link rel="stylesheet" href="../../vendor/ag-grid/ag-theme-alpine.css">
+    
+    <!-- Scoped Prototype Styles -->
+    <link rel="stylesheet" href="prototype.css">
+</head>
+<body class="ag-proto-body">
+
+    <!-- 1. Header Toolbar -->
+    <header class="ag-proto-header">
+        <div class="ag-proto-title">
+            <i class="fa-solid fa-table-cells" style="color: var(--ag-proto-accent);"></i>
+            <span>SQL IDE Result Grid Benchmark</span>
+            <span class="ag-proto-badge">AG Grid v31.3.2 Community</span>
+        </div>
+
+        <div class="ag-proto-toolbar-group">
+            <span class="ag-proto-control-label">Rows:</span>
+            <select id="row-count-select" class="ag-proto-select">
+                <option value="100">100 rows</option>
+                <option value="1000">1,000 rows</option>
+                <option value="2000" selected>2,000 rows (Standard)</option>
+                <option value="5000">5,000 rows</option>
+                <option value="10000">10,000 rows (Stress)</option>
+                <option value="20000">20,000 rows (Max Stress)</option>
+            </select>
+
+            <span class="ag-proto-control-label">Cols:</span>
+            <select id="col-count-select" class="ag-proto-select">
+                <option value="10">10 cols</option>
+                <option value="20" selected>20 cols (Standard)</option>
+                <option value="50">50 cols</option>
+                <option value="100">100 cols (Wide)</option>
+            </select>
+
+            <span class="ag-proto-control-label">Mode:</span>
+            <select id="init-mode-select" class="ag-proto-select" title="Lazy: Init grid khi tab active; Eager: Init đồng loạt 5 grids">
+                <option value="lazy" selected>Lazy Init (Active tab)</option>
+                <option value="eager">Eager Init (All 5 tabs)</option>
+            </select>
+
+            <span class="ag-proto-control-label">Theme:</span>
+            <select id="theme-select" class="ag-proto-select">
+                <option value="ag-theme-quartz-dark" selected>Quartz Dark</option>
+                <option value="ag-theme-quartz">Quartz Light</option>
+                <option value="ag-theme-alpine-dark">Alpine Dark</option>
+                <option value="ag-theme-alpine">Alpine Light</option>
+            </select>
+        </div>
+
+        <div class="ag-proto-toolbar-group">
+            <button id="btn-generate" class="ag-proto-btn ag-proto-btn-primary" title="Tạo dataset mới theo thông số đã chọn">
+                <i class="fa-solid fa-arrows-rotate"></i>
+                <span>Generate Data</span>
+            </button>
+            <button id="btn-append" class="ag-proto-btn" title="Thêm 1,000 dòng qua AG Grid Transaction API">
+                <i class="fa-solid fa-plus"></i>
+                <span>Append 1,000 Rows</span>
+            </button>
+            <button id="btn-clear" class="ag-proto-btn ag-proto-btn-danger" title="Xóa dữ liệu & giải phóng Grid instance hiện tại">
+                <i class="fa-solid fa-trash-can"></i>
+                <span>Clear</span>
+            </button>
+            <button id="btn-benchmark" class="ag-proto-btn" title="Chạy chuỗi đo đạc benchmark tự động toàn diện">
+                <i class="fa-solid fa-bolt" style="color: #ffd700;"></i>
+                <span>Run Benchmark</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- 2. Result Sets Tab Bar -->
+    <nav class="ag-proto-tabs-bar">
+        <div class="ag-proto-tabs-list" id="tabs-container">
+            <!-- Render động 5 Result Set tabs từ prototype.js -->
+        </div>
+        <div style="font-size: 11px; color: var(--ag-proto-text-muted);">
+            <i class="fa-solid fa-info-circle"></i> Độc lập 100% &bull; Seeded PRNG &bull; Zero DB Connection
+        </div>
+    </nav>
+
+    <!-- 3. Main Workspace & Splitter -->
+    <main class="ag-proto-main">
+        <!-- Stage chứa các pane Result Set -->
+        <section class="ag-proto-grid-stage" id="grid-stage">
+            <!-- Render động 5 Result Grid panes từ prototype.js -->
+        </section>
+
+        <!-- Thanh kéo thay đổi kích thước (Splitter) để test Resize Performance -->
+        <div class="ag-proto-splitter" id="splitter-handle" title="Kéo để test hiệu năng resize động"></div>
+
+        <!-- Panel hiển thị chỉ số đo lường hiệu năng trực tiếp (Metrics Log) -->
+        <section class="ag-proto-metrics-panel" id="metrics-panel">
+            <div class="ag-proto-metrics-header">
+                <div>
+                    <i class="fa-solid fa-gauge-high"></i>
+                    <span>Real-time Performance Metrics Log</span>
+                </div>
+                <div style="font-size: 11px; font-weight: normal; color: var(--ag-proto-text-muted);">
+                    Đo bằng performance.now() &amp; requestAnimationFrame
+                </div>
+            </div>
+            <div class="ag-proto-metrics-content">
+                <table class="ag-proto-metrics-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 90px;">Time</th>
+                            <th style="width: 260px;">Action / Task</th>
+                            <th style="width: 120px;">Execution Time</th>
+                            <th>Details &amp; Visual Metrics</th>
+                        </tr>
+                    </thead>
+                    <tbody id="metrics-table-body">
+                        <!-- Cập nhật tự động từ logMetric() và benchmark.js -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+
+    <!-- 4. Footer Status Bar -->
+    <footer class="ag-proto-footer">
+        <div class="ag-proto-footer-left">
+            <div class="ag-proto-footer-item">
+                <span>Active:</span>
+                <span class="ag-proto-footer-val" id="stat-active-tab">Result Set 1</span>
+            </div>
+            <div class="ag-proto-footer-item">
+                <span>Rows:</span>
+                <span class="ag-proto-footer-val" id="stat-rows">0</span>
+            </div>
+            <div class="ag-proto-footer-item">
+                <span>Cols:</span>
+                <span class="ag-proto-footer-val" id="stat-cols">0</span>
+            </div>
+            <div class="ag-proto-footer-item" title="Số lượng DOM nodes bên trong Grid container">
+                <span>DOM Nodes:</span>
+                <span class="ag-proto-footer-val" id="stat-dom-nodes">0</span>
+            </div>
+        </div>
+
+        <div class="ag-proto-footer-right">
+            <div class="ag-proto-footer-item" title="Thời gian khởi tạo Grid instance gần nhất">
+                <span>Grid Init:</span>
+                <span class="ag-proto-footer-val" id="stat-init-time">-</span>
+            </div>
+            <div class="ag-proto-footer-item" title="Thời gian tác vụ gần nhất (API call / Transaction)">
+                <span>Last Action:</span>
+                <span class="ag-proto-footer-val" id="stat-action-time">-</span>
+            </div>
+            <div class="ag-proto-footer-item" title="Số sự kiện resize khi kéo splitter">
+                <span>Splitter Events:</span>
+                <span class="ag-proto-footer-val" id="stat-resize-events">0 events</span>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Scripts (Thứ tự: AG Grid -> Mock Data -> Benchmark Engine -> Controller) -->
+    <script src="../../vendor/ag-grid/ag-grid-community.min.js"></script>
+    <script src="mock-data.js"></script>
+    <script src="benchmark.js"></script>
+    <script src="prototype.js"></script>
+</body>
+</html>

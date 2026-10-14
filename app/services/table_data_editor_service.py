@@ -548,6 +548,13 @@ class TableDataEditorService:
         if not conn:
             raise RuntimeError("Không thể kết nối đến cơ sở dữ liệu để thực thi giao dịch.")
 
+        # Check read-only and transaction mode
+        session = getattr(adapter, "session", None)
+        if session and getattr(session, "read_only", None) is True:
+            raise PermissionError("Kết nối đang ở chế độ CHỈ ĐỌC (Read-Only). Không thể lưu thay đổi vào bảng dữ liệu.")
+
+        in_explicit_tx = bool(session and getattr(session, "in_transaction", None) is True)
+
         cursor = conn.cursor()
         old_autocommit = getattr(conn, "autocommit", True)
 
@@ -560,8 +567,9 @@ class TableDataEditorService:
                 except Exception:
                     pass
 
-            # 2. Begin explicit transaction
-            conn.autocommit = False
+            # 2. Begin explicit transaction if not already in one
+            if not in_explicit_tx:
+                conn.autocommit = False
 
             # 3. Check for explicit Identity Insert (MSSQL)
             # Only enable if user explicitly provided non-empty value for an identity column
@@ -725,29 +733,34 @@ class TableDataEditorService:
                     )
                 deleted_count += 1
 
-            # 7. Commit Transaction
-            conn.commit()
+            # 7. Commit Transaction (Only if not running within an explicit user transaction)
+            if not in_explicit_tx:
+                conn.commit()
 
+            msg_suffix = " (Chạy trong Transaction tường minh đang mở - chưa commit)" if in_explicit_tx else ""
             return {
                 "success": True,
                 "inserted": inserted_count,
                 "updated": updated_count,
                 "deleted": deleted_count,
                 "total": inserted_count + updated_count + deleted_count,
-                "message": f"Đã lưu thành công: {inserted_count} thêm mới, {updated_count} cập nhật, {deleted_count} xóa."
+                "in_transaction": in_explicit_tx,
+                "message": f"Đã lưu thành công: {inserted_count} thêm mới, {updated_count} cập nhật, {deleted_count} xóa.{msg_suffix}"
             }
 
         except Exception as exc:
-            try:
-                conn.rollback()
-            except Exception:
-                pass
+            if not in_explicit_tx:
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
             raise exc
         finally:
-            try:
-                conn.autocommit = old_autocommit
-            except Exception:
-                pass
+            if not in_explicit_tx:
+                try:
+                    conn.autocommit = old_autocommit
+                except Exception:
+                    pass
 
     @classmethod
     def validate_insert_rows(

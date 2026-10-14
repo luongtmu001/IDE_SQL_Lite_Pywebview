@@ -99,6 +99,48 @@
             const cleanType = String(objectType || 'VIEW').toUpperCase();
             return `ALTER ${cleanType} ${quotedSchema}.${quotedName}`;
         }
+
+        /**
+         * Parameter style: 'named' (@param) or 'positional' ($1)
+         */
+        getParameterStyle() {
+            return 'named';
+        }
+
+        /**
+         * Check if token is a dialect-specific query parameter
+         */
+        isParameter(tokenValue) {
+            return false;
+        }
+
+        /**
+         * Check if token is a system variable (e.g. @@ROWCOUNT)
+         */
+        isSystemVariable(tokenValue) {
+            return false;
+        }
+
+        /**
+         * Check if token is a dollar-quote tag ($$ or $tag$)
+         */
+        isDollarQuote(tokenValue) {
+            return false;
+        }
+
+        /**
+         * List of format placeholders supported by format()
+         */
+        getFormatPlaceholders() {
+            return [];
+        }
+
+        /**
+         * Check if string is a valid format placeholder
+         */
+        isFormatPlaceholder(placeholder) {
+            return false;
+        }
     }
 
     /**
@@ -176,7 +218,7 @@
                 "TRIGGER", "TRUNCATE", "TRYCONNECT", "TRY_CONVERT", "TSEQUAL", "UNION", "UNIQUE",
                 "UNPIVOT", "UPDATE", "UPDATETEXT", "USE", "USER", "VALUES", "VARYING", "VIEW",
                 "WAITFOR", "WHEN", "WHERE", "WHILE", "WITH", "WITHIN GROUP", "WRITETEXT",
-                "CROSS APPLY", "OUTER APPLY", "NOLOCK"
+                "APPLY", "CROSS APPLY", "OUTER APPLY", "NOLOCK"
             ];
         }
 
@@ -229,6 +271,32 @@
             const cleanType = String(objectType || 'VIEW').toUpperCase();
             // SQL Server 2016+ standard: CREATE OR ALTER
             return `CREATE OR ALTER ${cleanType} ${quotedSchema}.${quotedName}`;
+        }
+
+        getParameterStyle() {
+            return 'named';
+        }
+
+        isParameter(tokenValue) {
+            if (!tokenValue || typeof tokenValue !== 'string') return false;
+            return /^@[a-zA-Z_][a-zA-Z0-9_]*$/.test(tokenValue);
+        }
+
+        isSystemVariable(tokenValue) {
+            if (!tokenValue || typeof tokenValue !== 'string') return false;
+            return /^@@[a-zA-Z_][a-zA-Z0-9_]*$/.test(tokenValue);
+        }
+
+        isDollarQuote(tokenValue) {
+            return false;
+        }
+
+        getFormatPlaceholders() {
+            return [];
+        }
+
+        isFormatPlaceholder(placeholder) {
+            return false;
         }
     }
 
@@ -302,7 +370,7 @@
                 "RIGHT", "SELECT", "SERIAL", "SESSION_USER", "SIMILAR", "SIMILAR TO", "SOME",
                 "SYMMETRIC", "TABLE", "TABLESAMPLE", "THEN", "TO", "TRAILING", "TRUE", "UNION",
                 "UNIQUE", "USER", "USING", "VACUUM", "VARIADIC", "VERBOSE", "VIEW", "WHEN",
-                "WHERE", "WINDOW", "WITH"
+                "WHERE", "WINDOW", "WITH", "LEFT JOIN LATERAL", "CROSS JOIN LATERAL"
             ];
         }
 
@@ -355,6 +423,33 @@
                 return `CREATE OR REPLACE ${cleanType} ${quotedSchema}.${quotedName}`;
             }
             return `ALTER ${cleanType} ${quotedSchema}.${quotedName}`;
+        }
+
+        getParameterStyle() {
+            return 'positional';
+        }
+
+        isParameter(tokenValue) {
+            if (!tokenValue || typeof tokenValue !== 'string') return false;
+            return /^\$[1-9][0-9]*$/.test(tokenValue);
+        }
+
+        isSystemVariable(tokenValue) {
+            return false;
+        }
+
+        isDollarQuote(tokenValue) {
+            if (!tokenValue || typeof tokenValue !== 'string') return false;
+            return /^\$([a-zA-Z0-9_]*)\$$/.test(tokenValue);
+        }
+
+        getFormatPlaceholders() {
+            return ['%I', '%L', '%s', '%%'];
+        }
+
+        isFormatPlaceholder(placeholder) {
+            if (!placeholder || typeof placeholder !== 'string') return false;
+            return ['%I', '%L', '%s', '%%'].includes(placeholder);
         }
     }
 
@@ -415,6 +510,7 @@
     window.SqlDialect = SqlDialect;
     window.SqlServerDialect = SqlServerDialect;
     window.PostgresDialect = PostgresDialect;
+    window.PostgreSQLDialect = PostgresDialect;
     window.SqlDialectFactory = SqlDialectFactory;
     window.DefaultSqlDialectFactory = SqlDialectFactory;
 

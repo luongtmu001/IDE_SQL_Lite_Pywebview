@@ -23,6 +23,8 @@ function initConnections() {
     const connDbList = document.getElementById("connDbList");
     const fGroup = document.getElementById("connGroup");
     const fGroupList = document.getElementById("connGroupList");
+    const fEnvironment = document.getElementById("connEnvironment");
+    const fReadOnly = document.getElementById("connReadOnly");
     const fWinAuth = document.getElementById("connWinAuth");
     const fEncrypt = document.getElementById("connEncrypt");
     const fTrustCert = document.getElementById("connTrustCert");
@@ -72,6 +74,8 @@ function initConnections() {
             }
         }
         if (fGroup) fGroup.value = data.group || "";
+        if (fEnvironment) fEnvironment.value = data.environment || "";
+        if (fReadOnly) fReadOnly.checked = Boolean(data.read_only);
         fWinAuth.checked = Boolean(data.trusted_connection);
         if (fEncrypt) fEncrypt.checked = data.encrypt !== undefined ? Boolean(data.encrypt) : (data.ssl !== undefined ? Boolean(data.ssl) : false);
         if (fTrustCert) fTrustCert.checked = data.trust_server_certificate !== undefined ? Boolean(data.trust_server_certificate) : true;
@@ -154,6 +158,8 @@ function initConnections() {
                     }
                 }
                 if (fGroup) fGroup.value = data.group || "";
+                if (fEnvironment) fEnvironment.value = data.environment || "";
+                if (fReadOnly) fReadOnly.checked = Boolean(data.read_only);
                 fWinAuth.checked = Boolean(data.trusted_connection);
                 if (fEncrypt) {
                     fEncrypt.checked = data.encrypt !== undefined ? Boolean(data.encrypt) : (data.ssl !== undefined ? Boolean(data.ssl) : false);
@@ -183,6 +189,8 @@ function initConnections() {
                 fSchema.innerHTML = '<option value="">(Tất cả / Mặc định)</option>';
             }
             if (fGroup) fGroup.value = "";
+            if (fEnvironment) fEnvironment.value = "";
+            if (fReadOnly) fReadOnly.checked = false;
             fWinAuth.checked = true;
             if (fEncrypt) fEncrypt.checked = false;
             if (fTrustCert) fTrustCert.checked = true;
@@ -209,7 +217,9 @@ function initConnections() {
             port: fPort.value ? parseInt(fPort.value) : null,
             database: fDb.value ? fDb.value.trim() : "",
             schema: fSchema ? fSchema.value.trim() : "",
-            group: fGroup ? fGroup.value.trim() : ""
+            group: fGroup ? fGroup.value.trim() : "",
+            environment: fEnvironment && fEnvironment.value ? fEnvironment.value : "",
+            read_only: fReadOnly ? Boolean(fReadOnly.checked) : false
         };
         
         if (fType.value === "sqlserver") {

@@ -312,9 +312,11 @@
         // ─────────────────────────────────────────────────────────────────────────────
         // LEVEL 2: OBJECT-LEVEL CACHE (Columns, Parameters, Definitions, Types)
         // ─────────────────────────────────────────────────────────────────────────────
-        getColumns(connectionId, database, schema, table) {
+        getColumns(connectionId, database, schema, table, server = null) {
             const t0 = performance.now();
-            const key = this._buildKey(connectionId, database, schema, table);
+            const key = server
+                ? this._buildKey(connectionId, server, database, schema, table)
+                : this._buildKey(connectionId, database, schema, table);
             const data = this.columnsTier.get(key);
             if (data !== null) {
                 this._recordHit(performance.now() - t0);
@@ -324,9 +326,117 @@
             return null;
         }
 
-        setColumns(connectionId, database, schema, table, columns, ttlMs = this.columnsTTL) {
-            const key = this._buildKey(connectionId, database, schema, table);
+        setColumns(connectionId, database, schema, table, columns, server = null, ttlMs = this.columnsTTL) {
+            const key = server
+                ? this._buildKey(connectionId, server, database, schema, table)
+                : this._buildKey(connectionId, database, schema, table);
             this.columnsTier.set(key, columns, ttlMs);
+        }
+
+        getLinkedServers(connectionId) {
+            const t0 = performance.now();
+            const key = this._buildKey(connectionId, 'linked_servers');
+            const data = this.databasesTier.get(key);
+            if (data !== null) {
+                this._recordHit(performance.now() - t0);
+                return data;
+            }
+            this._recordMiss(performance.now() - t0);
+            return null;
+        }
+
+        setLinkedServers(connectionId, servers, ttlMs = this.defaultTTL) {
+            const key = this._buildKey(connectionId, 'linked_servers');
+            this.databasesTier.set(key, servers, ttlMs);
+        }
+
+        clearLinkedServers(connectionId) {
+            const key = this._buildKey(connectionId, 'linked_servers');
+            this.databasesTier.delete(key);
+        }
+
+        getRemoteDatabases(connectionId, server) {
+            const t0 = performance.now();
+            const key = this._buildKey(connectionId, server, 'databases');
+            const data = this.databasesTier.get(key);
+            if (data !== null) {
+                this._recordHit(performance.now() - t0);
+                return data;
+            }
+            this._recordMiss(performance.now() - t0);
+            return null;
+        }
+
+        setRemoteDatabases(connectionId, server, databases, ttlMs = this.defaultTTL) {
+            const key = this._buildKey(connectionId, server, 'databases');
+            this.databasesTier.set(key, databases, ttlMs);
+        }
+
+        getRemoteSchemas(connectionId, server, database) {
+            const t0 = performance.now();
+            const key = this._buildKey(connectionId, server, database, 'schemas');
+            const data = this.schemasTier.get(key);
+            if (data !== null) {
+                this._recordHit(performance.now() - t0);
+                return data;
+            }
+            this._recordMiss(performance.now() - t0);
+            return null;
+        }
+
+        setRemoteSchemas(connectionId, server, database, schemas, ttlMs = this.defaultTTL) {
+            const key = this._buildKey(connectionId, server, database, 'schemas');
+            this.schemasTier.set(key, schemas, ttlMs);
+        }
+
+        getRemoteObjects(connectionId, server, database, schema) {
+            const t0 = performance.now();
+            const key = this._buildKey(connectionId, server, database, schema);
+            const data = this.objectsTier.get(key);
+            if (data !== null) {
+                this._recordHit(performance.now() - t0);
+                return data;
+            }
+            this._recordMiss(performance.now() - t0);
+            return null;
+        }
+
+        setRemoteObjects(connectionId, server, database, schema, objects, ttlMs = this.objectsTTL) {
+            const key = this._buildKey(connectionId, server, database, schema);
+            this.objectsTier.set(key, objects, ttlMs);
+        }
+
+        getRemoteColumns(connectionId, server, database, schema, table) {
+            return this.getColumns(connectionId, database, schema, table, server);
+        }
+
+        setRemoteColumns(connectionId, server, database, schema, table, columns, ttlMs = this.columnsTTL) {
+            return this.setColumns(connectionId, database, schema, table, columns, server, ttlMs);
+        }
+
+        getForeignServers(connectionId) {
+            return this.getLinkedServers(connectionId);
+        }
+
+        setForeignServers(connectionId, servers, ttlMs = this.defaultTTL) {
+            return this.setLinkedServers(connectionId, servers, ttlMs);
+        }
+
+        getForeignTables(connectionId, schema) {
+            const t0 = performance.now();
+            const key = this._buildKey(connectionId, 'foreign_tables', schema || '');
+            const data = this.objectsTier.get(key);
+            if (data !== null) {
+                this._recordHit(performance.now() - t0);
+                return data;
+            }
+            this._recordMiss(performance.now() - t0);
+            return null;
+        }
+
+        setForeignTables(connectionId, schema, tables, ttlMs = this.objectsTTL) {
+            const key = this._buildKey(connectionId, 'foreign_tables', schema || '');
+            this.objectsTier.set(key, tables, ttlMs);
         }
 
         getParameters(connectionId, database, schema, name) {
@@ -526,14 +636,40 @@
          */
         invalidateObject(connectionId, database, schema, objectName) {
             if (!connectionId || !objectName) return;
-            const cleanObj = String(objectName).trim().toLowerCase().replace(/^[\["]|[\]"]$/g, '');
+            const cleanObj = String(objectName).trim().toLowerCase().replace(/^[\["`]|[\]"`]$/g, '');
+            const cleanDb = database ? String(database).trim().toLowerCase() : '';
+            const cleanSchema = schema ? String(schema).trim().toLowerCase() : '';
             const objKeyPrefix = this._buildKey(connectionId, database, schema, cleanObj);
 
             // Invalidate columns
-            this.columnsTier.delete(objKeyPrefix);
+            const colsToDelete = [];
+            for (const k of this.columnsTier.keys()) {
+                const parts = k.split('::');
+                const kConn = parts[0];
+                const kDb = parts[1] || '';
+                const kObj = parts[3] || '';
+                if (kConn === String(connectionId) && (!cleanDb || kDb === cleanDb) && kObj === cleanObj) {
+                    colsToDelete.push(k);
+                } else if (k.startsWith(objKeyPrefix)) {
+                    colsToDelete.push(k);
+                }
+            }
+            colsToDelete.forEach(k => this.columnsTier.delete(k));
 
             // Invalidate parameters
-            this.parametersTier.delete(objKeyPrefix);
+            const paramsToDelete = [];
+            for (const k of this.parametersTier.keys()) {
+                const parts = k.split('::');
+                const kConn = parts[0];
+                const kDb = parts[1] || '';
+                const kObj = parts[3] || '';
+                if (kConn === String(connectionId) && (!cleanDb || kDb === cleanDb) && kObj === cleanObj) {
+                    paramsToDelete.push(k);
+                } else if (k.startsWith(objKeyPrefix)) {
+                    paramsToDelete.push(k);
+                }
+            }
+            paramsToDelete.forEach(k => this.parametersTier.delete(k));
 
             // Invalidate foreign keys associated with this object
             const fksToDelete = [];
@@ -542,48 +678,95 @@
             }
             fksToDelete.forEach(k => this.foreignKeysTier.delete(k));
 
-            // Invalidate definitions
+            // Invalidate definitions (clear exact match and any schema variation)
             const defsToDelete = [];
             for (const k of this.definitionsTier.keys()) {
-                if (k.startsWith(objKeyPrefix)) defsToDelete.push(k);
+                const parts = k.split('::');
+                const kConn = parts[0];
+                const kDb = parts[1] || '';
+                const kObj = parts[3] || '';
+                if (kConn === String(connectionId) && (!cleanDb || kDb === cleanDb) && kObj === cleanObj) {
+                    defsToDelete.push(k);
+                } else if (k.startsWith(objKeyPrefix)) {
+                    defsToDelete.push(k);
+                }
             }
             defsToDelete.forEach(k => this.definitionsTier.delete(k));
 
             // Invalidate schema objects list so new/removed tables reflect
-            const schemaKey = this._buildKey(connectionId, database, schema);
-            this.objectsTier.delete(schemaKey);
+            if (cleanSchema) {
+                const schemaKey = this._buildKey(connectionId, database, schema);
+                this.objectsTier.delete(schemaKey);
+            } else {
+                for (const k of this.objectsTier.keys()) {
+                    if (k.startsWith(String(connectionId))) this.objectsTier.delete(k);
+                }
+            }
 
             // Invalidate Level 3 completion cache
             this.completionsTier.clear();
 
-            console.log(`[MetadataCache] InvalidateObject: Cleared cache for object [${schema || 'default'}].[${cleanObj}]`);
+            // Invalidate IntelliSense DataProvider definition cache
+            if (window.AppIntelliSense && window.AppIntelliSense.dataProvider && typeof window.AppIntelliSense.dataProvider.invalidateDefinition === 'function') {
+                window.AppIntelliSense.dataProvider.invalidateDefinition(connectionId, database, schema, cleanObj);
+            }
+
+            // Invalidate Explorer tree node if available
+            if (window.AppExplorer && typeof window.AppExplorer.refreshNode === 'function') {
+                window.AppExplorer.refreshNode({ connId: connectionId, database, schema, name: cleanObj });
+            }
+
+            console.log(`[MetadataCache] InvalidateObject: Cleared cache for object [${schema || '*' }].[${cleanObj}]`);
         }
 
         /**
          * Parse DDL SQL statement and automatically invalidate target object or schema
          * Supports:
-         * - Action: CREATE, ALTER, DROP
+         * - Action: CREATE, CREATE OR ALTER, CREATE OR REPLACE, ALTER, DROP
          * - Target: TABLE, VIEW, PROCEDURE, PROC, FUNCTION, TYPE, TRIGGER
          */
         handleDdlExecution(connectionId, database, sql) {
             if (!sql || typeof sql !== 'string') return null;
 
-            // Pattern: (CREATE|ALTER|DROP) (TABLE|VIEW|PROCEDURE|PROC|FUNCTION|TYPE|TRIGGER) [db].[schema].[name]
-            const ddlRegex = /\b(CREATE|ALTER|DROP)\s+(TABLE|VIEW|PROCEDURE|PROC|FUNCTION|TYPE|TRIGGER)\s+(?:IF\s+(?:NOT\s+)?EXISTS\s+)?(?:\[?(\w+)\]?\.)?(?:\[?(\w+)\]?\.)?\[?(\w+)\]?/i;
-            const match = sql.match(ddlRegex);
+            // Pattern: (CREATE(?:\s+OR\s+(?:ALTER|REPLACE))?|ALTER|DROP) (TABLE|VIEW|PROCEDURE|PROC|FUNCTION|TYPE|TRIGGER)
+            const ddlHeaderRegex = /\b(CREATE(?:\s+OR\s+(?:ALTER|REPLACE))?|ALTER|DROP)\s+(TABLE|VIEW|PROCEDURE|PROC|FUNCTION|TYPE|TRIGGER)\s+(?:IF\s+(?:NOT\s+)?EXISTS\s+)?/i;
+            const match = sql.match(ddlHeaderRegex);
 
             if (match) {
-                const action = match[1].toUpperCase();
-                const objType = match[2].toUpperCase();
+                const action = match[1].replace(/\s+/g, ' ').toUpperCase();
+                let objType = match[2].toUpperCase();
+                if (objType === 'PROC') objType = 'PROCEDURE';
+
+                const afterHeader = sql.slice(match.index + match[0].length).trim();
+                // Tokenize dot-separated identifier parts: [part1].[part2].[part3] or part1.part2.part3
+                const parts = [];
+                let rest = afterHeader;
+                while (rest.length > 0) {
+                    const partMatch = rest.match(/^(?:\[([^\]]+)\]|"([^"]+)"|`([^`]+)`|([a-zA-Z0-9_#$@]+))/);
+                    if (!partMatch) break;
+                    const token = partMatch[1] || partMatch[2] || partMatch[3] || partMatch[4];
+                    parts.push(token);
+                    rest = rest.slice(partMatch[0].length).trim();
+                    if (rest.startsWith('.')) {
+                        rest = rest.slice(1).trim();
+                    } else {
+                        break;
+                    }
+                }
+
                 let targetDb = database;
                 let schema = null;
-                let name = match[5];
+                let name = null;
 
-                if (match[3] && match[4]) {
-                    targetDb = match[3];
-                    schema = match[4];
-                } else if (match[3]) {
-                    schema = match[3];
+                if (parts.length === 3) {
+                    targetDb = parts[0];
+                    schema = parts[1];
+                    name = parts[2];
+                } else if (parts.length === 2) {
+                    schema = parts[0];
+                    name = parts[1];
+                } else if (parts.length === 1) {
+                    name = parts[0];
                 }
 
                 if (name) {
@@ -591,8 +774,8 @@
                     if (objType === 'TYPE') {
                         this.typesTier.delete(this._buildKey(connectionId, targetDb));
                     }
-                    console.log(`[MetadataCache] DDL Invalidation: Handled ${action} ${objType} [${schema || ''}].[${name}]`);
-                    return { action, objType, schema, name };
+                    console.log(`[MetadataCache] DDL Invalidation: Handled ${action} ${objType} [${targetDb || ''}].[${schema || ''}].[${name}]`);
+                    return { action, objType, schema, name, targetDb };
                 }
             }
 
@@ -612,6 +795,7 @@
     window.LRUCache = LRUCache;
     window.StorageTier = StorageTier;
     window.AppMetadataCache = defaultCache;
-    window.MetadataCache = AppMetadataCache; // Backward compatibility
+    window.MetadataCache = defaultCache; // Backward compatibility with instance methods
+    window.AppMetadataCacheClass = AppMetadataCache;
 
 })(typeof window !== 'undefined' ? window : globalThis);

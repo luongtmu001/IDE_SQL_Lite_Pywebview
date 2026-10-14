@@ -95,7 +95,21 @@ class ConnectionManager:
             adapter=adapter,
             metadata_service=None,
             query_service=None,
+            environment=config_to_use.get("environment"),
+            read_only=bool(config_to_use.get("read_only", False)),
         )
+        setattr(adapter, "session", connection)
+
+        # For PostgreSQL: Set session characteristics if read-only
+        if connection.read_only and db_type == "postgresql":
+            try:
+                conn_obj = getattr(adapter, "connection", None)
+                if conn_obj:
+                    with conn_obj.cursor() as cur:
+                        cur.execute("SET SESSION CHARACTERISTICS AS TRANSACTION READ ONLY;")
+            except Exception as e:
+                import logging
+                logging.getLogger("luobtool").warning("Could not set PostgreSQL session to read-only: %s", e)
 
         connection.metadata_service = MetadataService(connection)
         connection.query_service = QueryService(connection)
@@ -119,6 +133,12 @@ class ConnectionManager:
                     and str(cfg.get("database") or "").lower() == str(config.get("database") or "").lower()
                     and str(cfg.get("username") or "").lower() == str(config.get("username") or "").lower()
                 ):
+                    if "environment" in config:
+                        conn.environment = config.get("environment")
+                        conn.config["environment"] = config.get("environment")
+                    if "read_only" in config:
+                        conn.read_only = bool(config.get("read_only", False))
+                        conn.config["read_only"] = conn.read_only
                     return conn, True
 
         conn = self.create(owner_session_id, config)
@@ -146,6 +166,41 @@ class ConnectionManager:
                 for connection in self._connections.values()
                 if connection.owner_session_id == owner_session_id
             ]
+
+    def ping(self, owner_session_id, connection_id):
+        try:
+            conn = self.get(owner_session_id, connection_id)
+            return conn.is_alive()
+        except Exception:
+            return False
+
+    def reconnect(self, owner_session_id, connection_id, password=None):
+        conn = self.get(owner_session_id, connection_id)
+        config_to_use = dict(conn.config or {})
+        if password:
+            config_to_use["password"] = password
+            self.set_cached_password(config_to_use, password)
+        elif not config_to_use.get("password") and not config_to_use.get("trusted_connection"):
+            cached_pwd = self.get_cached_password(config_to_use)
+            if cached_pwd:
+                config_to_use["password"] = cached_pwd
+
+        # Close old adapter if open
+        with conn.lock:
+            try:
+                conn.adapter.close()
+            except Exception:
+                pass
+
+            # Create new adapter and connect
+            adapter = create_adapter(config_to_use)
+            adapter.connect()
+            conn.adapter = adapter
+            conn.touch()
+            # Clear cached metadata if needed
+            conn.metadata_cache.clear()
+
+        return conn
 
     def close(self, owner_session_id, connection_id):
         connection = self.get(

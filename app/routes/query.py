@@ -27,6 +27,22 @@ def execute():
     database = data.get("database")
     schema = data.get("schema")
 
+    exec_kwargs = {
+        "limit": limit,
+        "database": database,
+        "schema": schema,
+    }
+    if "mode" in data:
+        exec_kwargs["mode"] = data.get("mode", "normal")
+    if "debug_session_id" in data:
+        exec_kwargs["debug_session_id"] = data.get("debug_session_id")
+    if "traces" in data:
+        exec_kwargs["traces"] = data.get("traces", [])
+    if "parameters" in data:
+        exec_kwargs["parameters"] = data.get("parameters")
+    if "stop_on_error" in data:
+        exec_kwargs["stop_on_error"] = bool(data.get("stop_on_error", True))
+
     try:
         connection = get_connection_manager().get(
             get_owner_session_id(),
@@ -35,9 +51,7 @@ def execute():
 
         result = connection.query_service.execute(
             sql,
-            limit=limit,
-            database=database,
-            schema=schema,
+            **exec_kwargs
         )
         return jsonify(result)
 
@@ -53,6 +67,19 @@ def execute():
             messages=[f"Msg: {clean_err}"],
             results=[]
         ), 400
+
+
+@query_bp.post("/parse-parameters")
+def parse_parameters():
+    data = request.get_json(silent=True) or {}
+    sql = data.get("sql", "")
+    dialect = data.get("dialect", "sqlserver")
+    from app.utils.sql_params import get_query_parameters
+    try:
+        params = get_query_parameters(sql, dialect)
+        return jsonify(success=True, parameters=params)
+    except Exception as exc:
+        return jsonify(success=False, error=str(exc), parameters=[]), 400
 
 
 @query_bp.post("/cancel")
@@ -142,3 +169,51 @@ def explain():
         return jsonify(success=False, error="Forbidden"), 403
     except Exception as exc:
         return jsonify(success=False, error=str(exc)), 400
+
+
+@query_bp.post("/syntax-check")
+def syntax_check():
+    """Validate SQL syntax without side-effects for SQL Server and PostgreSQL."""
+    data = request.get_json(silent=True) or {}
+
+    sql = data.get("sql", "")
+    dialect = data.get("dialect", "sqlserver")
+    connection_id = data.get("connection_id")
+    database = data.get("database")
+    schema = data.get("schema")
+    is_debug = bool(data.get("is_debug", False))
+
+    if not sql or not sql.strip():
+        return jsonify(success=True, diagnostics=[])
+
+    conn_session = None
+    if connection_id:
+        try:
+            cm = get_connection_manager()
+            session_id = get_owner_session_id()
+            conn_session = cm.get(session_id, connection_id)
+            if not dialect or dialect == "sqlserver":
+                conn_db_type = conn_session.config.get("type", "sqlserver")
+                if conn_db_type:
+                    dialect = conn_db_type
+        except Exception:
+            # If connection is busy or invalid, validator will safely fallback to offline parser (Rule 21)
+            conn_session = None
+
+    cached_tables = data.get("cached_tables")
+
+    try:
+        from app.database.syntax.coordinator import validate_sql_pipeline
+        diagnostics = validate_sql_pipeline(
+            sql=sql,
+            dialect=dialect,
+            connection_session=conn_session,
+            database=database,
+            schema=schema,
+            is_debug=is_debug,
+            cached_tables_dict=cached_tables,
+        )
+        return jsonify(success=True, diagnostics=diagnostics)
+    except Exception as exc:
+        return jsonify(success=False, error=str(exc), diagnostics=[]), 400
+

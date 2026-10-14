@@ -9,8 +9,9 @@
     border: 1px solid var(--ide-border);
     border-radius: 3px;
     box-shadow: 0 4px 16px rgba(0,0,0,0.35);
-    min-width: 190px;
-    max-width: 260px;
+    min-width: 260px;
+    max-width: 480px;
+    width: max-content;
     padding: 3px 0;
     font-family: var(--ide-ui-font-family, inherit);
     font-size: calc(var(--ide-ui-font-size, 13px) - 1px);
@@ -62,14 +63,25 @@
 .ide-ctx-item:hover .ide-ctx-icon { color: var(--ide-accent); }
 .ide-ctx-item.danger .ide-ctx-icon { color: var(--ide-danger); }
 
-.ide-ctx-label { flex: 1; font-family: var(--ide-ui-font-family, inherit); }
+.ide-grid-context-menu {
+    min-width: 280px;
+    max-width: 520px;
+    width: max-content;
+}
+
+.ide-ctx-label {
+    flex: 1;
+    font-family: var(--ide-ui-font-family, inherit);
+    white-space: nowrap;
+}
 
 .ide-ctx-shortcut {
     margin-left: auto;
     color: var(--ide-text-dim);
     font-size: calc(var(--ide-ui-font-size, 13px) - 3px);
     letter-spacing: 0.3px;
-    padding-left: 16px;
+    padding-left: 20px;
+    white-space: nowrap;
     font-family: inherit;
 }
 

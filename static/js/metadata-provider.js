@@ -174,6 +174,62 @@
             const data = await this._fetchJson(`/api/metadata/${connectionId}/foreign_keys${q}`);
             return data && Array.isArray(data.items) ? data.items : [];
         }
+
+        async getLinkedServers(connectionId) {
+            if (!connectionId) return [];
+            const data = await this._fetchJson(`/api/metadata/${connectionId}/linked_servers`);
+            return data && Array.isArray(data.items) ? data.items : [];
+        }
+
+        async getRemoteDatabases(connectionId, server) {
+            if (!connectionId || !server) return [];
+            const q = `?server=${encodeURIComponent(server)}`;
+            const data = await this._fetchJson(`/api/metadata/${connectionId}/linked_server/databases${q}`);
+            return data && Array.isArray(data.items) ? data.items : [];
+        }
+
+        async getRemoteSchemas(connectionId, server, database) {
+            if (!connectionId || !server) return [];
+            const params = new URLSearchParams();
+            params.append('server', server);
+            if (database) params.append('database', database);
+            const data = await this._fetchJson(`/api/metadata/${connectionId}/linked_server/schemas?${params.toString()}`);
+            return data && Array.isArray(data.items) ? data.items : [];
+        }
+
+        async getRemoteObjects(connectionId, server, database, schema) {
+            if (!connectionId || !server) return [];
+            const params = new URLSearchParams();
+            params.append('server', server);
+            if (database) params.append('database', database);
+            if (schema) params.append('schema', schema);
+            const data = await this._fetchJson(`/api/metadata/${connectionId}/linked_server/objects?${params.toString()}`);
+            return data && Array.isArray(data.items) ? data.items : [];
+        }
+
+        async getRemoteColumns(connectionId, server, database, schema, table) {
+            if (!connectionId || !server || !table) return [];
+            const params = new URLSearchParams();
+            params.append('server', server);
+            if (database) params.append('database', database);
+            if (schema) params.append('schema', schema);
+            params.append('table', table);
+            const data = await this._fetchJson(`/api/metadata/${connectionId}/linked_server/columns?${params.toString()}`);
+            return data && Array.isArray(data.items) ? data.items : [];
+        }
+
+        async getForeignServers(connectionId) {
+            if (!connectionId) return [];
+            const data = await this._fetchJson(`/api/metadata/${connectionId}/foreign_servers`);
+            return data && Array.isArray(data.items) ? data.items : [];
+        }
+
+        async getForeignTables(connectionId, schema) {
+            if (!connectionId) return [];
+            const q = schema ? `?schema=${encodeURIComponent(schema)}` : '';
+            const data = await this._fetchJson(`/api/metadata/${connectionId}/foreign_tables${q}`);
+            return data && Array.isArray(data.items) ? data.items : [];
+        }
     }
 
     // ─────────────────────────────────────────────────────────────────────────────
@@ -326,6 +382,16 @@
             return this.getProvider(dbType);
         }
     }
+
+    MetadataProvider.getObjects = async function(connectionId, database, schema) {
+        const provider = window.MetadataProviderFactory ? window.MetadataProviderFactory.getProviderForConnection(connectionId) : new ProjectMetadataAdapter();
+        return provider.getObjects(connectionId, database, schema);
+    };
+
+    MetadataProvider.getColumns = async function(connectionId, database, schema, table) {
+        const provider = window.MetadataProviderFactory ? window.MetadataProviderFactory.getProviderForConnection(connectionId) : new ProjectMetadataAdapter();
+        return provider.getColumns(connectionId, database, schema, table);
+    };
 
     // Export to global scope
     window.MetadataProvider = MetadataProvider;

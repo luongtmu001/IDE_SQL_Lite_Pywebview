@@ -4,7 +4,7 @@
         <span class="ide-sidebar-header-title">
             Object Explorer
         </span>
-        <div class="d-flex gap-1">
+        <div class="d-flex gap-1 align-items-center ide-sidebar-actions">
             <button id="ide-btn-connect" class="ide-toolbar-btn" title="New Connection">
                 <i class="fa-solid fa-plug"></i>
             </button>
@@ -17,7 +17,15 @@
             <button id="ide-btn-refresh-tree" class="ide-toolbar-btn" title="Refresh">
                 <i class="fa-solid fa-rotate-right"></i>
             </button>
+            <button id="ide-sidebar-toggle-btn" class="ide-toolbar-btn" title="Thu gọn Object Explorer">
+                <i class="fa-solid fa-angles-left"></i>
+            </button>
         </div>
+    </div>
+
+    <!-- Collapsed Rail: shows only representative connection icons when collapsed -->
+    <div id="ide-sidebar-collapsed-rail" class="ide-sidebar-collapsed-rail d-none flex-column align-items-center py-2 gap-2 overflow-auto flex-grow-1">
+        <!-- Dynamically populated by explorer.js -->
     </div>
 
     <div class="ide-tree flex-grow-1 overflow-auto py-1">

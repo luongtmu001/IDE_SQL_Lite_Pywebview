@@ -117,11 +117,11 @@ def test_issue3_postgresql_procedure_function_and_temp_table_scope():
     assert "['TEMP', 'TEMPORARY'].includes" in scope_code
     assert "['OR', 'REPLACE', 'GLOBAL', 'LOCAL', 'UNLOGGED']" in scope_code
     assert "columns = this.parseColumnDefinitions(codeTokens, openParen, closeParen);" in scope_code
-    assert "columns = this.aliasResolver.parseSelectProjection(codeTokens, asIdx + 1, stmtEnd);" in scope_code
+    assert "columns = this.parseSelectProjection(codeTokens, asIdx + 1, stmtEnd);" in scope_code
 
     # PostgreSQL SELECT ... INTO TEMP tbl
     assert "['TEMP', 'TEMPORARY', 'UNLOGGED'].includes" in scope_code
-    assert "this.aliasResolver.parseSelectProjection(codeTokens, selectIdx, i)" in scope_code
+    assert "this.parseSelectProjection(codeTokens, selectIdx, i)" in scope_code
 
     # Non-clause expression priority for variables (assignments, returns in PL/pgSQL)
     assert "!context.clause && !context.qualifier" in engine_code
@@ -246,7 +246,7 @@ def test_procedure_and_function_body_intellisense():
     assert "TokenType.PUNCTUATION" in tok_code
 
     # 2. Routine context detection & exports
-    assert "function detectRoutineContext(codeTokens, textBeforeCursor)" in analyzer_code
+    assert "function detectRoutineContext(codeTokens, textBeforeCursor" in analyzer_code
     assert "detectRoutineContext," in analyzer_code
     assert "isInRoutineBody: routineContext ? routineContext.isRoutineBody : false" in analyzer_code
 

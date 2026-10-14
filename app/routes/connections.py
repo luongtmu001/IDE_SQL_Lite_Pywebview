@@ -28,12 +28,13 @@ def create_connection():
 
 @connections_bp.get("")
 def list_connections():
-    items = [
-        connection.public_info()
-        for connection in get_connection_manager().list(
-            get_owner_session_id()
-        )
-    ]
+    cm = get_connection_manager()
+    owner_id = get_owner_session_id()
+    items = []
+    for connection in cm.list(owner_id):
+        info = connection.public_info()
+        info["is_alive"] = connection.is_alive()
+        items.append(info)
     saved_connections = []
     try:
         from pathlib import Path
@@ -129,6 +130,54 @@ def fetch_metadata():
             return jsonify(success=True, databases=databases, schemas=schemas)
         finally:
             cm.close(owner_id, temp_conn.connection_id)
+    except Exception as exc:
+        return jsonify(success=False, error=str(exc)), 400
+
+@connections_bp.post("/ping-all")
+def ping_all_connections():
+    owner_id = get_owner_session_id()
+    cm = get_connection_manager()
+    results = {}
+    for conn in cm.list(owner_id):
+        alive = conn.is_alive()
+        results[conn.connection_id] = {
+            "is_alive": alive,
+            "status": "connected" if alive else "lost",
+            "name": conn.config.get("name")
+        }
+    return jsonify(success=True, statuses=results)
+
+@connections_bp.get("/<connection_id>/status")
+@connections_bp.post("/<connection_id>/ping")
+def check_connection_status(connection_id):
+    owner_id = get_owner_session_id()
+    cm = get_connection_manager()
+    try:
+        is_alive = cm.ping(owner_id, connection_id)
+        return jsonify(
+            success=True,
+            connection_id=connection_id,
+            is_alive=is_alive,
+            status="connected" if is_alive else "lost"
+        )
+    except KeyError:
+        return jsonify(success=False, error="Connection not found", is_alive=False, status="disconnected"), 404
+    except Exception as exc:
+        return jsonify(success=False, error=str(exc), is_alive=False, status="lost"), 400
+
+@connections_bp.post("/<connection_id>/reconnect")
+def reconnect_connection(connection_id):
+    owner_id = get_owner_session_id()
+    cm = get_connection_manager()
+    data = request.get_json(silent=True) or {}
+    password = data.get("password")
+    try:
+        reconnected = cm.reconnect(owner_id, connection_id, password=password)
+        info = reconnected.public_info()
+        info["is_alive"] = reconnected.is_alive()
+        return jsonify(success=True, connection=info)
+    except KeyError:
+        return jsonify(success=False, error="Connection not found"), 404
     except Exception as exc:
         return jsonify(success=False, error=str(exc)), 400
 

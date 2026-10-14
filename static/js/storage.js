@@ -23,42 +23,11 @@
                 return _cachedApi;
             }
         }
-        return new Promise((resolve) => {
-            if (window.pywebview && window.pywebview.api) {
-                _cachedApi = window.pywebview.api;
-                return resolve(_cachedApi);
-            }
-            let finished = false;
-            const onReady = () => {
-                if (finished) return;
-                finished = true;
-                window.removeEventListener('pywebviewready', onReady);
-                _cachedApi = window.pywebview?.api || null;
-                resolve(_cachedApi);
-            };
-            window.addEventListener('pywebviewready', onReady);
-
-            let elapsed = 0;
-            const poll = setInterval(() => {
-                elapsed += 100;
-                if (window.pywebview && window.pywebview.api) {
-                    clearInterval(poll);
-                    if (!finished) {
-                        finished = true;
-                        window.removeEventListener('pywebviewready', onReady);
-                        _cachedApi = window.pywebview.api;
-                        resolve(_cachedApi);
-                    }
-                } else if (elapsed >= 5000) {
-                    clearInterval(poll);
-                    if (!finished) {
-                        finished = true;
-                        window.removeEventListener('pywebviewready', onReady);
-                        resolve(null);
-                    }
-                }
-            }, 100);
-        });
+        if (window.pywebview && window.pywebview.api) {
+            _cachedApi = window.pywebview.api;
+            return _cachedApi;
+        }
+        return null;
     }
 
     window.addEventListener('pywebviewready', () => {
@@ -150,7 +119,8 @@
                 const api = await ensureApi();
                 if (api && typeof api.get_saved_connections === 'function') {
                     const res = await api.get_saved_connections();
-                    if (res && res.success && Array.isArray(res.connections)) {
+                    if (res && res.success && Array.isArray(res.connections) && res.connections.length > 0) {
+                        try { localStorage.setItem('ide_saved_connections', JSON.stringify(res.connections)); } catch (_) {}
                         return res.connections;
                     }
                 }
@@ -162,7 +132,8 @@
                 const api = await ensureApi();
                 if (api && typeof api.list_connections === 'function') {
                     const res = await api.list_connections();
-                    if (res && res.success && Array.isArray(res.saved_connections)) {
+                    if (res && res.success && Array.isArray(res.saved_connections) && res.saved_connections.length > 0) {
+                        try { localStorage.setItem('ide_saved_connections', JSON.stringify(res.saved_connections)); } catch (_) {}
                         return res.saved_connections;
                     }
                 }
@@ -172,12 +143,21 @@
                 const res = await fetch('/api/connections');
                 if (res && res.ok) {
                     const data = await res.json();
-                    if (data && Array.isArray(data.saved_connections) && data.saved_connections.length > 0) {
-                        return data.saved_connections;
+                    const list = (data && Array.isArray(data.saved_connections) && data.saved_connections.length > 0)
+                        ? data.saved_connections
+                        : ((data && Array.isArray(data.connections) && data.connections.length > 0) ? data.connections : null);
+                    if (list) {
+                        try { localStorage.setItem('ide_saved_connections', JSON.stringify(list)); } catch (_) {}
+                        return list;
                     }
-                    if (data && Array.isArray(data.connections) && data.connections.length > 0) {
-                        return data.connections;
-                    }
+                }
+            } catch (_) {}
+            // Fallback to cached localStorage
+            try {
+                const raw = localStorage.getItem('ide_saved_connections');
+                if (raw) {
+                    const parsed = JSON.parse(raw);
+                    if (Array.isArray(parsed) && parsed.length > 0) return parsed;
                 }
             } catch (_) {}
             return [];
@@ -279,6 +259,73 @@
                 console.warn('[AppStorage] resetSnippets native error:', e);
             }
             return await this.getSnippets();
+        },
+
+        async getCodeStyles() {
+            try {
+                const api = await ensureApi();
+                if (api && typeof api.get_code_styles === 'function') {
+                    const res = await api.get_code_styles();
+                    if (res && res.success) return res;
+                }
+                const resp = await fetch('/api/styles');
+                if (resp && resp.ok) {
+                    const data = await resp.json();
+                    if (data && data.success) return data;
+                }
+            } catch (e) {
+                console.warn('[AppStorage] getCodeStyles error:', e);
+            }
+            try {
+                const local = localStorage.getItem('ide-code-styles');
+                if (local) return JSON.parse(local);
+            } catch (_) {}
+            return null;
+        },
+
+        async saveCodeStyles(stylesData) {
+            try {
+                const api = await ensureApi();
+                if (api && typeof api.save_code_styles === 'function') {
+                    const res = await api.save_code_styles(stylesData);
+                    if (res && res.success) return true;
+                }
+                const resp = await fetch('/api/styles', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(stylesData)
+                });
+                if (resp && resp.ok) {
+                    const json = await resp.json();
+                    if (json && json.success) return true;
+                }
+            } catch (e) {
+                console.warn('[AppStorage] saveCodeStyles error:', e);
+            }
+            try {
+                localStorage.setItem('ide-code-styles', JSON.stringify(stylesData));
+                return true;
+            } catch (_) {
+                return false;
+            }
+        },
+
+        async resetCodeStyles() {
+            try {
+                const api = await ensureApi();
+                if (api && typeof api.reset_code_styles === 'function') {
+                    const res = await api.reset_code_styles();
+                    if (res && res.success) return res;
+                }
+                const resp = await fetch('/api/styles/reset', { method: 'POST' });
+                if (resp && resp.ok) {
+                    const json = await resp.json();
+                    if (json && json.success) return json;
+                }
+            } catch (e) {
+                console.warn('[AppStorage] resetCodeStyles error:', e);
+            }
+            return await this.getCodeStyles();
         }
     };
 

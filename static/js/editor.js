@@ -73,6 +73,27 @@
         const pos = editor.getPosition();
         const cursorOffset = model.getOffsetAt(pos);
         const sql = model.getValue();
+        const dialect = (window.ActiveDbType || (window.LastFocusedTreeContext && window.LastFocusedTreeContext.dbType) || 'sqlserver').toLowerCase();
+
+        // 1. Dialect-aware token & block structural matching (Section 36 - 48)
+        if (window.SqlBlockAnalyzer && typeof window.SqlBlockAnalyzer.getJumpTarget === 'function') {
+            const res = window.SqlBlockAnalyzer.getJumpTarget(sql, cursorOffset, targetType, dialect);
+            if (res && res.targetOffset !== null) {
+                const targetPos = model.getPositionAt(res.targetOffset);
+                editor.setPosition(targetPos);
+                editor.revealPositionInCenter(targetPos);
+                editor.focus();
+                return;
+            } else {
+                // Section 47: No matching SQL block found -> gentle notification without moving cursor
+                if (typeof window.showToast === 'function') {
+                    window.showToast('No matching SQL block found.', 'info');
+                }
+                return;
+            }
+        }
+
+        // Fallback: Lexical BEGIN/END traversal
         const tokens = getSqlBlockTokens(sql);
 
         if (targetType === 'END') {
@@ -149,13 +170,25 @@
             if (!ed) return;
             if (evt === 'change') {
                 ed.onDidChangeModelContent(e => {
+                    const texts = (e.changes || []).map(c => c.text || '');
+                    const hasRemoval = (e.changes || []).some(c => (c.rangeLength || 0) > 0);
                     fn(wrapper, {
                         origin: _isSettingValue ? 'setValue' : '+input',
-                        changes: e.changes
+                        changes: e.changes,
+                        text: texts,
+                        removed: hasRemoval ? ['x'] : []
                     });
                 });
             } else if (evt === 'cursorActivity') {
-                ed.onDidChangeCursorPosition(e => fn(wrapper, e));
+                ed.onDidChangeCursorPosition(e => {
+                    fn(wrapper, e);
+                    if (window.AppTabs && typeof window.AppTabs.getActiveTabState === 'function') {
+                        const curTab = window.AppTabs.getActiveTabState();
+                        if (curTab && e && e.position) {
+                            curTab.savedCursorPosition = { lineNumber: e.position.lineNumber, column: e.position.column };
+                        }
+                    }
+                });
             } else if (evt === 'keydown') {
                 ed.onKeyDown(e => {
                     const syntheticEvent = {
@@ -214,6 +247,34 @@
                     } finally {
                         setTimeout(() => { _isSettingValue = false; }, 30);
                     }
+                }
+            },
+            replaceContentWithUndo(val) {
+                _bufferedValue = val || '';
+                const ed = getEditorInstance();
+                if (!ed) return;
+                const model = ed.getModel();
+                if (!model) {
+                    this.setValue(val);
+                    return;
+                }
+                const fullRange = model.getFullModelRange();
+                _isSettingValue = true;
+                try {
+                    ed.pushUndoStop();
+                    ed.executeEdits('app-restore-undo', [{
+                        range: fullRange,
+                        text: _bufferedValue,
+                        forceMoveMarkers: true
+                    }]);
+                    ed.pushUndoStop();
+                    ed.setPosition({ lineNumber: 1, column: 1 });
+                    if (typeof ed.revealPositionInCenterIfOutsideViewport === 'function') {
+                        ed.revealPositionInCenterIfOutsideViewport({ lineNumber: 1, column: 1 });
+                    }
+                    ed.focus();
+                } finally {
+                    setTimeout(() => { _isSettingValue = false; }, 30);
                 }
             },
             getSelection() {
@@ -295,6 +356,16 @@
             executeEdits(source, edits) {
                 const ed = getEditorInstance();
                 if (ed) return ed.executeEdits(source, edits);
+            },
+            saveViewState() {
+                const ed = getEditorInstance();
+                return ed && typeof ed.saveViewState === 'function' ? ed.saveViewState() : null;
+            },
+            restoreViewState(state) {
+                const ed = getEditorInstance();
+                if (ed && state && typeof ed.restoreViewState === 'function') {
+                    try { ed.restoreViewState(state); } catch (_) {}
+                }
             },
             getPosition() {
                 const ed = getEditorInstance();
@@ -490,6 +561,70 @@
                 const ed = getEditorInstance();
                 if (!ed || !ed.getModel() || !from || !to) return '';
                 return ed.getModel().getValueInRange(new monaco.Range(from.line + 1, from.ch + 1, to.line + 1, to.ch + 1));
+            },
+            formatCode(customEd) {
+                const activeWrapper = window.getActiveAppEditor ? window.getActiveAppEditor() : null;
+                const ed = customEd || (activeWrapper ? activeWrapper.rawEditor : getEditorInstance());
+                if (!ed) return;
+                const model = ed.getModel();
+                if (!model) return;
+
+                const sel = ed.getSelection();
+                const hasSelection = sel && !sel.isEmpty();
+                const dialect = (window.ActiveDbType || (window.LastFocusedTreeContext && window.LastFocusedTreeContext.dbType) || 'sqlserver').toLowerCase();
+
+                if (hasSelection) {
+                    // Format Selection directly without confirmation dialog (Section 35.1 B)
+                    const selectedText = model.getValueInRange(sel);
+                    if (!selectedText.trim()) return;
+
+                    const formatted = window.SqlFormatter ? window.SqlFormatter.format(selectedText, { dialect }) : selectedText;
+                    ed.executeEdits('format-selection', [{
+                        range: sel,
+                        text: formatted,
+                        forceMoveMarkers: true
+                    }]);
+                    ed.pushUndoStop();
+                    ed.focus();
+                    if (typeof window.showToast === 'function') {
+                        window.showToast('✓ Formatted selection', 'success');
+                    }
+                } else {
+                    // Format Document with confirmation dialog (Section 35.1 A)
+                    const fullSql = ed.getValue();
+                    if (!fullSql.trim()) return;
+
+                    const doFormat = () => {
+                        const formatted = window.SqlFormatter ? window.SqlFormatter.format(fullSql, { dialect }) : fullSql;
+                        const fullRange = model.getFullModelRange();
+                        ed.executeEdits('format-document', [{
+                            range: fullRange,
+                            text: formatted,
+                            forceMoveMarkers: true
+                        }]);
+                        ed.pushUndoStop();
+                        ed.focus();
+                        if (typeof window.showToast === 'function') {
+                            window.showToast('✓ Formatted document', 'success');
+                        }
+                    };
+
+                    if (window.SqlFormatter && typeof window.SqlFormatter.showFormatConfirmDialog === 'function') {
+                        window.SqlFormatter.showFormatConfirmDialog(doFormat);
+                    } else {
+                        doFormat();
+                    }
+                }
+            },
+            gotoBegin(customEd) {
+                const activeWrapper = window.getActiveAppEditor ? window.getActiveAppEditor() : null;
+                const ed = customEd || (activeWrapper ? activeWrapper.rawEditor : getEditorInstance());
+                jumpToMatchingBeginEnd(ed, 'BEGIN');
+            },
+            gotoEnd(customEd) {
+                const activeWrapper = window.getActiveAppEditor ? window.getActiveAppEditor() : null;
+                const ed = customEd || (activeWrapper ? activeWrapper.rawEditor : getEditorInstance());
+                jumpToMatchingBeginEnd(ed, 'END');
             }
         };
 
@@ -582,6 +717,7 @@
             lineNumbers: 'on',
             lineNumbersMinChars: 3,
             glyphMargin: true,
+            renderValidationDecorations: 'on',
             folding: true,
             foldingStrategy: 'auto',
             showFoldingControls: 'always',
@@ -611,7 +747,16 @@
             suggestOnTriggerCharacters: false,
             wordBasedSuggestions: "off",
             snippetSuggestions: "none",
-            tabCompletion: "off"
+        });
+
+        // Always sync current cursor position to active tab state
+        editor.onDidChangeCursorPosition(e => {
+            if (window.AppTabs && typeof window.AppTabs.getActiveTabState === 'function') {
+                const curTab = window.AppTabs.getActiveTabState();
+                if (curTab && e && e.position) {
+                    curTab.savedCursorPosition = { lineNumber: e.position.lineNumber, column: e.position.column };
+                }
+            }
         });
 
         // ── Wire Keybindings & Actions ─────────────────────────────────────────
@@ -634,33 +779,44 @@
             });
         }
 
-        // F5: Execute Query
+        // Helper to trigger run action respecting normal vs debug mode
+        const triggerRun = () => {
+            if (window.AppQuery && typeof window.AppQuery.handleRunAction === 'function') {
+                window.AppQuery.handleRunAction();
+            } else if (typeof window.handleRunAction === 'function') {
+                window.handleRunAction();
+            } else if (window.AppQuery && typeof window.AppQuery.executeQuery === 'function') {
+                window.AppQuery.executeQuery();
+            }
+        };
+
+        // F5: Execute Query (Normal or Debug mode)
         editor.addAction({
             id: 'sql-execute-f5',
             label: 'Execute SQL Query',
             keybindings: [monaco.KeyCode.F5],
             run: () => {
-                if (window.AppQuery) window.AppQuery.executeQuery();
+                triggerRun();
             }
         });
 
-        // Ctrl+Enter / Cmd+Enter: Execute Query
+        // Ctrl+Enter / Cmd+Enter: Execute Query (Normal or Debug mode)
         editor.addAction({
             id: 'sql-execute-enter',
             label: 'Execute SQL Query (Enter)',
             keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter],
             run: () => {
-                if (window.AppQuery) window.AppQuery.executeQuery();
+                triggerRun();
             }
         });
 
-        // Ctrl+E: Execute Query
+        // Ctrl+E: Execute Query (Normal or Debug mode)
         editor.addAction({
             id: 'sql-execute-e',
             label: 'Execute SQL Query (E)',
             keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyE],
             run: () => {
-                if (window.AppQuery) window.AppQuery.executeQuery();
+                triggerRun();
             }
         });
 
@@ -671,6 +827,25 @@
             keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.F5],
             run: () => {
                 if (window.checkSqlSyntax) window.checkSqlSyntax();
+            }
+        });
+
+        // Right-Click Context Menu: Toggle SQL Syntax Check
+        editor.addAction({
+            id: 'sql-toggle-syntax-check',
+            label: 'Bật/Tắt kiểm tra cú pháp (Toggle Syntax Check)',
+            contextMenuGroupId: '1_modification',
+            contextMenuOrder: 99,
+            run: () => {
+                if (window.SqlSyntaxCheckService && typeof window.SqlSyntaxCheckService.toggleEnabled === 'function') {
+                    const newState = window.SqlSyntaxCheckService.toggleEnabled();
+                    if (typeof window.showToast === 'function') {
+                        window.showToast(
+                            newState ? '✓ Đã bật kiểm tra cú pháp SQL (Syntax Check Enabled)' : 'Đã tắt kiểm tra cú pháp SQL (Syntax Check Disabled)',
+                            newState ? 'success' : 'secondary'
+                        );
+                    }
+                }
             }
         });
 
@@ -705,54 +880,219 @@
             }
         });
 
-        // Alt+]: Go to Matching END
+        // Format Code (Ctrl+K, Ctrl+D / Shift+Alt+F)
         editor.addAction({
-            id: 'sql-goto-matching-end',
-            label: 'Go to Matching END',
-            keybindings: [monaco.KeyMod.Alt | monaco.KeyCode.BracketRight, monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.DownArrow],
+            id: 'sql-format-code',
+            label: 'Format Code',
+            keybindings: [
+                monaco.KeyMod.chord(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyK, monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyD),
+                monaco.KeyMod.Shift | monaco.KeyMod.Alt | monaco.KeyCode.KeyF
+            ],
+            contextMenuGroupId: '1_modification',
+            contextMenuOrder: 1.5,
             run: (ed) => {
-                jumpToMatchingBeginEnd(ed, 'END');
+                if (window.AppEditor && typeof window.AppEditor.formatCode === 'function') {
+                    window.AppEditor.formatCode(ed);
+                }
             }
         });
 
-        // Alt+[: Go to Matching BEGIN
+        // Alt+[: Goto Begin (also Ctrl+Shift+Up)
         editor.addAction({
             id: 'sql-goto-matching-begin',
-            label: 'Go to Matching BEGIN',
-            keybindings: [monaco.KeyMod.Alt | monaco.KeyCode.BracketLeft, monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.UpArrow],
+            label: 'Goto Begin',
+            keybindings: [
+                monaco.KeyMod.Alt | monaco.KeyCode.BracketLeft,
+                monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.UpArrow
+            ],
+            contextMenuGroupId: '1_modification',
+            contextMenuOrder: 1.6,
             run: (ed) => {
-                jumpToMatchingBeginEnd(ed, 'BEGIN');
+                if (window.AppEditor && typeof window.AppEditor.gotoBegin === 'function') {
+                    window.AppEditor.gotoBegin(ed);
+                } else {
+                    jumpToMatchingBeginEnd(ed, 'BEGIN');
+                }
             }
         });
 
-        // Tab: Expand snippet or accept IntelliSense item or indent
-        editor.addCommand(monaco.KeyCode.Tab, () => {
-            if (window.AppIntelliSense && typeof window.AppIntelliSense.isPopupVisible === 'function' && window.AppIntelliSense.isPopupVisible()) {
-                window.AppIntelliSense.chooseCurrentItem(window.AppEditor);
-                return;
+        // Alt+]: Goto End (also Ctrl+Shift+Down)
+        editor.addAction({
+            id: 'sql-goto-matching-end',
+            label: 'Goto End',
+            keybindings: [
+                monaco.KeyMod.Alt | monaco.KeyCode.BracketRight,
+                monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.DownArrow
+            ],
+            contextMenuGroupId: '1_modification',
+            contextMenuOrder: 1.7,
+            run: (ed) => {
+                if (window.AppEditor && typeof window.AppEditor.gotoEnd === 'function') {
+                    window.AppEditor.gotoEnd(ed);
+                } else {
+                    jumpToMatchingBeginEnd(ed, 'END');
+                }
             }
-            if (window.AppSnippets && typeof window.AppSnippets.tryExpandSnippet === 'function') {
-                const expanded = window.AppSnippets.tryExpandSnippet(window.AppEditor);
-                if (expanded) return;
-            }
-            editor.trigger('keyboard', 'tab', null);
         });
 
-        // Enter: Accept IntelliSense item or insert newline
-        editor.addCommand(monaco.KeyCode.Enter, () => {
-            if (window.AppIntelliSense && typeof window.AppIntelliSense.isPopupVisible === 'function' && window.AppIntelliSense.isPopupVisible()) {
-                window.AppIntelliSense.chooseCurrentItem(window.AppEditor);
-                return;
+        // Ctrl+Alt+H: Query History (Lịch sử truy vấn)
+        editor.addAction({
+            id: 'sql-query-history',
+            label: 'Lịch sử truy vấn (Query History)',
+            keybindings: [
+                monaco.KeyMod.CtrlCmd | monaco.KeyMod.Alt | monaco.KeyCode.KeyH
+            ],
+            contextMenuGroupId: '1_modification',
+            contextMenuOrder: 1.8,
+            run: () => {
+                if (typeof window.openQueryHistoryWindow === 'function') {
+                    window.openQueryHistoryWindow();
+                }
             }
-            editor.trigger('keyboard', 'type', { text: '\n' });
         });
 
-        // Escape: Close IntelliSense popup if visible
-        editor.addCommand(monaco.KeyCode.Escape, () => {
-            if (window.AppIntelliSense && typeof window.AppIntelliSense.isPopupVisible === 'function' && window.AppIntelliSense.isPopupVisible()) {
-                window.AppIntelliSense.hidePopup();
-                return;
+        // ── Split Editor Actions in Monaco Context Menu ───────────────────────
+        editor.addAction({
+            id: 'sql-split-right',
+            label: 'Chia sang phải (Split Right)',
+            contextMenuGroupId: '2_split',
+            contextMenuOrder: 2.1,
+            run: () => {
+                if (window.splitEditor) window.splitEditor(null, 'right');
             }
+        });
+
+        editor.addAction({
+            id: 'sql-split-left',
+            label: 'Chia sang trái (Split Left)',
+            contextMenuGroupId: '2_split',
+            contextMenuOrder: 2.2,
+            run: () => {
+                if (window.splitEditor) window.splitEditor(null, 'left');
+            }
+        });
+
+        editor.addAction({
+            id: 'sql-split-down',
+            label: 'Chia xuống dưới (Split Down)',
+            contextMenuGroupId: '2_split',
+            contextMenuOrder: 2.3,
+            run: () => {
+                if (window.splitEditor) window.splitEditor(null, 'down');
+            }
+        });
+
+        editor.addAction({
+            id: 'sql-split-up',
+            label: 'Chia lên trên (Split Up)',
+            contextMenuGroupId: '2_split',
+            contextMenuOrder: 2.4,
+            run: () => {
+                if (window.splitEditor) window.splitEditor(null, 'up');
+            }
+        });
+
+        editor.addAction({
+            id: 'sql-unsplit',
+            label: 'Đóng chia màn hình (Close Split View)',
+            contextMenuGroupId: '2_split',
+            contextMenuOrder: 2.5,
+            run: () => {
+                if (window.unsplitEditor) window.unsplitEditor();
+            }
+        });
+
+        // ── Find Widget Keyboard Event Isolation (BUG 2) ─────────────────────────
+        const isFindWidgetActive = () => {
+            const activeEl = document.activeElement;
+            return Boolean(activeEl && (
+                activeEl.closest('.find-widget') ||
+                activeEl.closest('.monaco-findInput') ||
+                activeEl.closest('.monaco-find-widget') ||
+                activeEl.classList.contains('find-part')
+            ));
+        };
+
+        const domNode = editor.getDomNode();
+        if (domNode) {
+            domNode.addEventListener('keydown', (e) => {
+                const target = e.target;
+                const inFind = Boolean(target && (
+                    target.closest('.find-widget') ||
+                    target.closest('.monaco-findInput') ||
+                    target.closest('.monaco-find-widget') ||
+                    target.classList.contains('find-part')
+                ));
+                if (!inFind) return;
+
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (e.shiftKey) {
+                        const prevAction = editor.getAction('editor.action.previousMatchFindAction');
+                        if (prevAction) prevAction.run();
+                    } else {
+                        const nextAction = editor.getAction('editor.action.nextMatchFindAction');
+                        if (nextAction) nextAction.run();
+                    }
+                    return;
+                }
+
+                if (e.key === 'Tab') {
+                    // Prevent editor tab / snippet expansion from capturing Tab in Find widget
+                    e.stopPropagation();
+                    return;
+                }
+            }, true);
+
+            // Do not capture mousedown with stopPropagation on domNode as it prevents
+            // the Monaco Find Widget input from receiving native focus and mouse events.
+        }
+
+        // ── Instance-Local Keyboard Event Handling (Split Tab Isolation) ─────────
+        // We avoid editor.addCommand for Enter, Shift+Enter, and Tab because Monaco's
+        // global keybinding service binds them across all instances, causing Enter in
+        // secondary or split tabs to either misfire, execute in the wrong editor, or be ignored.
+        editor.onKeyDown((e) => {
+            // ── 0. Single Tab Instant Snippet Expansion ───────────────────────────
+            // When user types an exact snippet shortcut (e.g. 'ssf') and presses Tab:
+            // Expand snippet immediately on the 1st Tab press.
+            // ONLY applies to exact registered snippet prefixes.
+            if (e.keyCode === monaco.KeyCode.Tab && !e.shiftKey && !e.ctrlKey && !e.altKey) {
+                if (window.AppSnippets && typeof window.AppSnippets.tryExpandSnippet === 'function') {
+                    const activeEd = (typeof window.getActiveAppEditor === 'function') ? window.getActiveAppEditor() : window.AppEditor;
+                    const expanded = window.AppSnippets.tryExpandSnippet(activeEd);
+                    if (expanded) {
+                        if (window.AppIntelliSense && typeof window.AppIntelliSense.hidePopup === 'function') {
+                            window.AppIntelliSense.hidePopup();
+                        }
+                        e.preventDefault();
+                        e.stopPropagation();
+                        return;
+                    }
+                }
+            }
+
+            // 1. If IntelliSense completion popup is visible:
+            if (window.AppIntelliSense && typeof window.AppIntelliSense.isPopupVisible === 'function' && window.AppIntelliSense.isPopupVisible()) {
+                if (e.keyCode === monaco.KeyCode.Enter || e.keyCode === monaco.KeyCode.Tab) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const activeEd = (typeof window.getActiveAppEditor === 'function') ? window.getActiveAppEditor() : window.AppEditor;
+                    window.AppIntelliSense.chooseCurrentItem(activeEd);
+                    return;
+                }
+                if (e.keyCode === monaco.KeyCode.Escape) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    window.AppIntelliSense.hidePopup();
+                    return;
+                }
+            }
+
+            // For normal Enter, Shift+Enter, and Tab without open popups: DO NOT preventDefault!
+            // Monaco will natively handle newline insertion, auto-indentation, and indentation
+            // completely isolated and independent within this editor instance.
         });
 
         // ── Synchronize Zoom & Line-Height ─────────────────────────────────────
@@ -834,6 +1174,9 @@
             if (window.EditorStatusBar && window.EditorStatusBar.getActiveEditor() === editor) {
                 window.EditorStatusBar.updateCursor(editor);
                 window.EditorStatusBar.updateEOL(editor);
+            }
+            if (window.AppSession && typeof window.AppSession.scheduleAutoSave === 'function') {
+                window.AppSession.scheduleAutoSave(3000);
             }
         });
 
@@ -976,6 +1319,13 @@
             const issuesEl = document.getElementById('ide-sb-issues');
             if (!issuesEl || !ed || !ed.getModel()) return;
 
+            if (window.SqlSyntaxCheckService && typeof window.SqlSyntaxCheckService.isEnabled === 'function' && !window.SqlSyntaxCheckService.isEnabled()) {
+                issuesEl.className = 'ide-sb-issues';
+                issuesEl.innerHTML = '<i class="fa-solid fa-ban text-muted"></i><span id="ide-sb-issues-text">Syntax off</span>';
+                issuesEl.title = 'Kiểm tra cú pháp đang tắt (Click để bật)';
+                return;
+            }
+
             const model = ed.getModel();
             const markers = (typeof monaco !== 'undefined' && monaco.editor && typeof monaco.editor.getModelMarkers === 'function')
                 ? monaco.editor.getModelMarkers({ resource: model.uri })
@@ -1075,10 +1425,17 @@
                 });
             });
 
-            // Issues click to navigate to first error
+            // Issues click to navigate to first error or toggle ON if disabled
             const issuesEl = document.getElementById('ide-sb-issues');
             if (issuesEl) {
                 issuesEl.addEventListener('click', () => {
+                    if (window.SqlSyntaxCheckService && typeof window.SqlSyntaxCheckService.isEnabled === 'function' && !window.SqlSyntaxCheckService.isEnabled()) {
+                        window.SqlSyntaxCheckService.setEnabled(true);
+                        if (typeof window.showToast === 'function') {
+                            window.showToast('✓ Đã bật kiểm tra cú pháp SQL (Syntax Check Enabled)', 'success');
+                        }
+                        return;
+                    }
                     const ed = EditorStatusBar.getActiveEditor();
                     if (!ed || !ed.getModel()) return;
                     const model = ed.getModel();
@@ -1134,7 +1491,10 @@
                 const state = e.detail?.state;
                 const statusBar = document.getElementById('ide-editor-status-bar');
                 if (statusBar) {
-                    if (state && (state.tabType === 'designer' || state.tabType === 'data-editor')) {
+                    const isText = (window.AppTabs && typeof window.AppTabs.isTextEditorTab === 'function')
+                        ? window.AppTabs.isTextEditorTab(state)
+                        : (state && !['designer', 'data-editor', 'object-search', 'dependency-graph'].includes(state.tabType));
+                    if (!isText) {
                         statusBar.classList.add('d-none');
                     } else {
                         statusBar.classList.remove('d-none');
@@ -1187,6 +1547,11 @@
                 window.AppIntelliSense.attachEditor(window.AppEditor);
             }
 
+            // Connect Syntax Check controller
+            if (window.SqlSyntaxCheckService && typeof window.SqlSyntaxCheckService.attachEditor === 'function') {
+                window.SqlSyntaxCheckService.attachEditor(window.AppEditor);
+            }
+
             // Set initial theme
             if (window.ThemeManager) {
                 const cur = window.ThemeManager.getCurrentTheme ? window.ThemeManager.getCurrentTheme() : 'dark';
@@ -1201,8 +1566,11 @@
                 }, delay);
             });
 
-            // Focus on editor container click
-            targetEl.addEventListener('click', () => {
+            // Focus on editor container click (only when clicking editor canvas, not find widget or controls)
+            targetEl.addEventListener('click', (e) => {
+                if (e.target.closest('.find-widget, .monaco-find-widget, .monaco-findInput, input, textarea, button, select, .monaco-dropdown, .dropdown-menu')) {
+                    return;
+                }
                 if (_primaryEditor) _primaryEditor.focus();
             });
 
@@ -1241,13 +1609,156 @@
         return window.AppEditor;
     };
 
-    // ── 5. Split Editor Support ───────────────────────────────────────────────
+    // ── 5. Split Editor Support (4-Way: Right, Left, Down, Up) ───────────────
     let _secondaryTabId = null;
     let _lastFocusedPane = 'primary'; // 'primary' | 'secondary'
+    let _splitDirection = 'right'; // 'right' | 'left' | 'down' | 'up'
+
+    function normalizeSplitDirection(dir) {
+        if (!dir || typeof dir !== 'string') return 'right';
+        const d = dir.trim().toLowerCase();
+        if (['right', 'left', 'down', 'up'].includes(d)) return d;
+        return 'right';
+    }
+
+    function updateSplitDirectionButtonsUI(dir) {
+        const normalized = normalizeSplitDirection(dir);
+        document.querySelectorAll('.split-dir-btn').forEach(btn => {
+            if (btn.getAttribute('data-direction') === normalized) {
+                btn.classList.add('active');
+            } else {
+                btn.classList.remove('active');
+            }
+        });
+        document.querySelectorAll('.ide-split-opt').forEach(opt => {
+            if (opt.getAttribute('data-direction') === normalized) {
+                opt.classList.add('active');
+            } else {
+                opt.classList.remove('active');
+            }
+        });
+    }
+
+    function applySplitLayout(dir) {
+        const wrap = document.querySelector('.ide-editor-wrap');
+        const resizer = document.getElementById('editor-resizer');
+        const pane1 = document.getElementById('editor-pane-1');
+        const pane2 = document.getElementById('editor-pane-2');
+        if (!wrap || !resizer || !pane1 || !pane2) return;
+
+        const normalized = normalizeSplitDirection(dir);
+        _splitDirection = normalized;
+
+        if (normalized === 'right' || normalized === 'left') {
+            wrap.style.flexDirection = 'row';
+            resizer.className = 'ide-resizer-vertical';
+            resizer.style.cursor = 'col-resize';
+            resizer.style.width = '5px';
+            resizer.style.minWidth = '5px';
+            resizer.style.height = '100%';
+            resizer.style.minHeight = '';
+
+            pane1.style.minWidth = '100px';
+            pane1.style.minHeight = '';
+            pane2.style.minWidth = '100px';
+            pane2.style.minHeight = '';
+
+            pane1.style.height = '100%';
+            pane2.style.height = '100%';
+            pane1.style.width = '50%';
+            pane2.style.width = '50%';
+
+            if (normalized === 'right') {
+                pane1.style.order = '1';
+                resizer.style.order = '2';
+                pane2.style.order = '3';
+            } else { // left
+                pane2.style.order = '1';
+                resizer.style.order = '2';
+                pane1.style.order = '3';
+            }
+        } else { // 'down' or 'up'
+            wrap.style.flexDirection = 'column';
+            resizer.className = 'ide-resizer-horizontal';
+            resizer.style.cursor = 'row-resize';
+            resizer.style.width = '100%';
+            resizer.style.minWidth = '';
+            resizer.style.height = '5px';
+            resizer.style.minHeight = '5px';
+
+            pane1.style.minWidth = '';
+            pane1.style.minHeight = '80px';
+            pane2.style.minWidth = '';
+            pane2.style.minHeight = '80px';
+
+            pane1.style.width = '100%';
+            pane2.style.width = '100%';
+            pane1.style.height = '50%';
+            pane2.style.height = '50%';
+
+            if (normalized === 'down') {
+                pane1.style.order = '1';
+                resizer.style.order = '2';
+                pane2.style.order = '3';
+            } else { // up
+                pane2.style.order = '1';
+                resizer.style.order = '2';
+                pane1.style.order = '3';
+            }
+        }
+
+        updateSplitDirectionButtonsUI(normalized);
+
+        setTimeout(() => {
+            if (_primaryEditor) _primaryEditor.layout();
+            if (_secondaryEditor) _secondaryEditor.layout();
+            remeasureMonacoFonts();
+        }, 30);
+    }
+
+    window.getSplitDirection = function () {
+        return _splitDirection;
+    };
+
+    window.setSplitDirection = function (dir) {
+        const normalized = normalizeSplitDirection(dir);
+        _splitDirection = normalized;
+        updateSplitDirectionButtonsUI(normalized);
+        if (window.isEditorSplit()) {
+            applySplitLayout(normalized);
+        }
+    };
 
     window.isEditorSplit = function () {
         const pane2 = document.getElementById('editor-pane-2');
         return Boolean(pane2 && !pane2.classList.contains('d-none'));
+    };
+
+    window.getLastFocusedPane = function () {
+        return _lastFocusedPane;
+    };
+
+    window.getSecondaryTabId = function () {
+        return _secondaryTabId;
+    };
+
+    window.getActiveExecutingTabId = function () {
+        if (window.isEditorSplit && window.isEditorSplit() && _lastFocusedPane === 'secondary' && _secondaryTabId) {
+            return _secondaryTabId;
+        }
+        return (window.AppTabs && typeof window.AppTabs.getActiveTabId === 'function')
+            ? window.AppTabs.getActiveTabId()
+            : null;
+    };
+
+    window.getActiveExecutingTabState = function () {
+        const tabId = window.getActiveExecutingTabId();
+        if (tabId && typeof window.getTabData === 'function') {
+            return window.getTabData(tabId);
+        }
+        return (window.AppTabs && typeof window.AppTabs.getActiveTabState === 'function')
+            ? window.AppTabs.getActiveTabState()
+            : null;
     };
 
     window.getActiveAppEditor = function () {
@@ -1275,9 +1786,10 @@
         if (!resizer || !pane1 || !pane2 || !wrap) return;
 
         let isDragging = false;
-        let startX = 0;
-        let startW1 = 0;
-        let totalW = 0;
+        let startPos = 0;
+        let startDim1 = 0;
+        let startDim2 = 0;
+        let totalDim = 0;
 
         resizer.addEventListener('pointerdown', (e) => {
             if (pane2.classList.contains('d-none')) return;
@@ -1285,23 +1797,64 @@
             try { resizer.setPointerCapture(e.pointerId); } catch (_) {}
             resizer.classList.add('dragging');
             document.body.style.userSelect = 'none';
-            document.body.style.cursor = 'col-resize';
-            startX = e.clientX;
-            startW1 = pane1.getBoundingClientRect().width;
-            totalW = wrap.getBoundingClientRect().width;
+
+            const isHorizontal = (_splitDirection === 'right' || _splitDirection === 'left');
+            if (isHorizontal) {
+                document.body.style.cursor = 'col-resize';
+                startPos = e.clientX;
+                startDim1 = pane1.getBoundingClientRect().width;
+                startDim2 = pane2.getBoundingClientRect().width;
+                totalDim = wrap.getBoundingClientRect().width;
+            } else {
+                document.body.style.cursor = 'row-resize';
+                startPos = e.clientY;
+                startDim1 = pane1.getBoundingClientRect().height;
+                startDim2 = pane2.getBoundingClientRect().height;
+                totalDim = wrap.getBoundingClientRect().height;
+            }
         });
 
         resizer.addEventListener('pointermove', (e) => {
-            if (!isDragging) return;
-            const deltaX = e.clientX - startX;
-            const newW1 = startW1 + deltaX;
-            const minW = Math.max(100, totalW * 0.15);
-            const maxW = Math.min(totalW - 100, totalW * 0.85);
-            const clampedW1 = Math.max(minW, Math.min(newW1, maxW));
-            const pct1 = (clampedW1 / totalW) * 100;
-            const pct2 = 100 - pct1;
-            pane1.style.width = pct1 + '%';
-            pane2.style.width = pct2 + '%';
+            if (!isDragging || totalDim <= 0) return;
+
+            if (_splitDirection === 'right') {
+                const delta = e.clientX - startPos;
+                const newDim1 = startDim1 + delta;
+                const minDim = Math.max(100, totalDim * 0.15);
+                const maxDim = Math.min(totalDim - 100, totalDim * 0.85);
+                const clamped = Math.max(minDim, Math.min(newDim1, maxDim));
+                const pct1 = (clamped / totalDim) * 100;
+                pane1.style.width = pct1 + '%';
+                pane2.style.width = (100 - pct1) + '%';
+            } else if (_splitDirection === 'left') {
+                const delta = e.clientX - startPos;
+                const newDim2 = startDim2 + delta;
+                const minDim = Math.max(100, totalDim * 0.15);
+                const maxDim = Math.min(totalDim - 100, totalDim * 0.85);
+                const clamped = Math.max(minDim, Math.min(newDim2, maxDim));
+                const pct2 = (clamped / totalDim) * 100;
+                pane2.style.width = pct2 + '%';
+                pane1.style.width = (100 - pct2) + '%';
+            } else if (_splitDirection === 'down') {
+                const delta = e.clientY - startPos;
+                const newDim1 = startDim1 + delta;
+                const minDim = Math.max(80, totalDim * 0.15);
+                const maxDim = Math.min(totalDim - 80, totalDim * 0.85);
+                const clamped = Math.max(minDim, Math.min(newDim1, maxDim));
+                const pct1 = (clamped / totalDim) * 100;
+                pane1.style.height = pct1 + '%';
+                pane2.style.height = (100 - pct1) + '%';
+            } else if (_splitDirection === 'up') {
+                const delta = e.clientY - startPos;
+                const newDim2 = startDim2 + delta;
+                const minDim = Math.max(80, totalDim * 0.15);
+                const maxDim = Math.min(totalDim - 80, totalDim * 0.85);
+                const clamped = Math.max(minDim, Math.min(newDim2, maxDim));
+                const pct2 = (clamped / totalDim) * 100;
+                pane2.style.height = pct2 + '%';
+                pane1.style.height = (100 - pct2) + '%';
+            }
+
             if (_primaryEditor) _primaryEditor.layout();
             if (_secondaryEditor) _secondaryEditor.layout();
         });
@@ -1343,10 +1896,11 @@
 
         // Determine which tab to select
         let selectedId = targetTabId;
-        if (!selectedId) {
+        const exists = tabsList.some(t => t.id === selectedId);
+        if (!selectedId || !exists) {
             // Pick a different tab than activeId if available
             const other = tabsList.find(t => t.id !== activeId);
-            selectedId = other ? other.id : activeId;
+            selectedId = other ? other.id : (tabsList[0] ? tabsList[0].id : activeId);
         }
 
         tabsList.forEach(t => {
@@ -1366,6 +1920,9 @@
 
     function loadTabIntoSecondaryEditor(tabId) {
         if (!_secondaryEditor) return;
+        if (_secondaryTabId && typeof window.updateTabContent === 'function') {
+            window.updateTabContent(_secondaryTabId, _secondaryEditor.getValue());
+        }
         _secondaryTabId = tabId;
         const tabData = (typeof window.getTabData === 'function') ? window.getTabData(tabId) : null;
         if (tabData) {
@@ -1375,7 +1932,7 @@
         }
     }
 
-    window.splitEditor = function (targetTabId = null) {
+    window.splitEditor = function (targetTabId = null, direction = null) {
         const resizer = document.getElementById('editor-resizer');
         const pane1 = document.getElementById('editor-pane-1');
         const pane2 = document.getElementById('editor-pane-2');
@@ -1383,10 +1940,13 @@
 
         if (!pane2 || !container2) return;
 
-        if (pane1) pane1.style.width = '50%';
-        pane2.style.width = '50%';
+        if (direction) {
+            _splitDirection = normalizeSplitDirection(direction);
+        }
+
         pane2.classList.remove('d-none');
         if (resizer) resizer.classList.remove('d-none');
+        applySplitLayout(_splitDirection);
 
         if (!_secondaryEditor && typeof monaco !== 'undefined') {
             const currentContent = window.AppEditor ? window.AppEditor.getValue() : '';
@@ -1394,12 +1954,14 @@
             window.AppEditor2 = createAppEditorWrapper(() => _secondaryEditor, 'monaco-sql-editor-2');
             window.AppEditor2._bindPendingListeners(_secondaryEditor);
 
-            _secondaryEditor.onDidFocusEditorText(() => {
+            const setSecFocused = () => {
                 _lastFocusedPane = 'secondary';
                 if (window.EditorStatusBar) {
                     window.EditorStatusBar.setActiveEditor(_secondaryEditor);
                 }
-            });
+            };
+            _secondaryEditor.onDidFocusEditorText(setSecFocused);
+            _secondaryEditor.onDidFocusEditorWidget(setSecFocused);
 
             _secondaryEditor.onDidChangeModelContent(() => {
                 if (_secondaryTabId && typeof window.updateTabContent === 'function') {
@@ -1410,13 +1972,39 @@
             if (window.AppIntelliSense && typeof window.AppIntelliSense.attachEditor === 'function') {
                 window.AppIntelliSense.attachEditor(window.AppEditor2);
             }
+
+            if (window.SqlSyntaxCheckService && typeof window.SqlSyntaxCheckService.attachEditor === 'function') {
+                window.SqlSyntaxCheckService.attachEditor(window.AppEditor2);
+            }
         }
 
         if (_primaryEditor) {
-            _primaryEditor.onDidFocusEditorText(() => {
+            const setPriFocused = () => {
                 _lastFocusedPane = 'primary';
                 if (window.EditorStatusBar) {
                     window.EditorStatusBar.setActiveEditor(_primaryEditor);
+                }
+            };
+            _primaryEditor.onDidFocusEditorText(setPriFocused);
+            _primaryEditor.onDidFocusEditorWidget(setPriFocused);
+        }
+
+        if (pane1 && !pane1._splitPointerBound) {
+            pane1._splitPointerBound = true;
+            pane1.addEventListener('pointerdown', () => {
+                _lastFocusedPane = 'primary';
+                if (_primaryEditor && window.EditorStatusBar) {
+                    window.EditorStatusBar.setActiveEditor(_primaryEditor);
+                }
+            });
+        }
+
+        if (pane2 && !pane2._splitPointerBound) {
+            pane2._splitPointerBound = true;
+            pane2.addEventListener('pointerdown', () => {
+                _lastFocusedPane = 'secondary';
+                if (_secondaryEditor && window.EditorStatusBar) {
+                    window.EditorStatusBar.setActiveEditor(_secondaryEditor);
                 }
             });
         }
@@ -1430,14 +2018,68 @@
         }, 50);
     };
 
+    // Auto-sync split dropdown when tabs are switched or updated
+    document.addEventListener('ide-tab-switched', () => {
+        if (window.isEditorSplit && window.isEditorSplit()) {
+            updateSplitPaneTabSelect(_secondaryTabId);
+        }
+    });
+
+    // Delegated click listeners for direction buttons and dropdown items
+    document.addEventListener('click', (e) => {
+        const dirBtn = e.target.closest('.split-dir-btn');
+        if (dirBtn && dirBtn.dataset.direction) {
+            e.preventDefault();
+            window.setSplitDirection(dirBtn.dataset.direction);
+            return;
+        }
+
+        const opt = e.target.closest('.ide-split-opt');
+        if (opt && opt.dataset.direction) {
+            e.preventDefault();
+            if (!window.isEditorSplit()) {
+                window.splitEditor(null, opt.dataset.direction);
+            } else {
+                window.setSplitDirection(opt.dataset.direction);
+            }
+            return;
+        }
+
+        const closeOpt = e.target.closest('.ide-split-opt-close');
+        if (closeOpt) {
+            e.preventDefault();
+            window.unsplitEditor();
+            return;
+        }
+    });
+
     window.unsplitEditor = function () {
+        const wrap = document.querySelector('.ide-editor-wrap');
         const resizer = document.getElementById('editor-resizer');
         const pane1 = document.getElementById('editor-pane-1');
         const pane2 = document.getElementById('editor-pane-2');
 
-        if (pane1) pane1.style.width = '100%';
-        if (pane2) pane2.classList.add('d-none');
-        if (resizer) resizer.classList.add('d-none');
+        if (wrap) wrap.style.flexDirection = '';
+        if (pane1) {
+            pane1.style.order = '';
+            pane1.style.width = '100%';
+            pane1.style.height = '100%';
+            pane1.style.minWidth = '';
+            pane1.style.minHeight = '';
+        }
+        if (pane2) {
+            pane2.style.order = '';
+            pane2.style.width = '';
+            pane2.style.height = '';
+            pane2.style.minWidth = '';
+            pane2.style.minHeight = '';
+            pane2.classList.add('d-none');
+        }
+        if (resizer) {
+            resizer.style.order = '';
+            resizer.className = 'ide-resizer-vertical d-none';
+            resizer.classList.add('d-none');
+        }
 
         if (_secondaryEditor) {
             _secondaryEditor.dispose();
@@ -1456,11 +2098,15 @@
         }, 50);
     };
 
-    window.toggleSplitEditor = function () {
+    window.toggleSplitEditor = function (direction = null) {
         if (window.isEditorSplit()) {
-            window.unsplitEditor();
+            if (direction && normalizeSplitDirection(direction) !== _splitDirection) {
+                window.setSplitDirection(direction);
+            } else {
+                window.unsplitEditor();
+            }
         } else {
-            window.splitEditor();
+            window.splitEditor(null, direction);
         }
     };
 
@@ -1585,6 +2231,8 @@
             btnClose.onclick = () => {
                 if (typeof window.closeActiveDiffTab === 'function') {
                     window.closeActiveDiffTab();
+                } else if (typeof window.closeDiffView === 'function') {
+                    window.closeDiffView();
                 } else {
                     window.hideDiffView();
                 }
@@ -1705,6 +2353,23 @@
             _diffModifiedModel = null;
         }
     };
+
+    // Allow pressing Escape to close diff view when no modal is open
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && !e.ctrlKey && !e.altKey && !e.shiftKey) {
+            const diffWrap = document.getElementById('editor-diff-container');
+            if (diffWrap && !diffWrap.classList.contains('d-none') && diffWrap.style.display !== 'none') {
+                if (!document.querySelector('.modal.show')) {
+                    e.preventDefault();
+                    if (typeof window.closeActiveDiffTab === 'function') {
+                        window.closeActiveDiffTab();
+                    } else if (typeof window.closeDiffView === 'function') {
+                        window.closeDiffView();
+                    }
+                }
+            }
+        }
+    });
 
     // ── 6. Listen to Global Theme Changes ─────────────────────────────────────
     document.addEventListener('ide-theme-changed', (e) => {
@@ -1835,6 +2500,9 @@
             });
             if (_diffEditor) _diffEditor.layout();
         }, 50);
+        if (window.SqlSyntaxCheckService && typeof window.SqlSyntaxCheckService.setEnabled === 'function' && edConfig.syntaxCheck !== undefined) {
+            window.SqlSyntaxCheckService.setEnabled(Boolean(edConfig.syntaxCheck));
+        }
     }
 
     document.addEventListener('ide-settings-updated', (e) => {
@@ -1854,6 +2522,11 @@
 
     // ── 7. Global Syntax Check Helper ─────────────────────────────────────────
     window.checkSqlSyntax = function () {
+        if (window.SqlSyntaxCheckService && typeof window.SqlSyntaxCheckService.triggerManualCheck === 'function') {
+            window.SqlSyntaxCheckService.triggerManualCheck();
+            return;
+        }
+
         const sql = window.AppEditor ? window.AppEditor.getValue() : '';
         if (!sql.trim()) {
             if (typeof showToast === 'function') showToast('Không có câu lệnh SQL nào để kiểm tra.', 'info');
@@ -1874,5 +2547,157 @@
             if (typeof showToast === 'function') showToast('✓ Không phát hiện lỗi cú pháp cơ bản.', 'success');
         }
     };
+
+    // ── 8. Wire Format & Navigation UI Controls ──────────────────────────────
+    function wireEditorUIControls() {
+        const btnFormat = document.getElementById('ide-btn-format');
+        if (btnFormat) {
+            btnFormat.addEventListener('click', (e) => {
+                e.preventDefault();
+                if (window.AppEditor && typeof window.AppEditor.formatCode === 'function') {
+                    window.AppEditor.formatCode();
+                }
+            });
+        }
+
+        const menuFormat = document.getElementById('ide-menu-format-code');
+        if (menuFormat) {
+            menuFormat.addEventListener('click', (e) => {
+                e.preventDefault();
+                if (window.AppEditor && typeof window.AppEditor.formatCode === 'function') {
+                    window.AppEditor.formatCode();
+                }
+            });
+        }
+
+        const menuGotoBegin = document.getElementById('ide-menu-goto-begin');
+        if (menuGotoBegin) {
+            menuGotoBegin.addEventListener('click', (e) => {
+                e.preventDefault();
+                if (window.AppEditor && typeof window.AppEditor.gotoBegin === 'function') {
+                    window.AppEditor.gotoBegin();
+                }
+            });
+        }
+
+        const menuGotoEnd = document.getElementById('ide-menu-goto-end');
+        if (menuGotoEnd) {
+            menuGotoEnd.addEventListener('click', (e) => {
+                e.preventDefault();
+                if (window.AppEditor && typeof window.AppEditor.gotoEnd === 'function') {
+                    window.AppEditor.gotoEnd();
+                }
+            });
+        }
+
+        // ── Wire Responsive Action Bar Overflow Menu (Bug 3) ─────────────────
+        const wireOverflowMenu = () => {
+            const mappings = [
+                { menuId: 'ide-overflow-btn-parse', targetId: 'ide-btn-parse' },
+                { menuId: 'ide-overflow-btn-format', targetId: 'ide-btn-format' },
+                { menuId: 'ide-overflow-btn-plan', targetId: 'ide-btn-plan' },
+                { menuId: 'ide-overflow-btn-stop', targetId: 'ide-btn-stop' },
+                { menuId: 'ide-overflow-btn-import', targetId: 'ide-btn-import-file' },
+                { menuId: 'ide-overflow-btn-export', targetId: 'ide-btn-export-results' },
+                { menuId: 'ide-overflow-btn-split', targetId: 'ide-btn-split-editor' },
+                { menuId: 'ide-overflow-btn-compare', targetId: 'ide-btn-compare' }
+            ];
+
+            mappings.forEach(({ menuId, targetId }) => {
+                const item = document.getElementById(menuId);
+                if (item) {
+                    item.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        const target = document.getElementById(targetId);
+                        if (target && !target.disabled) {
+                            target.click();
+                        }
+                    });
+                }
+            });
+
+            // Sync disabled state of stop button to overflow menu item
+            const stopBtn = document.getElementById('ide-btn-stop');
+            const overflowStop = document.getElementById('ide-overflow-btn-stop');
+            if (stopBtn && overflowStop && typeof MutationObserver !== 'undefined') {
+                const observer = new MutationObserver(() => {
+                    if (stopBtn.disabled) {
+                        overflowStop.classList.add('disabled', 'pe-none');
+                    } else {
+                        overflowStop.classList.remove('disabled', 'pe-none');
+                    }
+                });
+                observer.observe(stopBtn, { attributes: true, attributeFilter: ['disabled'] });
+            }
+
+            // ResizeObserver to dynamically toggle .is-compact on .ide-action-bar ONLY when space is insufficient
+            const actionBars = document.querySelectorAll('.ide-action-bar');
+            if (typeof ResizeObserver !== 'undefined' && actionBars.length > 0) {
+                const checkActionBarCompact = (bar, width) => {
+                    const w = width || bar.clientWidth;
+                    if (w <= 0) return;
+
+                    const leftEl = bar.querySelector('.ide-ctx-selectors');
+                    const rightEl = bar.querySelector('.ide-action-bar-actions');
+                    const isCurrentlyCompact = bar.classList.contains('is-compact');
+
+                    const leftWidth = leftEl ? Math.max(leftEl.offsetWidth, 240) : 240;
+                    if (!isCurrentlyCompact && rightEl) {
+                        bar._fullActionsWidth = Math.max(rightEl.offsetWidth || 640, bar._fullActionsWidth || 640);
+                    }
+                    const fullActionsW = bar._fullActionsWidth || 650;
+                    const collisionThreshold = leftWidth + fullActionsW + 16;
+
+                    // Chỉ chuyển sang 3-dots khi nhóm menu bên phải va chạm / đè lên thông tin kết nối bên trái
+                    const isOverflowing = (!isCurrentlyCompact && w < collisionThreshold);
+                    if (isOverflowing) {
+                        bar.classList.add('is-compact');
+                    } else if (isCurrentlyCompact && w >= collisionThreshold + 30) {
+                        bar.classList.remove('is-compact');
+                    }
+                };
+
+                const ro = new ResizeObserver((entries) => {
+                    for (const entry of entries) {
+                        checkActionBarCompact(entry.target, entry.contentRect.width);
+                    }
+                });
+                actionBars.forEach(bar => {
+                    ro.observe(bar);
+                    checkActionBarCompact(bar, bar.clientWidth);
+                });
+
+                window.addEventListener('resize', () => {
+                    actionBars.forEach(bar => checkActionBarCompact(bar, bar.clientWidth));
+                });
+            }
+        };
+        wireOverflowMenu();
+    }
+
+    // Stop propagation of mousedown within Find Widget so editor container never steals focus
+    document.addEventListener('mousedown', (e) => {
+        const findWidget = e.target.closest('.find-widget, .monaco-find-widget, .monaco-findInput');
+        if (findWidget) {
+            e.stopPropagation();
+        }
+    }, false);
+
+    // Safe Click handler for Find Widget
+    document.addEventListener('click', (e) => {
+        const findWidget = e.target.closest('.find-widget, .monaco-find-widget');
+        if (findWidget) {
+            const inputEl = e.target.closest('.monaco-findInput')?.querySelector('textarea.input, input') || (e.target.matches('textarea, input') ? e.target : null);
+            if (inputEl) {
+                inputEl.focus();
+            }
+        }
+    });
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', wireEditorUIControls);
+    } else {
+        wireEditorUIControls();
+    }
 
 })(window);

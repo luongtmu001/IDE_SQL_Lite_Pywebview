@@ -133,7 +133,8 @@ class PostgresProfilerSession(BaseProfilerSession):
                 ELSE 0
             END AS duration_ms,
             query,
-            query_start
+            query_start,
+            COALESCE(usename, '—') AS usename
         FROM pg_stat_activity
         WHERE pid <> pg_backend_pid()
           AND (application_name IS NULL OR application_name <> 'luoBTool_Profiler')
@@ -157,7 +158,7 @@ class PostgresProfilerSession(BaseProfilerSession):
                 cursor.close()
 
                 for row in rows:
-                    pid, time_str, state, app, db, duration_ms, sql, query_start = row
+                    pid, time_str, state, app, db, duration_ms, sql, query_start, usename = row
                     if not sql or not sql.strip():
                         continue
 
@@ -173,8 +174,9 @@ class PostgresProfilerSession(BaseProfilerSession):
                     self._seen_keys.append(dedup_key)
                     self._seen_set.add(dedup_key)
 
-                    # Determine descriptive event type tag
-                    first_word = sql.strip().split()[0].upper() if sql.strip() else "QUERY"
+                    # Determine descriptive event type tag & operation
+                    clean_sql = sql.strip()
+                    first_word = clean_sql.split()[0].upper() if clean_sql else "QUERY"
                     if first_word in ("BEGIN", "COMMIT", "ROLLBACK", "SAVEPOINT"):
                         event_tag = "TRANSACTION"
                     elif first_word in ("SELECT", "INSERT", "UPDATE", "DELETE", "CREATE", "ALTER", "DROP", "TRUNCATE"):
@@ -186,14 +188,28 @@ class PostgresProfilerSession(BaseProfilerSession):
                     else:
                         event_tag = f"STATEMENT_{first_word}" if first_word.isalnum() else "STATEMENT"
 
+                    # Quick table detection regex
+                    target_table = None
+                    m = re.search(r'(?:FROM|INTO|UPDATE|JOIN|TABLE)\s+["\']?([a-zA-Z0-9_]+)["\']?', clean_sql, re.IGNORECASE)
+                    if m:
+                        target_table = m.group(1)
+
                     self.emit_event(
                         time_str=time_str or datetime.datetime.now().strftime("%H:%M:%S"),
-                        event_type=event_tag,
+                        event_tag=event_tag,
                         spid=int(pid),
                         db_name=db or "—",
                         app_name=app or "—",
                         duration_ms=float(duration_ms or 0),
                         sql_text=sql,
+                        event_type="DATABASE_EVENT",
+                        user=usename or "—",
+                        node_id=str(pid),
+                        connection=self.conn_config.get("name") or "PostgreSQL",
+                        operation=first_word,
+                        table=target_table or "—",
+                        source="postgresql",
+                        source_type="postgresql",
                     )
 
             except Exception as e:

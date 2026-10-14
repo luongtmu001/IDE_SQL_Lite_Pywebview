@@ -836,3 +836,135 @@ html[data-bs-theme="win-nt"] .settings-window .setting-font-preview .preview-sam
 html[data-bs-theme="win-xp"] .settings-window .setting-font-preview .preview-sample {
     color: #111111;
 }
+
+/* ── Query History Storage & Maintenance Box ──────────────────────────────── */
+.settings-window .history-storage-box {
+    margin-top: 18px;
+    padding: 16px 18px;
+    background: var(--ide-bg-sidebar, #1a1b20);
+    border: 1px solid var(--ide-border, #3c3f41);
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.settings-window .storage-box-header {
+    margin-bottom: 14px;
+}
+
+.settings-window .storage-box-header .setting-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--ide-text-active, #ffffff);
+    display: flex;
+    align-items: center;
+    margin-bottom: 4px;
+}
+
+.settings-window .storage-box-header .description {
+    font-size: 12px;
+    color: var(--ide-text-muted, #858585);
+}
+
+.settings-window .storage-metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.settings-window .metric-card {
+    padding: 10px 12px;
+    background: var(--ide-bg-input, #13141a);
+    border: 1px solid var(--ide-border, #2d3038);
+    border-radius: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.settings-window .metric-label {
+    font-size: 11px;
+    color: var(--ide-text-muted, #858585);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.settings-window .metric-value {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--ide-text-active, #ffffff);
+    font-family: var(--ide-font-mono, 'JetBrains Mono', Consolas, monospace);
+}
+
+.settings-window .storage-actions-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding-top: 12px;
+    border-top: 1px dashed var(--ide-border, #3c3f41);
+}
+
+.settings-window .btn-storage-action {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 14px;
+    font-size: 12.5px;
+    font-weight: 500;
+    border-radius: 5px;
+    border: 1px solid var(--ide-border, #3c3f41);
+    background: var(--ide-bg-toolbar, #202228);
+    color: var(--ide-text-main, #d4d4d4);
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.settings-window .btn-storage-action:hover:not(:disabled) {
+    background: var(--bs-primary, #cc7832);
+    border-color: var(--bs-primary, #cc7832);
+    color: #ffffff;
+}
+
+.settings-window .btn-storage-action:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.settings-window .btn-storage-danger {
+    color: #e06c75;
+    border-color: rgba(224, 108, 117, 0.4);
+}
+
+.settings-window .btn-storage-danger:hover:not(:disabled) {
+    background: #d32f2f !important;
+    border-color: #d32f2f !important;
+    color: #ffffff !important;
+}
+
+html[data-bs-theme="light"] .settings-window .history-storage-box,
+html[data-bs-theme="win-nt"] .settings-window .history-storage-box,
+html[data-bs-theme="win-xp"] .settings-window .history-storage-box {
+    background: #f7f7f7;
+    border-color: #d0d0d0;
+}
+
+html[data-bs-theme="light"] .settings-window .metric-card,
+html[data-bs-theme="win-nt"] .settings-window .metric-card,
+html[data-bs-theme="win-xp"] .settings-window .metric-card {
+    background: #ffffff;
+    border-color: #e0e0e0;
+}
+
+html[data-bs-theme="light"] .settings-window .metric-value,
+html[data-bs-theme="win-nt"] .settings-window .metric-value,
+html[data-bs-theme="win-xp"] .settings-window .metric-value {
+    color: #111111;
+}
+
+html[data-bs-theme="light"] .settings-window .btn-storage-action,
+html[data-bs-theme="win-nt"] .settings-window .btn-storage-action,
+html[data-bs-theme="win-xp"] .settings-window .btn-storage-action {
+    background: #ffffff;
+    border-color: #cccccc;
+    color: #222222;
+}

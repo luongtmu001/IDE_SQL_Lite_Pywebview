@@ -7,6 +7,10 @@ main_bp = Blueprint("main", __name__)
 def index():
     return render_template("index.html")
 
+@main_bp.get("/query-history-demo")
+def query_history_demo():
+    return render_template("query_history_window.html")
+
 @main_bp.get("/api/system/fonts")
 def system_fonts():
     try:

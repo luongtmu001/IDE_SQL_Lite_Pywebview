@@ -3,12 +3,37 @@
 function initApp() {
     console.log('IDE SQL Lite — Initialized');
 
-    // Initialize Monaco SQL editor
-    window.AppEditor      = initEditor();
-    window.AppTabs        = initTabs();
-    window.AppExplorer    = initExplorer();
-    window.AppQuery       = initQuery();
-    window.AppConnections = initConnections();  // initialize connection modal
+    // Initialize Monaco SQL editor and core subsystems with fault isolation
+    try {
+        window.AppEditor = typeof initEditor === 'function' ? initEditor() : null;
+    } catch (err) {
+        console.error('[initApp] Failed to initialize Editor:', err);
+    }
+
+    try {
+        window.AppTabs = typeof initTabs === 'function' ? initTabs() : null;
+        window.Tabs = window.AppTabs;
+    } catch (err) {
+        console.error('[initApp] Failed to initialize Tabs:', err);
+    }
+
+    try {
+        window.AppExplorer = typeof initExplorer === 'function' ? initExplorer() : null;
+    } catch (err) {
+        console.error('[initApp] Failed to initialize Explorer:', err);
+    }
+
+    try {
+        window.AppQuery = typeof initQuery === 'function' ? initQuery() : null;
+    } catch (err) {
+        console.error('[initApp] Failed to initialize Query:', err);
+    }
+
+    try {
+        window.AppConnections = typeof initConnections === 'function' ? initConnections() : null;
+    } catch (err) {
+        console.error('[initApp] Failed to initialize Connections:', err);
+    }
 
     // Apply current theme now that editor is ready (respects OS theme by default)
     if (window.ThemeManager) {
@@ -21,6 +46,172 @@ function initApp() {
     if (themeBtn) {
         themeBtn.addEventListener('click', () => window.ThemeManager.toggle());
     }
+
+    // ── Query History launcher ────────────────────────────────────────────────
+    window.openQueryHistoryWindow = async function () {
+        try {
+            let api = null;
+            if (window.pywebview && window.pywebview.api) {
+                api = window.pywebview.api;
+            } else if (typeof window.waitForPywebview === 'function') {
+                api = await window.waitForPywebview();
+            }
+
+            if (api && typeof api.open_query_history_window === 'function') {
+                const res = await api.open_query_history_window();
+                if (res && res.success) return;
+            }
+
+            // Web mode fallback
+            const resp = await fetch('/api/history/open-window', { method: 'POST' }).catch(() => null);
+            if (!resp || !resp.ok) {
+                window.open('/templates/query_history_window.html', 'QueryHistoryWindow', 'width=1280,height=820,resizable=yes');
+            }
+        } catch (err) {
+            console.error('Failed to open query history window:', err);
+            try {
+                window.open('/templates/query_history_window.html', 'QueryHistoryWindow', 'width=1280,height=820,resizable=yes');
+            } catch (_) {}
+        }
+    };
+
+    const menuHistoryBtn = document.getElementById('ide-menu-query-history');
+    if (menuHistoryBtn) {
+        menuHistoryBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            window.openQueryHistoryWindow();
+        });
+    }
+
+    const actionHistoryBtn = document.getElementById('ide-btn-history');
+    if (actionHistoryBtn) {
+        actionHistoryBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            window.openQueryHistoryWindow();
+        });
+    }
+
+    const overflowHistoryBtn = document.getElementById('ide-overflow-btn-history');
+    if (overflowHistoryBtn) {
+        overflowHistoryBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            window.openQueryHistoryWindow();
+        });
+    }
+
+    // ── Active File History Sidebar Launcher ──────────────────────────────────
+    function handleFileHistoryTrigger() {
+        const activeTabState = (window.AppTabs && typeof window.AppTabs.getActiveTabState === 'function')
+            ? window.AppTabs.getActiveTabState()
+            : null;
+
+        if (!activeTabState || !activeTabState.docId) {
+            // Nếu không có file nào đang mở -> mở cửa sổ log đầy đủ
+            window.openQueryHistoryWindow();
+        } else {
+            // Nếu file đang mở -> bật/tắt side panel xem log của file đó
+            if (window.FileHistorySidebar && typeof window.FileHistorySidebar.toggle === 'function') {
+                window.FileHistorySidebar.toggle();
+            }
+        }
+    }
+
+    const actionFileHistoryBtn = document.getElementById('ide-btn-file-history');
+    if (actionFileHistoryBtn) {
+        actionFileHistoryBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            handleFileHistoryTrigger();
+        });
+    }
+
+    const overflowFileHistoryBtn = document.getElementById('ide-overflow-btn-file-history');
+    if (overflowFileHistoryBtn) {
+        overflowFileHistoryBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            handleFileHistoryTrigger();
+        });
+    }
+
+    async function handleObjectSearchTrigger() {
+        if (window.ObjectContentSearch && typeof window.ObjectContentSearch.openSearchTab === 'function') {
+            const activeTabState = (window.AppTabs && typeof window.AppTabs.getActiveTabState === 'function')
+                ? window.AppTabs.getActiveTabState()
+                : null;
+            let connId = (activeTabState && activeTabState.connectionId) || window.ActiveConnectionId;
+            let connName = (activeTabState && activeTabState.connectionName) || window.ActiveConnectionName;
+            let database = (activeTabState && activeTabState.database) || window.ActiveDatabase;
+            let schema = (activeTabState && activeTabState.schema) || null;
+            let dbType = (activeTabState && activeTabState.dbType) || window.ActiveDbType;
+
+            if (!connId && window.AppExplorer && typeof window.AppExplorer.getActiveConnections === 'function') {
+                const activeList = window.AppExplorer.getActiveConnections() || [];
+                if (activeList.length > 0) {
+                    connId = activeList[0].connection_id;
+                    connName = activeList[0].name || activeList[0].server || 'Server';
+                    dbType = activeList[0].type || 'sqlserver';
+                    database = activeList[0].config?.database || database;
+                }
+            }
+
+            if (!connId) {
+                try {
+                    const res = await fetch('/api/connections');
+                    const data = await res.json();
+                    if (data.success && Array.isArray(data.connections) && data.connections.length > 0) {
+                        connId = data.connections[0].connection_id;
+                        connName = data.connections[0].name || data.connections[0].server || 'Server';
+                        dbType = data.connections[0].type || 'sqlserver';
+                        database = data.connections[0].config?.database || database;
+                    }
+                } catch (_) {}
+            }
+
+            window.ObjectContentSearch.openSearchTab({
+                connectionId: connId,
+                connectionName: connName,
+                database: database,
+                schema: schema,
+                dbType: dbType
+            });
+        }
+    }
+
+    const menuObjSearchBtn = document.getElementById('ide-menu-object-search');
+    if (menuObjSearchBtn) {
+        menuObjSearchBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            handleObjectSearchTrigger();
+        });
+    }
+
+    const actionObjSearchBtn = document.getElementById('ide-btn-object-search');
+    if (actionObjSearchBtn) {
+        actionObjSearchBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            handleObjectSearchTrigger();
+        });
+    }
+
+    const overflowObjSearchBtn = document.getElementById('ide-overflow-btn-object-search');
+    if (overflowObjSearchBtn) {
+        overflowObjSearchBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            handleObjectSearchTrigger();
+        });
+    }
+
+    document.addEventListener('keydown', (e) => {
+        if ((e.ctrlKey || e.metaKey) && e.altKey && e.key.toLowerCase() === 'h') {
+            e.preventDefault();
+            window.openQueryHistoryWindow();
+        } else if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'h') {
+            e.preventDefault();
+            handleFileHistoryTrigger();
+        } else if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'f') {
+            e.preventDefault();
+            handleObjectSearchTrigger();
+        }
+    });
 
     // ── Horizontal resizer (editor ↕ results) ─────────────────────────────────
     const hResizer    = document.querySelector('.ide-resizer-horizontal');
@@ -101,7 +292,17 @@ function initApp() {
             resizer.style.display = '';
         }
 
-        if (resetToDefault || !lastEditorHeight) {
+        // Validate lastEditorHeight: if it leaves less than 120px for panel, discard it
+        let validSavedHeight = false;
+        if (!resetToDefault && lastEditorHeight && typeof lastEditorHeight === 'string' && lastEditorHeight.endsWith('px')) {
+            const savedPx = parseInt(lastEditorHeight, 10);
+            const containerH = (editorPane && editorPane.parentElement) ? editorPane.parentElement.clientHeight : 0;
+            if (savedPx > 80 && (!containerH || savedPx < containerH - 120)) {
+                validSavedHeight = true;
+            }
+        }
+
+        if (resetToDefault || !validSavedHeight) {
             if (editorPane) {
                 editorPane.style.setProperty('flex', '1 1 0%', 'important');
                 editorPane.style.height = '';
@@ -118,6 +319,11 @@ function initApp() {
 
         isResultPanelHidden = false;
 
+        const activeTab = window.AppTabs ? window.AppTabs.getActiveTabState() : null;
+        if (activeTab) {
+            activeTab.isResultPanelHidden = false;
+        }
+
         if (window.AppEditor) {
             window.AppEditor.refresh();
         }
@@ -131,7 +337,8 @@ function initApp() {
         const editorPane = document.getElementById('ide-editor-pane')
             || (resizer ? resizer.previousElementSibling : null);
 
-        if (editorPane && editorPane.style.height && editorPane.style.height !== '100%') {
+        // Only save lastEditorHeight if it is an explicit dragged pixel height, not calc or full screen
+        if (editorPane && editorPane.style.height && editorPane.style.height.endsWith('px') && !editorPane.style.height.includes('calc') && editorPane.style.height !== '100%') {
             lastEditorHeight = editorPane.style.height;
         }
         panel.classList.add('d-none');
@@ -143,6 +350,11 @@ function initApp() {
             editorPane.style.height = 'calc(100% - 25px)';
         }
         isResultPanelHidden = true;
+
+        const activeTab = window.AppTabs ? window.AppTabs.getActiveTabState() : null;
+        if (activeTab) {
+            activeTab.isResultPanelHidden = true;
+        }
 
         if (window.AppEditor) {
             window.AppEditor.refresh();
@@ -168,6 +380,15 @@ function initApp() {
         const isHidden = isResultPanelHidden || panel.classList.contains('d-none') || panel.style.display === 'none';
         if (isHidden) {
             showResultPanel(resetToDefault);
+        } else if (resetToDefault) {
+            // Panel was already visible, but verify it is not squished (e.g. clientHeight < 120px)
+            if (panel.clientHeight < 120) {
+                showResultPanel(true);
+            }
+        }
+        const activeTab = window.AppTabs ? window.AppTabs.getActiveTabState() : null;
+        if (activeTab) {
+            activeTab.isResultPanelHidden = false;
         }
     }
 
@@ -194,44 +415,100 @@ function initApp() {
         }
     }, true);
 
-    // ── Sidebar horizontal resizer ────────────────────────────────────────────
+    // ── Sidebar horizontal resizer & Collapse/Expand Toggle ──────────────────
     const sidebar        = document.getElementById('ide-sidebar');
     const sidebarResizer = document.getElementById('ide-sidebar-resizer');
     const reopenBtn      = document.getElementById('ide-sidebar-reopen');
+    const toggleBtn      = document.getElementById('ide-sidebar-toggle-btn');
 
-    const SIDEBAR_MIN     = 30;
+    const SIDEBAR_MIN     = 44;
     const SIDEBAR_MAX     = 600;
     const SIDEBAR_DEFAULT = 260;
-    const COLLAPSE_THRESH = 30;
+    const COLLAPSE_THRESH = 70;
 
     let sLastWidth = window.AppSession ? window.AppSession.getSidebarWidth(SIDEBAR_DEFAULT) : parseInt(localStorage.getItem('ide-sidebar-width') || SIDEBAR_DEFAULT, 10);
+    if (!sLastWidth || sLastWidth < 120) sLastWidth = SIDEBAR_DEFAULT;
     let sCollapsed = window.AppSession ? window.AppSession.isSidebarCollapsed() : (localStorage.getItem('ide-sidebar-collapsed') === 'true');
     let sDragging  = false;
 
     function setSidebarWidth(w) {
-        if (sidebar) {
+        if (sidebar && !sCollapsed) {
             sidebar.style.width    = w + 'px';
             sidebar.style.minWidth = w + 'px';
+            sidebar.style.maxWidth = '';
         }
-        sLastWidth = w;
+        if (w >= 120) {
+            sLastWidth = w;
+        }
+    }
+
+    function updateToggleButtonIcon() {
+        if (!toggleBtn) return;
+        const icon = toggleBtn.querySelector('i');
+        if (sCollapsed) {
+            if (icon) icon.className = 'fa-solid fa-angles-right';
+            toggleBtn.title = 'Mở rộng Object Explorer';
+        } else {
+            if (icon) icon.className = 'fa-solid fa-angles-left';
+            toggleBtn.title = 'Thu gọn Object Explorer';
+        }
     }
 
     function collapseSidebar() {
         sCollapsed = true;
-        if (sidebar) { sidebar.style.display = 'none'; }
-        if (sidebarResizer) sidebarResizer.style.display = 'none';
-        if (reopenBtn) reopenBtn.classList.remove('d-none');
+        if (sidebar) {
+            sidebar.style.display = '';
+            sidebar.classList.add('collapsed');
+            sidebar.style.width = '44px';
+            sidebar.style.minWidth = '44px';
+            sidebar.style.maxWidth = '44px';
+        }
+        if (sidebarResizer) {
+            sidebarResizer.style.pointerEvents = 'none';
+            sidebarResizer.style.opacity = '0';
+        }
+        if (reopenBtn) reopenBtn.classList.add('d-none');
+        updateToggleButtonIcon();
         if (window.AppSession) window.AppSession.setSidebarCollapsed(true); else localStorage.setItem('ide-sidebar-collapsed', 'true');
+        if (window.AppExplorer && typeof window.AppExplorer.renderCollapsedRail === 'function') {
+            window.AppExplorer.renderCollapsedRail();
+        }
         if (window.AppEditor) window.AppEditor.refresh();
     }
 
     function expandSidebar() {
         sCollapsed = false;
-        if (sidebar) { sidebar.style.display = ''; setSidebarWidth(sLastWidth || SIDEBAR_DEFAULT); }
-        if (sidebarResizer) sidebarResizer.style.display = '';
+        if (sidebar) {
+            sidebar.style.display = '';
+            sidebar.classList.remove('collapsed');
+            sidebar.style.maxWidth = '';
+            setSidebarWidth(sLastWidth || SIDEBAR_DEFAULT);
+        }
+        if (sidebarResizer) {
+            sidebarResizer.style.display = '';
+            sidebarResizer.style.pointerEvents = '';
+            sidebarResizer.style.opacity = '';
+        }
         if (reopenBtn) reopenBtn.classList.add('d-none');
+        updateToggleButtonIcon();
         if (window.AppSession) window.AppSession.setSidebarCollapsed(false); else localStorage.setItem('ide-sidebar-collapsed', 'false');
         if (window.AppEditor) window.AppEditor.refresh();
+    }
+
+    // Expose helpers globally
+    window.collapseSidebar = collapseSidebar;
+    window.expandSidebar   = expandSidebar;
+    window.isSidebarCollapsed = () => sCollapsed;
+
+    if (toggleBtn) {
+        toggleBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (sCollapsed) {
+                expandSidebar();
+            } else {
+                collapseSidebar();
+            }
+        });
     }
 
     // Restore saved state
@@ -239,10 +516,12 @@ function initApp() {
         collapseSidebar();
     } else {
         setSidebarWidth(sLastWidth);
+        updateToggleButtonIcon();
     }
 
     if (sidebarResizer) {
         sidebarResizer.addEventListener('pointerdown', e => {
+            if (sCollapsed) return;
             sDragging = true;
             sidebarResizer.setPointerCapture(e.pointerId);
             sidebarResizer.classList.add('dragging');
@@ -251,7 +530,7 @@ function initApp() {
         });
 
         sidebarResizer.addEventListener('pointermove', e => {
-            if (!sDragging) return;
+            if (!sDragging || sCollapsed) return;
             const mainEl = document.getElementById('ide-main-area');
             const mainRect = mainEl.getBoundingClientRect();
             let newW = e.clientX - mainRect.left;
@@ -260,18 +539,19 @@ function initApp() {
             if (newW <= COLLAPSE_THRESH) {
                 collapseSidebar();
                 sDragging = false;
-                sidebarResizer.releasePointerCapture(e.pointerId);
+                try { sidebarResizer.releasePointerCapture(e.pointerId); } catch (_) {}
                 sidebarResizer.classList.remove('dragging');
                 document.body.style.userSelect = '';
                 document.body.style.cursor = '';
                 return;
             }
 
-            const clamped = Math.max(SIDEBAR_MIN, newW);
+            const clamped = Math.max(120, newW);
             setSidebarWidth(clamped);
         });
 
         sidebarResizer.addEventListener('pointerup', () => {
+            if (!sDragging) return;
             sDragging = false;
             sidebarResizer.classList.remove('dragging');
             document.body.style.userSelect = '';
@@ -285,7 +565,16 @@ function initApp() {
         reopenBtn.addEventListener('click', expandSidebar);
     }
 
-    // ── Notify native backend that IDE UI is fully ready to display ──────────
+    // Ensure all DOM, styles, themes, and Monaco editor have completed paint before dismissing splash
+    requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+            triggerAppReadyNotification();
+        });
+    });
+}
+
+// ── App-Ready Notifier (Triggered after full init & first paint) ─────────────
+function triggerAppReadyNotification() {
     function notifyBackendReady() {
         if (window.pywebview && window.pywebview.api && typeof window.pywebview.api.notify_app_ready === 'function') {
             try {
@@ -298,13 +587,21 @@ function initApp() {
         return false;
     }
 
-    setTimeout(() => {
-        if (!notifyBackendReady()) {
-            window.addEventListener('pywebviewready', () => {
-                notifyBackendReady();
-            }, { once: true });
+    if (notifyBackendReady()) return;
+
+    let attempts = 0;
+    const poll = setInterval(() => {
+        attempts++;
+        if (notifyBackendReady() || attempts >= 100) {
+            clearInterval(poll);
         }
-    }, 150);
+    }, 50);
+
+    window.addEventListener('pywebviewready', () => {
+        if (notifyBackendReady()) {
+            clearInterval(poll);
+        }
+    }, { once: true });
 }
 
 if (document.readyState === 'loading') {

@@ -145,10 +145,15 @@
             }
         }
 
-        // 4. FROM / JOIN / INSERT INTO (e.g. 'FROM ', 'JOIN ', 'INSERT INTO ')
+        // 4. FROM / JOIN / INSERT INTO / UPDATE (e.g. 'FROM ', 'JOIN ', 'INSERT INTO ', 'UPDATE ')
         // Must strictly immediately follow the keyword (NOT after a table name or on a new line)
-        if (['FROM', 'JOIN', 'INTO'].includes(prevTokenUpper)) {
+        if (['FROM', 'JOIN', 'INTO', 'UPDATE', 'TABLE'].includes(prevTokenUpper)) {
             return { kind: 'table', reason: 'from_join_space' };
+        }
+
+        // 5. ON keyword in JOIN clause (e.g. '... JOIN Orders o ON ')
+        if (prevTokenUpper === 'ON' || (context && context.clause === 'ON')) {
+            return { kind: 'join_condition', reason: 'on_space' };
         }
 
         return null;
@@ -370,8 +375,28 @@
                 return { action: DecisionAction.NONE, reason: 'comment_or_string' };
             }
 
-            const insertedText = (changeObj && Array.isArray(changeObj.text)) ? changeObj.text.join('\n') : '';
-            const removedText = (changeObj && Array.isArray(changeObj.removed)) ? changeObj.removed.join('\n') : '';
+            let insertedText = '';
+            let removedText = '';
+            if (changeObj) {
+                if (Array.isArray(changeObj.text)) {
+                    insertedText = changeObj.text.join('\n');
+                } else if (typeof changeObj.text === 'string') {
+                    insertedText = changeObj.text;
+                } else if (Array.isArray(changeObj.changes) && changeObj.changes.length > 0) {
+                    insertedText = changeObj.changes.map(c => c.text || '').join('\n');
+                }
+
+                if (Array.isArray(changeObj.removed)) {
+                    removedText = changeObj.removed.join('\n');
+                } else if (typeof changeObj.removed === 'string') {
+                    removedText = changeObj.removed;
+                } else if (Array.isArray(changeObj.changes) && changeObj.changes.length > 0) {
+                    if (changeObj.changes.some(c => (c.rangeLength || 0) > 0)) {
+                        removedText = 'x';
+                    }
+                }
+            }
+
             const isDeletion = removedText.length > 0 && insertedText.length === 0;
             const currentWord = (context && context.currentWord) || '';
             const triggerChar = (context && context.triggerChar) || '';
@@ -388,6 +413,21 @@
 
             // ── Case A: Completion Popup is VISIBLE ──────────────────────────────
             if (isVisible) {
+                // Section 7, 18: Character Trigger '.' while visible (Qualifier Transition, e.g. typing 'b.')
+                // Must TRIGGER new candidate collection rather than locally filtering previous word's pool!
+                if (insertedText === '.' || triggerChar === '.') {
+                    if (context && context.qualifier && context.qualifier.length > 0) {
+                        this.metrics.triggers++;
+                        this.setState(CompletionState.OPENING, 'character_dot');
+                        return {
+                            action: DecisionAction.TRIGGER,
+                            reason: 'character',
+                            kind: 'column',
+                            token: context.qualifier
+                        };
+                    }
+                }
+
                 if (isDeletion) {
                     // Section 14, 15: Backspace / Delete in active completion
                     if (!currentWord && triggerChar !== '.') {

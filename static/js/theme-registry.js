@@ -242,6 +242,114 @@
             titlebarText: '#ffffff',
             border: '#0d3a58'
         },
+        {
+            id: 'winter-is-coming-dark-blue-dark',
+            name: 'Winter is Coming (Dark Blue) (Dark)',
+            isDark: true,
+            cmTheme: 'darcula',
+            titlebarBg: '#112233',
+            titlebarText: '#eeefff',
+            border: '#219fd544'
+        },
+        {
+            id: 'winter-is-coming-dark-blue---no-italics-dark',
+            name: 'Winter is Coming (Dark Blue - No Italics) (Dark)',
+            isDark: true,
+            cmTheme: 'darcula',
+            titlebarBg: '#112233',
+            titlebarText: '#eeefff',
+            border: '#219fd544'
+        },
+        {
+            id: 'winter-is-coming-light-light',
+            name: 'Winter is Coming (Light) (Light)',
+            isDark: false,
+            cmTheme: 'default',
+            titlebarBg: '#112233',
+            titlebarText: '#eeefff',
+            border: '#e3e3e3'
+        },
+        {
+            id: 'winter-is-coming-light---no-italics-light',
+            name: 'Winter is Coming (Light - No Italics) (Light)',
+            isDark: false,
+            cmTheme: 'default',
+            titlebarBg: '#112233',
+            titlebarText: '#eeefff',
+            border: '#e3e3e3'
+        },
+        {
+            id: 'winter-is-coming-dark-black-dark',
+            name: 'Winter is Coming (Dark Black) (Dark)',
+            isDark: true,
+            cmTheme: 'darcula',
+            titlebarBg: '#112233',
+            titlebarText: '#eeefff',
+            border: '#219fd544'
+        },
+        {
+            id: 'winter-is-coming-dark-black---no-italics-dark',
+            name: 'Winter is Coming (Dark Black - No Italics) (Dark)',
+            isDark: true,
+            cmTheme: 'darcula',
+            titlebarBg: '#112233',
+            titlebarText: '#eeefff',
+            border: '#219fd544'
+        },
+        {
+            id: 'arc-dark',
+            name: 'Arc Dark',
+            isDark: true,
+            cmTheme: 'darcula',
+            titlebarBg: '#2f343f',
+            titlebarText: '#CCC',
+            border: '#0000'
+        },
+        {
+            id: 'adapta-nokto',
+            name: 'Adapta Nokto',
+            isDark: true,
+            cmTheme: 'darcula',
+            titlebarBg: '#222D32',
+            titlebarText: '#ffffff',
+            border: '#3c3f41'
+        },
+        {
+            id: 'united-ubuntu',
+            name: 'United Ubuntu',
+            isDark: true,
+            cmTheme: 'darcula',
+            titlebarBg: '#111111',
+            titlebarText: '#dddddd',
+            border: '#00000000'
+        },
+        {
+            id: 'ambiance-beta',
+            name: 'Ambiance [beta]',
+            isDark: true,
+            cmTheme: 'darcula',
+            titlebarBg: '#111111',
+            titlebarText: '#dddddd',
+            border: '#00000000'
+        },
+        {
+            id: 'dark-jetbrains-color-theme',
+            name: '| Dark | JetBrains New UI Color Theme (Dark)',
+            isDark: true,
+            cmTheme: 'darcula',
+            titlebarBg: '#2b2d30',
+            titlebarText: '#ffffff',
+            border: '#2b2d30'
+        },
+        {
+            id: 'light-jetbrains-color-theme',
+            name: '| Light | JetBrains New UI Color Theme (Light)',
+            isDark: false,
+            cmTheme: 'default',
+            titlebarBg: '#dddddd',
+            titlebarText: '#333333',
+            border: '#ebecf0'
+        },
     ];
 
     function getThemeById(id) {

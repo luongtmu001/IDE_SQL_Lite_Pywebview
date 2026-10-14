@@ -8,27 +8,36 @@
     // 1. SYMBOL & SYMBOL TABLE (Hierarchical Scope Tree)
     // ─────────────────────────────────────────────────────────────────────────────
     class SqlSymbol {
-        constructor({ name, type = 'table', schema = '', database = '', alias = '', columns = [], dataType = '', targetObject = '' }) {
+        constructor({ name, type = 'table', schema = '', database = '', server = '', sourceType = '', alias = '', columns = [], dataType = '', targetObject = '', hasStar = false, underlyingTables = [] }) {
             this.name = name;
-            this.type = type; // 'table', 'view', 'cte', 'subquery', 'temp_table', 'table_variable', 'scalar_variable', 'pseudo_table'
+            this.type = type; // 'table', 'view', 'cte', 'subquery', 'temp_table', 'table_variable', 'scalar_variable', 'pseudo_table', 'remote_table', 'foreign_table'
             this.schema = schema;
             this.database = database;
+            this.server = server;
+            this.sourceType = sourceType || (server ? 'REMOTE_TABLE' : (type === 'foreign_table' ? 'FOREIGN_TABLE' : 'TABLE'));
             this.alias = alias;
             this.columns = columns; // Projected or defined columns
             this.dataType = dataType; // Data type (if scalar variable)
             this.targetObject = targetObject || this.name;
+            this.hasStar = Boolean(hasStar);
+            this.underlyingTables = underlyingTables || [];
         }
 
         toContextObject() {
             return {
                 object: this.targetObject || this.name,
                 table: this.targetObject || this.name,
+                targetObject: this.targetObject || this.name,
                 schema: this.schema,
                 database: this.database || null,
+                server: this.server || null,
+                sourceType: this.sourceType,
                 alias: this.alias || '',
                 type: this.type,
                 columns: this.columns,
-                dataType: this.dataType
+                dataType: this.dataType,
+                hasStar: Boolean(this.hasStar),
+                underlyingTables: this.underlyingTables || []
             };
         }
     }
@@ -129,16 +138,19 @@
             const tables = [];
 
             map.forEach(sym => {
-                if (['table', 'view', 'cte', 'subquery', 'temp_table', 'table_variable', 'pseudo_table'].includes(sym.type)) {
-                    const key = `${(sym.schema || '').toLowerCase()}::${sym.name.toLowerCase()}`;
+                if (['table', 'view', 'cte', 'subquery', 'apply_subquery', 'lateral_subquery', 'table_function', 'temp_table', 'table_variable', 'pseudo_table', 'remote_table', 'foreign_table'].includes(sym.type)) {
+                    const key = `${(sym.server || '').toLowerCase()}::${(sym.database || '').toLowerCase()}::${(sym.schema || '').toLowerCase()}::${sym.name.toLowerCase()}`;
                     if (!seen.has(key)) {
                         seen.add(key);
                         tables.push({
+                            server: sym.server || null,
+                            database: sym.database || null,
                             schema: sym.schema,
                             table: sym.name,
                             targetObject: sym.targetObject || sym.name,
                             alias: sym.alias || '',
                             type: sym.type,
+                            sourceType: sym.sourceType || (sym.server ? 'REMOTE_TABLE' : (sym.type === 'foreign_table' ? 'FOREIGN_TABLE' : 'TABLE')),
                             columns: sym.columns || []
                         });
                     }
@@ -155,8 +167,8 @@
     class AliasResolver {
         constructor() {
             this.nonAliases = new Set([
-                "WHERE", "ON", "JOIN", "INNER", "LEFT", "RIGHT", "FULL", "CROSS",
-                "GROUP", "ORDER", "HAVING", "LIMIT", "UNION", "APPLY", "WITH",
+                "WHERE", "ON", "JOIN", "INNER", "LEFT", "RIGHT", "FULL", "CROSS", "OUTER",
+                "GROUP", "ORDER", "HAVING", "LIMIT", "UNION", "APPLY", "LATERAL", "NATURAL", "WITH",
                 "SELECT", "FROM", "INTO", "SET", "VALUES", "IN", "AND", "OR"
             ]);
         }
@@ -236,9 +248,25 @@
             }
             if (currentItem.length > 0) items.push(currentItem);
 
+            let hasStar = false;
+            const starQualifiers = [];
+
             // Parse each column item
             for (const chunk of items) {
                 if (chunk.length === 0) continue;
+
+                // Check for wildcard: * or alias.* or table.*
+                const starIdx = chunk.findIndex(t => t.value === '*');
+                if (starIdx !== -1) {
+                    hasStar = true;
+                    if (starIdx > 0 && chunk[starIdx - 1].value === '.' && starIdx >= 2) {
+                        const qual = this.cleanIdentifier(chunk[starIdx - 2].value);
+                        if (qual) starQualifiers.push(qual);
+                    } else {
+                        starQualifiers.push('*');
+                    }
+                    continue;
+                }
 
                 let colName = "";
                 let asIdx = -1;
@@ -284,7 +312,107 @@
                 }
             }
 
+            columns.hasStar = hasStar;
+            columns.starQualifiers = starQualifiers;
             return columns;
+        }
+
+        extractSubquerySourceTables(codeTokens, startIndex, endIndex) {
+            if (!codeTokens || startIndex >= endIndex) return [];
+            const tables = [];
+            let parenDepth = 0;
+
+            // Find FROM keyword at depth 0 inside subquery
+            let fromIdx = -1;
+            for (let i = startIndex; i < endIndex; i++) {
+                const tok = codeTokens[i];
+                if (tok.value === '(') parenDepth++;
+                else if (tok.value === ')') {
+                    if (parenDepth > 0) parenDepth--;
+                }
+                if (parenDepth === 0 && (tok.upper || tok.value).toUpperCase() === 'FROM') {
+                    fromIdx = i;
+                    break;
+                }
+            }
+            if (fromIdx === -1) return tables;
+
+            // Scan table references from FROM until WHERE, GROUP, HAVING, ORDER, LIMIT, UNION, ';' at depth 0
+            parenDepth = 0;
+            for (let i = fromIdx; i < endIndex; i++) {
+                const tok = codeTokens[i];
+                if (tok.value === '(') parenDepth++;
+                else if (tok.value === ')') {
+                    if (parenDepth > 0) parenDepth--;
+                }
+
+                if (parenDepth === 0) {
+                    const up = (tok.upper || tok.value).toUpperCase();
+                    if (['WHERE', 'GROUP', 'HAVING', 'ORDER', 'LIMIT', 'UNION', ';'].includes(up)) {
+                        break;
+                    }
+                    if (up === 'FROM' || up === 'JOIN') {
+                        let j = i + 1;
+                        if (j < endIndex && codeTokens[j].value === '(') {
+                            continue; // skip nested subqueries
+                        }
+                        let tableParts = [];
+                        while (j < endIndex) {
+                            const t = codeTokens[j];
+                            const tVal = (t.upper || t.value).toUpperCase();
+                            if (this.nonAliases.has(tVal) || t.value === '(' || t.value === ')' || t.value === ';' || t.value === ',') {
+                                break;
+                            }
+                            if (t.type === 'IDENTIFIER' || t.type === 'PARAMETER' || t.type === 'KEYWORD') {
+                                tableParts.push(this.cleanIdentifier(t.value));
+                                j++;
+                                if (j < endIndex && codeTokens[j].value === '.') {
+                                    j++;
+                                } else {
+                                    break;
+                                }
+                            } else {
+                                break;
+                            }
+                        }
+                        if (tableParts.length > 0) {
+                            let schemaName = "";
+                            let tableName = "";
+                            if (tableParts.length === 1) {
+                                tableName = tableParts[0];
+                            } else if (tableParts.length === 2) {
+                                schemaName = tableParts[0];
+                                tableName = tableParts[1];
+                            } else if (tableParts.length >= 3) {
+                                schemaName = tableParts[tableParts.length - 2];
+                                tableName = tableParts[tableParts.length - 1];
+                            }
+
+                            let aliasName = "";
+                            if (j < endIndex) {
+                                const nextWord = (codeTokens[j].upper || codeTokens[j].value).toUpperCase();
+                                if (nextWord === 'AS') {
+                                    j++;
+                                    if (j < endIndex && codeTokens[j].type === 'IDENTIFIER') {
+                                        aliasName = this.cleanIdentifier(codeTokens[j].value);
+                                    }
+                                } else if (!this.nonAliases.has(nextWord) && codeTokens[j].value !== ')' && codeTokens[j].value !== '(' && codeTokens[j].value !== ';' && codeTokens[j].value !== ',') {
+                                    if (codeTokens[j].type === 'IDENTIFIER') {
+                                        aliasName = this.cleanIdentifier(codeTokens[j].value);
+                                    }
+                                }
+                            }
+
+                            tables.push({
+                                schema: schemaName,
+                                table: tableName,
+                                alias: aliasName
+                            });
+                        }
+                    }
+                }
+            }
+            return tables;
         }
 
         parseColumnDefinitions(codeTokens, openParenIndex, closeParenIndex) {
@@ -519,46 +647,53 @@
                         if (k < codeTokens.length) {
                             const tableName = this.cleanIdentifier(codeTokens[k].value);
                             const isTempTable = isTempKw || tableName.startsWith('#');
-                            if (isTempTable && tableName && !/^#+$/.test(tableName)) {
-                            let openParen = -1;
-                            let asIdx = -1;
-                            for (let m = k + 1; m < codeTokens.length; m++) {
-                                const mUp = (codeTokens[m].upper || codeTokens[m].value).toUpperCase();
-                                if (codeTokens[m].value === '(') { openParen = m; break; }
-                                if (mUp === 'AS') { asIdx = m; break; }
-                                if (codeTokens[m].value === ';') break;
-                            }
-                            let columns = [];
-                            if (openParen !== -1) {
-                                let depth = 1;
-                                let closeParen = -1;
-                                for (let m = openParen + 1; m < codeTokens.length; m++) {
-                                    if (codeTokens[m].value === '(') depth++;
-                                    else if (codeTokens[m].value === ')') {
-                                        depth--;
-                                        if (depth === 0) { closeParen = m; break; }
+                            if (tableName && !/^#+$/.test(tableName)) {
+                                let openParen = -1;
+                                let asIdx = -1;
+                                for (let m = k + 1; m < codeTokens.length; m++) {
+                                    const mUp = (codeTokens[m].upper || codeTokens[m].value).toUpperCase();
+                                    if (codeTokens[m].value === '(') { openParen = m; break; }
+                                    if (mUp === 'AS') { asIdx = m; break; }
+                                    if (codeTokens[m].value === ';') break;
+                                }
+                                let columns = [];
+                                let sourceTables = [];
+                                if (openParen !== -1) {
+                                    let depth = 1;
+                                    let closeParen = -1;
+                                    for (let m = openParen + 1; m < codeTokens.length; m++) {
+                                        if (codeTokens[m].value === '(') depth++;
+                                        else if (codeTokens[m].value === ')') {
+                                            depth--;
+                                            if (depth === 0) { closeParen = m; break; }
+                                        }
                                     }
+                                    if (closeParen !== -1) {
+                                        columns = this.parseColumnDefinitions(codeTokens, openParen, closeParen);
+                                    }
+                                } else if (asIdx !== -1 && asIdx + 1 < codeTokens.length) {
+                                    let stmtEnd = codeTokens.length;
+                                    for (let m = asIdx + 1; m < codeTokens.length; m++) {
+                                        if (codeTokens[m].value === ';') { stmtEnd = m; break; }
+                                    }
+                                    columns = this.parseSelectProjection(codeTokens, asIdx + 1, stmtEnd);
+                                    sourceTables = this.extractSubquerySourceTables(codeTokens, asIdx + 1, stmtEnd);
                                 }
-                                if (closeParen !== -1) {
-                                    columns = this.parseColumnDefinitions(codeTokens, openParen, closeParen);
-                                }
-                            } else if (asIdx !== -1 && asIdx + 1 < codeTokens.length) {
-                                let stmtEnd = codeTokens.length;
-                                for (let m = asIdx + 1; m < codeTokens.length; m++) {
-                                    if (codeTokens[m].value === ';') { stmtEnd = m; break; }
-                                }
-                                columns = this.parseSelectProjection(codeTokens, asIdx + 1, stmtEnd);
+                                const primarySource = sourceTables.length > 0 ? sourceTables[0] : null;
+                                symbolTable.addSymbol(new SqlSymbol({
+                                    name: tableName,
+                                    type: isTempTable ? 'temp_table' : 'table',
+                                    columns: columns,
+                                    displayType: isTempTable ? 'Temp Table' : 'Table',
+                                    hasStar: Boolean(columns.hasStar),
+                                    targetObject: primarySource ? primarySource.table : tableName,
+                                    schema: primarySource ? primarySource.schema : '',
+                                    underlyingTables: sourceTables
+                                }));
                             }
-                            symbolTable.addSymbol(new SqlSymbol({
-                                name: tableName,
-                                type: 'temp_table',
-                                columns: columns,
-                                displayType: 'Temp Table'
-                            }));
                         }
                     }
                 }
-            }
 
                 // 2. SELECT ... INTO #temp / INTO TEMP tbl (SQL Server & Postgres)
                 if (upper === 'INTO') {
@@ -586,11 +721,23 @@
                             if (selectIdx !== -1) {
                                 columns = this.parseSelectProjection(codeTokens, selectIdx, i);
                             }
+                            let sourceTables = [];
+                            let stmtEnd = codeTokens.length;
+                            for (let m = k + 1; m < codeTokens.length; m++) {
+                                if (codeTokens[m].value === ';') { stmtEnd = m; break; }
+                            }
+                            sourceTables = this.extractSubquerySourceTables(codeTokens, k + 1, stmtEnd);
+                            const primarySource = sourceTables.length > 0 ? sourceTables[0] : null;
+
                             symbolTable.addSymbol(new SqlSymbol({
                                 name: tbl,
                                 type: 'temp_table',
                                 columns: columns,
-                                displayType: 'Temp Table'
+                                displayType: 'Temp Table',
+                                hasStar: Boolean(columns.hasStar),
+                                targetObject: primarySource ? primarySource.table : tbl,
+                                schema: primarySource ? primarySource.schema : '',
+                                underlyingTables: sourceTables
                             }));
                         }
                     }
@@ -829,7 +976,11 @@
                             j++;
                             if (j >= codeTokens.length) break;
 
-                            const varUpper = (codeTokens[j].upper || codeTokens[j].value).toUpperCase();
+                            let varUpper = (codeTokens[j].upper || codeTokens[j].value).toUpperCase();
+                            if (varUpper === 'AS' && j + 1 < codeTokens.length && (codeTokens[j + 1].upper || codeTokens[j + 1].value).toUpperCase() === 'TABLE') {
+                                j++;
+                                varUpper = 'TABLE';
+                            }
                             if (varUpper === 'TABLE') {
                                 j++; // skip 'TABLE'
                                 if (j < codeTokens.length && codeTokens[j].value === '(') {
@@ -944,7 +1095,7 @@
                 if (startIdx > 0) {
                     const prevTok = codeTokens[startIdx - 1];
                     const prevUpper = (prevTok.upper || prevTok.value).toUpperCase();
-                    if (prevUpper === 'FROM' || prevUpper === 'JOIN') {
+                    if (prevUpper === 'FROM' || prevUpper === 'JOIN' || prevUpper === 'APPLY' || prevUpper === 'LATERAL') {
                         const endIdx = span.endIndex;
                         let aliasName = "";
                         let nextIdx = endIdx + 1;
@@ -953,18 +1104,79 @@
                             const nextUpper = (codeTokens[nextIdx].upper || codeTokens[nextIdx].value).toUpperCase();
                             if (nextUpper === 'AS' && nextIdx + 1 < codeTokens.length) {
                                 aliasName = this.cleanIdentifier(codeTokens[nextIdx + 1].value);
+                                nextIdx += 2;
                             } else if (!this.nonAliases.has(nextUpper) && codeTokens[nextIdx].type === 'IDENTIFIER') {
                                 aliasName = this.cleanIdentifier(codeTokens[nextIdx].value);
+                                nextIdx += 1;
                             }
                         }
 
                         if (aliasName) {
-                            const cols = this.parseSelectProjection(codeTokens, startIdx + 1, endIdx);
+                            let cols = [];
+                            // Parse explicit column aliases: alias(c1, c2, ...)
+                            if (nextIdx < codeTokens.length && codeTokens[nextIdx].value === '(') {
+                                const openP = nextIdx;
+                                let depth = 1;
+                                let closeP = -1;
+                                for (let p = nextIdx + 1; p < codeTokens.length; p++) {
+                                    if (codeTokens[p].value === '(') depth++;
+                                    else if (codeTokens[p].value === ')') {
+                                        depth--;
+                                        if (depth === 0) { closeP = p; break; }
+                                    }
+                                }
+                                if (closeP > openP) {
+                                    for (let p = openP + 1; p < closeP; p++) {
+                                        const cTok = codeTokens[p];
+                                        const cVal = (cTok.upper || cTok.value).toUpperCase();
+                                        if ((cTok.type === 'IDENTIFIER' || !this.nonAliases.has(cVal)) && cTok.value !== ',') {
+                                            const cName = this.cleanIdentifier(cTok.value);
+                                            if (cName && !cols.some(x => x.name.toLowerCase() === cName.toLowerCase())) {
+                                                cols.push({ name: cName, type: 'column', displayType: 'Column' });
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            if (cols.length === 0) {
+                                cols = this.parseSelectProjection(codeTokens, startIdx + 1, endIdx);
+                            }
+                            const sourceTables = this.extractSubquerySourceTables(codeTokens, startIdx + 1, endIdx);
+                            const primarySourceTable = sourceTables.length > 0 ? sourceTables[0] : null;
+                            const hasStar = Boolean(cols.hasStar);
+
+                            // If subquery has SELECT * or no explicit projection, inherit columns from local scope tables (#temp, @tbl, cte)
+                            if (hasStar || cols.length === 0) {
+                                for (const src of sourceTables) {
+                                    const resolved = symbolTable.resolve(src.table);
+                                    if (resolved && resolved.columns && resolved.columns.length > 0) {
+                                        resolved.columns.forEach(c => {
+                                            const cName = c.name || c;
+                                            if (!cols.some(x => x.name.toLowerCase() === cName.toLowerCase())) {
+                                                cols.push({
+                                                    name: cName,
+                                                    type: 'column',
+                                                    displayType: 'Column',
+                                                    dataType: c.dataType || c.data_type || ''
+                                                });
+                                            }
+                                        });
+                                    }
+                                }
+                            }
+
+                            const isApply = (prevUpper === 'APPLY');
+                            const isLateral = (prevUpper === 'LATERAL');
                             const sym = new SqlSymbol({
                                 name: aliasName,
                                 alias: aliasName,
-                                type: 'subquery',
-                                columns: cols
+                                type: isApply ? 'apply_subquery' : (isLateral ? 'lateral_subquery' : 'subquery'),
+                                displayType: isApply ? 'Apply Subquery' : (isLateral ? 'Lateral Subquery' : 'Subquery'),
+                                columns: cols,
+                                targetObject: primarySourceTable ? primarySourceTable.table : aliasName,
+                                schema: primarySourceTable ? primarySourceTable.schema : '',
+                                hasStar: hasStar,
+                                underlyingTables: sourceTables
                             });
                             symbolTable.addSymbol(sym);
                         }
@@ -978,13 +1190,14 @@
 
             for (let i = 0; i < codeTokens.length; i++) {
                 const upper = (codeTokens[i].upper || codeTokens[i].value).toUpperCase();
-                if (upper === 'FROM' || upper === 'JOIN') {
+                if (upper === 'FROM' || upper === 'JOIN' || upper === 'APPLY' || upper === 'LATERAL') {
                     if (i + 1 >= codeTokens.length) continue;
 
                     let j = i + 1;
                     let tableParts = [];
 
-                    // Collect table reference tokens: [db.][schema.]table
+                    // Collect table reference tokens: [server.][db.][schema.]table
+                    // Or with empty schema: [server.][db.]..table
                     while (j < codeTokens.length) {
                         const tok = codeTokens[j];
                         const tokVal = (tok.upper || tok.value).toUpperCase();
@@ -996,6 +1209,11 @@
                             j++;
                             if (j < codeTokens.length && codeTokens[j].value === '.') {
                                 j++; // skip dot
+                                // Check if followed by another dot: e.g. server.database..table
+                                if (j < codeTokens.length && codeTokens[j].value === '.') {
+                                    tableParts.push(""); // empty schema slot
+                                    j++; // skip second dot
+                                }
                             } else {
                                 break;
                             }
@@ -1006,6 +1224,7 @@
 
                     if (tableParts.length === 0) continue;
 
+                    let serverName = "";
                     let databaseName = "";
                     let schemaName = "";
                     let tableName = "";
@@ -1015,10 +1234,36 @@
                     } else if (tableParts.length === 2) {
                         schemaName = tableParts[0];
                         tableName = tableParts[1];
-                    } else if (tableParts.length >= 3) {
+                    } else if (tableParts.length === 3) {
+                        if (tableParts[1] === "") {
+                            // e.g. database..table or server..table
+                            databaseName = tableParts[0];
+                            schemaName = "dbo";
+                            tableName = tableParts[2];
+                        } else {
+                            databaseName = tableParts[0];
+                            schemaName = tableParts[1];
+                            tableName = tableParts[2];
+                        }
+                    } else if (tableParts.length >= 4) {
+                        // 4-part identifier: server.database.schema.table
+                        serverName = tableParts[tableParts.length - 4];
                         databaseName = tableParts[tableParts.length - 3];
-                        schemaName = tableParts[tableParts.length - 2];
+                        schemaName = tableParts[tableParts.length - 2] || "dbo";
                         tableName = tableParts[tableParts.length - 1];
+                    }
+
+                    // Check if followed by function call arguments: func(...)
+                    let isFunctionCall = false;
+                    if (j < codeTokens.length && codeTokens[j].value === '(') {
+                        isFunctionCall = true;
+                        let depth = 1;
+                        j++;
+                        while (j < codeTokens.length && depth > 0) {
+                            if (codeTokens[j].value === '(') depth++;
+                            else if (codeTokens[j].value === ')') depth--;
+                            j++;
+                        }
                     }
 
                     // Optional alias
@@ -1029,24 +1274,69 @@
                             j++;
                             if (j < codeTokens.length && codeTokens[j].type === 'IDENTIFIER') {
                                 aliasName = this.cleanIdentifier(codeTokens[j].value);
+                                j++;
                             }
                         } else if (!this.nonAliases.has(nextWord) && codeTokens[j].value !== ')' && codeTokens[j].value !== '(' && codeTokens[j].value !== ';' && codeTokens[j].value !== ',') {
                             if (codeTokens[j].type === 'IDENTIFIER') {
                                 aliasName = this.cleanIdentifier(codeTokens[j].value);
+                                j++;
                             }
                         }
                     }
 
-                    let symType = 'table';
-                    if (tableName.startsWith('#')) symType = 'temp_table';
-                    else if (tableName.startsWith('@')) symType = 'table_variable';
+                    // Check for explicit column aliases: alias(c1, c2, ...)
+                    let explicitCols = [];
+                    if (j < codeTokens.length && codeTokens[j].value === '(') {
+                        const colOpen = j;
+                        let colDepth = 1;
+                        let colClose = -1;
+                        for (let p = colOpen + 1; p < codeTokens.length; p++) {
+                            if (codeTokens[p].value === '(') colDepth++;
+                            else if (codeTokens[p].value === ')') {
+                                colDepth--;
+                                if (colDepth === 0) { colClose = p; break; }
+                            }
+                        }
+                        if (colClose > colOpen) {
+                            for (let p = colOpen + 1; p < colClose; p++) {
+                                const cTok = codeTokens[p];
+                                const cVal = (cTok.upper || cTok.value).toUpperCase();
+                                if ((cTok.type === 'IDENTIFIER' || !this.nonAliases.has(cVal)) && cTok.value !== ',') {
+                                    const cName = this.cleanIdentifier(cTok.value);
+                                    if (cName && !explicitCols.some(x => x.name.toLowerCase() === cName.toLowerCase())) {
+                                        explicitCols.push({ name: cName, type: 'column', displayType: 'Column' });
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    let symType = isFunctionCall ? 'table_function' : 'table';
+                    let sourceType = isFunctionCall ? 'FUNCTION' : 'TABLE';
+                    if (serverName) {
+                        symType = 'remote_table';
+                        sourceType = 'REMOTE_TABLE';
+                    } else if (tableName.startsWith('#')) {
+                        symType = 'temp_table';
+                    } else if (tableName.startsWith('@')) {
+                        symType = 'table_variable';
+                    }
 
                     // Check if table references an existing CTE or temp table in scope
                     const existingSym = symbolTable.resolve(tableName);
                     let initialCols = [];
-                    if (existingSym && existingSym.columns && existingSym.columns.length > 0) {
-                        initialCols = [...existingSym.columns];
+                    let targetObj = tableName;
+                    let symUnderlying = [];
+                    let symHasStar = false;
+                    if (existingSym) {
+                        if (existingSym.columns && existingSym.columns.length > 0) {
+                            initialCols = [...existingSym.columns];
+                        }
                         symType = existingSym.type;
+                        sourceType = existingSym.sourceType || sourceType;
+                        if (existingSym.targetObject) targetObj = existingSym.targetObject;
+                        if (existingSym.underlyingTables) symUnderlying = existingSym.underlyingTables;
+                        symHasStar = Boolean(existingSym.hasStar);
                     }
 
                     if (!tableName || /^#+$/.test(tableName) || /^@+$/.test(tableName)) {
@@ -1058,8 +1348,13 @@
                         type: symType,
                         schema: schemaName,
                         database: databaseName,
+                        server: serverName,
+                        sourceType: sourceType,
                         alias: aliasName,
-                        columns: initialCols
+                        columns: initialCols,
+                        targetObject: targetObj,
+                        underlyingTables: symUnderlying,
+                        hasStar: symHasStar
                     });
 
                     symbolTable.addSymbol(sym);
@@ -1105,12 +1400,15 @@
 
         resolve(fullQualifier, currentScope) {
             if (!fullQualifier) return null;
-            const parts = fullQualifier.split('.').map(p => this.aliasResolver.cleanIdentifier(p)).filter(Boolean);
-            if (parts.length === 0) return null;
+            // Split preserving empty components for '..'
+            const rawParts = fullQualifier.split('.');
+            const parts = rawParts.map(p => this.aliasResolver.cleanIdentifier(p));
+            const nonEmptyParts = parts.filter(Boolean);
+            if (nonEmptyParts.length === 0) return null;
 
             // Single qualifier: c. or Customer. or #temp. or @table.
-            if (parts.length === 1) {
-                const target = parts[0];
+            if (parts.length === 1 || nonEmptyParts.length === 1) {
+                const target = nonEmptyParts[0];
                 if (currentScope) {
                     const resolved = currentScope.resolve(target);
                     if (resolved) {
@@ -1118,13 +1416,18 @@
                         const isMaskedByAlias = Boolean(resolved.alias && resolved.alias.toLowerCase() !== target.toLowerCase());
                         return {
                             object: resolved.targetObject || resolved.name,
+                            targetObject: resolved.targetObject || resolved.name,
                             schema: resolved.schema,
                             database: resolved.database,
+                            server: resolved.server || null,
+                            sourceType: resolved.sourceType || (resolved.server ? 'REMOTE_TABLE' : (resolved.type === 'foreign_table' ? 'FOREIGN_TABLE' : 'TABLE')),
                             type: resolved.type,
                             isAlias: isAlias,
                             isMaskedByAlias: isMaskedByAlias,
                             preferredAlias: resolved.alias || '',
-                            columns: resolved.columns || []
+                            columns: resolved.columns || [],
+                            hasStar: Boolean(resolved.hasStar),
+                            underlyingTables: resolved.underlyingTables || []
                         };
                     }
                 }
@@ -1132,6 +1435,8 @@
                     object: target,
                     schema: '',
                     database: null,
+                    server: null,
+                    sourceType: 'TABLE',
                     type: 'table',
                     isAlias: false,
                     columns: []
@@ -1144,18 +1449,36 @@
                     object: parts[1],
                     schema: parts[0],
                     database: null,
+                    server: null,
+                    sourceType: 'TABLE',
                     type: 'table',
                     isAlias: false,
                     columns: []
                 };
             }
 
-            // Three-part qualifier: database.schema.table.
-            if (parts.length >= 3) {
+            // Four-part qualifier: server.database.schema.table.
+            if (parts.length >= 4) {
                 return {
                     object: parts[parts.length - 1],
-                    schema: parts[parts.length - 2],
+                    schema: parts[parts.length - 2] || 'dbo',
                     database: parts[parts.length - 3],
+                    server: parts[parts.length - 4],
+                    sourceType: 'REMOTE_TABLE',
+                    type: 'remote_table',
+                    isAlias: false,
+                    columns: []
+                };
+            }
+
+            // Three-part qualifier: database.schema.table. (or server.database..table)
+            if (parts.length === 3) {
+                return {
+                    object: parts[2],
+                    schema: parts[1] || 'dbo',
+                    database: parts[0],
+                    server: null,
+                    sourceType: 'TABLE',
                     type: 'table',
                     isAlias: false,
                     columns: []

@@ -19,6 +19,10 @@
     --ide-font-sm:                  calc(var(--ide-ui-font-size) * 0.88);
     --ide-font-md:                  var(--ide-ui-font-size);
     --ide-font-lg:                  calc(var(--ide-ui-font-size) * 1.15);
+
+    /* Background alias fallback */
+    --ide-bg-base:                  var(--ide-bg-main, #1C1D23);
+    --ide-bg-header:                var(--ide-bg-toolbar, #202228);
 }
 
 /* ── 1. DARK THEME (Mặc định) ────────────────────────────────────────────────── */
@@ -2151,4 +2155,1021 @@ html[data-bs-theme="cobalt2"] {
     --ide-scroll-track:             #15232D;
     --ide-scroll-thumb:             #0d3a58;
     --ide-scroll-thumb-hover:       #aaaaaa;
+}
+
+/* ── VSIX Imported Theme: Winter is Coming (Dark Blue) (Dark) (winter-is-coming-dark-blue-dark) ────────────────────────── */
+html[data-bs-theme="winter-is-coming-dark-blue-dark"] {
+    --ide-theme-id:                 "winter-is-coming-dark-blue-dark";
+    --ide-theme-name:               "Winter is Coming (Dark Blue) (Dark)";
+    --ide-titlebar-bg:              #112233;
+    --ide-titlebar-text:            #eeefff;
+
+    /* Bootstrap overrides */
+    --bs-body-bg:                   #011627;
+    --bs-body-color:                #a7dbf7;
+    --bs-border-color:              #219fd544;
+    --bs-border-color-translucent:  rgba(120, 120, 120, 0.35);
+    --bs-primary:                   #03648a;
+    --bs-primary-rgb:               3,100,138;
+    --bs-dark:                      #112233;
+    --bs-secondary:                 #219fd5;
+    --bs-link-color:                #03648a;
+    --bs-link-hover-color:          #03648a;
+
+    /* IDE surface layers */
+    --ide-bg-main:                  #011627;
+    --ide-bg-sidebar:               #011627;
+    --ide-bg-toolbar:               #112233;
+    --ide-bg-editor:                #011627;
+    --ide-bg-panel:                 #011627;
+    --ide-bg-result:                #011627;
+    --ide-bg-input:                 #0b253a;
+    --ide-bg-modal:                 #0b2942;
+    --ide-bg-dropdown:              #0b253a;
+    --ide-bg-context-menu:          #0b2942;
+
+    /* Borders */
+    --ide-border:                   #219fd544;
+    --ide-border-active:            #219fd5;
+
+    /* Typography */
+    --ide-text-main:                #a7dbf7;
+    --ide-text-muted:               #219fd5;
+    --ide-text-active:              #a7dbf7;
+    --ide-text-dim:                 #219fd5;
+
+    /* Interactive states */
+    --ide-hover-bg:                 rgba(128, 128, 128, 0.12);
+    --ide-active-bg:                rgba(3,100,138, 0.20);
+    --ide-selection-bg:             rgba(3,100,138, 0.25);
+
+    /* Accent */
+    --ide-accent:                   #03648a;
+    --ide-syntax-keyword:           #03648a;
+    --ide-accent-hover:             #03648a;
+    --ide-accent-subtle:            rgba(3,100,138, 0.15);
+
+    /* Status indicators */
+    --ide-danger:                   #EF5350;
+    --ide-success:                  #6A8759;
+    --ide-warning:                  #ffca28;
+    --ide-info:                     #6897BB;
+
+    /* Tabs */
+    --ide-tab-active-bg:            #0b2942;
+    --ide-tab-inactive-bg:          #010e1a;
+    --ide-tab-active-border:        #03648a;
+
+    /* Result Grid */
+    --ide-grid-header-bg:           #011627;
+    --ide-grid-row-alt:             rgba(128, 128, 128, 0.04);
+    --ide-grid-row-hover:           rgba(128, 128, 128, 0.08);
+
+    /* Action bar & Badges */
+    --ide-action-bar-bg:            #112233;
+    --ide-badge-bg:                 #010e1a;
+    --ide-badge-text:               #a7dbf7;
+    --ide-badge-hover:              #219fd544;
+
+    /* Context menu */
+    --ide-ctx-item-hover:           rgba(3,100,138, 0.18);
+    --ide-ctx-separator:            #219fd544;
+
+    /* Scrollbars */
+    --ide-scroll-track:             #112233;
+    --ide-scroll-thumb:             #219fd544;
+    --ide-scroll-thumb-hover:       #219fd5;
+}
+
+
+/* ── VSIX Imported Theme: Winter is Coming (Dark Blue - No Italics) (Dark) (winter-is-coming-dark-blue---no-italics-dark) ────────────────────────── */
+html[data-bs-theme="winter-is-coming-dark-blue---no-italics-dark"] {
+    --ide-theme-id:                 "winter-is-coming-dark-blue---no-italics-dark";
+    --ide-theme-name:               "Winter is Coming (Dark Blue - No Italics) (Dark)";
+    --ide-titlebar-bg:              #112233;
+    --ide-titlebar-text:            #eeefff;
+
+    /* Bootstrap overrides */
+    --bs-body-bg:                   #011627;
+    --bs-body-color:                #a7dbf7;
+    --bs-border-color:              #219fd544;
+    --bs-border-color-translucent:  rgba(120, 120, 120, 0.35);
+    --bs-primary:                   #03648a;
+    --bs-primary-rgb:               3,100,138;
+    --bs-dark:                      #112233;
+    --bs-secondary:                 #219fd5;
+    --bs-link-color:                #03648a;
+    --bs-link-hover-color:          #03648a;
+
+    /* IDE surface layers */
+    --ide-bg-main:                  #011627;
+    --ide-bg-sidebar:               #011627;
+    --ide-bg-toolbar:               #112233;
+    --ide-bg-editor:                #011627;
+    --ide-bg-panel:                 #011627;
+    --ide-bg-result:                #011627;
+    --ide-bg-input:                 #0b253a;
+    --ide-bg-modal:                 #0b2942;
+    --ide-bg-dropdown:              #0b253a;
+    --ide-bg-context-menu:          #0b2942;
+
+    /* Borders */
+    --ide-border:                   #219fd544;
+    --ide-border-active:            #219fd5;
+
+    /* Typography */
+    --ide-text-main:                #a7dbf7;
+    --ide-text-muted:               #219fd5;
+    --ide-text-active:              #a7dbf7;
+    --ide-text-dim:                 #219fd5;
+
+    /* Interactive states */
+    --ide-hover-bg:                 rgba(128, 128, 128, 0.12);
+    --ide-active-bg:                rgba(3,100,138, 0.20);
+    --ide-selection-bg:             rgba(3,100,138, 0.25);
+
+    /* Accent */
+    --ide-accent:                   #03648a;
+    --ide-syntax-keyword:           #03648a;
+    --ide-accent-hover:             #03648a;
+    --ide-accent-subtle:            rgba(3,100,138, 0.15);
+
+    /* Status indicators */
+    --ide-danger:                   #EF5350;
+    --ide-success:                  #6A8759;
+    --ide-warning:                  #ffca28;
+    --ide-info:                     #6897BB;
+
+    /* Tabs */
+    --ide-tab-active-bg:            #0b2942;
+    --ide-tab-inactive-bg:          #010e1a;
+    --ide-tab-active-border:        #03648a;
+
+    /* Result Grid */
+    --ide-grid-header-bg:           #011627;
+    --ide-grid-row-alt:             rgba(128, 128, 128, 0.04);
+    --ide-grid-row-hover:           rgba(128, 128, 128, 0.08);
+
+    /* Action bar & Badges */
+    --ide-action-bar-bg:            #112233;
+    --ide-badge-bg:                 #010e1a;
+    --ide-badge-text:               #a7dbf7;
+    --ide-badge-hover:              #219fd544;
+
+    /* Context menu */
+    --ide-ctx-item-hover:           rgba(3,100,138, 0.18);
+    --ide-ctx-separator:            #219fd544;
+
+    /* Scrollbars */
+    --ide-scroll-track:             #112233;
+    --ide-scroll-thumb:             #219fd544;
+    --ide-scroll-thumb-hover:       #219fd5;
+}
+
+
+/* ── VSIX Imported Theme: Winter is Coming (Light) (Light) (winter-is-coming-light-light) ────────────────────────── */
+html[data-bs-theme="winter-is-coming-light-light"] {
+    --ide-theme-id:                 "winter-is-coming-light-light";
+    --ide-theme-name:               "Winter is Coming (Light) (Light)";
+    --ide-titlebar-bg:              #112233;
+    --ide-titlebar-text:            #eeefff;
+
+    /* Bootstrap overrides */
+    --bs-body-bg:                   #F3F3F3;
+    --bs-body-color:                #236ebf;
+    --bs-border-color:              #e3e3e3;
+    --bs-border-color-translucent:  rgba(120, 120, 120, 0.35);
+    --bs-primary:                   #03648a;
+    --bs-primary-rgb:               3,100,138;
+    --bs-dark:                      #112233;
+    --bs-secondary:                 #2f86d2;
+    --bs-link-color:                #03648a;
+    --bs-link-hover-color:          #03648a;
+
+    /* IDE surface layers */
+    --ide-bg-main:                  #F3F3F3;
+    --ide-bg-sidebar:               #F3F3F3;
+    --ide-bg-toolbar:               #112233;
+    --ide-bg-editor:                #FFFFFF;
+    --ide-bg-panel:                 #fff;
+    --ide-bg-result:                #FFFFFF;
+    --ide-bg-input:                 #eee;
+    --ide-bg-modal:                 #ddd;
+    --ide-bg-dropdown:              #eee;
+    --ide-bg-context-menu:          #ddd;
+
+    /* Borders */
+    --ide-border:                   #e3e3e3;
+    --ide-border-active:            #2f86d2;
+
+    /* Typography */
+    --ide-text-main:                #236ebf;
+    --ide-text-muted:               #2f86d2;
+    --ide-text-active:              #236ebf;
+    --ide-text-dim:                 #2f86d2;
+
+    /* Interactive states */
+    --ide-hover-bg:                 rgba(128, 128, 128, 0.12);
+    --ide-active-bg:                rgba(3,100,138, 0.20);
+    --ide-selection-bg:             rgba(3,100,138, 0.25);
+
+    /* Accent */
+    --ide-accent:                   #03648a;
+    --ide-syntax-keyword:           #03648a;
+    --ide-accent-hover:             #03648a;
+    --ide-accent-subtle:            rgba(3,100,138, 0.15);
+
+    /* Status indicators */
+    --ide-danger:                   #EF5350;
+    --ide-success:                  #4a7c3f;
+    --ide-warning:                  #E8C859;
+    --ide-info:                     #6897BB;
+
+    /* Tabs */
+    --ide-tab-active-bg:            #FFFFFF;
+    --ide-tab-inactive-bg:          #112233;
+    --ide-tab-active-border:        #03648a;
+
+    /* Result Grid */
+    --ide-grid-header-bg:           #ddd;
+    --ide-grid-row-alt:             rgba(128, 128, 128, 0.04);
+    --ide-grid-row-hover:           rgba(128, 128, 128, 0.08);
+
+    /* Action bar & Badges */
+    --ide-action-bar-bg:            #112233;
+    --ide-badge-bg:                 #112233;
+    --ide-badge-text:               #236ebf;
+    --ide-badge-hover:              #e3e3e3;
+
+    /* Context menu */
+    --ide-ctx-item-hover:           rgba(3,100,138, 0.18);
+    --ide-ctx-separator:            #e3e3e3;
+
+    /* Scrollbars */
+    --ide-scroll-track:             #112233;
+    --ide-scroll-thumb:             #e3e3e3;
+    --ide-scroll-thumb-hover:       #2f86d2;
+}
+
+
+/* ── VSIX Imported Theme: Winter is Coming (Light - No Italics) (Light) (winter-is-coming-light---no-italics-light) ────────────────────────── */
+html[data-bs-theme="winter-is-coming-light---no-italics-light"] {
+    --ide-theme-id:                 "winter-is-coming-light---no-italics-light";
+    --ide-theme-name:               "Winter is Coming (Light - No Italics) (Light)";
+    --ide-titlebar-bg:              #112233;
+    --ide-titlebar-text:            #eeefff;
+
+    /* Bootstrap overrides */
+    --bs-body-bg:                   #F3F3F3;
+    --bs-body-color:                #236ebf;
+    --bs-border-color:              #e3e3e3;
+    --bs-border-color-translucent:  rgba(120, 120, 120, 0.35);
+    --bs-primary:                   #03648a;
+    --bs-primary-rgb:               3,100,138;
+    --bs-dark:                      #112233;
+    --bs-secondary:                 #2f86d2;
+    --bs-link-color:                #03648a;
+    --bs-link-hover-color:          #03648a;
+
+    /* IDE surface layers */
+    --ide-bg-main:                  #F3F3F3;
+    --ide-bg-sidebar:               #F3F3F3;
+    --ide-bg-toolbar:               #112233;
+    --ide-bg-editor:                #FFFFFF;
+    --ide-bg-panel:                 #fff;
+    --ide-bg-result:                #FFFFFF;
+    --ide-bg-input:                 #eee;
+    --ide-bg-modal:                 #ddd;
+    --ide-bg-dropdown:              #eee;
+    --ide-bg-context-menu:          #ddd;
+
+    /* Borders */
+    --ide-border:                   #e3e3e3;
+    --ide-border-active:            #2f86d2;
+
+    /* Typography */
+    --ide-text-main:                #236ebf;
+    --ide-text-muted:               #2f86d2;
+    --ide-text-active:              #236ebf;
+    --ide-text-dim:                 #2f86d2;
+
+    /* Interactive states */
+    --ide-hover-bg:                 rgba(128, 128, 128, 0.12);
+    --ide-active-bg:                rgba(3,100,138, 0.20);
+    --ide-selection-bg:             rgba(3,100,138, 0.25);
+
+    /* Accent */
+    --ide-accent:                   #03648a;
+    --ide-syntax-keyword:           #03648a;
+    --ide-accent-hover:             #03648a;
+    --ide-accent-subtle:            rgba(3,100,138, 0.15);
+
+    /* Status indicators */
+    --ide-danger:                   #EF5350;
+    --ide-success:                  #4a7c3f;
+    --ide-warning:                  #E8C859;
+    --ide-info:                     #6897BB;
+
+    /* Tabs */
+    --ide-tab-active-bg:            #FFFFFF;
+    --ide-tab-inactive-bg:          #112233;
+    --ide-tab-active-border:        #03648a;
+
+    /* Result Grid */
+    --ide-grid-header-bg:           #ddd;
+    --ide-grid-row-alt:             rgba(128, 128, 128, 0.04);
+    --ide-grid-row-hover:           rgba(128, 128, 128, 0.08);
+
+    /* Action bar & Badges */
+    --ide-action-bar-bg:            #112233;
+    --ide-badge-bg:                 #112233;
+    --ide-badge-text:               #236ebf;
+    --ide-badge-hover:              #e3e3e3;
+
+    /* Context menu */
+    --ide-ctx-item-hover:           rgba(3,100,138, 0.18);
+    --ide-ctx-separator:            #e3e3e3;
+
+    /* Scrollbars */
+    --ide-scroll-track:             #112233;
+    --ide-scroll-thumb:             #e3e3e3;
+    --ide-scroll-thumb-hover:       #2f86d2;
+}
+
+
+/* ── VSIX Imported Theme: Winter is Coming (Dark Black) (Dark) (winter-is-coming-dark-black-dark) ────────────────────────── */
+html[data-bs-theme="winter-is-coming-dark-black-dark"] {
+    --ide-theme-id:                 "winter-is-coming-dark-black-dark";
+    --ide-theme-name:               "Winter is Coming (Dark Black) (Dark)";
+    --ide-titlebar-bg:              #112233;
+    --ide-titlebar-text:            #eeefff;
+
+    /* Bootstrap overrides */
+    --bs-body-bg:                   #282822;
+    --bs-body-color:                #a7dbf7;
+    --bs-border-color:              #219fd544;
+    --bs-border-color-translucent:  rgba(120, 120, 120, 0.35);
+    --bs-primary:                   #4f4f4f;
+    --bs-primary-rgb:               79,79,79;
+    --bs-dark:                      #112233;
+    --bs-secondary:                 #219fd5;
+    --bs-link-color:                #4f4f4f;
+    --bs-link-hover-color:          #4f4f4f;
+
+    /* IDE surface layers */
+    --ide-bg-main:                  #282822;
+    --ide-bg-sidebar:               #282822;
+    --ide-bg-toolbar:               #112233;
+    --ide-bg-editor:                #282822;
+    --ide-bg-panel:                 #282822;
+    --ide-bg-result:                #282822;
+    --ide-bg-input:                 #0b253a;
+    --ide-bg-modal:                 #0b2942;
+    --ide-bg-dropdown:              #0b253a;
+    --ide-bg-context-menu:          #0b2942;
+
+    /* Borders */
+    --ide-border:                   #219fd544;
+    --ide-border-active:            #219fd5;
+
+    /* Typography */
+    --ide-text-main:                #a7dbf7;
+    --ide-text-muted:               #219fd5;
+    --ide-text-active:              #a7dbf7;
+    --ide-text-dim:                 #219fd5;
+
+    /* Interactive states */
+    --ide-hover-bg:                 rgba(128, 128, 128, 0.12);
+    --ide-active-bg:                rgba(79,79,79, 0.20);
+    --ide-selection-bg:             rgba(79,79,79, 0.25);
+
+    /* Accent */
+    --ide-accent:                   #4f4f4f;
+    --ide-syntax-keyword:           #4f4f4f;
+    --ide-accent-hover:             #4f4f4f;
+    --ide-accent-subtle:            rgba(79,79,79, 0.15);
+
+    /* Status indicators */
+    --ide-danger:                   #EF5350;
+    --ide-success:                  #6A8759;
+    --ide-warning:                  #ffca28;
+    --ide-info:                     #6897BB;
+
+    /* Tabs */
+    --ide-tab-active-bg:            #0b2942;
+    --ide-tab-inactive-bg:          #010e1a;
+    --ide-tab-active-border:        #4f4f4f;
+
+    /* Result Grid */
+    --ide-grid-header-bg:           #282822;
+    --ide-grid-row-alt:             rgba(128, 128, 128, 0.04);
+    --ide-grid-row-hover:           rgba(128, 128, 128, 0.08);
+
+    /* Action bar & Badges */
+    --ide-action-bar-bg:            #112233;
+    --ide-badge-bg:                 #010e1a;
+    --ide-badge-text:               #a7dbf7;
+    --ide-badge-hover:              #219fd544;
+
+    /* Context menu */
+    --ide-ctx-item-hover:           rgba(79,79,79, 0.18);
+    --ide-ctx-separator:            #219fd544;
+
+    /* Scrollbars */
+    --ide-scroll-track:             #112233;
+    --ide-scroll-thumb:             #219fd544;
+    --ide-scroll-thumb-hover:       #219fd5;
+}
+
+
+/* ── VSIX Imported Theme: Winter is Coming (Dark Black - No Italics) (Dark) (winter-is-coming-dark-black---no-italics-dark) ────────────────────────── */
+html[data-bs-theme="winter-is-coming-dark-black---no-italics-dark"] {
+    --ide-theme-id:                 "winter-is-coming-dark-black---no-italics-dark";
+    --ide-theme-name:               "Winter is Coming (Dark Black - No Italics) (Dark)";
+    --ide-titlebar-bg:              #112233;
+    --ide-titlebar-text:            #eeefff;
+
+    /* Bootstrap overrides */
+    --bs-body-bg:                   #282822;
+    --bs-body-color:                #a7dbf7;
+    --bs-border-color:              #219fd544;
+    --bs-border-color-translucent:  rgba(120, 120, 120, 0.35);
+    --bs-primary:                   #4f4f4f;
+    --bs-primary-rgb:               79,79,79;
+    --bs-dark:                      #112233;
+    --bs-secondary:                 #219fd5;
+    --bs-link-color:                #4f4f4f;
+    --bs-link-hover-color:          #4f4f4f;
+
+    /* IDE surface layers */
+    --ide-bg-main:                  #282822;
+    --ide-bg-sidebar:               #282822;
+    --ide-bg-toolbar:               #112233;
+    --ide-bg-editor:                #282822;
+    --ide-bg-panel:                 #282822;
+    --ide-bg-result:                #282822;
+    --ide-bg-input:                 #0b253a;
+    --ide-bg-modal:                 #0b2942;
+    --ide-bg-dropdown:              #0b253a;
+    --ide-bg-context-menu:          #0b2942;
+
+    /* Borders */
+    --ide-border:                   #219fd544;
+    --ide-border-active:            #219fd5;
+
+    /* Typography */
+    --ide-text-main:                #a7dbf7;
+    --ide-text-muted:               #219fd5;
+    --ide-text-active:              #a7dbf7;
+    --ide-text-dim:                 #219fd5;
+
+    /* Interactive states */
+    --ide-hover-bg:                 rgba(128, 128, 128, 0.12);
+    --ide-active-bg:                rgba(79,79,79, 0.20);
+    --ide-selection-bg:             rgba(79,79,79, 0.25);
+
+    /* Accent */
+    --ide-accent:                   #4f4f4f;
+    --ide-syntax-keyword:           #4f4f4f;
+    --ide-accent-hover:             #4f4f4f;
+    --ide-accent-subtle:            rgba(79,79,79, 0.15);
+
+    /* Status indicators */
+    --ide-danger:                   #EF5350;
+    --ide-success:                  #6A8759;
+    --ide-warning:                  #ffca28;
+    --ide-info:                     #6897BB;
+
+    /* Tabs */
+    --ide-tab-active-bg:            #0b2942;
+    --ide-tab-inactive-bg:          #010e1a;
+    --ide-tab-active-border:        #4f4f4f;
+
+    /* Result Grid */
+    --ide-grid-header-bg:           #282822;
+    --ide-grid-row-alt:             rgba(128, 128, 128, 0.04);
+    --ide-grid-row-hover:           rgba(128, 128, 128, 0.08);
+
+    /* Action bar & Badges */
+    --ide-action-bar-bg:            #112233;
+    --ide-badge-bg:                 #010e1a;
+    --ide-badge-text:               #a7dbf7;
+    --ide-badge-hover:              #219fd544;
+
+    /* Context menu */
+    --ide-ctx-item-hover:           rgba(79,79,79, 0.18);
+    --ide-ctx-separator:            #219fd544;
+
+    /* Scrollbars */
+    --ide-scroll-track:             #112233;
+    --ide-scroll-thumb:             #219fd544;
+    --ide-scroll-thumb-hover:       #219fd5;
+}
+
+/* ── VSIX Imported Theme: Arc Dark (arc-dark) ────────────────────────── */
+html[data-bs-theme="arc-dark"] {
+    --ide-theme-id:                 "arc-dark";
+    --ide-theme-name:               "Arc Dark";
+    --ide-titlebar-bg:              #2f343f;
+    --ide-titlebar-text:            #CCC;
+
+    /* Bootstrap overrides */
+    --bs-body-bg:                   #262b33;
+    --bs-body-color:                #CCC;
+    --bs-border-color:              #0000;
+    --bs-border-color-translucent:  rgba(120, 120, 120, 0.35);
+    --bs-primary:                   #383C4A;
+    --bs-primary-rgb:               56,60,74;
+    --bs-dark:                      #2f343f;
+    --bs-secondary:                 #FFF4;
+    --bs-link-color:                #383C4A;
+    --bs-link-hover-color:          #383C4A;
+
+    /* IDE surface layers */
+    --ide-bg-main:                  #262b33;
+    --ide-bg-sidebar:               #262b33;
+    --ide-bg-toolbar:               #2f343f;
+    --ide-bg-editor:                #2f343f;
+    --ide-bg-panel:                 #2f343f;
+    --ide-bg-result:                #2f343f;
+    --ide-bg-input:                 #393f4c;
+    --ide-bg-modal:                 #2f343f;
+    --ide-bg-dropdown:              #2f343f;
+    --ide-bg-context-menu:          #2f343f;
+
+    /* Borders */
+    --ide-border:                   #0000;
+    --ide-border-active:            #404552;
+
+    /* Typography */
+    --ide-text-main:                #CCC;
+    --ide-text-muted:               #FFF4;
+    --ide-text-active:              #CCC;
+    --ide-text-dim:                 #FFF4;
+
+    /* Interactive states */
+    --ide-hover-bg:                 rgba(128, 128, 128, 0.12);
+    --ide-active-bg:                rgba(56,60,74, 0.20);
+    --ide-selection-bg:             rgba(56,60,74, 0.25);
+
+    /* Accent */
+    --ide-accent:                   #383C4A;
+    --ide-syntax-keyword:           #383C4A;
+    --ide-accent-hover:             #383C4A;
+    --ide-accent-subtle:            rgba(56,60,74, 0.15);
+
+    /* Status indicators */
+    --ide-danger:                   #ff5c5c;
+    --ide-success:                  #6A8759;
+    --ide-warning:                  #E8C859;
+    --ide-info:                     #6897BB;
+
+    /* Tabs */
+    --ide-tab-active-bg:            #0000;
+    --ide-tab-inactive-bg:          #2f343f;
+    --ide-tab-active-border:        #5294E2;
+
+    /* Result Grid */
+    --ide-grid-header-bg:           #262b33;
+    --ide-grid-row-alt:             rgba(128, 128, 128, 0.04);
+    --ide-grid-row-hover:           rgba(128, 128, 128, 0.08);
+
+    /* Action bar & Badges */
+    --ide-action-bar-bg:            #2f343f;
+    --ide-badge-bg:                 #2f343f;
+    --ide-badge-text:               #CCC;
+    --ide-badge-hover:              #0000;
+
+    /* Context menu */
+    --ide-ctx-item-hover:           rgba(56,60,74, 0.18);
+    --ide-ctx-separator:            #0000;
+
+    /* Scrollbars */
+    --ide-scroll-track:             #2f343f;
+    --ide-scroll-thumb:             #0000;
+    --ide-scroll-thumb-hover:       #FFF4;
+}
+
+
+/* ── VSIX Imported Theme: Adapta Nokto (adapta-nokto) ────────────────────────── */
+html[data-bs-theme="adapta-nokto"] {
+    --ide-theme-id:                 "adapta-nokto";
+    --ide-theme-name:               "Adapta Nokto";
+    --ide-titlebar-bg:              #222D32;
+    --ide-titlebar-text:            #ffffff;
+
+    /* Bootstrap overrides */
+    --bs-body-bg:                   #243035;
+    --bs-body-color:                #c7cfcf;
+    --bs-border-color:              #3c3f41;
+    --bs-border-color-translucent:  rgba(120, 120, 120, 0.35);
+    --bs-primary:                   #2D3B42;
+    --bs-primary-rgb:               45,59,66;
+    --bs-dark:                      #222D32;
+    --bs-secondary:                 #848c94;
+    --bs-link-color:                #2D3B42;
+    --bs-link-hover-color:          #2D3B42;
+
+    /* IDE surface layers */
+    --ide-bg-main:                  #243035;
+    --ide-bg-sidebar:               #243035;
+    --ide-bg-toolbar:               #222D32;
+    --ide-bg-editor:                #29353b;
+    --ide-bg-panel:                 #29353b;
+    --ide-bg-result:                #29353b;
+    --ide-bg-input:                 #243035;
+    --ide-bg-modal:                 #29353b;
+    --ide-bg-dropdown:              #29353b;
+    --ide-bg-context-menu:          #29353b;
+
+    /* Borders */
+    --ide-border:                   #3c3f41;
+    --ide-border-active:            #0005;
+
+    /* Typography */
+    --ide-text-main:                #c7cfcf;
+    --ide-text-muted:               #848c94;
+    --ide-text-active:              #ffffff;
+    --ide-text-dim:                 #848c94;
+
+    /* Interactive states */
+    --ide-hover-bg:                 rgba(128, 128, 128, 0.12);
+    --ide-active-bg:                rgba(45,59,66, 0.20);
+    --ide-selection-bg:             rgba(45,59,66, 0.25);
+
+    /* Accent */
+    --ide-accent:                   #2D3B42;
+    --ide-syntax-keyword:           #2D3B42;
+    --ide-accent-hover:             #2D3B42;
+    --ide-accent-subtle:            rgba(45,59,66, 0.15);
+
+    /* Status indicators */
+    --ide-danger:                   #ff5c5c;
+    --ide-success:                  #6A8759;
+    --ide-warning:                  #E8C859;
+    --ide-info:                     #6897BB;
+
+    /* Tabs */
+    --ide-tab-active-bg:            #29353b;
+    --ide-tab-inactive-bg:          #222D32;
+    --ide-tab-active-border:        #2D3B42;
+
+    /* Result Grid */
+    --ide-grid-header-bg:           #222D32;
+    --ide-grid-row-alt:             rgba(128, 128, 128, 0.04);
+    --ide-grid-row-hover:           rgba(128, 128, 128, 0.08);
+
+    /* Action bar & Badges */
+    --ide-action-bar-bg:            #222D32;
+    --ide-badge-bg:                 #222D32;
+    --ide-badge-text:               #c7cfcf;
+    --ide-badge-hover:              #3c3f41;
+
+    /* Context menu */
+    --ide-ctx-item-hover:           rgba(45,59,66, 0.18);
+    --ide-ctx-separator:            #3c3f41;
+
+    /* Scrollbars */
+    --ide-scroll-track:             #222D32;
+    --ide-scroll-thumb:             #3c3f41;
+    --ide-scroll-thumb-hover:       #848c94;
+}
+
+
+/* ── VSIX Imported Theme: United Ubuntu (united-ubuntu) ────────────────────────── */
+html[data-bs-theme="united-ubuntu"] {
+    --ide-theme-id:                 "united-ubuntu";
+    --ide-theme-name:               "United Ubuntu";
+    --ide-titlebar-bg:              #111111;
+    --ide-titlebar-text:            #dddddd;
+
+    /* Bootstrap overrides */
+    --bs-body-bg:                   #242424;
+    --bs-body-color:                #dddddd;
+    --bs-border-color:              #00000000;
+    --bs-border-color-translucent:  rgba(120, 120, 120, 0.35);
+    --bs-primary:                   #48b258;
+    --bs-primary-rgb:               72,178,88;
+    --bs-dark:                      #111111;
+    --bs-secondary:                 #848c94;
+    --bs-link-color:                #48b258;
+    --bs-link-hover-color:          #48b258;
+
+    /* IDE surface layers */
+    --ide-bg-main:                  #242424;
+    --ide-bg-sidebar:               #242424;
+    --ide-bg-toolbar:               #111111;
+    --ide-bg-editor:                #1e1e1e;
+    --ide-bg-panel:                 #1e1e1e;
+    --ide-bg-result:                #1e1e1e;
+    --ide-bg-input:                 #242424;
+    --ide-bg-modal:                 #242424;
+    --ide-bg-dropdown:              #242424;
+    --ide-bg-context-menu:          #242424;
+
+    /* Borders */
+    --ide-border:                   #00000000;
+    --ide-border-active:            #48b258;
+
+    /* Typography */
+    --ide-text-main:                #dddddd;
+    --ide-text-muted:               #848c94;
+    --ide-text-active:              #dddddd;
+    --ide-text-dim:                 #848c94;
+
+    /* Interactive states */
+    --ide-hover-bg:                 rgba(128, 128, 128, 0.12);
+    --ide-active-bg:                rgba(72,178,88, 0.20);
+    --ide-selection-bg:             rgba(72,178,88, 0.25);
+
+    /* Accent */
+    --ide-accent:                   #48b258;
+    --ide-syntax-keyword:           #48b258;
+    --ide-accent-hover:             #48b258;
+    --ide-accent-subtle:            rgba(72,178,88, 0.15);
+
+    /* Status indicators */
+    --ide-danger:                   #ff5c5c;
+    --ide-success:                  #6A8759;
+    --ide-warning:                  #E8C859;
+    --ide-info:                     #6897BB;
+
+    /* Tabs */
+    --ide-tab-active-bg:            #1e1e1e;
+    --ide-tab-inactive-bg:          #181818;
+    --ide-tab-active-border:        #48b258;
+
+    /* Result Grid */
+    --ide-grid-header-bg:           #242424;
+    --ide-grid-row-alt:             rgba(128, 128, 128, 0.04);
+    --ide-grid-row-hover:           rgba(128, 128, 128, 0.08);
+
+    /* Action bar & Badges */
+    --ide-action-bar-bg:            #111111;
+    --ide-badge-bg:                 #181818;
+    --ide-badge-text:               #dddddd;
+    --ide-badge-hover:              #00000000;
+
+    /* Context menu */
+    --ide-ctx-item-hover:           rgba(72,178,88, 0.18);
+    --ide-ctx-separator:            #00000000;
+
+    /* Scrollbars */
+    --ide-scroll-track:             #111111;
+    --ide-scroll-thumb:             #00000000;
+    --ide-scroll-thumb-hover:       #848c94;
+}
+
+
+/* ── VSIX Imported Theme: Ambiance [beta] (ambiance-beta) ────────────────────────── */
+html[data-bs-theme="ambiance-beta"] {
+    --ide-theme-id:                 "ambiance-beta";
+    --ide-theme-name:               "Ambiance [beta]";
+    --ide-titlebar-bg:              #111111;
+    --ide-titlebar-text:            #dddddd;
+
+    /* Bootstrap overrides */
+    --bs-body-bg:                   #373633;
+    --bs-body-color:                #dddddd;
+    --bs-border-color:              #00000000;
+    --bs-border-color-translucent:  rgba(120, 120, 120, 0.35);
+    --bs-primary:                   #ec6a3f;
+    --bs-primary-rgb:               236,106,63;
+    --bs-dark:                      #111111;
+    --bs-secondary:                 #848c94;
+    --bs-link-color:                #ec6a3f;
+    --bs-link-hover-color:          #ec6a3f;
+
+    /* IDE surface layers */
+    --ide-bg-main:                  #373633;
+    --ide-bg-sidebar:               #373633;
+    --ide-bg-toolbar:               #111111;
+    --ide-bg-editor:                #31312e;
+    --ide-bg-panel:                 #31312e;
+    --ide-bg-result:                #31312e;
+    --ide-bg-input:                 #2d2c2a;
+    --ide-bg-modal:                 #373633;
+    --ide-bg-dropdown:              #2d2c2a;
+    --ide-bg-context-menu:          #373633;
+
+    /* Borders */
+    --ide-border:                   #00000000;
+    --ide-border-active:            #ec6a3f;
+
+    /* Typography */
+    --ide-text-main:                #dddddd;
+    --ide-text-muted:               #848c94;
+    --ide-text-active:              #dddddd;
+    --ide-text-dim:                 #848c94;
+
+    /* Interactive states */
+    --ide-hover-bg:                 rgba(128, 128, 128, 0.12);
+    --ide-active-bg:                rgba(236,106,63, 0.20);
+    --ide-selection-bg:             rgba(236,106,63, 0.25);
+
+    /* Accent */
+    --ide-accent:                   #ec6a3f;
+    --ide-syntax-keyword:           #ec6a3f;
+    --ide-accent-hover:             #ec6a3f;
+    --ide-accent-subtle:            rgba(236,106,63, 0.15);
+
+    /* Status indicators */
+    --ide-danger:                   #ff5c5c;
+    --ide-success:                  #6A8759;
+    --ide-warning:                  #E8C859;
+    --ide-info:                     #6897BB;
+
+    /* Tabs */
+    --ide-tab-active-bg:            #31312e;
+    --ide-tab-inactive-bg:          #373633;
+    --ide-tab-active-border:        #ec6a3f;
+
+    /* Result Grid */
+    --ide-grid-header-bg:           #3c3b37;
+    --ide-grid-row-alt:             rgba(128, 128, 128, 0.04);
+    --ide-grid-row-hover:           rgba(128, 128, 128, 0.08);
+
+    /* Action bar & Badges */
+    --ide-action-bar-bg:            #111111;
+    --ide-badge-bg:                 #373633;
+    --ide-badge-text:               #dddddd;
+    --ide-badge-hover:              #00000000;
+
+    /* Context menu */
+    --ide-ctx-item-hover:           rgba(236,106,63, 0.18);
+    --ide-ctx-separator:            #00000000;
+
+    /* Scrollbars */
+    --ide-scroll-track:             #111111;
+    --ide-scroll-thumb:             #00000000;
+    --ide-scroll-thumb-hover:       #848c94;
+}
+
+/* ── VSIX Imported Theme: | Dark | JetBrains New UI Color Theme (Dark) (dark-jetbrains-color-theme) ────────────────────────── */
+html[data-bs-theme="dark-jetbrains-color-theme"] {
+    --ide-theme-id:                 "dark-jetbrains-color-theme";
+    --ide-theme-name:               "| Dark | JetBrains New UI Color Theme (Dark)";
+    --ide-titlebar-bg:              #2b2d30;
+    --ide-titlebar-text:            #ffffff;
+
+    /* Bootstrap overrides */
+    --bs-body-bg:                   #2b2d30;
+    --bs-body-color:                #c7cfcf;
+    --bs-border-color:              #2b2d30;
+    --bs-border-color-translucent:  rgba(120, 120, 120, 0.35);
+    --bs-primary:                   #3574f0;
+    --bs-primary-rgb:               53,116,240;
+    --bs-dark:                      #2b2d30;
+    --bs-secondary:                 #444953;
+    --bs-link-color:                #3574f0;
+    --bs-link-hover-color:          #3574f0;
+
+    /* IDE surface layers */
+    --ide-bg-main:                  #2b2d30;
+    --ide-bg-sidebar:               #2b2d30;
+    --ide-bg-toolbar:               #2b2d30;
+    --ide-bg-editor:                #1e1f22;
+    --ide-bg-panel:                 #2b2d30;
+    --ide-bg-result:                #1e1f22;
+    --ide-bg-input:                 #45494A;
+    --ide-bg-modal:                 #313335;
+    --ide-bg-dropdown:              #313335;
+    --ide-bg-context-menu:          #2b2d30;
+
+    /* Borders */
+    --ide-border:                   #2b2d30;
+    --ide-border-active:            #3574f0;
+
+    /* Typography */
+    --ide-text-main:                #c7cfcf;
+    --ide-text-muted:               #444953;
+    --ide-text-active:              #ffffff;
+    --ide-text-dim:                 #444953;
+
+    /* Interactive states */
+    --ide-hover-bg:                 rgba(128, 128, 128, 0.12);
+    --ide-active-bg:                rgba(53,116,240, 0.20);
+    --ide-selection-bg:             rgba(53,116,240, 0.25);
+
+    /* Accent */
+    --ide-accent:                   #3574f0;
+    --ide-syntax-keyword:           #3574f0;
+    --ide-accent-hover:             #3574f0;
+    --ide-accent-subtle:            rgba(53,116,240, 0.15);
+
+    /* Status indicators */
+    --ide-danger:                   #c45464;
+    --ide-success:                  #6A8759;
+    --ide-warning:                  #BA9752;
+    --ide-info:                     #3592C4;
+
+    /* Tabs */
+    --ide-tab-active-bg:            #1e1f22;
+    --ide-tab-inactive-bg:          #1e1f22;
+    --ide-tab-active-border:        #3574f0;
+
+    /* Result Grid */
+    --ide-grid-header-bg:           #43454a;
+    --ide-grid-row-alt:             rgba(128, 128, 128, 0.04);
+    --ide-grid-row-hover:           rgba(128, 128, 128, 0.08);
+
+    /* Action bar & Badges */
+    --ide-action-bar-bg:            #2b2d30;
+    --ide-badge-bg:                 #1e1f22;
+    --ide-badge-text:               #c7cfcf;
+    --ide-badge-hover:              #2b2d30;
+
+    /* Context menu */
+    --ide-ctx-item-hover:           rgba(53,116,240, 0.18);
+    --ide-ctx-separator:            #2b2d30;
+
+    /* Scrollbars */
+    --ide-scroll-track:             #2b2d30;
+    --ide-scroll-thumb:             #2b2d30;
+    --ide-scroll-thumb-hover:       #444953;
+}
+
+
+/* ── VSIX Imported Theme: | Light | JetBrains New UI Color Theme (Light) (light-jetbrains-color-theme) ────────────────────────── */
+html[data-bs-theme="light-jetbrains-color-theme"] {
+    --ide-theme-id:                 "light-jetbrains-color-theme";
+    --ide-theme-name:               "| Light | JetBrains New UI Color Theme (Light)";
+    --ide-titlebar-bg:              #dddddd;
+    --ide-titlebar-text:            #333333;
+
+    /* Bootstrap overrides */
+    --bs-body-bg:                   #f7f8fa;
+    --bs-body-color:                #000000;
+    --bs-border-color:              #ebecf0;
+    --bs-border-color-translucent:  rgba(120, 120, 120, 0.35);
+    --bs-primary:                   #3574f0;
+    --bs-primary-rgb:               53,116,240;
+    --bs-dark:                      #dddddd;
+    --bs-secondary:                 #aeb3c2;
+    --bs-link-color:                #3574f0;
+    --bs-link-hover-color:          #3574f0;
+
+    /* IDE surface layers */
+    --ide-bg-main:                  #f7f8fa;
+    --ide-bg-sidebar:               #f7f8fa;
+    --ide-bg-toolbar:               #dddddd;
+    --ide-bg-editor:                #ffffff;
+    --ide-bg-panel:                 #ffffff;
+    --ide-bg-result:                #ffffff;
+    --ide-bg-input:                 #ffffff;
+    --ide-bg-modal:                 #f3f3f3;
+    --ide-bg-dropdown:              #ffffff;
+    --ide-bg-context-menu:          #ffffff;
+
+    /* Borders */
+    --ide-border:                   #ebecf0;
+    --ide-border-active:            #3574f0;
+
+    /* Typography */
+    --ide-text-main:                #000000;
+    --ide-text-muted:               #aeb3c2;
+    --ide-text-active:              #000000;
+    --ide-text-dim:                 #aeb3c2;
+
+    /* Interactive states */
+    --ide-hover-bg:                 rgba(128, 128, 128, 0.12);
+    --ide-active-bg:                rgba(53,116,240, 0.20);
+    --ide-selection-bg:             rgba(53,116,240, 0.25);
+
+    /* Accent */
+    --ide-accent:                   #3574f0;
+    --ide-syntax-keyword:           #3574f0;
+    --ide-accent-hover:             #3574f0;
+    --ide-accent-subtle:            rgba(53,116,240, 0.15);
+
+    /* Status indicators */
+    --ide-danger:                   #da4337;
+    --ide-success:                  #4a7c3f;
+    --ide-warning:                  #e9a700;
+    --ide-info:                     #75beff;
+
+    /* Tabs */
+    --ide-tab-active-bg:            #ffffff;
+    --ide-tab-inactive-bg:          #ececec;
+    --ide-tab-active-border:        #00000000;
+
+    /* Result Grid */
+    --ide-grid-header-bg:           #e8e8e8;
+    --ide-grid-row-alt:             rgba(128, 128, 128, 0.04);
+    --ide-grid-row-hover:           rgba(128, 128, 128, 0.08);
+
+    /* Action bar & Badges */
+    --ide-action-bar-bg:            #dddddd;
+    --ide-badge-bg:                 #ececec;
+    --ide-badge-text:               #000000;
+    --ide-badge-hover:              #ebecf0;
+
+    /* Context menu */
+    --ide-ctx-item-hover:           rgba(53,116,240, 0.18);
+    --ide-ctx-separator:            #ebecf0;
+
+    /* Scrollbars */
+    --ide-scroll-track:             #dddddd;
+    --ide-scroll-thumb:             #ebecf0;
+    --ide-scroll-thumb-hover:       #aeb3c2;
 }

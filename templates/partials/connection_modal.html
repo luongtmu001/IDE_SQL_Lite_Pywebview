@@ -25,6 +25,26 @@
                         <input type="text" class="form-control form-control-sm" id="connName" placeholder="e.g. Dev Server" autocomplete="off">
                     </div>
 
+                    <div class="row g-2 mb-2">
+                        <div class="col-7">
+                            <label class="ide-form-label">Môi trường (Environment)</label>
+                            <select class="form-select form-select-sm" id="connEnvironment">
+                                <option value="">(Không gắn nhãn)</option>
+                                <option value="dev">Dev (Phát triển)</option>
+                                <option value="test">Test (Kiểm thử)</option>
+                                <option value="prod">Prod (Production - Đỏ)</option>
+                            </select>
+                        </div>
+                        <div class="col-5 d-flex align-items-end mb-1">
+                            <div class="form-check">
+                                <input type="checkbox" class="form-check-input" id="connReadOnly">
+                                <label class="form-check-label text-warning" for="connReadOnly" style="font-size: 11px; font-weight: 600;" title="Chặn tất cả các lệnh ghi (INSERT, UPDATE, DELETE, DDL)">
+                                    <i class="fa-solid fa-lock me-1"></i>Chỉ đọc
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="mb-2">
                         <label class="ide-form-label">Database Type</label>
                         <select class="form-select form-select-sm" id="connType">

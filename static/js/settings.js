@@ -53,6 +53,20 @@
     // Prefetch system fonts immediately on load
     fetchSystemFonts();
 
+    // Fast synchronous restore for Grid Typography from cached settings
+    try {
+        const cachedSettingsStr = localStorage.getItem('ide-settings');
+        if (cachedSettingsStr) {
+            const cachedSettings = JSON.parse(cachedSettingsStr);
+            if (cachedSettings && cachedSettings.grid) {
+                const fam = cachedSettings.grid.fontFamily || 'Segoe UI, Arial, sans-serif';
+                const sz = parseInt(cachedSettings.grid.fontSize, 10) || 13;
+                document.documentElement.style.setProperty('--ide-grid-font-family', fam);
+                document.documentElement.style.setProperty('--ide-grid-font-size', `${sz}px`);
+            }
+        }
+    } catch (_) {}
+
     const FONT_OPTIONS_CODE = [
         { value: 'Consolas', label: 'Consolas (Mặc định)' },
         { value: 'JetBrains Mono', label: 'JetBrains Mono' },
@@ -177,6 +191,25 @@
                         { value: 'lower', label: 'viết thường (lowercase)' },
                         { value: 'preserve', label: 'Giữ nguyên (Preserve)' }
                     ]
+                },
+                {
+                    key: 'syntaxCheck',
+                    label: 'Kiểm tra cú pháp SQL (SQL Syntax Check)',
+                    desc: 'Biến cấu hình: editor.syntaxCheck. Tự động kiểm tra cú pháp câu lệnh SQL và hiển thị cảnh báo lỗi trực tiếp trên Monaco Editor.',
+                    type: 'switch'
+                },
+                {
+                    key: 'codeStylesManager',
+                    label: 'Quản lý Định dạng Mã SQL (SQL Code Styles)',
+                    desc: 'Cấu hình chi tiết kiểu dáng thụt lề, dấu phẩy, mệnh đề JOIN, WHERE, CASE cho formatter.',
+                    type: 'action-button',
+                    icon: 'fa-solid fa-sliders',
+                    buttonText: 'Mở Quản lý SQL Code Styles...',
+                    onClick: () => {
+                        if (window.SqlStyleManager && typeof window.SqlStyleManager.open === 'function') {
+                            window.SqlStyleManager.open();
+                        }
+                    }
                 }
             ]
         },
@@ -310,6 +343,12 @@
                         { value: 1, label: '1 - Bật bảo vệ (Cảnh báo trước khi thực thi)' },
                         { value: 0, label: '0 - Tắt bảo vệ (Không cảnh báo)' }
                     ]
+                },
+                {
+                    key: 'stopOnError',
+                    label: 'Dừng khi gặp lỗi (Stop on Error)',
+                    desc: 'Biến cấu hình: sql.stopOnError. Tự động dừng thực thi các câu lệnh tiếp theo trong script nếu câu lệnh trước xảy ra lỗi.',
+                    type: 'switch'
                 }
             ]
         },
@@ -326,6 +365,138 @@
                     type: 'switch'
                 }
             ]
+        },
+        {
+            key: 'history',
+            name: 'Lịch sử truy vấn',
+            subtitle: 'Query History',
+            icon: 'fa-solid fa-clock-rotate-left',
+            fields: [
+                {
+                    key: 'enabled',
+                    label: 'Ghi nhật ký lịch sử truy vấn (History Logging)',
+                    desc: 'Biến cấu hình: history.enabled. Tự động ghi nhật ký lịch sử thực thi SQL khi nhấn F5 (hỗ trợ phục hồi, so sánh, xem lại).',
+                    type: 'switch'
+                },
+                {
+                    key: 'maxEntriesPerDoc',
+                    label: 'Số lần chạy tối đa trên mỗi tài liệu (Max Entries Per Document)',
+                    desc: 'Biến cấu hình: history.maxEntriesPerDoc. Giới hạn số bản ghi lịch sử lưu trữ cho mỗi file hoặc tab truy vấn. Mặc định: 200.',
+                    type: 'number',
+                    min: 10,
+                    max: 2000,
+                    step: 10
+                },
+                {
+                    key: 'maxAgeDays',
+                    label: 'Thời gian lưu trữ tối đa (Max Age in Days)',
+                    desc: 'Biến cấu hình: history.maxAgeDays. Thời gian lưu trữ các bản ghi lịch sử (ngày). Các bản ghi cũ hơn sẽ tự động được dọn dẹp. Mặc định: 90 ngày.',
+                    type: 'number',
+                    min: 1,
+                    max: 730,
+                    step: 1
+                },
+                {
+                    key: 'maxDbSizeMb',
+                    label: 'Giới hạn dung lượng tối đa DB (Max Database Size in MB)',
+                    desc: 'Biến cấu hình: history.maxDbSizeMb. Ngưỡng dung lượng tối đa cho file lưu trữ SQLite (MB). Khi vượt ngưỡng, hệ thống tự động dọn các bản ghi cũ nhất của các tài liệu không được ghim sao (⭐). Mặc định: 500 MB.',
+                    type: 'number',
+                    min: 50,
+                    max: 5000,
+                    step: 50
+                },
+                {
+                    key: 'maxEntrySizeKb',
+                    label: 'Giới hạn kích thước 1 câu truy vấn (Max Entry Size in KB)',
+                    desc: 'Biến cấu hình: history.maxEntrySizeKb. Giới hạn kích thước câu lệnh SQL để ghi lưu trữ đầy đủ (KB). Câu lệnh vượt quá sẽ lưu phần đầu kèm cờ IsTruncated. Mặc định: 1024 KB (1 MB).',
+                    type: 'number',
+                    min: 64,
+                    max: 10240,
+                    step: 64
+                },
+                {
+                    key: 'storageManagement',
+                    type: 'custom',
+                    render: renderHistoryStorageManagement
+                }
+            ]
+        },
+        {
+            key: 'logging',
+            name: 'Nhật ký hệ thống',
+            subtitle: 'System & Error Logs',
+            icon: 'fa-solid fa-file-waveform',
+            fields: [
+                {
+                    key: 'enabled',
+                    label: 'Ghi nhật ký ra file (Enable File Logging)',
+                    desc: 'Biến cấu hình: logging.enabled. Tự động ghi nhật ký hoạt động và lỗi của ứng dụng ra file xoay vòng (app.log).',
+                    type: 'switch'
+                },
+                {
+                    key: 'level',
+                    label: 'Mức độ chi tiết nhật ký (Log Level)',
+                    desc: 'Biến cấu hình: logging.level. Cấp độ ghi nhật ký: DEBUG (chi tiết nhất), INFO (chuẩn hoạt động), WARNING (cảnh báo), ERROR (chỉ lỗi).',
+                    type: 'select',
+                    options: [
+                        { value: 'DEBUG', label: 'DEBUG - Chi tiết kiểm thử và chuẩn đoán' },
+                        { value: 'INFO', label: 'INFO - Hoạt động tiêu chuẩn (Khuyến nghị)' },
+                        { value: 'WARNING', label: 'WARNING - Chỉ cảnh báo và lỗi' },
+                        { value: 'ERROR', label: 'ERROR - Chỉ ghi nhận lỗi nghiêm trọng' }
+                    ]
+                },
+                {
+                    key: 'maxFileSizeMb',
+                    label: 'Dung lượng tối đa mỗi file log (Max File Size in MB)',
+                    desc: 'Biến cấu hình: logging.maxFileSizeMb. Khi file đạt giới hạn này, hệ thống tự động xoay vòng sang file log mới. Mặc định: 2 MB.',
+                    type: 'number',
+                    min: 1,
+                    max: 50,
+                    step: 1
+                },
+                {
+                    key: 'maxFiles',
+                    label: 'Số file xoay vòng tối đa (Max Backup Files)',
+                    desc: 'Biến cấu hình: logging.maxFiles. Số file log cũ được giữ lại trước khi ghi đè file cũ nhất. Mặc định: 5 files.',
+                    type: 'number',
+                    min: 1,
+                    max: 20,
+                    step: 1
+                },
+                {
+                    key: 'openLogFolderBtn',
+                    label: 'Mở thư mục nhật ký (Open Log Folder)',
+                    desc: 'Mở thư mục chứa các file app.log trên máy tính bằng File Explorer để xem trực tiếp hoặc gửi hỗ trợ kỹ thuật.',
+                    type: 'action-button',
+                    icon: 'fa-solid fa-folder-open',
+                    buttonText: 'Mở thư mục Log...',
+                    onClick: async (btn) => {
+                        try {
+                            btn.disabled = true;
+                            let res = null;
+                            if (window.pywebview?.api?.open_log_folder) {
+                                res = await window.pywebview.api.open_log_folder();
+                            } else if (global.api?.open_log_folder) {
+                                res = await global.api.open_log_folder();
+                            } else {
+                                const resp = await fetch('/api/system/logs/open', { method: 'POST' });
+                                if (resp && resp.ok) {
+                                    res = await resp.json();
+                                }
+                            }
+                            if (res && res.success) {
+                                showPopupAlert('Thư mục Log', `Đã mở thư mục nhật ký:\n${res.path || ''}`, 'success');
+                            } else {
+                                showPopupAlert('Lỗi', res?.error || 'Không thể mở thư mục nhật ký.', 'error');
+                            }
+                        } catch (err) {
+                            showPopupAlert('Lỗi', 'Lỗi khi mở thư mục log: ' + (err?.message || err), 'error');
+                        } finally {
+                            btn.disabled = false;
+                        }
+                    }
+                }
+            ]
         }
     ];
 
@@ -340,7 +511,8 @@
             insertSpaces: true,
             wordWrap: false,
             minimap: true,
-            keywordCase: 'upper'
+            keywordCase: 'upper',
+            syntaxCheck: true
         },
         grid: {
             fontFamily: 'Segoe UI',
@@ -365,6 +537,19 @@
             bravo_tool: {
                 enabled: true
             }
+        },
+        history: {
+            enabled: true,
+            maxEntriesPerDoc: 200,
+            maxAgeDays: 90,
+            maxDbSizeMb: 500,
+            maxEntrySizeKb: 1024
+        },
+        logging: {
+            enabled: true,
+            level: 'INFO',
+            maxFileSizeMb: 2,
+            maxFiles: 5
         }
     };
 
@@ -460,6 +645,48 @@
         backdrop.classList.remove('d-none');
     }
 
+    function applyIconSize(size) {
+        const sz = parseInt(size, 10);
+        const validSz = (!isNaN(sz) && sz >= 10 && sz <= 32) ? sz : 16;
+        document.documentElement.style.setProperty('--ide-icon-size', `${validSz}px`);
+        try {
+            localStorage.setItem('ide-icon-size', String(validSz));
+        } catch (_) {}
+    }
+
+    function syncToolbarQueryLimit(maxRows) {
+        const limitEl = document.getElementById('ide-query-limit');
+        if (!limitEl) return;
+        const targetVal = String(maxRows);
+        let found = false;
+        for (let i = 0; i < limitEl.options.length; i++) {
+            if (limitEl.options[i].value === targetVal) {
+                found = true;
+                break;
+            }
+        }
+        if (!found) {
+            const opt = document.createElement('option');
+            opt.value = targetVal;
+            opt.textContent = Number(maxRows) === 0 ? 'All' : String(maxRows);
+            let inserted = false;
+            const targetNum = Number(maxRows) === 0 ? Infinity : Number(maxRows);
+            for (let i = 0; i < limitEl.options.length; i++) {
+                const optNum = parseInt(limitEl.options[i].value, 10);
+                const compNum = optNum === 0 ? Infinity : optNum;
+                if (targetNum < compNum) {
+                    limitEl.insertBefore(opt, limitEl.options[i]);
+                    inserted = true;
+                    break;
+                }
+            }
+            if (!inserted) {
+                limitEl.appendChild(opt);
+            }
+        }
+        limitEl.value = targetVal;
+    }
+
     // ── Get & Set Values in Draft Settings ────────────────────────────────────
     function getSettingValue(settings, catKey, field) {
         if (!settings) return undefined;
@@ -501,6 +728,29 @@
                 }
                 return;
             }
+            if (field.key === 'iconSize') {
+                _draftSettings.appearance[field.key] = value;
+                applyIconSize(value);
+                return;
+            }
+        }
+
+        if (catKey === 'grid') {
+            if (!_draftSettings.grid) _draftSettings.grid = {};
+            _draftSettings.grid[field.key] = value;
+            const fam = _draftSettings.grid.fontFamily || 'Segoe UI, Arial, sans-serif';
+            const sz = parseInt(_draftSettings.grid.fontSize, 10) || 13;
+            document.documentElement.style.setProperty('--ide-grid-font-family', fam);
+            document.documentElement.style.setProperty('--ide-grid-font-size', `${sz}px`);
+            document.dispatchEvent(new CustomEvent('ide-settings-updated', { detail: { settings: _draftSettings } }));
+            return;
+        }
+
+        if (catKey === 'sql' && field.key === 'maxRows') {
+            const num = Number(value);
+            window._sqlConfig = window._sqlConfig || {};
+            window._sqlConfig.maxRows = num;
+            syncToolbarQueryLimit(num);
         }
 
         if (field.subpath) {
@@ -532,6 +782,10 @@
         } else {
             document.documentElement.setAttribute('data-bs-theme', theme);
         }
+
+        // 1.4. Appearance Icon Size (Object Explorer & Tree Icons)
+        const iconSize = settings.appearance?.iconSize !== undefined ? settings.appearance.iconSize : 16;
+        applyIconSize(iconSize);
 
         // 1.5. UI Typography (Skill: Global IDE UI Font & Font Size)
         const uiFont = settings.appearance?.uiFontFamily || settings.appearance?.fontFamily || 'Segoe UI';
@@ -593,11 +847,20 @@
 
         if (window.AppEditor) updateEditorInstance(window.AppEditor);
         if (window.AppEditor2) updateEditorInstance(window.AppEditor2);
+        if (window.ObjectContentSearch && window.ObjectContentSearch.ddlViewer && typeof window.ObjectContentSearch.ddlViewer.applyTypographySettings === 'function') {
+            window.ObjectContentSearch.ddlViewer.applyTypographySettings();
+        }
 
         if (typeof window.remeasureMonacoFonts === 'function') {
             window.remeasureMonacoFonts();
         } else if (typeof monaco !== 'undefined' && monaco.editor && typeof monaco.editor.remeasureFonts === 'function') {
             try { monaco.editor.remeasureFonts(); } catch (_) {}
+        }
+
+        // 2.5. SQL Syntax Check Toggle
+        if (window.SqlSyntaxCheckService && typeof window.SqlSyntaxCheckService.setEnabled === 'function') {
+            const isSyntaxCheck = settings.editor?.syntaxCheck !== undefined ? Boolean(settings.editor.syntaxCheck) : true;
+            window.SqlSyntaxCheckService.setEnabled(isSyntaxCheck);
         }
 
         // 3. Grid Result font & size (Truyền biến CSS cho bảng kết quả)
@@ -622,7 +885,11 @@
         // 6. SQL Query config
         if (settings.sql) {
             window._sqlConfig = window._sqlConfig || {};
-            if (settings.sql.maxRows !== undefined) window._sqlConfig.maxRows = Number(settings.sql.maxRows);
+            if (settings.sql.maxRows !== undefined) {
+                const maxRowsNum = Number(settings.sql.maxRows);
+                window._sqlConfig.maxRows = maxRowsNum;
+                syncToolbarQueryLimit(maxRowsNum);
+            }
             if (settings.sql.timeoutSeconds !== undefined) window._sqlConfig.timeoutSeconds = Number(settings.sql.timeoutSeconds);
             if (settings.sql.sqlprotection !== undefined) window._sqlConfig.sqlprotection = Number(settings.sql.sqlprotection);
         }
@@ -837,6 +1104,177 @@
         }
     }
 
+    // ── Render History Storage Management Box ────────────────────────────────
+    function renderHistoryStorageManagement(catKey, field, currentVal) {
+        const wrap = document.createElement('div');
+        wrap.className = 'history-storage-box';
+
+        wrap.innerHTML = `
+            <div class="storage-box-header">
+                <div class="setting-title">
+                    <i class="fa-solid fa-hard-drive me-2" style="color:var(--bs-primary, #cc7832);"></i>
+                    Dung lượng & Bảo trì lưu trữ SQLite (Storage & Maintenance)
+                </div>
+                <div class="description">Theo dõi dung lượng thực tế của SQLite và thực hiện bảo trì, dọn dẹp hoặc thu gọn file dữ liệu.</div>
+            </div>
+            <div class="storage-metrics-grid">
+                <div class="metric-card">
+                    <div class="metric-label">Dung lượng file DB</div>
+                    <div class="metric-value" id="qhMetricDbSize">-- MB</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">Tài liệu (Documents)</div>
+                    <div class="metric-value" id="qhMetricDocs">--</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">Tổng lượt chạy (Entries)</div>
+                    <div class="metric-value" id="qhMetricEntries">--</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">Tiết kiệm nhờ nén</div>
+                    <div class="metric-value text-success" id="qhMetricSavings">--%</div>
+                </div>
+            </div>
+            <div class="storage-actions-toolbar">
+                <button type="button" class="btn-storage-action" id="qhBtnCompact" title="Chạy VACUUM để giải phóng không gian đĩa bị phân mảnh">
+                    <i class="fa-solid fa-compress me-1"></i> Tối ưu & Thu gọn (Compact)
+                </button>
+                <button type="button" class="btn-storage-action" id="qhBtnPurge" title="Xóa các bản ghi quá hạn và giới hạn cấu hình">
+                    <i class="fa-solid fa-broom me-1"></i> Dọn dẹp quá hạn (Purge)
+                </button>
+                <button type="button" class="btn-storage-action btn-storage-danger" id="qhBtnClearAll" title="Xóa toàn bộ lịch sử truy vấn">
+                    <i class="fa-solid fa-trash-can me-1"></i> Xóa toàn bộ (Clear all)
+                </button>
+            </div>
+        `;
+
+        async function refreshStats() {
+            try {
+                let stats = null;
+                if (window.pywebview?.api?.history_get_stats) {
+                    const res = await window.pywebview.api.history_get_stats();
+                    if (res && res.success) stats = res.stats;
+                } else {
+                    const resp = await fetch('/api/history/stats');
+                    if (resp.ok) {
+                        const json = await resp.json();
+                        if (json.success) stats = json.stats;
+                    }
+                }
+                if (stats) {
+                    const dbSizeEl = wrap.querySelector('#qhMetricDbSize');
+                    const docsEl = wrap.querySelector('#qhMetricDocs');
+                    const entriesEl = wrap.querySelector('#qhMetricEntries');
+                    const savingsEl = wrap.querySelector('#qhMetricSavings');
+                    if (dbSizeEl) dbSizeEl.textContent = `${stats.db_file_size_mb || 0} MB`;
+                    if (docsEl) docsEl.textContent = String(stats.total_documents || 0);
+                    if (entriesEl) entriesEl.textContent = String(stats.total_entries || 0);
+                    if (savingsEl) savingsEl.textContent = `${stats.compression_savings_pct || 0}%`;
+                }
+            } catch (err) {
+                console.warn('[Settings] Failed to fetch history stats:', err);
+            }
+        }
+
+        setTimeout(() => {
+            const btnCompact = wrap.querySelector('#qhBtnCompact');
+            const btnPurge = wrap.querySelector('#qhBtnPurge');
+            const btnClearAll = wrap.querySelector('#qhBtnClearAll');
+
+            if (btnCompact) {
+                btnCompact.onclick = async () => {
+                    btnCompact.disabled = true;
+                    btnCompact.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i> Đang thu gọn...';
+                    try {
+                        let res = null;
+                        if (window.pywebview?.api?.history_compact) {
+                            res = await window.pywebview.api.history_compact();
+                        } else {
+                            const resp = await fetch('/api/history/compact', { method: 'POST' });
+                            res = await resp.json();
+                        }
+                        await refreshStats();
+                        showPopupAlert('Tối ưu thành công', '✓ Đã chạy VACUUM tối ưu hóa cơ sở dữ liệu lịch sử thành công!', 'success');
+                    } catch (e) {
+                        showPopupAlert('Lỗi', 'Không thể thu gọn cơ sở dữ liệu: ' + e.message, 'error');
+                    } finally {
+                        btnCompact.disabled = false;
+                        btnCompact.innerHTML = '<i class="fa-solid fa-compress me-1"></i> Tối ưu & Thu gọn (Compact)';
+                    }
+                };
+            }
+
+            if (btnPurge) {
+                btnPurge.onclick = async () => {
+                    btnPurge.disabled = true;
+                    btnPurge.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i> Đang dọn dẹp...';
+                    try {
+                        const targetObj = _draftSettings || _settings || DEFAULT_SETTINGS;
+                        const hCfg = targetObj.history || {};
+                        let res = null;
+                        if (window.pywebview?.api?.history_purge) {
+                            res = await window.pywebview.api.history_purge(hCfg.maxAgeDays, hCfg.maxEntriesPerDoc, hCfg.maxDbSizeMb);
+                        } else {
+                            const resp = await fetch('/api/history/purge', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    max_age_days: hCfg.maxAgeDays,
+                                    max_entries_per_doc: hCfg.maxEntriesPerDoc,
+                                    max_db_size_mb: hCfg.maxDbSizeMb
+                                })
+                            });
+                            res = await resp.json();
+                        }
+                        await refreshStats();
+                        const purgedCount = res?.purged_entries ?? 0;
+                        showPopupAlert('Dọn dẹp thành công', `✓ Đã dọn dẹp ${purgedCount} bản ghi quá hạn / vượt giới hạn!`, 'success');
+                    } catch (e) {
+                        showPopupAlert('Lỗi', 'Không thể dọn dẹp lịch sử: ' + e.message, 'error');
+                    } finally {
+                        btnPurge.disabled = false;
+                        btnPurge.innerHTML = '<i class="fa-solid fa-broom me-1"></i> Dọn dẹp quá hạn (Purge)';
+                    }
+                };
+            }
+
+            if (btnClearAll) {
+                btnClearAll.onclick = () => {
+                    showPopupConfirm(
+                        'Xóa toàn bộ lịch sử',
+                        'Bạn có chắc chắn muốn xóa TOÀN BỘ lịch sử truy vấn không? Toàn bộ các lần thực thi đã lưu sẽ bị xóa vĩnh viễn và không thể khôi phục.',
+                        async () => {
+                            btnClearAll.disabled = true;
+                            btnClearAll.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i> Đang xóa...';
+                            try {
+                                if (window.pywebview?.api?.history_clear_all) {
+                                    await window.pywebview.api.history_clear_all(false);
+                                } else {
+                                    await fetch('/api/history/clear_all', {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ keep_favorites: false })
+                                    });
+                                }
+                                await refreshStats();
+                                showPopupAlert('Đã xóa', '✓ Đã xóa toàn bộ lịch sử truy vấn thành công!', 'success');
+                            } catch (e) {
+                                showPopupAlert('Lỗi', 'Không thể xóa lịch sử: ' + e.message, 'error');
+                            } finally {
+                                btnClearAll.disabled = false;
+                                btnClearAll.innerHTML = '<i class="fa-solid fa-trash-can me-1"></i> Xóa toàn bộ (Clear all)';
+                            }
+                        }
+                    );
+                };
+            }
+
+            refreshStats();
+        }, 50);
+
+        return wrap;
+    }
+
     // ── Render Sidebar ────────────────────────────────────────────────────────
     function renderSidebar() {
         const navList = document.getElementById('settingsNavList');
@@ -870,6 +1308,11 @@
 
     // ── Render Field Elements ─────────────────────────────────────────────────
     function renderFieldElement(catKey, field, currentVal) {
+        // Type 0: Custom component
+        if (field.type === 'custom' && typeof field.render === 'function') {
+            return field.render(catKey, field, currentVal);
+        }
+
         // Type 1: Checkbox (.check-setting)
         if (field.type === 'switch') {
             const wrap = document.createElement('div');
@@ -1322,6 +1765,7 @@
         if (!_settings.grid) _settings.grid = { ...DEFAULT_SETTINGS.grid };
         if (!_settings.messages) _settings.messages = { ...DEFAULT_SETTINGS.messages };
         if (!_settings.appearance) _settings.appearance = { ...DEFAULT_SETTINGS.appearance };
+        if (!_settings.history) _settings.history = { ...DEFAULT_SETTINGS.history };
 
         const currentTheme = document.documentElement.getAttribute('data-bs-theme') || _settings.theme || 'dark';
         _settings.theme = currentTheme;
@@ -1533,6 +1977,17 @@
                     );
                 } else {
                     window.close();
+                }
+            });
+        }
+
+        const queryLimitEl = document.getElementById('ide-query-limit');
+        if (queryLimitEl) {
+            queryLimitEl.addEventListener('change', () => {
+                const val = parseInt(queryLimitEl.value, 10);
+                if (!isNaN(val)) {
+                    window._sqlConfig = window._sqlConfig || {};
+                    window._sqlConfig.maxRows = val;
                 }
             });
         }

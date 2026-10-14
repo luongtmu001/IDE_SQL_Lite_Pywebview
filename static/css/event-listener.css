@@ -1034,3 +1034,104 @@ html, body.event-listener-body {
 .ms-1 { margin-left: 4px; }
 .ms-2 { margin-left: 8px; }
 .small { font-size: 11px; }
+
+/* ═══ Editor & Parameters View ═══ */
+.el-editor-wrap {
+    height: 100%;
+    min-height: 220px;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    background-color: var(--ide-bg-editor, #18191E);
+}
+.el-editor-wrap .CodeMirror {
+    height: 100%;
+    min-height: 220px;
+    font-family: Consolas, "JetBrains Mono", monospace;
+    font-size: 12px;
+    background-color: transparent !important;
+}
+
+.el-param-table-wrap {
+    max-height: 350px;
+    overflow-y: auto;
+    border: 1px solid var(--ide-border, #3c3f41);
+    border-radius: 4px;
+}
+.el-param-table {
+    margin-bottom: 0;
+    font-size: 12px;
+}
+.el-param-table th {
+    background-color: var(--ide-bg-toolbar, #202228) !important;
+    color: var(--ide-text-muted, #848c94) !important;
+    border-bottom: 1px solid var(--ide-border, #3c3f41) !important;
+    font-weight: 600;
+    padding: 6px 12px;
+}
+.el-param-table td {
+    background-color: var(--ide-bg-main, #1C1D23) !important;
+    color: var(--ide-text-main, #c7cfcf) !important;
+    border-bottom: 1px solid var(--ide-border, #3c3f41) !important;
+    padding: 5px 12px;
+    font-family: Consolas, monospace;
+}
+.el-param-table tr:hover td {
+    background-color: var(--ide-hover-bg, rgba(255,255,255,0.05)) !important;
+}
+.el-param-table .col-param-name { width: 30%; color: var(--ide-accent, #CC7832) !important; font-weight: 600; }
+.el-param-table .col-param-type { width: 25%; color: #4ec9b0 !important; }
+.el-param-table .col-param-val  { width: 45%; }
+.el-param-count-badge { font-size: 10px; padding: 2px 5px; }
+
+/* ═══ Additional Utility Classes Replacing Inline Styles ═══ */
+.el-btn-discover { margin-bottom: 14px; }
+.el-status-subtext { padding: 4px 0; font-size: 12px; }
+.el-status-sep { margin: 0 6px; }
+.el-payload-tall { min-height: 200px; }
+
+/* ═══ Light Theme & Classic OS Overrides ═══ */
+html[data-bs-theme="light"],
+html[data-theme-mode="light"],
+html[data-bs-theme="win-nt"],
+html[data-bs-theme="win-xp"] {
+    --ide-bg-main: #f5f5f5;
+    --ide-bg-sidebar: #eaeaea;
+    --ide-bg-toolbar: #f0f0f0;
+    --ide-bg-editor: #ffffff;
+    --ide-bg-panel: #f7f7f7;
+    --ide-bg-input: #ffffff;
+    --ide-bg-modal: #ffffff;
+    --ide-bg-dropdown: #ffffff;
+    --ide-border: #d0d0d0;
+    --ide-text-main: #202020;
+    --ide-text-muted: #666666;
+    --ide-text-active: #000000;
+    --ide-text-dim: #999999;
+    --ide-hover-bg: rgba(0, 0, 0, 0.05);
+    --ide-active-bg: rgba(204, 120, 50, 0.15);
+    --ide-selection-bg: rgba(204, 120, 50, 0.2);
+    --ide-scroll-track: #f0f0f0;
+    --ide-scroll-thumb: #cccccc;
+}
+
+html[data-bs-theme="light"] .el-grid-tabulator .tabulator-header,
+html[data-bs-theme="win-xp"] .el-grid-tabulator .tabulator-header,
+html[data-bs-theme="win-nt"] .el-grid-tabulator .tabulator-header {
+    background-color: #e8e8e8 !important;
+    color: #1e1e1e !important;
+}
+
+html[data-bs-theme="light"] .el-grid-tabulator .tabulator-row,
+html[data-bs-theme="win-xp"] .el-grid-tabulator .tabulator-row,
+html[data-bs-theme="win-nt"] .el-grid-tabulator .tabulator-row {
+    background-color: #ffffff !important;
+    color: #202020 !important;
+}
+
+html[data-bs-theme="light"] .el-grid-tabulator .tabulator-row:nth-child(even),
+html[data-bs-theme="win-xp"] .el-grid-tabulator .tabulator-row:nth-child(even),
+html[data-bs-theme="win-nt"] .el-grid-tabulator .tabulator-row:nth-child(even) {
+    background-color: #f7f7f7 !important;
+}
+

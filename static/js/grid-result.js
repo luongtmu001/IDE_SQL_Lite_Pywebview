@@ -26,6 +26,7 @@
         }
         fallbackCopy(text);
     }
+    global.copyText = copyText;
 
     function fallbackCopy(text) {
         const ta = document.createElement('textarea');
@@ -42,6 +43,36 @@
             console.error('Fallback copy failed', e);
         }
         document.body.removeChild(ta);
+    }
+
+    // ── HTML & Structured Data Formatting ────────────────────────────────────
+    function escapeHtml(str) {
+        if (str === null || str === undefined) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
+    function formatStructuredCellText(val, maxLen = 300) {
+        if (val === null || val === undefined) return '';
+        let str;
+        if (typeof val === 'object') {
+            try {
+                str = JSON.stringify(val);
+            } catch (_) {
+                str = String(val);
+            }
+        } else {
+            str = String(val);
+        }
+        const cleaned = str.replace(/[\r\n\t]+/g, ' ').trim();
+        if (cleaned.length > maxLen) {
+            return cleaned.slice(0, maxLen) + '…';
+        }
+        return cleaned;
     }
 
     // ── Format helpers for SQL & CSV ─────────────────────────────────────────
@@ -112,6 +143,8 @@
     }
 
     // ── VirtualGridRenderer ──────────────────────────────────────────────────
+    const GRID_ROW_HEIGHT = 26; // Fixed 26px matching editor.css & style.css
+
     class VirtualGridRenderer {
         constructor(gridInstance) {
             this.grid = gridInstance;
@@ -122,13 +155,27 @@
                 this.tbody = document.createElement('tbody');
                 this.table.appendChild(this.tbody);
             }
-            this.rowHeight = 26; // Fixed 26px matching editor.css
+            this.rowHeight = GRID_ROW_HEIGHT;
             this.buffer = 10;
 
             this.rowPool = [];
             this.startIndex = 0;
             this.endIndex = 0;
             this.isScheduled = false;
+            this.needsLayoutUpdate = false;
+            this.lastClientHeight = 0;
+            this.lastTotalDisplayRows = -1;
+            this.currentTopH = -1;
+            this.currentBottomH = -1;
+            this._isResizeTriggered = false;
+
+            // Instrumentation metrics
+            this.metrics = {
+                renderCount: 0,
+                resizeRenderCount: 0,
+                observerCallbacks: 0,
+                lastRenderMs: 0
+            };
 
             this.topSpacer = null;
             this.topSpacerTd = null;
@@ -136,8 +183,11 @@
             this.bottomSpacerTd = null;
 
             this.initSpacers();
-            this.initScrollListener();
-            this.initResizeObserver();
+            // If AG Grid is available, skip active scroll and resize listeners on the hidden table
+            if (!global.agGrid || typeof global.agGrid.createGrid !== 'function') {
+                this.initScrollListener();
+                this.initResizeObserver();
+            }
         }
 
         initSpacers() {
@@ -179,12 +229,32 @@
 
         initResizeObserver() {
             if (window.ResizeObserver && this.scrollContainer) {
-                this._resizeObserver = new ResizeObserver(() => {
+                this._resizeObserver = new ResizeObserver((entries) => {
+                    this.metrics.observerCallbacks++;
+                    if (!this.scrollContainer) return;
+                    const entry = entries && entries[0];
+                    const newHeight = entry ? Math.round(entry.contentRect.height) : (this.scrollContainer.clientHeight || 0);
+
+                    // Skip when hidden or 0 height; mark needsLayoutUpdate so it refreshes when displayed
+                    if (newHeight <= 0) {
+                        this.needsLayoutUpdate = true;
+                        return;
+                    }
+
+                    // Skip if height did not change and no pending layout update
+                    if (newHeight === this.lastClientHeight && !this.needsLayoutUpdate) {
+                        return;
+                    }
+
+                    this.lastClientHeight = newHeight;
+                    this.needsLayoutUpdate = false;
+                    this._isResizeTriggered = true;
+
                     if (this.isScheduled) return;
                     this.isScheduled = true;
                     requestAnimationFrame(() => {
                         this.isScheduled = false;
-                        this.render(true);
+                        this.render(false);
                     });
                 });
                 this._resizeObserver.observe(this.scrollContainer);
@@ -192,52 +262,85 @@
         }
 
         render(force = false) {
+            if (!this.scrollContainer) return;
+            const t0 = performance.now();
+            this.metrics.renderCount++;
+            if (this._isResizeTriggered) {
+                this.metrics.resizeRenderCount++;
+                this._isResizeTriggered = false;
+            }
+
+            // Phase 1: Read layout properties in one pass (no interleaving)
+            const viewportH = this.scrollContainer.clientHeight || 0;
+            const scrollTop = this.scrollContainer.scrollTop || 0;
+
+            // When hidden or 0 height: skip render, do not use dummy 400px fallback
+            if (viewportH <= 0) {
+                this.needsLayoutUpdate = true;
+                return;
+            }
+            this.needsLayoutUpdate = false;
+            this.lastClientHeight = viewportH;
+
             const totalDisplayRows = this.grid.getDisplayRowCount();
             if (totalDisplayRows === 0) {
-                this.topSpacer.style.height = '0px';
-                this.topSpacerTd.style.height = '0px';
-                this.bottomSpacer.style.height = '0px';
-                this.bottomSpacerTd.style.height = '0px';
-                this.rowPool.forEach(tr => { tr.style.display = 'none'; });
+                if (this.currentTopH !== 0) {
+                    this.topSpacer.style.height = '0px';
+                    this.topSpacerTd.style.height = '0px';
+                    this.topSpacer.style.display = 'none';
+                    this.currentTopH = 0;
+                }
+                if (this.currentBottomH !== 0) {
+                    this.bottomSpacer.style.height = '0px';
+                    this.bottomSpacerTd.style.height = '0px';
+                    this.bottomSpacer.style.display = 'none';
+                    this.currentBottomH = 0;
+                }
+                for (let i = 0; i < this.rowPool.length; i++) {
+                    if (this.rowPool[i].style.display !== 'none') {
+                        this.rowPool[i].style.display = 'none';
+                    }
+                }
                 this.startIndex = 0;
                 this.endIndex = 0;
+                this.lastTotalDisplayRows = 0;
                 return;
             }
 
-            // Sync measured row height from DOM if available
-            if (this.rowPool.length > 0 && this.rowPool[0].offsetHeight > 0) {
-                const actualH = this.rowPool[0].offsetHeight;
-                if (actualH >= 20 && actualH <= 40 && actualH !== this.rowHeight) {
-                    this.rowHeight = actualH;
-                }
-            }
-
-            const scrollTop = this.scrollContainer ? this.scrollContainer.scrollTop : 0;
-            const viewportH = (this.scrollContainer && this.scrollContainer.clientHeight > 0) ? this.scrollContainer.clientHeight : 400;
-
+            // Phase 2: Pure JavaScript calculations
             const visibleCount = Math.ceil(viewportH / this.rowHeight);
             let startIndex = Math.max(0, Math.floor(scrollTop / this.rowHeight) - this.buffer);
             let endIndex = Math.min(totalDisplayRows, startIndex + visibleCount + this.buffer * 2);
 
-            if (!force && startIndex === this.startIndex && endIndex === this.endIndex) {
+            const indexRangeUnchanged = (startIndex === this.startIndex && endIndex === this.endIndex);
+            const totalRowsUnchanged = (totalDisplayRows === this.lastTotalDisplayRows);
+
+            if (!force && indexRangeUnchanged && totalRowsUnchanged) {
                 return;
             }
 
-            this.startIndex = startIndex;
-            this.endIndex = endIndex;
-
             const topH = startIndex * this.rowHeight;
             const bottomH = Math.max(0, (totalDisplayRows - endIndex) * this.rowHeight);
-
-            this.topSpacer.style.height = `${topH}px`;
-            this.topSpacerTd.style.height = `${topH}px`;
-            this.topSpacer.style.display = topH > 0 ? '' : 'none';
-
-            this.bottomSpacer.style.height = `${bottomH}px`;
-            this.bottomSpacerTd.style.height = `${bottomH}px`;
-            this.bottomSpacer.style.display = bottomH > 0 ? '' : 'none';
-
             const neededRows = endIndex - startIndex;
+
+            this.startIndex = startIndex;
+            this.endIndex = endIndex;
+            this.lastTotalDisplayRows = totalDisplayRows;
+
+            // Phase 3: Batched DOM writes (zero layout reads)
+            if (this.currentTopH !== topH) {
+                this.currentTopH = topH;
+                this.topSpacer.style.height = `${topH}px`;
+                this.topSpacerTd.style.height = `${topH}px`;
+                this.topSpacer.style.display = topH > 0 ? '' : 'none';
+            }
+
+            if (this.currentBottomH !== bottomH) {
+                this.currentBottomH = bottomH;
+                this.bottomSpacer.style.height = `${bottomH}px`;
+                this.bottomSpacerTd.style.height = `${bottomH}px`;
+                this.bottomSpacer.style.display = bottomH > 0 ? '' : 'none';
+            }
 
             // Expand pool if needed
             while (this.rowPool.length < neededRows) {
@@ -256,16 +359,23 @@
 
             // Hide unused rows
             for (let i = neededRows; i < this.rowPool.length; i++) {
-                this.rowPool[i].style.display = 'none';
+                if (this.rowPool[i].style.display !== 'none') {
+                    this.rowPool[i].style.display = 'none';
+                }
             }
 
-            // Populate visible rows
-            for (let i = 0; i < neededRows; i++) {
-                const tr = this.rowPool[i];
-                tr.style.display = '';
-                const displayRowIdx = startIndex + i;
-                this.grid.updateRowCells(tr, displayRowIdx);
+            // Populate visible rows if force OR visible index range changed
+            if (force || !indexRangeUnchanged) {
+                for (let i = 0; i < neededRows; i++) {
+                    const tr = this.rowPool[i];
+                    if (tr.style.display !== '') {
+                        tr.style.display = '';
+                    }
+                    const displayRowIdx = startIndex + i;
+                    this.grid.updateRowCells(tr, displayRowIdx);
+                }
             }
+            this.metrics.lastRenderMs = performance.now() - t0;
         }
 
         destroy() {
@@ -274,8 +384,126 @@
             }
             if (this._resizeObserver) {
                 this._resizeObserver.disconnect();
+                this._resizeObserver = null;
             }
             this.rowPool = [];
+            this.table = null;
+            this.scrollContainer = null;
+            this.tbody = null;
+            this.topSpacer = null;
+            this.bottomSpacer = null;
+        }
+    }
+
+    // ── AG Grid Community Custom Top Left Header Component (#) ───────────────
+    class IdeAgTopLeftHeaderComponent {
+        init(params) {
+            this.params = params;
+            this.eGui = document.createElement('div');
+            this.eGui.className = 'ide-ag-header-content ide-ag-header-top-left';
+            this.eGui.style.display = 'flex';
+            this.eGui.style.alignItems = 'center';
+            this.eGui.style.justifyContent = 'center';
+            this.eGui.style.width = '100%';
+            this.eGui.style.cursor = 'pointer';
+            this.eGui.title = 'Chọn tất cả (Ctrl+A)';
+            this.eGui.innerHTML = '<span style="font-weight: 600; opacity: 0.85;">#</span>';
+            this.eGui.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (params.gridInstance) {
+                    params.gridInstance.selectAll();
+                }
+            });
+        }
+
+        getGui() {
+            return this.eGui;
+        }
+
+        refresh() {
+            return true;
+        }
+
+        destroy() {
+            this.eGui = null;
+        }
+    }
+
+    // ── AG Grid Community Custom Header Component with Filter Popover ────────
+    class IdeAgHeaderComponent {
+        init(params) {
+            this.params = params;
+            this.eGui = document.createElement('div');
+            this.eGui.className = 'ide-ag-header-content';
+
+            const titleSpan = document.createElement('span');
+            titleSpan.className = 'ide-ag-header-title';
+            titleSpan.textContent = params.displayName || params.colName || (params.colDef && params.colDef.headerName) || '';
+            titleSpan.title = titleSpan.textContent;
+            this.eGui.appendChild(titleSpan);
+
+            // Sorting toggle on header title click
+            titleSpan.addEventListener('click', (e) => {
+                if (params.enableSorting && typeof params.progressSort === 'function') {
+                    params.progressSort(e.shiftKey);
+                }
+            });
+
+            // Column filter trigger button (.ide-th-filter-btn)
+            const filterBtn = document.createElement('button');
+            filterBtn.type = 'button';
+            filterBtn.className = 'ide-th-filter-btn ide-ag-header-filter-btn';
+            filterBtn.dataset.colIdx = params.colIdx;
+            filterBtn.dataset.colName = titleSpan.textContent;
+            filterBtn.title = `Lọc cột [${filterBtn.dataset.colName}]`;
+            filterBtn.innerHTML = '<i class="fa-solid fa-filter"></i>';
+
+            const gridInst = params.gridInstance;
+            if (gridInst && typeof gridInst.isColumnFiltered === 'function' && gridInst.isColumnFiltered(filterBtn.dataset.colName)) {
+                filterBtn.classList.add('ide-filter-active');
+            }
+
+            filterBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                if (gridInst && typeof gridInst.showColumnFilterPopover === 'function') {
+                    gridInst.showColumnFilterPopover(filterBtn.dataset.colName, params.colIdx, filterBtn);
+                }
+            });
+
+            this.eGui.appendChild(filterBtn);
+            this.filterBtn = filterBtn;
+
+            // Header context menu (e.g. for Freeze Column)
+            this.eGui.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (gridInst && params.colIdx >= 0) {
+                    gridInst.leadCell = { row: 0, col: params.colIdx };
+                    gridInst.anchorCell = { row: 0, col: params.colIdx };
+                    gridInst.showContextMenu(e.clientX, e.clientY);
+                }
+            });
+        }
+
+        getGui() {
+            return this.eGui;
+        }
+
+        refresh(params) {
+            this.params = params;
+            const gridInst = params.gridInstance;
+            if (this.filterBtn && gridInst && typeof gridInst.isColumnFiltered === 'function') {
+                const isFiltered = gridInst.isColumnFiltered(this.filterBtn.dataset.colName);
+                this.filterBtn.classList.toggle('ide-filter-active', isFiltered);
+            }
+            return true;
+        }
+
+        destroy() {
+            this.eGui = null;
+            this.filterBtn = null;
         }
     }
 
@@ -312,10 +540,31 @@
             // Aggregates overlay
             this.aggregatesPanel = null;
 
-            // Virtual renderer
+            // Virtual renderer (fallback & metrics compliance)
             this.renderer = null;
 
+            // AG Grid Community instance
+            this.gridApi = null;
+            this.agGridDiv = null;
+            this._themeObserver = null;
+            this.pinnedCols = new Set();
+            this._isInitializing = false;
+
+            // Lifecycle state: 'loading' | 'ready' | 'error' | 'cancelled' | 'destroyed'
+            this.state = resSet.isStreaming ? 'loading' : 'ready';
+
             this.init();
+        }
+
+        setState(newState) {
+            this.state = newState;
+            if (this.pane) {
+                this.pane.dataset.gridState = newState;
+            }
+        }
+
+        getState() {
+            return this.state;
         }
 
         init() {
@@ -336,10 +585,24 @@
             this.table.addEventListener('mousedown', (e) => this.onTableMouseDown(e));
             this.table.addEventListener('mouseover', (e) => this.onTableMouseOver(e));
 
-            // Document mouse up to terminate dragging
+            // Document mouse up to terminate dragging and clear any accidental browser text selection
             this._docMouseUp = () => {
-                this.isMouseDown = false;
-                this.isSelectingRows = false;
+                if (this.isMouseDown) {
+                    this.isMouseDown = false;
+                    this.isSelectingRows = false;
+                    if (window.getSelection) {
+                        try {
+                            const sel = window.getSelection();
+                            if (sel && sel.removeAllRanges) sel.removeAllRanges();
+                            else if (sel && sel.empty) sel.empty();
+                        } catch (_) {}
+                    }
+                    setTimeout(() => {
+                        this._isMouseDragging = false;
+                    }, 100);
+                    this.renderAgSelection();
+                    this.renderSelectionUI();
+                }
             };
             document.addEventListener('mouseup', this._docMouseUp);
 
@@ -352,9 +615,15 @@
             // Setup column filtering
             this.setupFilterEvents();
 
-            // Initialize Virtual Row Renderer
+            // Initialize Virtual Row Renderer (fallback & test compliance)
             this.renderer = new VirtualGridRenderer(this);
-            this.renderer.render(true);
+
+            // Check if AG Grid Community v31 is available
+            if (global.agGrid && typeof global.agGrid.createGrid === 'function') {
+                this.initAgGrid();
+            } else {
+                this.renderer.render(true);
+            }
 
             // Default selection: select cell (0, 0) if data exists
             if (this.totalRows > 0 && this.totalCols > 0) {
@@ -362,8 +631,738 @@
             }
         }
 
+        initAgGrid() {
+            if (!global.agGrid || typeof global.agGrid.createGrid !== 'function') return;
+
+            const parent = this.table ? (this.table.closest('.ide-grid-table-scroll') || this.pane) : this.pane;
+            if (!parent) return;
+
+            // Hide raw table element
+            if (this.table) {
+                this.table.style.display = 'none';
+            }
+            parent.style.overflow = 'hidden';
+
+            this.agGridDiv = document.createElement('div');
+            this.agGridDiv.className = 'ag-theme-quartz-dark ide-ag-grid-instance';
+            this.agGridDiv.style.width = '100%';
+            this.agGridDiv.style.height = '100%';
+            this.agGridDiv.tabIndex = 0;
+            this.agGridDiv.style.outline = 'none';
+            this.agGridDiv.setAttribute('role', 'region');
+            this.agGridDiv.setAttribute('aria-label', 'SQL Results Grid');
+            parent.appendChild(this.agGridDiv);
+
+            // Pre-apply theme classes and typography variables before grid creation to avoid layout thrashing
+            this._isInitializing = true;
+            this.syncTheme(false);
+            this.applyTypographySettings(false);
+
+            // Row number column pinned to left with selectAll header
+            const colDefs = [
+                {
+                    headerName: '#',
+                    pinned: 'left',
+                    lockPinned: true,
+                    lockPosition: 'left',
+                    suppressMovable: true,
+                    suppressColumnsToolPanel: true,
+                    suppressMenu: true,
+                    width: 55,
+                    minWidth: 40,
+                    maxWidth: 90,
+                    sortable: false,
+                    filter: false,
+                    resizable: false,
+                    suppressSizeToFit: true,
+                    headerComponent: IdeAgTopLeftHeaderComponent,
+                    headerComponentParams: {
+                        gridInstance: this
+                    },
+                    headerClass: 'ag-header-cell-row-number',
+                    cellClass: (params) => {
+                        const isSelected = params.node && params.node.isSelected();
+                        const r = params.node ? params.node.rowIndex : -1;
+                        const inRange = r >= 0 && this.anchorCell && this.leadCell &&
+                            r >= Math.min(this.anchorCell.row, this.leadCell.row) &&
+                            r <= Math.max(this.anchorCell.row, this.leadCell.row);
+                        return 'ag-cell-row-number ide-row-number' + ((isSelected || inRange) ? ' row-selected' : '');
+                    },
+                    valueGetter: (params) => {
+                        return params.node.rowIndex != null ? (params.node.rowIndex + 1) : '';
+                    }
+                }
+            ];
+
+            // Data columns
+            this.columns.forEach((col, cIdx) => {
+                const rawColName = typeof col === 'string' ? col : (col ? (col.name || String(col)) : '');
+                const colName = rawColName || '(No column name)';
+                const minW = Math.max(38, Math.min(160, colName.length * 8 + 36));
+
+                colDefs.push({
+                    headerName: colName,
+                    field: `c_${cIdx}`,
+                    colId: `c_${cIdx}`,
+                    sortable: true,
+                    resizable: true,
+                    minWidth: minW,
+                    width: Math.max(minW, 120),
+                    suppressSizeToFit: true,
+                    valueGetter: (params) => {
+                        return (params.data && params.data[cIdx] !== undefined) ? params.data[cIdx] : null;
+                    },
+                    headerComponent: IdeAgHeaderComponent,
+                    headerComponentParams: {
+                        colName,
+                        colIdx: cIdx,
+                        gridInstance: this
+                    },
+                    cellRenderer: (params) => {
+                        const val = params.value;
+                        if (val === null || val === undefined) {
+                            return '<span class="ide-null-value ag-null-value">NULL</span>';
+                        }
+                        if (typeof val === 'number') {
+                            return escapeHtml(String(val));
+                        }
+                        if (typeof val === 'boolean') {
+                            return `<span class="ide-bool-value ${val ? 'badge-bool-true' : 'badge-bool-false'}">${String(val)}</span>`;
+                        }
+
+                        // Structured Data Detection (JSON / XML)
+                        let structFormat = null;
+                        if (typeof val === 'object') {
+                            structFormat = 'json';
+                        } else if (typeof val === 'string') {
+                            const trimmed = val.trim();
+                            if ((trimmed.startsWith('{') && trimmed.endsWith('}')) ||
+                                (trimmed.startsWith('[') && trimmed.endsWith(']')) ||
+                                (trimmed.startsWith('<') && trimmed.endsWith('>'))) {
+                                structFormat = (window.StructuredDataDetector && typeof window.StructuredDataDetector.detectCandidate === 'function')
+                                    ? window.StructuredDataDetector.detectCandidate(val, colName, col)
+                                    : null;
+                            }
+                        }
+                        if (structFormat) {
+                            const icon = structFormat === 'xml' ? 'fa-file-code' : 'fa-code';
+                            const rIdx = (params.node && params.node.rowIndex != null) ? params.node.rowIndex : '';
+                            const displayText = formatStructuredCellText(val, 300);
+                            const rawStr = (typeof val === 'object') ? JSON.stringify(val) : String(val);
+                            const preview = rawStr.length > 500 ? (rawStr.slice(0, 500) + '…') : rawStr;
+                            const tooltip = `Click để mở ${structFormat.toUpperCase()} trong tab Editor\n${preview}`;
+                            return `<span class="ide-structured-link ide-structured-link-${structFormat}" data-format="${structFormat}" data-col-idx="${cIdx}" data-row-idx="${rIdx}" role="button" tabindex="0" title="${escapeHtml(tooltip)}"><i class="fa-solid ${icon} me-1"></i>${escapeHtml(displayText)}</span>`;
+                        }
+
+                        if (typeof val === 'object') {
+                            try { return escapeHtml(JSON.stringify(val)); } catch (_) { return escapeHtml(String(val)); }
+                        }
+                        return escapeHtml(String(val));
+                    },
+                    cellClass: (params) => {
+                        const val = params.value;
+                        const classes = [];
+                        if (val === null || val === undefined) classes.push('ide-null-cell');
+                        if (typeof val === 'number') classes.push('ide-num-value ag-cell-numeric');
+                        if (typeof val === 'boolean') classes.push('ide-bool-value');
+
+                        const r = params.node ? params.node.rowIndex : -1;
+                        if (r >= 0 && this.isCellInSelection(r, cIdx)) {
+                            classes.push('ide-cell-selected');
+                        }
+                        if (this.leadCell && this.leadCell.row === r && this.leadCell.col === cIdx) {
+                            classes.push('ide-cell-active');
+                        }
+                        return classes.join(' ');
+                    }
+                });
+            });
+
+            const gridOptions = {
+                columnDefs: colDefs,
+                rowData: this.rows,
+                defaultColDef: {
+                    sortable: true,
+                    resizable: true,
+                    minWidth: 60,
+                    suppressSizeToFit: true
+                },
+                rowSelection: 'multiple',
+                enableCellTextSelection: false,
+                ensureDomOrder: true,
+                suppressRowClickSelection: true,
+                suppressCellFocus: true,
+                animateRows: false,
+                rowBuffer: 15,
+                isExternalFilterPresent: () => this.hasActiveFilters(),
+                doesExternalFilterPass: (node) => this.doesNodePassFilter(node),
+                onCellContextMenu: (params) => {
+                    this.onAgCellContextMenu(params);
+                },
+                onCellClicked: (params) => {
+                    const e = params.event;
+                    if (e && e.target && e.target.closest('.ide-structured-link')) {
+                        const linkEl = e.target.closest('.ide-structured-link');
+                        const format = linkEl.dataset.format;
+                        let cIdx = this.getColIndexFromColDef(params.column.getColDef());
+                        if (cIdx < 0 && linkEl.dataset.colIdx) {
+                            cIdx = parseInt(linkEl.dataset.colIdx, 10);
+                        }
+                        const rIdx = params.node ? params.node.rowIndex : (linkEl.dataset.rowIdx !== undefined ? parseInt(linkEl.dataset.rowIdx, 10) : 0);
+                        const col = this.columns[cIdx];
+                        const colName = typeof col === 'string' ? col : (col ? (col.name || String(col)) : '');
+                        const val = (params.data && params.data[cIdx] !== undefined) ? params.data[cIdx] : params.value;
+                        if (window.StructuredDataViewer && typeof window.StructuredDataViewer.openInNewTab === 'function') {
+                            window.StructuredDataViewer.openInNewTab({
+                                value: val,
+                                colName: colName,
+                                rowIndex: rIdx,
+                                format: format
+                            });
+                        }
+                        return;
+                    }
+
+                    if (this._isMouseDragging) {
+                        return;
+                    }
+                },
+                onCellFocused: (params) => {
+                    if (this.isMouseDown || this._isMouseDragging) return;
+                    if (params.rowIndex != null && params.column) {
+                        const cIdx = this.getColIndexFromColDef(params.column.getColDef());
+                        if (cIdx >= 0) {
+                            const bb = this.getBoundingBox();
+                            const isMulti = (bb.minRow !== bb.maxRow || bb.minCol !== bb.maxCol);
+                            if (!isMulti) {
+                                this.leadCell = { row: params.rowIndex, col: cIdx };
+                                this.anchorCell = { row: params.rowIndex, col: cIdx };
+                                this.renderAgSelection();
+                                this.renderSelectionUI();
+                            }
+                        }
+                    }
+                },
+                onBodyScroll: () => {
+                    this.renderAgSelection();
+                },
+                onViewportChanged: () => {
+                    this.renderAgSelection();
+                },
+                onModelUpdated: () => {
+                    this.syncPaneRowCount();
+                },
+                onGridReady: (params) => {
+                    this.gridApi = params.api;
+                    this._isInitializing = false;
+                    this.syncPaneRowCount();
+                    if (this.totalRows > 0 && this.totalCols > 0) {
+                        this.anchorCell = { row: 0, col: 0 };
+                        this.leadCell = { row: 0, col: 0 };
+                        try {
+                            this.gridApi.setFocusedCell(0, 'c_0');
+                        } catch (_) {}
+                    }
+                    this.renderAgSelection();
+                }
+            };
+
+            this.gridApi = global.agGrid.createGrid(this.agGridDiv, gridOptions);
+
+            // Delegated mouse drag range selection on agGridDiv
+            this._isMouseDragging = false;
+            const clearBrowserSelection = () => {
+                try {
+                    if (window.getSelection) {
+                        const sel = window.getSelection();
+                        if (sel) {
+                            if (typeof sel.removeAllRanges === 'function') sel.removeAllRanges();
+                            else if (typeof sel.empty === 'function') sel.empty();
+                        }
+                    }
+                } catch (_) {}
+            };
+
+            this._agMouseDownHandler = (e) => {
+                GridResultInstance.activeInstance = this;
+                if (this.agGridDiv) {
+                    this.agGridDiv.focus({ preventScroll: true });
+                }
+                if (e.button !== 0) return;
+                if (e.target.closest('.ide-structured-link') || e.target.closest('.ide-th-filter-btn')) return;
+
+                const cellEl = e.target.closest('.ag-cell');
+                if (!cellEl) return;
+                const rowEl = cellEl.closest('.ag-row');
+                if (!rowEl) return;
+
+                const rowIdxAttr = rowEl.getAttribute('row-index');
+                if (rowIdxAttr == null) return;
+                const r = parseInt(rowIdxAttr, 10);
+                const colId = cellEl.getAttribute('col-id');
+                const c = this.getColIndexFromColId(colId);
+
+                // Chặn hoàn toàn hành vi bôi đen text mặc định của trình duyệt
+                e.preventDefault();
+                clearBrowserSelection();
+
+                this.isMouseDown = true;
+                this._isMouseDragging = false;
+
+                if (cellEl.classList.contains('ag-cell-row-number')) {
+                    this.isSelectingRows = true;
+                    if (e.ctrlKey || e.metaKey) {
+                        const node = this.gridApi ? this.gridApi.getDisplayedRowAtIndex(r) : null;
+                        if (node) {
+                            node.setSelected(!node.isSelected(), false);
+                        }
+                        this.anchorCell = { row: r, col: 0 };
+                        this.leadCell = { row: r, col: this.totalCols - 1 };
+                    } else if (e.shiftKey && this.anchorCell) {
+                        this.leadCell = { row: r, col: this.totalCols - 1 };
+                        this.syncAgRowNodesSelection();
+                    } else {
+                        if (this.gridApi) {
+                            this.gridApi.deselectAll();
+                        }
+                        this.anchorCell = { row: r, col: 0 };
+                        this.leadCell = { row: r, col: this.totalCols - 1 };
+                        this.syncAgRowNodesSelection();
+                    }
+                } else if (r >= 0 && c >= 0) {
+                    this.isSelectingRows = false;
+                    if (this.gridApi) {
+                        this.gridApi.deselectAll();
+                    }
+                    if (e.shiftKey && this.anchorCell) {
+                        this.leadCell = { row: r, col: c };
+                    } else {
+                        this.anchorCell = { row: r, col: c };
+                        this.leadCell = { row: r, col: c };
+                    }
+                }
+                this.renderAgSelection();
+                this.renderSelectionUI();
+            };
+
+            this._agMouseOverHandler = (e) => {
+                if (!this.isMouseDown) return;
+                const cellEl = e.target.closest('.ag-cell');
+                if (!cellEl) return;
+                const rowEl = cellEl.closest('.ag-row');
+                if (!rowEl) return;
+                const rowIdxAttr = rowEl.getAttribute('row-index');
+                if (rowIdxAttr == null) return;
+                const r = parseInt(rowIdxAttr, 10);
+
+                this._isMouseDragging = true;
+                clearBrowserSelection();
+
+                if (this.isSelectingRows) {
+                    this.leadCell = { row: r, col: this.totalCols - 1 };
+                    this.syncAgRowNodesSelection();
+                } else {
+                    const colId = cellEl.getAttribute('col-id');
+                    const c = this.getColIndexFromColId(colId);
+                    if (r >= 0 && c >= 0) {
+                        this.leadCell = { row: r, col: c };
+                    }
+                }
+                this.renderAgSelection();
+                this.renderSelectionUI();
+            };
+
+            this._agSelectStartHandler = (e) => {
+                e.preventDefault();
+                return false;
+            };
+
+            this.agGridDiv.addEventListener('mousedown', this._agMouseDownHandler, { capture: true });
+            this.agGridDiv.addEventListener('mouseover', this._agMouseOverHandler);
+            this.agGridDiv.addEventListener('keydown', (e) => this.onKeyDown(e));
+            this.agGridDiv.addEventListener('copy', (e) => {
+                const text = this.getSelectionCopyText(false);
+                if (text) {
+                    e.preventDefault();
+                    if (e.clipboardData) {
+                        try {
+                            e.clipboardData.setData('text/plain', text);
+                        } catch (_) {}
+                    }
+                    copyText(text);
+                }
+            });
+            this.agGridDiv.addEventListener('selectstart', this._agSelectStartHandler);
+            this.agGridDiv.addEventListener('dragstart', this._agSelectStartHandler);
+
+            // Theme synchronization & typography application
+            this._onThemeChanged = () => {
+                this.syncTheme();
+                this.applyTypographySettings();
+            };
+            window.addEventListener('ide-theme-changed', this._onThemeChanged);
+            window.addEventListener('ide-settings-updated', this._onThemeChanged);
+            window.addEventListener('ide-typography-changed', this._onThemeChanged);
+
+            this._themeObserver = new MutationObserver(() => {
+                this.syncTheme();
+                this.applyTypographySettings();
+            });
+            this._themeObserver.observe(document.documentElement, {
+                attributes: true,
+                attributeFilter: ['data-bs-theme', 'data-theme-mode', 'class', 'style']
+            });
+        }
+
+        getColIndexFromColId(colId) {
+            if (!colId) return -1;
+            if (colId.startsWith('c_')) {
+                const idx = parseInt(colId.substring(2), 10);
+                return isNaN(idx) ? -1 : idx;
+            }
+            return this.getColumnIndexByName(colId);
+        }
+
+        getColumnName(colIdx) {
+            if (!this.columns || colIdx < 0 || colIdx >= this.columns.length) return '';
+            const c = this.columns[colIdx];
+            return typeof c === 'string' ? c : (c ? (c.name || String(c)) : '');
+        }
+
+        freezeColumn(colIdx, freeze = true) {
+            if (colIdx < 0 || colIdx >= this.totalCols) return;
+            if (!this.pinnedCols) this.pinnedCols = new Set();
+            if (freeze) {
+                this.pinnedCols.add(colIdx);
+            } else {
+                this.pinnedCols.delete(colIdx);
+            }
+            const colId = `c_${colIdx}`;
+            if (this.gridApi) {
+                try {
+                    if (typeof this.gridApi.applyColumnState === 'function') {
+                        this.gridApi.applyColumnState({
+                            state: [{ colId: colId, pinned: freeze ? 'left' : null }]
+                        });
+                    } else if (typeof this.gridApi.setColumnPinned === 'function') {
+                        this.gridApi.setColumnPinned(colId, freeze ? 'left' : null);
+                    }
+                } catch (err) {
+                    console.warn('[freezeColumn] Error applying column state:', err);
+                }
+            }
+            const colName = this.getColumnName(colIdx);
+            const msg = freeze ? `Đã cố định cột [${colName}]` : `Đã bỏ cố định cột [${colName}]`;
+            if (typeof window.notify === 'function') {
+                window.notify(msg, 'info');
+            } else if (typeof window.showToast === 'function') {
+                window.showToast(msg, 'info');
+            }
+        }
+
+        syncTheme(forceRedraw = true) {
+            if (!this.agGridDiv) return;
+            const html = document.documentElement;
+            const curTheme = html.getAttribute('data-bs-theme') || '';
+            const themeMode = html.getAttribute('data-theme-mode') || '';
+            let isLight = false;
+
+            if (window.ThemeRegistry && typeof window.ThemeRegistry.getThemeById === 'function') {
+                const tObj = window.ThemeRegistry.getThemeById(curTheme);
+                if (tObj) {
+                    isLight = !tObj.isDark;
+                } else {
+                    isLight = themeMode === 'light' || curTheme === 'light' || curTheme.startsWith('light-') || curTheme === 'win-nt' || curTheme === 'win-xp';
+                }
+            } else {
+                isLight = themeMode === 'light' || curTheme === 'light' || curTheme.startsWith('light-') || curTheme === 'win-nt' || curTheme === 'win-xp';
+            }
+
+            this.agGridDiv.classList.toggle('ag-theme-quartz', isLight);
+            this.agGridDiv.classList.toggle('ag-theme-quartz-dark', !isLight);
+
+            this.applyTypographySettings(forceRedraw);
+        }
+
+        applyTypographySettings(forceRedraw = true) {
+            let fontFamily = '';
+            let fontSize = 0;
+
+            if (window.IDE_SETTINGS && window.IDE_SETTINGS.grid) {
+                fontFamily = window.IDE_SETTINGS.grid.fontFamily || '';
+                fontSize = parseInt(window.IDE_SETTINGS.grid.fontSize, 10) || 0;
+            }
+
+            if (!fontFamily || !fontSize) {
+                try {
+                    const raw = localStorage.getItem('ide-settings');
+                    if (raw) {
+                        const parsed = JSON.parse(raw);
+                        if (parsed && parsed.grid) {
+                            if (!fontFamily) fontFamily = parsed.grid.fontFamily || '';
+                            if (!fontSize) fontSize = parseInt(parsed.grid.fontSize, 10) || 0;
+                        }
+                    }
+                } catch (_) {}
+            }
+
+            if (!fontFamily || !fontSize) {
+                const rootStyle = getComputedStyle(document.documentElement);
+                if (!fontFamily) {
+                    fontFamily = (rootStyle.getPropertyValue('--ide-grid-font-family') || '').trim();
+                }
+                if (!fontSize) {
+                    const parsedSz = parseInt(rootStyle.getPropertyValue('--ide-grid-font-size'), 10);
+                    if (!isNaN(parsedSz) && parsedSz > 0) fontSize = parsedSz;
+                }
+            }
+
+            if (!fontFamily) fontFamily = 'JetBrains Mono, Segoe UI, Consolas, sans-serif';
+            if (!fontSize || fontSize < 9) fontSize = 13;
+
+            const rowHeight = Math.max(24, Math.round(fontSize * 1.8 + 2));
+            const headerHeight = Math.max(26, rowHeight + 2);
+
+            if (this.agGridDiv) {
+                this.agGridDiv.style.setProperty('--ag-font-family', fontFamily);
+                this.agGridDiv.style.setProperty('--ag-font-size', `${fontSize}px`);
+                this.agGridDiv.style.setProperty('--ag-row-height', `${rowHeight}px`);
+                this.agGridDiv.style.setProperty('--ag-header-height', `${headerHeight}px`);
+            }
+
+            if (this.renderer) {
+                this.renderer.rowHeight = rowHeight;
+            }
+
+            if (this.gridApi && !this._isInitializing && forceRedraw) {
+                try {
+                    this.gridApi.resetRowHeights();
+                    this.gridApi.redrawRows();
+                    this.gridApi.refreshHeader();
+                } catch (_) {}
+            }
+        }
+
+        renderAgSelection() {
+            if (!this.agGridDiv) return;
+            const bb = this.getBoundingBox();
+            const lead = this.leadCell;
+            const anchor = this.anchorCell;
+            const hasRange = Boolean(anchor && lead);
+
+            // Xoá mọi browser text selection dư thừa
+            if (window.getSelection) {
+                try {
+                    const sel = window.getSelection();
+                    if (sel) {
+                        if (typeof sel.removeAllRanges === 'function') sel.removeAllRanges();
+                        else if (typeof sel.empty === 'function') sel.empty();
+                    }
+                } catch (_) {}
+            }
+
+            let selectedRowIndices = null;
+            if (this.gridApi && typeof this.gridApi.getSelectedNodes === 'function') {
+                const nodes = this.gridApi.getSelectedNodes();
+                if (nodes && nodes.length > 0) {
+                    selectedRowIndices = new Set(nodes.map(n => n.rowIndex).filter(x => x != null));
+                }
+            }
+
+            // 1. Column header selection highlight (.col-selected)
+            const headerCells = this.agGridDiv.querySelectorAll('.ag-header-cell');
+            headerCells.forEach(th => {
+                const colId = th.getAttribute('col-id');
+                const cIdx = this.getColIndexFromColId(colId);
+                if (cIdx >= 0) {
+                    if (selectedRowIndices) {
+                        th.classList.add('col-selected');
+                    } else if (hasRange && cIdx >= bb.minCol && cIdx <= bb.maxCol) {
+                        th.classList.add('col-selected');
+                    } else {
+                        th.classList.remove('col-selected');
+                    }
+                }
+            });
+
+            // 2. Visible rows and cells
+            const rows = this.agGridDiv.querySelectorAll('.ag-row');
+            rows.forEach(rowEl => {
+                const rowIdxAttr = rowEl.getAttribute('row-index');
+                if (rowIdxAttr == null) return;
+                const rIdx = parseInt(rowIdxAttr, 10);
+                if (isNaN(rIdx)) return;
+
+                const isRowSelected = selectedRowIndices
+                    ? selectedRowIndices.has(rIdx)
+                    : (hasRange && rIdx >= bb.minRow && rIdx <= bb.maxRow);
+
+                const rnCell = rowEl.querySelector('.ag-cell-row-number');
+                if (rnCell) {
+                    if (isRowSelected) {
+                        rnCell.classList.add('row-selected');
+                    } else {
+                        rnCell.classList.remove('row-selected');
+                    }
+                }
+
+                const cells = rowEl.querySelectorAll('.ag-cell:not(.ag-cell-row-number)');
+                cells.forEach(cellEl => {
+                    const colId = cellEl.getAttribute('col-id');
+                    const cIdx = this.getColIndexFromColId(colId);
+                    if (cIdx < 0) return;
+
+                    let isCellSelected = false;
+                    if (selectedRowIndices) {
+                        isCellSelected = selectedRowIndices.has(rIdx);
+                    } else {
+                        isCellSelected = isRowSelected && cIdx >= bb.minCol && cIdx <= bb.maxCol;
+                    }
+
+                    const isActive = lead && lead.row === rIdx && lead.col === cIdx;
+
+                    if (isCellSelected) {
+                        cellEl.classList.add('ide-cell-selected');
+                    } else {
+                        cellEl.classList.remove('ide-cell-selected');
+                    }
+
+                    if (isActive) {
+                        cellEl.classList.add('ide-cell-active');
+                    } else {
+                        cellEl.classList.remove('ide-cell-active');
+                    }
+                });
+            });
+        }
+
+        syncAgRowNodesSelection() {
+            if (!this.gridApi) return;
+            const bb = this.getBoundingBox();
+            if (typeof this.gridApi.forEachNode === 'function') {
+                this.gridApi.forEachNode((node) => {
+                    const r = node.rowIndex;
+                    const inRange = (r != null && r >= bb.minRow && r <= bb.maxRow);
+                    node.setSelected(inRange, false);
+                });
+            }
+        }
+
+        doesNodePassFilter(node) {
+            if (!this.hasActiveFilters()) return true;
+            const rowData = node.data;
+            if (!rowData) return false;
+            for (const [colName, rule] of Object.entries(this.columnFilters)) {
+                if (!this.isColumnFiltered(colName)) continue;
+                const cIdx = this.getColumnIndexByName(colName);
+                if (cIdx === -1) continue;
+                const val = rowData[cIdx];
+                if (!this.checkFilterMatch(val, rule)) return false;
+            }
+            return true;
+        }
+
+        onAgCellContextMenu(params) {
+            GridResultInstance.activeInstance = this;
+            if (this.agGridDiv) {
+                this.agGridDiv.focus({ preventScroll: true });
+            }
+            const e = params.event;
+            if (!e) return;
+            e.preventDefault();
+            const r = params.node ? params.node.rowIndex : null;
+            const colDef = params.column ? params.column.getColDef() : null;
+            const c = this.getColIndexFromColDef(colDef);
+            if (r != null && c >= 0) {
+                this.leadCell = { row: r, col: c };
+                if (!this.anchorCell || !this.isCellInSelection(r, c)) {
+                    this.anchorCell = { row: r, col: c };
+                    if (this.gridApi) {
+                        this.gridApi.deselectAll();
+                    }
+                }
+                if (this.gridApi && typeof this.gridApi.setFocusedCell === 'function' && colDef) {
+                    try {
+                        this.gridApi.setFocusedCell(r, colDef.field || colDef.colId);
+                    } catch (_) {}
+                }
+                this.renderAgSelection();
+            }
+            this.showContextMenu(e.clientX, e.clientY);
+        }
+
+        getColIndexFromColDef(colDef) {
+            if (!colDef) return -1;
+            if (colDef.field && colDef.field.startsWith('c_')) {
+                return parseInt(colDef.field.substring(2), 10);
+            }
+            if (colDef.colId && colDef.colId.startsWith('c_')) {
+                return parseInt(colDef.colId.substring(2), 10);
+            }
+            return this.getColumnIndexByName(colDef.headerName);
+        }
+
+        getColumnIndexByName(colName) {
+            if (!this.columns || this.columns.length === 0) return -1;
+            for (let i = 0; i < this.columns.length; i++) {
+                const c = this.columns[i];
+                const name = typeof c === 'string' ? c : (c.name || String(c));
+                if (name === colName) return i;
+            }
+            return -1;
+        }
+
+        isColumnFiltered(colName) {
+            if (!this.columnFilters || !this.columnFilters[colName]) return false;
+            const f = this.columnFilters[colName];
+            const hasOp = f.operator && f.operator !== 'none' && (
+                f.operator === 'is_null' || f.operator === 'is_not_null' || (f.value !== undefined && f.value !== '')
+            );
+            const hasValFilter = Boolean(f.selectedValues && f.isFilteredByValues);
+            return hasOp || hasValFilter;
+        }
+
+        hasActiveFilters() {
+            if (!this.columnFilters) return false;
+            return Object.keys(this.columnFilters).some(k => this.isColumnFiltered(k));
+        }
+
         destroy() {
+            this.setState('destroyed');
             document.removeEventListener('mouseup', this._docMouseUp);
+            if (this._onThemeChanged) {
+                window.removeEventListener('ide-theme-changed', this._onThemeChanged);
+                window.removeEventListener('ide-settings-updated', this._onThemeChanged);
+                window.removeEventListener('ide-typography-changed', this._onThemeChanged);
+                this._onThemeChanged = null;
+            }
+            if (this._themeObserver) {
+                this._themeObserver.disconnect();
+                this._themeObserver = null;
+            }
+            if (this.gridApi) {
+                try {
+                    this.gridApi.destroy();
+                } catch (_) {}
+                this.gridApi = null;
+            }
+            if (this.agGridDiv) {
+                if (this._agMouseDownHandler) {
+                    this.agGridDiv.removeEventListener('mousedown', this._agMouseDownHandler, { capture: true });
+                    this._agMouseDownHandler = null;
+                }
+                if (this._agMouseOverHandler) {
+                    this.agGridDiv.removeEventListener('mouseover', this._agMouseOverHandler);
+                    this._agMouseOverHandler = null;
+                }
+                if (this._agSelectStartHandler) {
+                    this.agGridDiv.removeEventListener('selectstart', this._agSelectStartHandler);
+                    this.agGridDiv.removeEventListener('dragstart', this._agSelectStartHandler);
+                    this._agSelectStartHandler = null;
+                }
+                this.agGridDiv.remove();
+                this.agGridDiv = null;
+            }
             if (this.renderer) {
                 this.renderer.destroy();
                 this.renderer = null;
@@ -372,6 +1371,12 @@
             if (this.aggregatesPanel) this.aggregatesPanel.remove();
             const existingPopover = document.getElementById('ide-col-filter-popover');
             if (existingPopover) existingPopover.remove();
+            if (global.GridResultManager && typeof global.GridResultManager.unregister === 'function') {
+                global.GridResultManager.unregister(this);
+            }
+            this.table = null;
+            this.rows = [];
+            this.columns = [];
         }
 
         // ── Progressive Streaming Row Appending ──────────────────────────────
@@ -383,6 +1388,9 @@
             }
             this.totalRows = this.rows.length;
             this.resSet.row_count = this.totalRows;
+            if (this.gridApi) {
+                this.gridApi.applyTransaction({ add: newRows });
+            }
             if (this.renderer) {
                 this.renderer.render(false);
             }
@@ -392,10 +1400,22 @@
             if (typeof window.updateResultFooter === 'function') {
                 window.updateResultFooter();
             }
+            this.syncPaneRowCount();
+        }
+
+        syncPaneRowCount() {
+            const pane = this.tableEl ? (this.tableEl._gridPane || this.tableEl.closest('.ide-grid-pane')) : null;
+            if (pane && typeof pane.updateRowCount === 'function') {
+                const disp = (typeof this.getDisplayRowCount === 'function') ? this.getDisplayRowCount() : this.totalRows;
+                pane.updateRowCount(disp, this.totalRows);
+            }
         }
 
         // ── Virtual Index Mapping & Row Cell Rendering ────────────────────────
         getDisplayRowCount() {
+            if (this.gridApi) {
+                return this.gridApi.getDisplayedRowCount();
+            }
             return this.filteredRowIndices ? this.filteredRowIndices.length : this.totalRows;
         }
 
@@ -405,6 +1425,18 @@
         }
 
         isRowFilteredOut(dataRowIdx) {
+            if (this.gridApi) {
+                if (!this.hasActiveFilters()) return false;
+                const rowData = this.rows[dataRowIdx];
+                if (!rowData) return true;
+                for (const [colName, rule] of Object.entries(this.columnFilters)) {
+                    if (!this.isColumnFiltered(colName)) continue;
+                    const cIdx = this.getColumnIndexByName(colName);
+                    if (cIdx === -1) continue;
+                    if (!this.checkFilterMatch(rowData[cIdx], rule)) return true;
+                }
+                return false;
+            }
             if (this.filteredRowSet) {
                 return !this.filteredRowSet.has(dataRowIdx);
             }
@@ -454,11 +1486,24 @@
                 td.dataset.row = dataRowIdx;
                 td.dataset.col = c;
 
+                const col = this.columns[c];
+                const colName = typeof col === 'string' ? col : (col ? (col.name || String(col)) : '');
                 const val = rowData ? rowData[c] : null;
+                const structFormat = (window.StructuredDataDetector && typeof window.StructuredDataDetector.detectCandidate === 'function')
+                    ? window.StructuredDataDetector.detectCandidate(val, colName, col)
+                    : null;
 
                 if (val === null || val === undefined) {
                     td.innerHTML = '<span class="ide-null-value">NULL</span>';
                     td.className = 'ide-null-cell';
+                } else if (structFormat) {
+                    const icon = structFormat === 'xml' ? 'fa-file-code' : 'fa-code';
+                    const displayText = formatStructuredCellText(val, 300);
+                    const rawStr = (typeof val === 'object') ? JSON.stringify(val) : String(val);
+                    const preview = rawStr.length > 500 ? (rawStr.slice(0, 500) + '…') : rawStr;
+                    const tooltip = `Click để mở ${structFormat.toUpperCase()} trong tab Editor\n${preview}`;
+                    td.innerHTML = `<span class="ide-structured-link ide-structured-link-${structFormat}" data-format="${structFormat}" data-col-idx="${c}" data-row-idx="${dataRowIdx}" role="button" tabindex="0" title="${escapeHtml(tooltip)}"><i class="fa-solid ${icon} me-1"></i>${escapeHtml(displayText)}</span>`;
+                    td.className = '';
                 } else if (typeof val === 'number') {
                     td.textContent = val;
                     td.className = 'ide-num-value';
@@ -519,6 +1564,27 @@
             }
 
             if (e.button === 0) {
+                const structLink = e.target.closest('.ide-structured-link');
+                if (structLink && !td.classList.contains('ide-row-number')) {
+                    e.stopPropagation();
+                    const r = parseInt(td.dataset.row, 10);
+                    const c = parseInt(td.dataset.col, 10);
+                    const col = this.columns[c];
+                    const colName = (typeof col === 'string' ? col : (col ? (col.name || String(col)) : '')) || '(No column name)';
+                    const row = this.rows[r];
+                    const val = row ? row[c] : null;
+                    const format = structLink.dataset.format;
+                    if (window.StructuredDataViewer && typeof window.StructuredDataViewer.openInNewTab === 'function') {
+                        window.StructuredDataViewer.openInNewTab({
+                            value: val,
+                            colName: colName,
+                            rowIndex: r,
+                            format: format
+                        });
+                    }
+                    return;
+                }
+
                 e.preventDefault();
                 if (window.getSelection) {
                     window.getSelection().removeAllRanges();
@@ -694,6 +1760,12 @@
                 }
             });
 
+            // Trigger AG Grid external filter & header refresh
+            if (this.gridApi) {
+                this.gridApi.onFilterChanged();
+                this.gridApi.refreshHeader();
+            }
+
             const colNames = this.columns.map(c => typeof c === 'string' ? c : (c.name || String(c)));
 
             if (filterKeys.length === 0) {
@@ -755,6 +1827,7 @@
             if (typeof window.updateResultFooter === 'function') {
                 window.updateResultFooter();
             }
+            this.syncPaneRowCount();
         }
 
         showColumnFilterPopover(colName, cIdx, btn) {
@@ -1139,6 +2212,7 @@
                 row: Math.max(0, Math.min(this.totalRows - 1, leadRow)),
                 col: Math.max(0, Math.min(this.totalCols - 1, leadCol))
             };
+            this.renderAgSelection();
             this.renderSelectionUI();
         }
 
@@ -1155,13 +2229,23 @@
         }
 
         isCellInSelection(r, c) {
+            if (this.gridApi && typeof this.gridApi.getSelectedNodes === 'function') {
+                const selectedNodes = this.gridApi.getSelectedNodes();
+                if (selectedNodes && selectedNodes.length > 0) {
+                    return selectedNodes.some(n => n.rowIndex === r);
+                }
+            }
             const bb = this.getBoundingBox();
             return r >= bb.minRow && r <= bb.maxRow && c >= bb.minCol && c <= bb.maxCol;
         }
 
         selectAll() {
+            if (this.gridApi) {
+                this.gridApi.selectAll();
+            }
             if (this.totalRows === 0 || this.totalCols === 0) return;
             this.setSelection(0, 0, this.totalRows - 1, this.totalCols - 1);
+            this.renderAgSelection();
         }
 
         renderSelectionUI() {
@@ -1283,22 +2367,27 @@
 
         // ── Keyboard handling ────────────────────────────────────────────────
         onKeyDown(e) {
+            GridResultInstance.activeInstance = this;
+
+            const isC = (e.key === 'c' || e.key === 'C' || e.code === 'KeyC');
+            const isA = (e.key === 'a' || e.key === 'A' || e.code === 'KeyA');
+
             // Ctrl+A
-            if ((e.ctrlKey || e.metaKey) && (e.key === 'a' || e.key === 'A')) {
+            if ((e.ctrlKey || e.metaKey) && isA) {
                 e.preventDefault();
                 this.selectAll();
                 return;
             }
 
             // Ctrl+Shift+C (Copy with Headers)
-            if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'c' || e.key === 'C')) {
+            if ((e.ctrlKey || e.metaKey) && e.shiftKey && isC) {
                 e.preventDefault();
                 this.copyWithHeaders();
                 return;
             }
 
             // Ctrl+C (Copy)
-            if ((e.ctrlKey || e.metaKey) && !e.shiftKey && (e.key === 'c' || e.key === 'C')) {
+            if ((e.ctrlKey || e.metaKey) && !e.shiftKey && isC) {
                 e.preventDefault();
                 this.copy(false);
                 return;
@@ -1409,21 +2498,41 @@
 
         // ── Data Extraction ──────────────────────────────────────────────────
         getSelectedRangeData(includeHeaders = false) {
-            const bb = this.getBoundingBox();
+            let bb = this.getBoundingBox();
             const colNames = this.columns.map(c => typeof c === 'string' ? c : (c.name || String(c)));
-            const selectedColNames = colNames.slice(bb.minCol, bb.maxCol + 1);
+            let selectedColNames = [];
+            let selectedRowsData = [];
 
-            const selectedRowsData = [];
-            for (let r = bb.minRow; r <= bb.maxRow; r++) {
-                if (this.isRowFilteredOut(r)) {
-                    continue; // Skip rows hidden by filters
+            let selectedNodes = [];
+            if (this.gridApi && typeof this.gridApi.getSelectedNodes === 'function') {
+                selectedNodes = this.gridApi.getSelectedNodes();
+            }
+
+            if (selectedNodes.length > 0) {
+                // Full row selection mode
+                selectedNodes.sort((a, b) => (a.rowIndex ?? 0) - (b.rowIndex ?? 0));
+                selectedColNames = colNames;
+                selectedRowsData = selectedNodes.map(n => n.data).filter(Boolean);
+                bb = {
+                    minRow: selectedNodes[0]?.rowIndex ?? 0,
+                    maxRow: selectedNodes[selectedNodes.length - 1]?.rowIndex ?? (selectedRowsData.length - 1),
+                    minCol: 0,
+                    maxCol: colNames.length - 1
+                };
+            } else {
+                // Cell / Range bounding box mode
+                selectedColNames = colNames.slice(bb.minCol, bb.maxCol + 1);
+                for (let r = bb.minRow; r <= bb.maxRow; r++) {
+                    if (this.isRowFilteredOut(r)) {
+                        continue; // Skip rows hidden by filters
+                    }
+                    const row = this.rows[r] || [];
+                    const rowCells = [];
+                    for (let c = bb.minCol; c <= bb.maxCol; c++) {
+                        rowCells.push(row[c]);
+                    }
+                    selectedRowsData.push(rowCells);
                 }
-                const row = this.rows[r] || [];
-                const rowCells = [];
-                for (let c = bb.minCol; c <= bb.maxCol; c++) {
-                    rowCells.push(row[c]);
-                }
-                selectedRowsData.push(rowCells);
             }
 
             return {
@@ -1435,10 +2544,49 @@
         }
 
         getActiveCellValue() {
+            if (this.gridApi && typeof this.gridApi.getFocusedCell === 'function') {
+                const focused = this.gridApi.getFocusedCell();
+                if (focused && focused.rowIndex != null && focused.column) {
+                    const cIdx = this.getColIndexFromColDef(focused.column.getColDef());
+                    const row = this.rows[focused.rowIndex];
+                    if (row && cIdx >= 0) return row[cIdx];
+                }
+            }
             if (!this.leadCell) return '';
             const row = this.rows[this.leadCell.row];
             if (!row) return '';
             return row[this.leadCell.col];
+        }
+
+        getActiveCellInfo() {
+            let rowIndex = -1;
+            let colIndex = -1;
+            let colName = '';
+            let colMeta = null;
+            let value = null;
+
+            if (this.leadCell && this.leadCell.row != null && this.leadCell.col != null) {
+                rowIndex = this.leadCell.row;
+                colIndex = this.leadCell.col;
+            } else if (this.gridApi && typeof this.gridApi.getFocusedCell === 'function') {
+                const focused = this.gridApi.getFocusedCell();
+                if (focused && focused.rowIndex != null && focused.column) {
+                    rowIndex = focused.rowIndex;
+                    colIndex = this.getColIndexFromColDef(focused.column.getColDef());
+                }
+            }
+
+            if (rowIndex >= 0 && colIndex >= 0) {
+                if (this.rows && this.rows[rowIndex] && colIndex < this.rows[rowIndex].length) {
+                    value = this.rows[rowIndex][colIndex];
+                }
+                if (this.columns && colIndex < this.columns.length) {
+                    const c = this.columns[colIndex];
+                    colName = typeof c === 'string' ? c : (c ? (c.name || String(c)) : '');
+                    colMeta = (typeof c === 'object' && c !== null) ? c : null;
+                }
+            }
+            return { rowIndex, colIndex, colName, colMeta, value };
         }
 
         // ── Actions ──────────────────────────────────────────────────────────
@@ -1481,21 +2629,32 @@
             notify('Đã sao chép danh sách SQL values', 'success');
         }
 
-        copy(includeHeaders = false) {
+        getSelectionCopyText(includeHeaders = false) {
             const { selectedColNames, selectedRowsData } = this.getSelectedRangeData();
+            if (!selectedRowsData || selectedRowsData.length === 0) {
+                const val = this.getActiveCellValue();
+                return (val === null || val === undefined) ? '' : String(val);
+            }
+            if (!includeHeaders && selectedRowsData.length === 1 && selectedRowsData[0].length === 1) {
+                const val = selectedRowsData[0][0];
+                return (val === null || val === undefined) ? '' : String(val);
+            }
             const lines = [];
-
             if (includeHeaders) {
                 lines.push(selectedColNames.map(escapeTsvCell).join('\t'));
             }
-
             for (const row of selectedRowsData) {
                 lines.push(row.map(escapeTsvCell).join('\t'));
             }
+            return lines.join('\r\n');
+        }
 
-            const tsv = lines.join('\r\n');
+        copy(includeHeaders = false) {
+            const tsv = this.getSelectionCopyText(includeHeaders);
             copyText(tsv);
-            notify(`Đã sao chép ${selectedRowsData.length} dòng${includeHeaders ? ' (kèm headers)' : ''}`, 'success');
+            const { selectedRowsData } = this.getSelectedRangeData();
+            const rowCount = (selectedRowsData && selectedRowsData.length > 0) ? selectedRowsData.length : 1;
+            notify(`Đã sao chép ${rowCount} dòng${includeHeaders ? ' (kèm headers)' : ''}`, 'success');
         }
 
         copyWithHeaders() {
@@ -1990,18 +3149,72 @@
         showContextMenu(x, y) {
             closeActiveGridMenu();
 
+            const cellInfo = this.getActiveCellInfo();
+            const structFormat = (window.StructuredDataDetector && typeof window.StructuredDataDetector.detectCandidate === 'function')
+                ? window.StructuredDataDetector.detectCandidate(cellInfo.value, cellInfo.colName, cellInfo.colMeta)
+                : null;
+
+            const cIdx = this.leadCell ? this.leadCell.col : -1;
+            let isPinned = false;
+            if (cIdx >= 0) {
+                if (this.gridApi && typeof this.gridApi.getColumn === 'function') {
+                    const colObj = this.gridApi.getColumn(`c_${cIdx}`);
+                    if (colObj && typeof colObj.isPinned === 'function') {
+                        isPinned = colObj.isPinned() === 'left';
+                    }
+                } else if (this.pinnedCols) {
+                    isPinned = this.pinnedCols.has(cIdx);
+                }
+            }
+
             const menu = document.createElement('div');
             menu.className = 'ide-context-menu ide-grid-context-menu';
-            menu.style.minWidth = '220px';
+            menu.style.minWidth = '270px';
+            menu.style.maxWidth = '480px';
+            menu.style.width = 'max-content';
 
-            const items = [
-                // Group 1: Headers & Cell Copy
+            const items = [];
+
+            // Group: Column Freeze / Unfreeze
+            if (cIdx >= 0) {
+                const colName = this.getColumnName(cIdx);
+                if (isPinned) {
+                    items.push({
+                        id: 'unfreeze-column',
+                        label: `Bỏ cố định cột [${colName}]`,
+                        icon: 'fa-lock-open'
+                    });
+                } else {
+                    items.push({
+                        id: 'freeze-column',
+                        label: `Cố định cột [${colName}] (Freeze)`,
+                        icon: 'fa-thumbtack'
+                    });
+                }
+                items.push({ separator: true });
+            }
+
+            // Group 1: Headers & Cell Copy
+            items.push(
                 { id: 'copy-all-headers', label: 'Copy all Headers', icon: 'fa-table-cells' },
                 { id: 'copy-sel-headers', label: 'Copy selected Headers', icon: 'fa-table-columns' },
                 { id: 'copy-cell-11', label: 'Copy current cell 1:1', customIcon: '1:1' },
                 { id: 'copy-sql-list', label: 'Copy as SQL values List', customIcon: '(…)' },
-                { separator: true },
+                { separator: true }
+            );
 
+            // Group: Structured Data Viewer (JSON / XML) if candidate detected
+            if (structFormat) {
+                const label = `Xem ${structFormat.toUpperCase()} (View as ${structFormat.toUpperCase()})`;
+                const icon = structFormat === 'xml' ? 'fa-file-code' : 'fa-code';
+                items.push(
+                    { id: 'structured-quick-view', label: label, icon: icon },
+                    { id: 'structured-open-tab', label: `Mở ${structFormat.toUpperCase()} trong tab mới (Open in New Editor Tab)`, icon: 'fa-arrow-up-right-from-square' },
+                    { separator: true }
+                );
+            }
+
+            items.push(
                 // Group 2: Find, Aggregates, Scripting, Excel XML, Visualize
                 { id: 'find-data', label: 'Find data in Results Grid', icon: 'fa-magnifying-glass' },
                 { id: 'find-column', label: 'Find column in Results Grid', icon: 'fa-filter' },
@@ -2033,8 +3246,8 @@
 
                 // Group 4: Page Setup & Print
                 { id: 'page-setup', label: 'Page Setup...', icon: 'fa-sliders' },
-                { id: 'print', label: 'Print...', icon: 'fa-print', shortcut: 'Ctrl+P' },
-            ];
+                { id: 'print', label: 'Print...', icon: 'fa-print', shortcut: 'Ctrl+P' }
+            );
 
             items.forEach(item => {
                 if (item.separator) {
@@ -2112,6 +3325,16 @@
 
         handleAction(actionId) {
             switch (actionId) {
+                case 'freeze-column': {
+                    const c = this.leadCell ? this.leadCell.col : -1;
+                    if (c >= 0) this.freezeColumn(c, true);
+                    break;
+                }
+                case 'unfreeze-column': {
+                    const c = this.leadCell ? this.leadCell.col : -1;
+                    if (c >= 0) this.freezeColumn(c, false);
+                    break;
+                }
                 case 'copy-all-headers':
                     this.copyAllHeaders();
                     break;
@@ -2121,6 +3344,32 @@
                 case 'copy-cell-11':
                     this.copyCurrentCell();
                     break;
+                case 'structured-quick-view': {
+                    const info = this.getActiveCellInfo();
+                    const fmt = (window.StructuredDataDetector ? window.StructuredDataDetector.detectCandidate(info.value, info.colName, info.colMeta) : null) || 'json';
+                    if (window.StructuredDataViewer && typeof window.StructuredDataViewer.openQuickView === 'function') {
+                        window.StructuredDataViewer.openQuickView({
+                            value: info.value,
+                            colName: info.colName,
+                            rowIndex: info.rowIndex,
+                            format: fmt
+                        });
+                    }
+                    break;
+                }
+                case 'structured-open-tab': {
+                    const info = this.getActiveCellInfo();
+                    const fmt = (window.StructuredDataDetector ? window.StructuredDataDetector.detectCandidate(info.value, info.colName, info.colMeta) : null) || 'json';
+                    if (window.StructuredDataViewer && typeof window.StructuredDataViewer.openInNewTab === 'function') {
+                        window.StructuredDataViewer.openInNewTab({
+                            value: info.value,
+                            colName: info.colName,
+                            rowIndex: info.rowIndex,
+                            format: fmt
+                        });
+                    }
+                    break;
+                }
                 case 'copy-sql-list':
                     this.copySqlValuesList();
                     break;
@@ -2182,6 +3431,13 @@
                     console.log('Action not implemented', actionId);
             }
         }
+
+        refreshLayout() {
+            // Keep fixed column widths on resize; do NOT call sizeColumnsToFit()
+            if (this.renderer && typeof this.renderer.render === 'function') {
+                try { this.renderer.render(); } catch (_) {}
+            }
+        }
     }
 
     // ── Active Context Menu Singleton ────────────────────────────────────────
@@ -2201,19 +3457,46 @@
     });
 
     document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') closeActiveGridMenu();
+        if (e.key === 'Escape') {
+            closeActiveGridMenu();
+            return;
+        }
+
+        const isCtrlOrCmd = e.ctrlKey || e.metaKey;
+        if (!isCtrlOrCmd) return;
+
+        // Skip if active element is an input, textarea, or Monaco editor has focus
+        const activeEl = document.activeElement;
+        if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.isContentEditable)) {
+            return;
+        }
+        if (typeof monaco !== 'undefined' && monaco.editor && typeof monaco.editor.getEditors === 'function') {
+            try {
+                const editors = monaco.editor.getEditors();
+                if (editors.some(ed => ed.hasTextFocus && ed.hasTextFocus())) {
+                    return;
+                }
+            } catch (_) {}
+        }
+
+        const activeInst = GridResultInstance.activeInstance;
+        if (!activeInst) return;
+
+        const isInResults = activeEl && Boolean(activeEl.closest('.ide-ag-grid-instance, .ide-grid-table-scroll, .ide-grid-pane, #result-container, .ide-result-pane'));
+        const isGridActive = isInResults || (activeInst.agGridDiv && activeInst.agGridDiv.contains(activeEl)) || (activeInst.table && activeInst.table.contains(activeEl));
+
+        if (isGridActive) {
+            const isC = (e.key === 'c' || e.key === 'C' || e.code === 'KeyC');
+            const isA = (e.key === 'a' || e.key === 'A' || e.code === 'KeyA');
+            const isP = (e.key === 'p' || e.key === 'P' || e.code === 'KeyP');
+            const isS = (e.key === 's' || e.key === 'S' || e.code === 'KeyS');
+            if (isC || isA || isP || (isS && e.shiftKey)) {
+                activeInst.onKeyDown(e);
+            }
+        }
     });
 
     // ── String & Format Utilities ────────────────────────────────────────────
-    function escapeHtml(str) {
-        if (str === null || str === undefined) return '';
-        return String(str)
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;')
-            .replace(/'/g, '&#039;');
-    }
 
     function escapeXml(str) {
         return String(str)
@@ -2259,20 +3542,69 @@
 
     // ── Public API ───────────────────────────────────────────────────────────
     const attachedGrids = new WeakMap();
+    const activeInstances = new Set();
 
     global.GridResultManager = {
         attach(table, resSet, gridIndex) {
             if (!table) return null;
             if (attachedGrids.has(table)) {
-                attachedGrids.get(table).destroy();
+                const old = attachedGrids.get(table);
+                old.destroy();
+                activeInstances.delete(old);
             }
             const instance = new GridResultInstance(table, resSet, gridIndex);
             attachedGrids.set(table, instance);
+            activeInstances.add(instance);
             return instance;
         },
         getInstance(table) {
             return attachedGrids.get(table) || null;
+        },
+        unregister(instance) {
+            activeInstances.delete(instance);
+        },
+        getActiveCount() {
+            return activeInstances.size;
+        },
+        getAllInstances() {
+            return Array.from(activeInstances);
+        },
+        getMetrics() {
+            let totalRenderCount = 0;
+            let totalResizeRenderCount = 0;
+            let totalObserverCallbacks = 0;
+            let totalRowPoolSize = 0;
+            let totalRows = 0;
+
+            activeInstances.forEach(inst => {
+                totalRows += inst.totalRows;
+                if (inst.renderer) {
+                    totalRenderCount += inst.renderer.metrics.renderCount;
+                    totalResizeRenderCount += inst.renderer.metrics.resizeRenderCount;
+                    totalObserverCallbacks += inst.renderer.metrics.observerCallbacks;
+                    totalRowPoolSize += inst.renderer.rowPool.length;
+                }
+            });
+
+            return {
+                activeGrids: activeInstances.size,
+                totalRows,
+                totalRowPoolSize,
+                totalRenderCount,
+                totalResizeRenderCount,
+                totalObserverCallbacks
+            };
         }
     };
+
+    // Expose window.__gridResultPerf for diagnostic and test harness
+    global.__gridResultPerf = {
+        getMetrics: () => global.GridResultManager.getMetrics(),
+        ROW_HEIGHT: GRID_ROW_HEIGHT
+    };
+
+    GridResultInstance.activeInstance = null;
+    global.GridResultInstance = GridResultInstance;
+    global.GridResultController = GridResultInstance;
 
 })(window);

@@ -155,49 +155,96 @@
         },
 
         /**
+         * Checks if the word immediately preceding the cursor exactly matches a snippet prefix
+         */
+        hasMatchingSnippet(cm) {
+            let target = cm;
+            if (!target) {
+                target = (typeof window.getActiveAppEditor === 'function') ? window.getActiveAppEditor() : window.AppEditor;
+            }
+            if (!target) return null;
+
+            // Normalize raw Monaco editor instance if passed
+            if (typeof target.getCursor !== 'function' && typeof target.getPosition === 'function') {
+                if (window.AppEditor && (window.AppEditor.rawEditor === target || window.AppEditor.monaco === target)) {
+                    target = window.AppEditor;
+                } else if (window.AppEditor2 && (window.AppEditor2.rawEditor === target || window.AppEditor2.monaco === target)) {
+                    target = window.AppEditor2;
+                } else if (window.EditorAdapter) {
+                    target = new window.EditorAdapter(target);
+                }
+            }
+            if (typeof target.getCursor !== 'function') return null;
+
+            // If text is currently selected, do NOT expand snippets (preserve regular Tab indent)
+            if (typeof target.somethingSelected === 'function' && target.somethingSelected()) {
+                return null;
+            }
+            if (typeof target.hasSelection === 'function' && target.hasSelection()) {
+                return null;
+            }
+
+            const cursor = target.getCursor();
+            const line = target.getLine(cursor.line);
+            const beforeCursor = line.substring(0, cursor.ch);
+
+            // Match word immediately before cursor: [a-zA-Z0-9_#$@]+
+            const match = beforeCursor.match(/([a-zA-Z0-9_#$@]+)$/);
+            if (!match) return null;
+
+            const prefix = match[1];
+            const snippet = this.findSnippet(prefix);
+            if (!snippet) return null;
+
+            return {
+                snippet,
+                prefix,
+                cursor,
+                line: cursor.line,
+                wordStartCh: cursor.ch - prefix.length,
+                target
+            };
+        },
+
+        /**
          * Try to expand snippet at current editor cursor
          * Triggered on Tab key press or suggestion accept
          */
         tryExpandSnippet(cm) {
-            if (!cm) return false;
+            const matchInfo = this.hasMatchingSnippet(cm);
+            if (!matchInfo) return false;
 
-            const cursor = cm.getCursor();
-            const line = cm.getLine(cursor.line);
-            const beforeCursor = line.substring(0, cursor.ch);
-
-            // Match word immediately before cursor: [a-zA-Z0-9_]+
-            const match = beforeCursor.match(/([a-zA-Z0-9_]+)$/);
-            if (!match) return false;
-
-            const prefix = match[1];
-            const snippet = this.findSnippet(prefix);
-            if (!snippet) return false;
+            const { snippet, prefix, cursor, target, wordStartCh } = matchInfo;
 
             // Expand snippet
-            const wordStartCh = cursor.ch - prefix.length;
             const fromPos = { line: cursor.line, ch: wordStartCh };
             const toPos = { line: cursor.line, ch: cursor.ch };
 
             const expanded = this.expandSnippetBody(snippet);
 
-            cm.operation(() => {
-                cm.replaceRange(expanded.expandedText, fromPos, toPos);
+            target.operation(() => {
+                target.replaceRange(expanded.expandedText, fromPos, toPos);
 
                 // Compute new cursor / selection position
-                const startOffset = cm.indexFromPos(fromPos);
+                const startOffset = target.indexFromPos(fromPos);
                 const absSelStart = startOffset + expanded.selectionStart;
                 const absSelEnd = startOffset + expanded.selectionEnd;
 
-                const posStart = cm.posFromIndex(absSelStart);
-                const posEnd = cm.posFromIndex(absSelEnd);
+                const posStart = target.posFromIndex(absSelStart);
+                const posEnd = target.posFromIndex(absSelEnd);
 
                 if (absSelStart !== absSelEnd) {
-                    cm.setSelection(posStart, posEnd);
+                    target.setSelection(posStart, posEnd);
                 } else {
-                    cm.setCursor(posStart);
+                    target.setCursor(posStart);
                 }
-                cm.focus();
+                target.focus();
             });
+
+            // Automatically dismiss any open IntelliSense popup so single Tab expands cleanly
+            if (window.AppIntelliSense && typeof window.AppIntelliSense.hidePopup === 'function') {
+                window.AppIntelliSense.hidePopup();
+            }
 
             return true;
         },
@@ -257,15 +304,15 @@
                     color: var(--ide-text-main, #cccccc);
                 ">
                     <!-- Modal Header -->
-                    <div style="
-                        height: 38px; padding: 0 12px; background: var(--ide-bg-panel-header, #2d2d2d);
+                    <div class="ide-snippets-header" style="
+                        height: 38px; padding: 0 12px; background: var(--ide-bg-toolbar, var(--ide-bg-panel-header, var(--ide-bg-modal, #202228)));
                         border-bottom: 1px solid var(--ide-border, #454545);
                         display: flex; align-items: center; justify-content: space-between;
-                        user-select: none; flex-shrink: 0;
+                        user-select: none; flex-shrink: 0; color: var(--ide-text-main, inherit);
                     ">
                         <div class="d-flex align-items-center gap-2">
                             <i class="fa-solid fa-code text-info"></i>
-                            <span class="fw-bold" style="font-size: 13px;">Quản lý SQL Snippets (Mẫu viết tắt)</span>
+                            <span class="fw-bold" style="font-size: 13px; color: var(--ide-text-main, inherit);">Quản lý SQL Snippets (Mẫu viết tắt)</span>
                             <span id="ide-snip-badge-count" class="badge bg-secondary" style="font-size: 10px;">0 snippets</span>
                         </div>
                         <div class="d-flex align-items-center gap-2">

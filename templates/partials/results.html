@@ -26,15 +26,42 @@
     <div class="flex-grow-1 overflow-hidden position-relative" id="ide-results-container">
 
         <!-- Results Grid (default visible) -->
-        <div id="ide-results-grid-view" class="ide-result-view h-100">
+        <div id="ide-results-grid-view" class="ide-result-view h-100 d-flex flex-row overflow-hidden position-relative">
             <!-- Empty state -->
-            <div id="ide-results-empty" class="d-flex flex-column align-items-center justify-content-center h-100 text-center py-4 ide-result-empty-state">
+            <div id="ide-results-empty" class="d-flex flex-column align-items-center justify-content-center h-100 w-100 text-center py-4 ide-result-empty-state">
                 <i class="fa-solid fa-play-circle mb-2 ide-result-empty-icon"></i>
                 <small>Execute a query to see results</small>
             </div>
             <!-- Grid (hidden until results come in) -->
-            <div id="ide-results-table-wrap" class="d-none h-100 overflow-auto">
+            <div id="ide-results-table-wrap" class="d-none h-100 flex-grow-1 overflow-auto position-relative" style="min-width: 0;">
                 <!-- Tables generated dynamically -->
+            </div>
+            <!-- Structured Data Viewer Resizer -->
+            <div id="ide-structured-viewer-resizer" class="ide-structured-resizer d-none" title="Kéo để thay đổi độ rộng Quick Viewer"></div>
+            <!-- Quick Structured Data Viewer Panel -->
+            <div id="ide-structured-viewer-panel" class="ide-structured-viewer-panel d-none flex-column h-100">
+                <div class="ide-structured-viewer-header d-flex align-items-center justify-content-between px-2 py-1">
+                    <div class="ide-structured-viewer-meta d-flex flex-column overflow-hidden me-2">
+                        <span class="ide-structured-viewer-title fw-bold text-truncate" id="ide-structured-viewer-title">JSON Viewer</span>
+                        <small class="ide-structured-viewer-sub text-muted text-truncate" id="ide-structured-viewer-info">Source: col | Row: 1</small>
+                    </div>
+                    <div class="ide-structured-viewer-actions d-flex align-items-center gap-1 flex-shrink-0">
+                        <button type="button" class="btn btn-xs btn-outline-secondary" id="ide-btn-structured-format" title="Format code (JSON/XML)">
+                            <i class="fa-solid fa-align-left me-1"></i>Format
+                        </button>
+                        <button type="button" class="btn btn-xs btn-outline-secondary" id="ide-btn-structured-wrap" title="Bật/Tắt tự động xuống dòng (Word Wrap)">
+                            <i class="fa-solid fa-text-width me-1"></i>Wrap
+                        </button>
+                        <button type="button" class="btn btn-xs btn-outline-secondary" id="ide-btn-structured-copy" title="Copy content to Clipboard">
+                            <i class="fa-solid fa-copy me-1"></i>Copy
+                        </button>
+                        <button type="button" class="btn btn-xs btn-outline-secondary" id="ide-btn-structured-open-tab" title="Mở trong tab Editor mới (Open in Tab)">
+                            <i class="fa-solid fa-arrow-up-right-from-square me-1"></i>Open in Tab
+                        </button>
+                        <button type="button" class="btn btn-xs btn-outline-secondary ide-btn-structured-close" id="ide-btn-structured-close" title="Đóng panel xem nhanh">&times;</button>
+                    </div>
+                </div>
+                <div id="ide-structured-viewer-editor-container" class="flex-grow-1 position-relative overflow-hidden w-100"></div>
             </div>
         </div>
 

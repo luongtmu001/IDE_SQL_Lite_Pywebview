@@ -106,10 +106,24 @@
         "body": "ALTER TABLE $CURSOR$ ENABLE TRIGGER ALL"
     },
     {
+        "id": "snip_mv39hnn5sln1",
+        "prefix": "av",
+        "description": "ALTER VIEW",
+        "body": "ALTER VIEW",
+        "placeholders": []
+    },
+    {
         "id": "00a13a0b-40be-4a35-b12b-84437d372457",
         "prefix": "be",
         "description": "BEGIN...END block",
         "body": "BEGIN\r\n    $SELECTEDTEXT$$CURSOR$\r\nEND"
+    },
+    {
+        "id": "snip_mur5wv2gb0ag",
+        "prefix": "bst",
+        "description": "bs.trace()",
+        "body": "bs.trace();",
+        "placeholders": []
     },
     {
         "id": "bde5787c-b1bc-4701-b6c6-3d5d6100917f",
@@ -244,6 +258,13 @@
         ]
     },
     {
+        "id": "snip_musq9c6czh8p",
+        "prefix": "crf",
+        "description": "CREATE OR REPLACE FUNCTION",
+        "body": "CREATE OR REPLACE FUNCTION",
+        "placeholders": []
+    },
+    {
         "id": "snip_mukatokn5zlh",
         "prefix": "crv",
         "description": "CREATE OR REPLACE VIEW",
@@ -278,7 +299,7 @@
         "id": "31e3fffa-cdf7-4b4d-9992-dc62c3c343e8",
         "prefix": "cte",
         "description": "WITH cte fragment",
-        "body": "\r\n        WITH $cte_name$ AS\r\n(\r\n$SELECTEDTEXT$\r\n)\r\nSELECT $CURSOR$\r\nFROM $cte_name$",
+        "body": "\n;WITH $cte_name$ AS\n(\n$SELECTEDTEXT$\n)\nSELECT $CURSOR$\nFROM $cte_name$",
         "placeholders": [
             {
                 "name": "cte_name",
@@ -489,6 +510,18 @@
             {
                 "name": "condition",
                 "defaultValue": "1 = 1"
+            }
+        ]
+    },
+    {
+        "id": "snip_muz9oeqwv6ec",
+        "prefix": "ift",
+        "description": "IF condition THEN",
+        "body": "IF $condition$ THEN \n\nEND IF;",
+        "placeholders": [
+            {
+                "name": "$condition$",
+                "defaultValue": ""
             }
         ]
     },

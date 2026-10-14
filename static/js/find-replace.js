@@ -2,6 +2,18 @@
 
 (function () {
     function getActiveMonacoEditor() {
+        if (typeof window.getActiveAppEditor === 'function') {
+            const activeApp = window.getActiveAppEditor();
+            if (activeApp) {
+                if (typeof activeApp.getMonacoInstance === 'function') {
+                    const inst = activeApp.getMonacoInstance();
+                    if (inst) return inst;
+                }
+                if (activeApp.rawEditor) {
+                    return activeApp.rawEditor;
+                }
+            }
+        }
         if (window.AppEditor) {
             if (typeof window.AppEditor.getMonacoInstance === 'function') {
                 return window.AppEditor.getMonacoInstance();

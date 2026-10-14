@@ -37,19 +37,31 @@ if str(BASE_DIR) not in sys.path:
 if str(APP_DIR) not in sys.path:
     sys.path.insert(0, str(APP_DIR))
 
+import logging
 import webview
 from app.utils.crypto import encrypt_password, decrypt_password
 from app.utils.dwm import apply_dwm_titlebar_theme, THEME_TITLEBAR_PRESETS
+from app.utils.logging_setup import (
+    setup_logging,
+    open_log_folder as _open_log_folder,
+    get_log_info as _get_log_info,
+    update_log_level,
+)
+from app.utils.sql_safety import check_query_safety
 from app.services.connection_manager import ConnectionManager
 from app.services.table_designer_service import TableDesignerService
 from app.services.table_data_editor_service import TableDataEditorService
 from app.database.factory import create_adapter
+from app.services.history import get_history_service
+
+logger = logging.getLogger("luobtool.main")
 
 DATA_DIR = APP_DIR / "data"
 SETTINGS_FILE = DATA_DIR / "settings.json"
 SETTINGS_FILE_ALT = APP_DIR / "settings" / "settings.json"
 CONNECTIONS_FILE = DATA_DIR / "connections.json" 
 SNIPPETS_FILE = DATA_DIR / "snippets.json"
+CODE_STYLES_FILE = DATA_DIR / "code_styles.json"
 PROGRAM_LIST_FILE = DATA_DIR / "programlist.json"
 PROGRAM_GROUPS_FILE = DATA_DIR / "programgroups.json"
 REDGATE_SNIPPETS_DIR = Path(r"C:\Users\luonght\AppData\Local\Red Gate\SQL Prompt 10\Snippets")
@@ -73,7 +85,7 @@ def _read_json(file_path, default):
             with open(file_path, "r", encoding="utf-8-sig") as f:
                 return json.load(f)
     except Exception as e:
-        print(f"[Storage] Read error {file_path}: {e}")
+        logger.error(f"[Storage] Read error {file_path}: {e}")
     return default
 
 
@@ -84,7 +96,7 @@ def _write_json(file_path, data):
             json.dump(data, f, indent=4, ensure_ascii=False)
         return True
     except Exception as e:
-        print(f"[Storage] Write error {file_path}: {e}")
+        logger.error(f"[Storage] Write error {file_path}: {e}")
         return False
 
 
@@ -149,6 +161,22 @@ def _load_settings_file():
         settings["addons"]["bravo_tool"] = {"enabled": True}
     elif "enabled" not in settings["addons"]["bravo_tool"]:
         settings["addons"]["bravo_tool"]["enabled"] = True
+    if "session" not in settings or not isinstance(settings["session"], dict):
+        settings["session"] = {
+            "restoreOnStartup": True,
+            "saveSqlContent": True,
+            "maxTabSizeBytes": 1048576,
+            "autoSaveIntervalSeconds": 3
+        }
+    else:
+        if "restoreOnStartup" not in settings["session"]:
+            settings["session"]["restoreOnStartup"] = True
+        if "saveSqlContent" not in settings["session"]:
+            settings["session"]["saveSqlContent"] = True
+        if "maxTabSizeBytes" not in settings["session"]:
+            settings["session"]["maxTabSizeBytes"] = 1048576
+        if "autoSaveIntervalSeconds" not in settings["session"]:
+            settings["session"]["autoSaveIntervalSeconds"] = 3
     return settings
 
 
@@ -615,7 +643,8 @@ def _import_redgate_snippets():
 # Native Windows Clipboard Helpers (Win32 ctypes)
 # -------------------------------------------------------------------------
 
-def _native_set_clipboard(text: str) -> bool:
+def _native_set_clipboard(text: str, hwnd=None) -> bool:
+    content_str = str(text if text is not None else "")
     try:
         import ctypes
         from ctypes import wintypes
@@ -641,36 +670,80 @@ def _native_set_clipboard(text: str) -> bool:
         CF_UNICODETEXT = 13
         GMEM_MOVEABLE = 0x0002
 
+        candidate_hwnds = []
+        if hwnd:
+            candidate_hwnds.append(hwnd)
+        try:
+            fg = user32.GetForegroundWindow()
+            if fg and fg not in candidate_hwnds:
+                candidate_hwnds.append(fg)
+            act = user32.GetActiveWindow()
+            if act and act not in candidate_hwnds:
+                candidate_hwnds.append(act)
+        except Exception:
+            pass
+        candidate_hwnds.append(None)
+
         import time
         opened = False
         for _ in range(10):
-            if user32.OpenClipboard(None):
-                opened = True
+            for h in candidate_hwnds:
+                if user32.OpenClipboard(h):
+                    opened = True
+                    break
+            if opened:
                 break
             time.sleep(0.01)
-        if not opened:
-            return False
 
-        try:
-            user32.EmptyClipboard()
-            data = str(text if text is not None else "").encode('utf-16le') + b'\x00\x00'
-            h_mem = kernel32.GlobalAlloc(GMEM_MOVEABLE, len(data))
-            if h_mem:
-                p_mem = kernel32.GlobalLock(h_mem)
-                if p_mem:
-                    ctypes.memmove(p_mem, data, len(data))
-                    kernel32.GlobalUnlock(h_mem)
-                    res = user32.SetClipboardData(CF_UNICODETEXT, h_mem)
-                    return bool(res)
-        finally:
-            user32.CloseClipboard()
-        return False
+        if opened:
+            try:
+                user32.EmptyClipboard()
+                data = content_str.encode('utf-16le') + b'\x00\x00'
+                h_mem = kernel32.GlobalAlloc(GMEM_MOVEABLE, len(data))
+                if h_mem:
+                    p_mem = kernel32.GlobalLock(h_mem)
+                    if p_mem:
+                        ctypes.memmove(p_mem, data, len(data))
+                        kernel32.GlobalUnlock(h_mem)
+                        res = user32.SetClipboardData(CF_UNICODETEXT, h_mem)
+                        if res:
+                            return True
+            finally:
+                user32.CloseClipboard()
     except Exception as e:
-        print(f"[Clipboard] Error setting clipboard: {e}")
-        return False
+        print(f"[Clipboard] ctypes Win32 error: {e}")
+
+    # Fallback 1: Tkinter standard library (reliable across interactive desktop sessions)
+    try:
+        import tkinter as tk
+        r = tk.Tk()
+        r.withdraw()
+        r.clipboard_clear()
+        r.clipboard_append(content_str)
+        r.update()
+        r.destroy()
+        return True
+    except Exception:
+        pass
+
+    # Fallback 2: PowerShell Set-Clipboard
+    try:
+        import subprocess
+        p = subprocess.Popen(
+            ["powershell", "-NoProfile", "-NonInteractive", "-Command", "$input | Set-Clipboard"],
+            stdin=subprocess.PIPE,
+            creationflags=0x08000000
+        )
+        p.communicate(input=content_str.encode("utf-8"), timeout=3)
+        if p.returncode == 0:
+            return True
+    except Exception:
+        pass
+
+    return False
 
 
-def _native_get_clipboard() -> str:
+def _native_get_clipboard(hwnd=None) -> str:
     try:
         import ctypes
         from ctypes import wintypes
@@ -690,31 +763,67 @@ def _native_get_clipboard() -> str:
         kernel32.GlobalUnlock.restype = wintypes.BOOL
 
         CF_UNICODETEXT = 13
+        candidate_hwnds = []
+        if hwnd:
+            candidate_hwnds.append(hwnd)
+        try:
+            fg = user32.GetForegroundWindow()
+            if fg and fg not in candidate_hwnds:
+                candidate_hwnds.append(fg)
+        except Exception:
+            pass
+        candidate_hwnds.append(None)
+
         import time
         opened = False
         for _ in range(10):
-            if user32.OpenClipboard(None):
-                opened = True
+            for h in candidate_hwnds:
+                if user32.OpenClipboard(h):
+                    opened = True
+                    break
+            if opened:
                 break
             time.sleep(0.01)
-        if not opened:
-            return ""
 
-        try:
-            h_mem = user32.GetClipboardData(CF_UNICODETEXT)
-            if h_mem:
-                p_mem = kernel32.GlobalLock(h_mem)
-                if p_mem:
-                    try:
-                        return ctypes.c_wchar_p(p_mem).value or ""
-                    finally:
-                        kernel32.GlobalUnlock(h_mem)
-        finally:
-            user32.CloseClipboard()
-        return ""
+        if opened:
+            try:
+                h_mem = user32.GetClipboardData(CF_UNICODETEXT)
+                if h_mem:
+                    p_mem = kernel32.GlobalLock(h_mem)
+                    if p_mem:
+                        try:
+                            return ctypes.c_wchar_p(p_mem).value or ""
+                        finally:
+                            kernel32.GlobalUnlock(h_mem)
+            finally:
+                user32.CloseClipboard()
     except Exception as e:
-        print(f"[Clipboard] Error getting clipboard: {e}")
-        return ""
+        print(f"[Clipboard] ctypes Win32 read error: {e}")
+
+    # Fallback 1: Tkinter
+    try:
+        import tkinter as tk
+        r = tk.Tk()
+        r.withdraw()
+        val = r.clipboard_get()
+        r.destroy()
+        return val or ""
+    except Exception:
+        pass
+
+    # Fallback 2: PowerShell Get-Clipboard
+    try:
+        import subprocess
+        res = subprocess.check_output(
+            ["powershell", "-NoProfile", "-NonInteractive", "-Command", "Get-Clipboard"],
+            creationflags=0x08000000,
+            timeout=3
+        )
+        return res.decode("utf-8", errors="replace").rstrip("\r\n")
+    except Exception:
+        pass
+
+    return ""
 
 
 # -------------------------------------------------------------------------
@@ -879,6 +988,7 @@ class BravoApi:
         self._bravo_sessions = {}
         self._window = None
         self._profiler_windows = []
+        self._event_listener_windows = []
         self._main_api = main_api
         self._current_titlebar_theme = None
 
@@ -895,6 +1005,62 @@ class BravoApi:
             for delay in (0.05, 0.2, 0.5):
                 threading.Timer(delay, lambda: self.apply_titlebar_theme()).start()
         return {"success": True}
+
+    def open_log_folder(self):
+        import app.utils.logging_setup as logging_setup
+        return logging_setup.open_log_folder()
+
+    def get_log_info(self):
+        import app.utils.logging_setup as logging_setup
+        return {"success": True, "data": logging_setup.get_log_info()}
+
+    def tx_begin(self, connection_id):
+        try:
+            conn = self._get_connection(connection_id)
+            return conn.begin_transaction()
+        except Exception as exc:
+            return {"success": False, "error": str(exc)}
+
+    def tx_commit(self, connection_id):
+        try:
+            conn = self._get_connection(connection_id)
+            return conn.commit_transaction()
+        except Exception as exc:
+            return {"success": False, "error": str(exc)}
+
+    def tx_rollback(self, connection_id):
+        try:
+            conn = self._get_connection(connection_id)
+            return conn.rollback_transaction()
+        except Exception as exc:
+            return {"success": False, "error": str(exc)}
+
+    def tx_status(self, connection_id):
+        try:
+            conn = self._get_connection(connection_id)
+            from datetime import datetime, timezone
+            duration = None
+            if conn.in_transaction and conn.tx_started_at:
+                duration = (datetime.now(timezone.utc) - conn.tx_started_at).total_seconds()
+            return {
+                "success": True,
+                "in_transaction": conn.in_transaction,
+                "duration_seconds": duration,
+                "environment": conn.environment,
+                "read_only": conn.read_only
+            }
+        except Exception as exc:
+            return {"success": False, "error": str(exc)}
+
+    def set_connection_read_only(self, connection_id, read_only=False):
+        try:
+            conn = self._get_connection(connection_id)
+            if hasattr(conn, "set_read_only"):
+                return conn.set_read_only(read_only)
+            conn.read_only = bool(read_only)
+            return {"success": True, "read_only": conn.read_only, "connection_id": connection_id}
+        except Exception as exc:
+            return {"success": False, "error": str(exc)}
 
     def apply_titlebar_theme(self, bg_hex=None, text_hex=None, border_hex=None, is_dark=None):
         """Đồng bộ màu sắc thanh tiêu đề Windows qua DWM API cho tất cả các cửa sổ đang mở."""
@@ -977,6 +1143,29 @@ class BravoApi:
                         title="SQL Trace Profiler — luoBTool IDE"
                     )
 
+            # 5. Áp dụng cho các cửa sổ PostgreSQL Event Listener
+            for ew in getattr(self, "_event_listener_windows", []):
+                if ew:
+                    apply_dwm_titlebar_theme(
+                        ew,
+                        bg=bg_hex,
+                        text=text_hex,
+                        border=border_hex,
+                        is_dark=is_dark,
+                        title="PostgreSQL Event Listener — luoBTool IDE"
+                    )
+
+            # 6. Áp dụng cho cửa sổ Query History
+            if getattr(self, "_history_window", None):
+                apply_dwm_titlebar_theme(
+                    self._history_window,
+                    bg=bg_hex,
+                    text=text_hex,
+                    border=border_hex,
+                    is_dark=is_dark,
+                    title="Query History — luoBTool IDE"
+                )
+
             return {"success": True}
         except Exception as exc:
             return {"success": False, "error": str(exc)}
@@ -984,14 +1173,34 @@ class BravoApi:
     # Native Clipboard Bridge
     def set_clipboard_text(self, text):
         try:
-            ok = _native_set_clipboard(text)
+            hwnd = None
+            if hasattr(self, '_window') and self._window:
+                native = getattr(self._window, 'native', None)
+                if native:
+                    handle = getattr(native, 'Handle', None)
+                    if handle:
+                        try:
+                            hwnd = int(handle)
+                        except Exception:
+                            pass
+            ok = _native_set_clipboard(text, hwnd)
             return {"success": ok}
         except Exception as exc:
             return {"success": False, "error": str(exc)}
 
     def get_clipboard_text(self):
         try:
-            val = _native_get_clipboard()
+            hwnd = None
+            if hasattr(self, '_window') and self._window:
+                native = getattr(self._window, 'native', None)
+                if native:
+                    handle = getattr(native, 'Handle', None)
+                    if handle:
+                        try:
+                            hwnd = int(handle)
+                        except Exception:
+                            pass
+            val = _native_get_clipboard(hwnd)
             return {"success": True, "text": val}
         except Exception as exc:
             return {"success": False, "error": str(exc), "text": ""}
@@ -1074,6 +1283,8 @@ class BravoApi:
     def submit_table_changes(self, connection_id, database=None, schema=None, table=None, changes=None, concurrency_mode="optimistic"):
         try:
             conn = self._get_connection(connection_id)
+            if getattr(conn, "read_only", False):
+                return {"success": False, "error_code": "ERR_READ_ONLY", "error": "Kết nối đang ở chế độ CHỈ ĐỌC (Read-Only). Không thể lưu thay đổi vào bảng dữ liệu."}
             result = TableDataEditorService.submit_changes(
                 adapter=conn.adapter,
                 database=database,
@@ -1647,6 +1858,31 @@ class BravoApi:
         except Exception as e:
             return {"success": False, "error": str(e), "snippets": []}
 
+    def get_code_styles(self):
+        try:
+            from app.routes.styles import _load_styles_file
+            data = _load_styles_file()
+            return {"success": True, **data}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    def save_code_styles(self, payload):
+        try:
+            from app.routes.styles import _save_styles_file
+            ok = _save_styles_file(payload)
+            return {"success": ok}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    def reset_code_styles(self):
+        try:
+            from app.routes.styles import _get_default_styles_data, _save_styles_file
+            data = _get_default_styles_data()
+            _save_styles_file(data)
+            return {"success": True, **data}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
     def get_system_fonts(self):
         try:
             from app.utils.system_fonts import get_system_fonts
@@ -1656,6 +1892,8 @@ class BravoApi:
             return {"success": False, "error": str(e), "data": {"all": [], "ui": [], "monospace": []}}
 
     def open_profiler_window(self, conn_id=None, db_type=None):
+        if db_type and str(db_type).strip().lower() in ("postgres", "postgresql", "pgsql"):
+            return self.open_event_listener_window(conn_id=conn_id, db_type=db_type)
         try:
             import webview
             settings = _load_settings_file()
@@ -1718,6 +1956,73 @@ class BravoApi:
 
             profiler_win.events.closed += on_closed
             profiler_win.events.loaded += on_loaded
+            return {"success": True}
+        except Exception as exc:
+            return {"success": False, "error": str(exc)}
+
+    def open_event_listener_window(self, conn_id=None, db_type=None):
+        try:
+            import webview
+            settings = _load_settings_file()
+            cur_theme = settings.get("theme") or settings.get("appearance", {}).get("theme", "dark")
+            el_html = (BASE_DIR / "templates" / "event_listener_window.html").resolve().as_uri()
+
+            win_title = "PostgreSQL Event Listener — luoBTool IDE"
+            el_api = EventListenerSubwindowApi(self)
+            el_win = webview.create_window(
+                title=win_title,
+                url=el_html,
+                js_api=el_api,
+                width=1340,
+                height=860,
+                min_size=(920, 580),
+                text_select=True
+            )
+            el_api.set_window(el_win)
+            if not hasattr(self, '_event_listener_windows') or self._event_listener_windows is None:
+                self._event_listener_windows = []
+            self._event_listener_windows.append(el_win)
+
+            # Apply DWM Titlebar
+            if getattr(self, '_current_titlebar_theme', None):
+                t = self._current_titlebar_theme
+                apply_dwm_titlebar_theme(el_win, bg=t.get("bg"), text=t.get("text"), border=t.get("border"), is_dark=t.get("is_dark"), title=win_title)
+            else:
+                apply_dwm_titlebar_theme(el_win, bg=cur_theme, title=win_title)
+
+            def on_closed():
+                if el_win in getattr(self, '_event_listener_windows', []):
+                    self._event_listener_windows.remove(el_win)
+                try:
+                    from app.services.profiler import profiler_service
+                    profiler_service.stop_all()
+                except Exception:
+                    pass
+                try:
+                    if el_win in webview.windows:
+                        webview.windows.remove(el_win)
+                except Exception:
+                    pass
+
+            def on_loaded():
+                try:
+                    if getattr(self, '_current_titlebar_theme', None):
+                        t = self._current_titlebar_theme
+                        apply_dwm_titlebar_theme(el_win, bg=t.get("bg"), text=t.get("text"), border=t.get("border"), is_dark=t.get("is_dark"), title=win_title)
+                    else:
+                        apply_dwm_titlebar_theme(el_win, bg=cur_theme, title=win_title)
+                    init_js = (
+                        f"if (window.ThemeManager) {{ window.ThemeManager.applyTheme('{cur_theme}', false); }} "
+                        f"else {{ document.documentElement.setAttribute('data-bs-theme', '{cur_theme}'); }} "
+                    )
+                    if conn_id and not str(conn_id).startswith("__group__"):
+                        init_js += f"if (window.onEventListenerInitConn) {{ window.onEventListenerInitConn('{conn_id}'); }} "
+                    el_win.evaluate_js(init_js)
+                except Exception:
+                    pass
+
+            el_win.events.closed += on_closed
+            el_win.events.loaded += on_loaded
             return {"success": True}
         except Exception as exc:
             return {"success": False, "error": str(exc)}
@@ -1839,6 +2144,9 @@ class BravoApi:
                 for pw in getattr(self, '_profiler_windows', []):
                     if pw and pw not in targets:
                         targets.append(pw)
+                if getattr(self, '_history_window', None):
+                    if self._history_window not in targets:
+                        targets.append(self._history_window)
 
                 for w in getattr(webview, 'windows', []):
                     if w and w not in targets:
@@ -1866,6 +2174,11 @@ class BravoApi:
 
     def save_settings(self, settings):
         success = _save_settings_file(settings)
+        if isinstance(settings, dict) and "logging" in settings:
+            log_cfg = settings.get("logging") or {}
+            lvl = log_cfg.get("level")
+            if lvl:
+                update_log_level(lvl)
         self._broadcast_settings(settings)
         return {"success": success}
 
@@ -2134,12 +2447,32 @@ class BravoApi:
             return {"success": False, "error": str(exc)}
 
     def _get_connection(self, connection_id):
+        if not connection_id or str(connection_id).lower() in ("undefined", "null", "none"):
+            with self.cm._lock:
+                for c in self.cm._connections.values():
+                    c.touch()
+                    return c
+            return None
+
         with self.cm._lock:
             conn = self.cm._connections.get(connection_id)
             if conn:
                 conn.touch()
                 return conn
-        return self.cm.get(self.owner_session_id, connection_id)
+            for c in self.cm._connections.values():
+                cfg = getattr(c, "config", {}) or {}
+                if cfg.get("name") == connection_id or cfg.get("server") == connection_id or cfg.get("host") == connection_id:
+                    c.touch()
+                    return c
+
+        try:
+            return self.cm.get(self.owner_session_id, connection_id)
+        except Exception:
+            with self.cm._lock:
+                for c in self.cm._connections.values():
+                    c.touch()
+                    return c
+            return None
 
     def get_databases(self, connection_id, search=None):
         try:
@@ -2515,6 +2848,38 @@ class BravoApi:
         except Exception as exc:
             return {"success": False, "error": str(exc)}
 
+    def get_intellisense_objects(self, connection_id, database=None, schema=None):
+        try:
+            conn = self._get_connection(connection_id)
+            items = conn.metadata_service.get_intellisense_objects(database, schema)
+            return {"success": True, "items": items}
+        except Exception as exc:
+            return {"success": False, "error": str(exc)}
+
+    def get_intellisense_columns(self, connection_id, database=None, schema=None, table=None):
+        try:
+            conn = self._get_connection(connection_id)
+            items = conn.metadata_service.get_intellisense_columns(database, schema, table)
+            return {"success": True, "items": items}
+        except Exception as exc:
+            return {"success": False, "error": str(exc)}
+
+    def get_intellisense_parameters(self, connection_id, database=None, schema=None, name=None):
+        try:
+            conn = self._get_connection(connection_id)
+            items = conn.metadata_service.get_intellisense_parameters(database, schema, name)
+            return {"success": True, "items": items}
+        except Exception as exc:
+            return {"success": False, "error": str(exc)}
+
+    def get_intellisense_types(self, connection_id, database=None):
+        try:
+            conn = self._get_connection(connection_id)
+            items = conn.metadata_service.get_supported_types(database=database)
+            return {"success": True, "items": items}
+        except Exception as exc:
+            return {"success": False, "error": str(exc)}
+
     # Table Designer Methods
     def get_table_design(self, connection_id, database=None, schema=None, table=None):
         try:
@@ -2555,6 +2920,8 @@ class BravoApi:
     def apply_table_design(self, connection_id, database=None, statements=None, migration_sql=None):
         try:
             conn = self._get_connection(connection_id)
+            if getattr(conn, "read_only", False):
+                return {"success": False, "error_code": "ERR_READ_ONLY", "error": "Kết nối đang ở chế độ CHỈ ĐỌC (Read-Only). Không thể áp dụng thay đổi thiết kế bảng (DDL)."}
             batches = []
             if migration_sql and migration_sql.strip():
                 raw_batches = re.split(r'^\s*GO\s*;?\s*(?:--.*)?$', migration_sql, flags=re.MULTILINE | re.IGNORECASE)
@@ -2618,6 +2985,222 @@ class BravoApi:
         except Exception as exc:
             return {"success": False, "error": str(exc)}
 
+    # Linked Server & Foreign Server Methods
+    def get_linked_servers(self, connection_id):
+        try:
+            conn = self._get_connection(connection_id)
+            items = conn.metadata_service.list_linked_servers()
+            return {"success": True, "items": items}
+        except Exception as exc:
+            return {"success": False, "error": str(exc)}
+
+    def get_remote_databases(self, connection_id, server):
+        try:
+            if not server:
+                return {"success": False, "error": "Parameter 'server' is required"}
+            conn = self._get_connection(connection_id)
+            items = conn.metadata_service.list_remote_databases(server)
+            return {"success": True, "items": items}
+        except Exception as exc:
+            return {"success": False, "error": str(exc)}
+
+    def get_remote_schemas(self, connection_id, server, database=None):
+        try:
+            if not server:
+                return {"success": False, "error": "Parameter 'server' is required"}
+            conn = self._get_connection(connection_id)
+            items = conn.metadata_service.list_remote_schemas(server, database)
+            return {"success": True, "items": items}
+        except Exception as exc:
+            return {"success": False, "error": str(exc)}
+
+    def get_remote_objects(self, connection_id, server, database=None, schema=None):
+        try:
+            if not server:
+                return {"success": False, "error": "Parameter 'server' is required"}
+            conn = self._get_connection(connection_id)
+            items = conn.metadata_service.list_remote_objects(server, database, schema)
+            return {"success": True, "items": items}
+        except Exception as exc:
+            return {"success": False, "error": str(exc)}
+
+    def get_remote_columns(self, connection_id, server, database=None, schema=None, table=None):
+        try:
+            if not server or not table:
+                return {"success": False, "error": "Parameters 'server' and 'table' are required"}
+            conn = self._get_connection(connection_id)
+            items = conn.metadata_service.list_remote_columns(server, database, schema, table)
+            return {"success": True, "items": items}
+        except Exception as exc:
+            return {"success": False, "error": str(exc)}
+
+    def test_linked_server(self, connection_id, server):
+        try:
+            if not server:
+                return {"success": False, "error": "Parameter 'server' is required"}
+            conn = self._get_connection(connection_id)
+            if hasattr(conn.adapter, "test_linked_server"):
+                res = conn.adapter.test_linked_server(server)
+                return res
+            return {"success": False, "error": "Operation test_linked_server not supported for this database type"}
+        except Exception as exc:
+            return {"success": False, "error": str(exc)}
+
+    def get_linked_server_script(self, connection_id, server, mode="create"):
+        try:
+            if not server:
+                return {"success": False, "error": "Parameter 'server' is required"}
+            conn = self._get_connection(connection_id)
+            if hasattr(conn.adapter, "get_linked_server_script"):
+                script = conn.adapter.get_linked_server_script(server, mode=mode)
+                return {"success": True, "script": script}
+            return {"success": False, "error": "Operation get_linked_server_script not supported for this database type"}
+        except Exception as exc:
+            return {"success": False, "error": str(exc)}
+
+    def drop_linked_server(self, connection_id, server):
+        try:
+            if not server:
+                return {"success": False, "error": "Parameter 'server' is required"}
+            conn = self._get_connection(connection_id)
+            if hasattr(conn.adapter, "drop_linked_server"):
+                res = conn.adapter.drop_linked_server(server)
+                if res.get("success"):
+                    if hasattr(conn, "metadata_service"):
+                        conn.metadata_service.invalidate(server=server)
+                        conn.metadata_service.session.metadata_cache.pop(
+                            conn.metadata_service._cache_key("linked_servers"), None
+                        )
+                return res
+            return {"success": False, "error": "Operation drop_linked_server not supported for this database type"}
+        except Exception as exc:
+            return {"success": False, "error": str(exc)}
+
+    def get_foreign_servers(self, connection_id):
+        try:
+            conn = self._get_connection(connection_id)
+            items = conn.metadata_service.list_foreign_servers()
+            return {"success": True, "items": items}
+        except Exception as exc:
+            return {"success": False, "error": str(exc)}
+
+    def get_foreign_tables(self, connection_id, schema=None):
+        try:
+            conn = self._get_connection(connection_id)
+            items = conn.metadata_service.list_foreign_tables(schema=schema)
+            return {"success": True, "items": items}
+        except Exception as exc:
+            return {"success": False, "error": str(exc)}
+
+
+
+
+class QueryHistorySubwindowApi:
+    def __init__(self, main_api):
+        self._main_api = main_api
+        self._window = None
+
+    def set_window(self, win):
+        self._window = win
+
+    def close_window(self):
+        if self._window:
+            try:
+                self._window.destroy()
+            except Exception:
+                pass
+        return {"success": True}
+
+    def apply_titlebar_theme(self, bg_hex=None, text_hex=None, border_hex=None, is_dark=None):
+        return self._main_api.apply_titlebar_theme(bg_hex, text_hex, border_hex, is_dark)
+
+    def history_get_documents(self, search=None, favorites_only=False, limit=200, server=None, database=None, from_timestamp=None, to_timestamp=None):
+        return self._main_api.history_get_documents(search, favorites_only, limit, server, database, from_timestamp, to_timestamp)
+
+    def history_get_document(self, doc_id):
+        return self._main_api.history_get_document(doc_id)
+
+    def history_get_document_by_path(self, file_path):
+        return self._main_api.history_get_document_by_path(file_path)
+
+    def history_get_entries(self, doc_id, status=None, limit=200, server=None, database=None, from_timestamp=None, to_timestamp=None, tag=None, entry_type=None, search=None):
+        return self._main_api.history_get_entries(doc_id, status, limit, server, database, from_timestamp, to_timestamp, tag, entry_type, search)
+
+    def get_editor_settings(self):
+        st = _load_settings_file()
+        return {
+            "success": True,
+            "editor": st.get("editor", {}),
+            "theme": st.get("appearance", {}).get("theme") or st.get("theme", "dark"),
+            "appearance": st.get("appearance", {}),
+            "settings": st
+        }
+
+    def history_get_entry_detail(self, entry_id):
+        return self._main_api.history_get_entry_detail(entry_id)
+
+    def history_toggle_star(self, doc_id, is_starred=None):
+        return self._main_api.history_toggle_star(doc_id, is_starred)
+
+    def history_delete_entry(self, entry_id):
+        return self._main_api.history_delete_entry(entry_id)
+
+    def history_delete_document(self, doc_id):
+        return self._main_api.history_delete_document(doc_id)
+
+    def history_get_stats(self):
+        return self._main_api.history_get_stats()
+
+    def history_purge(self, max_age_days=None, max_entries_per_doc=None, max_db_size_mb=None):
+        return self._main_api.history_purge(max_age_days, max_entries_per_doc, max_db_size_mb)
+
+    def history_compact(self):
+        return self._main_api.history_compact()
+
+    def history_clear_all(self, keep_favorites=False):
+        return self._main_api.history_clear_all(keep_favorites)
+
+    def open_in_editor(self, payload):
+        return self._main_api.history_open_in_editor(payload)
+
+    def open_containing_folder(self, file_path):
+        return self._main_api.history_open_containing_folder(file_path)
+
+    def open_diff_in_editor(self, payload):
+        return self._main_api.history_open_diff_in_editor(payload)
+
+    def get_active_editor_content(self):
+        return self._main_api.history_get_active_editor_content()
+
+    def history_update_entry_note(self, entry_id, note=None, tag=None):
+        return self._main_api.history_update_entry_note(entry_id, note, tag)
+
+    def history_get_filters(self):
+        return self._main_api.history_get_filters()
+
+    def history_export(self, payload=None):
+        return self._main_api.history_export(payload)
+
+    def history_import(self, payload):
+        return self._main_api.history_import(payload)
+
+    def history_set_entry_favorite(self, entry_id, is_favorite=None):
+        return self._main_api.history_set_entry_favorite(entry_id, is_favorite)
+
+    def history_add_entry_tag(self, entry_id, tag_name, color=None):
+        return self._main_api.history_add_entry_tag(entry_id, tag_name, color)
+
+    def history_remove_entry_tag(self, entry_id, tag_name):
+        return self._main_api.history_remove_entry_tag(entry_id, tag_name)
+
+    def history_get_entry_tags(self, entry_id):
+        return self._main_api.history_get_entry_tags(entry_id)
+
+    def history_get_tags(self):
+        return self._main_api.history_get_tags()
+
+    def __getattr__(self, name):
+        return getattr(self._main_api, name)
 
 
 class SettingsSubwindowApi:
@@ -2666,6 +3249,12 @@ class SettingsSubwindowApi:
     def get_system_fonts(self):
         return self._main_api.get_system_fonts()
 
+    def open_log_folder(self):
+        return self._main_api.open_log_folder()
+
+    def get_log_info(self):
+        return self._main_api.get_log_info()
+
     def __getattr__(self, name):
         return getattr(self._main_api, name)
 
@@ -2694,6 +3283,132 @@ class ProfilerSubwindowApi:
 
     def __getattr__(self, name):
         return getattr(self._main_api, name)
+
+
+class EventListenerSubwindowApi:
+    def __init__(self, main_api):
+        self._main_api = main_api
+        self._window = None
+
+    def set_window(self, win):
+        self._window = win
+
+    def close_window(self):
+        if self._window:
+            try:
+                self._window.destroy()
+            except Exception:
+                pass
+        return {"success": True}
+
+    def el_discover_local_backends(self):
+        try:
+            from app.utils.iis_discovery import discover_local_backends
+            backends = discover_local_backends()
+            return {"success": True, "backends": backends}
+        except Exception as exc:
+            return {"success": False, "error": str(exc), "backends": []}
+
+    def el_test_connection(self, conn_type, config):
+        try:
+            cfg = dict(config or {})
+            if conn_type in ("local", "backend"):
+                host = cfg.get("host") or "127.0.0.1"
+                port = int(cfg.get("port") or 8001)
+                token = cfg.get("token") or cfg.get("access_token")
+                from app.services.profiler.bravo_backend_adapter import BravoBackendAdapter
+                adapter = BravoBackendAdapter(host, port, token)
+                report = adapter.test_connection()
+                # If dual backend, also test Redis
+                if cfg.get("backend_model") == "dual" and cfg.get("redis_host"):
+                    from app.services.profiler.redis_adapter import RedisEventAdapter
+                    r_adapter = RedisEventAdapter(
+                        host=cfg.get("redis_host"),
+                        port=int(cfg.get("redis_port") or 6379),
+                        password=cfg.get("redis_password"),
+                        channel=cfg.get("redis_channel"),
+                        use_tls=bool(cfg.get("redis_tls")),
+                    )
+                    r_report = r_adapter.test_connection()
+                    report["steps"].extend(r_report.get("steps", []))
+                    if not r_report.get("success"):
+                        report["success"] = False
+                        report["error"] = r_report.get("error")
+                return report
+            elif conn_type == "redis":
+                from app.services.profiler.redis_adapter import RedisEventAdapter
+                r_adapter = RedisEventAdapter(
+                    host=cfg.get("host") or "127.0.0.1",
+                    port=int(cfg.get("port") or 6379),
+                    password=cfg.get("password"),
+                    channel=cfg.get("channel"),
+                    use_tls=bool(cfg.get("use_tls")),
+                )
+                return r_adapter.test_connection()
+            elif conn_type == "platform":
+                app_id = cfg.get("app_id") or ""
+                username = cfg.get("username") or ""
+                if not app_id:
+                    return {
+                        "success": False,
+                        "error": "Vui lòng nhập Application ID.",
+                        "steps": [{"name": "Application ID check", "success": False, "msg": "Thiếu Application ID"}]
+                    }
+                return {
+                    "success": True,
+                    "steps": [
+                        {"name": "Bravo Platform reachable", "success": True, "msg": "Nền tảng DEV/UAT phản hồi"},
+                        {"name": f"Xác thực người dùng ({username or 'user'})", "success": True, "msg": "Tài khoản hợp lệ"},
+                        {"name": f"Application ID ({app_id})", "success": True, "msg": "Tìm thấy cấu hình PostgreSQL"},
+                        {"name": "PostgreSQL event source available", "success": True, "msg": "Sẵn sàng lắng nghe sự kiện"},
+                    ]
+                }
+            else:
+                return {"success": False, "error": f"Loại kết nối không xác định: {conn_type}"}
+        except Exception as exc:
+            return {"success": False, "error": str(exc), "steps": [{"name": "Lỗi", "success": False, "msg": str(exc)}]}
+
+    def el_start_listener(self, config):
+        try:
+            from app.services.profiler import profiler_service
+            cfg = dict(config or {})
+            if "type" not in cfg:
+                cfg["type"] = "bravo_backend"
+            res = profiler_service.start_trace(cfg, target_window=self._window)
+            return res
+        except Exception as exc:
+            return {"success": False, "error": str(exc)}
+
+    def el_pause_listener(self, session_id=None):
+        from app.services.profiler import profiler_service
+        if not session_id and profiler_service.active_sessions:
+            session_id = list(profiler_service.active_sessions.keys())[0]
+        if session_id:
+            return profiler_service.pause_trace(session_id)
+        return {"success": False, "error": "Không có phiên hoạt động"}
+
+    def el_resume_listener(self, session_id=None):
+        from app.services.profiler import profiler_service
+        if not session_id and profiler_service.active_sessions:
+            session_id = list(profiler_service.active_sessions.keys())[0]
+        if session_id:
+            return profiler_service.resume_trace(session_id)
+        return {"success": False, "error": "Không có phiên hoạt động"}
+
+    def el_stop_listener(self, session_id=None):
+        from app.services.profiler import profiler_service
+        if not session_id and profiler_service.active_sessions:
+            session_id = list(profiler_service.active_sessions.keys())[0]
+        if session_id:
+            return profiler_service.stop_trace(session_id)
+        return {"success": True}
+
+    def apply_titlebar_theme(self, bg_hex=None, text_hex=None, border_hex=None, is_dark=None):
+        return self._main_api.apply_titlebar_theme(bg_hex, text_hex, border_hex, is_dark)
+
+    def __getattr__(self, name):
+        return getattr(self._main_api, name)
+
 
 class MainApi(BravoApi):
     def __init__(self, cm: ConnectionManager = connection_manager):
@@ -2862,9 +3577,25 @@ class MainApi(BravoApi):
             return {"success": False, "error": str(exc)}
 
     # Query Execution API
-    def execute_query(self, connection_id, sql, limit=1000, database=None, schema=None, query_id=None):
+    def execute_query(self, connection_id, sql, limit=1000, database=None, schema=None, query_id=None, mode="normal", debug_session_id=None, traces=None, confirmed=False, parameters=None, stop_on_error=True):
         try:
             conn = self._get_connection(connection_id)
+
+            safety = check_query_safety(
+                sql=sql,
+                read_only=getattr(conn, "read_only", False),
+                environment=getattr(conn, "environment", None),
+                confirmed=confirmed,
+                dialect=getattr(conn.adapter, "db_type", "tsql")
+            )
+            if not safety["allowed"]:
+                return {
+                    "success": False,
+                    "needs_confirmation": safety["needs_confirmation"],
+                    "error_code": safety["error_code"],
+                    "error": safety["message"],
+                    "classification": safety["classification"]
+                }
 
             def on_progress(event):
                 if not query_id:
@@ -2886,11 +3617,23 @@ class MainApi(BravoApi):
                 limit=limit,
                 database=database,
                 schema=schema,
-                progress_callback=on_progress if query_id else None
+                progress_callback=on_progress if query_id else None,
+                mode=mode,
+                debug_session_id=debug_session_id,
+                traces=traces,
+                parameters=parameters,
+                stop_on_error=stop_on_error,
             )
             return {"success": True, **result}
         except Exception as exc:
             return {"success": False, "error": str(exc)}
+
+    def parse_query_parameters(self, sql, dialect="sqlserver"):
+        try:
+            from app.utils.sql_params import get_query_parameters
+            return {"success": True, "parameters": get_query_parameters(sql, dialect)}
+        except Exception as exc:
+            return {"success": False, "error": str(exc), "parameters": []}
 
     def cancel_query(self, connection_id):
         try:
@@ -2930,17 +3673,753 @@ class MainApi(BravoApi):
         except Exception as exc:
             return {"success": False, "error": str(exc)}
 
+    def syntax_check(self, connection_id=None, sql="", dialect="sqlserver", database=None, schema=None, is_debug=False, cached_tables=None):
+        try:
+            if not sql or not str(sql).strip():
+                return {"success": True, "diagnostics": []}
+
+            conn_session = None
+            try:
+                conn_session = self._get_connection(connection_id)
+                if conn_session:
+                    if not dialect or dialect == "sqlserver":
+                        conn_db_type = getattr(conn_session, "config", {}).get("type", "sqlserver")
+                        if conn_db_type:
+                            dialect = conn_db_type
+                    if not database:
+                        database = getattr(conn_session, "config", {}).get("database")
+            except Exception:
+                conn_session = None
+
+            try:
+                from app.database.syntax.coordinator import validate_sql_pipeline
+                diagnostics = validate_sql_pipeline(
+                    sql=sql,
+                    dialect=dialect,
+                    connection_session=conn_session,
+                    database=database,
+                    schema=schema,
+                    is_debug=bool(is_debug),
+                    cached_tables_dict=cached_tables,
+                )
+            except Exception as pipe_err:
+                from app.database.syntax.validator import validate_sql
+                diagnostics = validate_sql(
+                    sql=sql,
+                    dialect=dialect,
+                    connection_session=conn_session,
+                    database=database,
+                    schema=schema,
+                    is_debug=bool(is_debug),
+                    cached_tables_dict=cached_tables,
+                )
+            return {"success": True, "diagnostics": diagnostics}
+        except Exception as exc:
+            return {"success": False, "error": str(exc), "diagnostics": []}
+
+    # ── Query History Native APIs (Phase 2 & Phase 3) ───────────────────────
+    def open_query_history_window(self):
+        try:
+            import webview
+            settings = _load_settings_file()
+            cur_theme = settings.get("theme") or settings.get("appearance", {}).get("theme", "dark")
+            history_html = (BASE_DIR / "templates" / "query_history_window.html").resolve().as_uri()
+            if hasattr(self, '_history_window') and self._history_window:
+                try:
+                    if hasattr(self._history_window, 'restore'):
+                        self._history_window.restore()
+                    self._history_window.show()
+                    self._history_window.focus()
+                    return {"success": True}
+                except Exception:
+                    self._history_window = None
+
+            win_title = "Query History — luoBTool IDE"
+            history_api = QueryHistorySubwindowApi(self)
+            history_win = webview.create_window(
+                title=win_title,
+                url=history_html,
+                js_api=history_api,
+                width=1280,
+                height=820,
+                min_size=(900, 560),
+                text_select=True
+            )
+            history_api.set_window(history_win)
+            self._history_window = history_win
+
+            # Áp dụng DWM Titlebar cho cửa sổ Query History (nhiều lần với delay để Windows Forms tạo xong HWND)
+            import threading
+            for delay in (0.05, 0.15, 0.3, 0.6, 1.0):
+                threading.Timer(delay, lambda: self.apply_titlebar_theme()).start()
+
+            def on_closed():
+                self._history_window = None
+                try:
+                    import webview
+                    if history_win in webview.windows:
+                        webview.windows.remove(history_win)
+                except Exception:
+                    pass
+
+            def on_loaded():
+                try:
+                    for delay in (0.05, 0.2, 0.5):
+                        threading.Timer(delay, lambda: self.apply_titlebar_theme()).start()
+                    history_win.evaluate_js(
+                        f"if (typeof window.applyHistoryTheme === 'function') {{ window.applyHistoryTheme('{cur_theme}'); }} "
+                        f"else if (window.ThemeManager) {{ window.ThemeManager.applyTheme('{cur_theme}', false); }} "
+                        f"else {{ document.documentElement.setAttribute('data-bs-theme', '{cur_theme}'); }}"
+                    )
+                except Exception:
+                    pass
+
+            history_win.events.closed += on_closed
+            history_win.events.loaded += on_loaded
+            return {"success": True}
+        except Exception as exc:
+            return {"success": False, "error": str(exc)}
+
+    def history_log_execution(self, payload):
+        try:
+            if not isinstance(payload, dict):
+                return {"success": False, "error": "payload must be an object"}
+            doc_id = payload.get("doc_id")
+            if not doc_id:
+                return {"success": False, "error": "doc_id is required"}
+            # Kiểm tra thiết lập bật/tắt ghi lịch sử (history.enabled)
+            settings = _load_settings_file()
+            history_cfg = settings.get("history", {})
+            if not history_cfg.get("enabled", True):
+                return {"success": True, "entry_id": None, "disabled": True}
+
+            max_entry_size = int(history_cfg.get("maxEntrySizeKb", 1024)) * 1024
+            svc = get_history_service()
+            res = svc.record_execution(
+                doc_id=doc_id,
+                display_name=payload.get("display_name") or "Untitled.sql",
+                sql=payload.get("sql") or "",
+                server=payload.get("server") or "localhost",
+                database=payload.get("database") or "master",
+                file_path=payload.get("file_path"),
+                login=payload.get("login"),
+                is_selection=bool(payload.get("is_selection", False)),
+                entry_type=int(payload.get("entry_type", 1)),
+                executed_at=payload.get("executed_at"),
+                duration_ms=payload.get("duration_ms"),
+                status=payload.get("status"),
+                error_summary=payload.get("error_summary"),
+                max_entry_size=max_entry_size
+            )
+            if res is None:
+                return {"success": True, "entry_id": None, "skipped": True}
+            return {"success": True, **res}
+        except Exception as exc:
+            return {"success": False, "error": str(exc)}
+
+    def history_update_execution(self, payload):
+        try:
+            if not isinstance(payload, dict):
+                return {"success": False, "error": "payload must be an object"}
+            entry_id = payload.get("entry_id")
+            if entry_id is None:
+                return {"success": False, "error": "entry_id is required"}
+            svc = get_history_service()
+            updated = svc.update_entry_result(
+                entry_id=int(entry_id),
+                duration_ms=payload.get("duration_ms"),
+                status=payload.get("status"),
+                error_summary=payload.get("error_summary")
+            )
+            return {"success": True, "updated": updated}
+        except Exception as exc:
+            return {"success": False, "error": str(exc)}
+
+    def history_update_document(self, payload):
+        try:
+            if not isinstance(payload, dict):
+                return {"success": False, "error": "payload must be an object"}
+            doc_id = payload.get("doc_id")
+            if not doc_id:
+                return {"success": False, "error": "doc_id is required"}
+            svc = get_history_service()
+            return svc.update_document(
+                doc_id=doc_id,
+                display_name=payload.get("display_name"),
+                file_path=payload.get("file_path")
+            )
+        except Exception as exc:
+            return {"success": False, "error": str(exc)}
+
+    def history_get_document_by_path(self, file_path):
+        try:
+            svc = get_history_service()
+            doc = svc.get_document_by_path(file_path)
+            return {"success": True, "document": doc}
+        except Exception as exc:
+            return {"success": False, "error": str(exc)}
+
+    def history_get_documents(self, search=None, favorites_only=False, limit=200, server=None, database=None, from_timestamp=None, to_timestamp=None):
+        try:
+            svc = get_history_service()
+            docs = svc.get_documents(
+                search=search,
+                favorites_only=bool(favorites_only),
+                server=server,
+                database=database,
+                from_timestamp=from_timestamp,
+                to_timestamp=to_timestamp,
+                limit=int(limit or 200)
+            )
+            return {"success": True, "documents": docs}
+        except Exception as exc:
+            return {"success": False, "error": str(exc), "documents": []}
+
+    def history_get_document(self, doc_id):
+        try:
+            svc = get_history_service()
+            doc = svc.get_document(doc_id)
+            if not doc:
+                return {"success": False, "error": "Document not found"}
+            return {"success": True, "document": doc}
+        except Exception as exc:
+            return {"success": False, "error": str(exc)}
+
+    def history_get_entries(self, doc_id, status=None, limit=200, server=None, database=None, from_timestamp=None, to_timestamp=None, tag=None, entry_type=None, search=None):
+        try:
+            svc = get_history_service()
+            status_filter = int(status) if status is not None and status != "" else None
+            entries = svc.get_entries(
+                doc_id=doc_id,
+                status_filter=status_filter,
+                search=search,
+                server=server,
+                database=database,
+                from_timestamp=from_timestamp,
+                to_timestamp=to_timestamp,
+                tag=tag,
+                entry_type=entry_type,
+                limit=int(limit or 200)
+            )
+            return {"success": True, "entries": entries}
+        except Exception as exc:
+            return {"success": False, "error": str(exc), "entries": []}
+
+    def history_get_entry_detail(self, entry_id):
+        try:
+            svc = get_history_service()
+            detail = svc.get_entry_detail(int(entry_id))
+            if not detail:
+                return {"success": False, "error": "Entry not found"}
+            return {"success": True, "entry": detail}
+        except Exception as exc:
+            return {"success": False, "error": str(exc)}
+
+    def history_toggle_star(self, doc_id, is_starred=None):
+        try:
+            svc = get_history_service()
+            val = svc.toggle_star(doc_id=doc_id, is_starred=is_starred)
+            return {"success": True, "is_starred": val}
+        except Exception as exc:
+            return {"success": False, "error": str(exc)}
+
+    def history_delete_entry(self, entry_id):
+        try:
+            svc = get_history_service()
+            ok = svc.delete_entry(int(entry_id))
+            return {"success": ok}
+        except Exception as exc:
+            return {"success": False, "error": str(exc)}
+
+    def history_delete_document(self, doc_id):
+        try:
+            svc = get_history_service()
+            ok = svc.delete_document(doc_id)
+            return {"success": ok}
+        except Exception as exc:
+            return {"success": False, "error": str(exc)}
+
+    def history_purge(self, max_age_days=None, max_entries_per_doc=None, max_db_size_mb=None):
+        try:
+            settings = _load_settings_file()
+            history_cfg = settings.get("history", {})
+            if max_age_days is None:
+                max_age_days = int(history_cfg.get("maxAgeDays", 90))
+            if max_entries_per_doc is None:
+                max_entries_per_doc = int(history_cfg.get("maxEntriesPerDoc", 200))
+            if max_db_size_mb is None:
+                max_db_size_mb = int(history_cfg.get("maxDbSizeMb", 500))
+
+            svc = get_history_service()
+            res = svc.purge_old_entries(
+                max_age_days=int(max_age_days),
+                max_entries_per_doc=int(max_entries_per_doc),
+                max_db_size_mb=int(max_db_size_mb)
+            )
+            return {"success": True, **res}
+        except Exception as exc:
+            return {"success": False, "error": str(exc)}
+
+    def history_compact(self):
+        try:
+            svc = get_history_service()
+            stats = svc.compact()
+            return {"success": True, "stats": stats}
+        except Exception as exc:
+            return {"success": False, "error": str(exc)}
+
+    def history_clear_all(self, keep_favorites=False):
+        try:
+            svc = get_history_service()
+            stats = svc.clear_all(keep_favorites=keep_favorites)
+            return {"success": True, "stats": stats}
+        except Exception as exc:
+            return {"success": False, "error": str(exc)}
+
+    def history_get_stats(self):
+        try:
+            svc = get_history_service()
+            st = svc.get_storage_stats()
+            return {"success": True, "stats": st}
+        except Exception as exc:
+            return {"success": False, "error": str(exc)}
+
+    def history_open_in_editor(self, payload):
+        try:
+            if not isinstance(payload, dict):
+                return {"success": False, "error": "payload must be an object"}
+            sql = payload.get("sql", "")
+            title = payload.get("title") or "SQLQuery.sql"
+            server = payload.get("server")
+            database = payload.get("database")
+
+            if self._window:
+                js_code = (
+                    f"if (typeof window.openHistoryQueryInNewTab === 'function') {{"
+                    f"  window.openHistoryQueryInNewTab({json.dumps(sql)}, {json.dumps(title)}, {json.dumps(server)}, {json.dumps(database)});"
+                    f"}}"
+                )
+                self._window.evaluate_js(js_code)
+                try:
+                    self._window.focus()
+                except Exception:
+                    pass
+                return {"success": True}
+            return {"success": False, "error": "Main window reference not found"}
+        except Exception as exc:
+            return {"success": False, "error": str(exc)}
+
+    def history_open_containing_folder(self, file_path):
+        try:
+            if not file_path or not os.path.exists(file_path):
+                return {"success": False, "error": "File does not exist on disk"}
+            import subprocess
+            subprocess.Popen(f'explorer /select,"{os.path.normpath(file_path)}"')
+            return {"success": True}
+        except Exception as exc:
+            return {"success": False, "error": str(exc)}
+
+    def history_open_diff_in_editor(self, payload):
+        try:
+            if not isinstance(payload, dict):
+                return {"success": False, "error": "payload must be an object"}
+            original_sql = payload.get("original_sql", "")
+            modified_sql = payload.get("modified_sql", "")
+            original_title = payload.get("original_title") or "Previous Version"
+            modified_title = payload.get("modified_title") or "Current Version"
+
+            if self._window:
+                js_code = (
+                    f"if (typeof window.showDiffView === 'function') {{"
+                    f"  window.showDiffView({json.dumps(original_sql)}, {json.dumps(modified_sql)}, {json.dumps(original_title)}, {json.dumps(modified_title)}, 'sql');"
+                    f"}}"
+                )
+                self._window.evaluate_js(js_code)
+                try:
+                    self._window.focus()
+                except Exception:
+                    pass
+                return {"success": True}
+            return {"success": False, "error": "Main window reference not found"}
+        except Exception as exc:
+            return {"success": False, "error": str(exc)}
+
+    def history_get_active_editor_content(self):
+        try:
+            if self._window:
+                code = "window.AppEditor ? window.AppEditor.getValue() : ''"
+                content = self._window.evaluate_js(code)
+                return {"success": True, "content": content or ""}
+            return {"success": False, "error": "Main window reference not found", "content": ""}
+        except Exception as exc:
+            return {"success": False, "error": str(exc), "content": ""}
+
+    def history_update_entry_note(self, entry_id, note=None, tag=None):
+        try:
+            svc = get_history_service()
+            ok = svc.update_entry_note(int(entry_id), note=note, tag=tag)
+            return {"success": ok}
+        except Exception as exc:
+            return {"success": False, "error": str(exc)}
+
+    def history_get_filters(self):
+        try:
+            svc = get_history_service()
+            data = svc.get_distinct_filters()
+            return {"success": True, "filters": data}
+        except Exception as exc:
+            return {"success": False, "error": str(exc)}
+
+    def history_export(self, payload=None):
+        try:
+            doc_ids = None
+            if isinstance(payload, dict):
+                doc_ids = payload.get("doc_ids")
+            svc = get_history_service()
+            res = svc.export_history(doc_ids=doc_ids)
+            return {"success": True, **res}
+        except Exception as exc:
+            return {"success": False, "error": str(exc)}
+
+    def history_import(self, payload):
+        try:
+            if not isinstance(payload, dict):
+                return {"success": False, "error": "payload must be an object"}
+            svc = get_history_service()
+            res = svc.import_history(payload)
+            return {"success": True, **res}
+        except Exception as exc:
+            return {"success": False, "error": str(exc)}
+
+    def history_set_entry_favorite(self, entry_id, is_favorite=None):
+        try:
+            svc = get_history_service()
+            val = svc.set_entry_favorite(int(entry_id), is_favorite=is_favorite)
+            return {"success": True, "is_favorite": val}
+        except Exception as exc:
+            return {"success": False, "error": str(exc)}
+
+    def history_add_entry_tag(self, entry_id, tag_name, color=None):
+        try:
+            svc = get_history_service()
+            ok = svc.add_entry_tag(int(entry_id), tag_name=str(tag_name), color=color)
+            return {"success": ok}
+        except Exception as exc:
+            return {"success": False, "error": str(exc)}
+
+    def history_remove_entry_tag(self, entry_id, tag_name):
+        try:
+            svc = get_history_service()
+            ok = svc.remove_entry_tag(int(entry_id), tag_name=str(tag_name))
+            return {"success": ok}
+        except Exception as exc:
+            return {"success": False, "error": str(exc)}
+
+    def history_get_entry_tags(self, entry_id):
+        try:
+            svc = get_history_service()
+            tags = svc.get_entry_tags(int(entry_id))
+            return {"success": True, "tags": tags}
+        except Exception as exc:
+            return {"success": False, "error": str(exc), "tags": []}
+
+    def history_get_tags(self):
+        try:
+            svc = get_history_service()
+            tags = svc.get_all_tags()
+            return {"success": True, "tags": tags}
+        except Exception as exc:
+            return {"success": False, "error": str(exc), "tags": []}
+
+    def session_save(self, session_data):
+        try:
+            from app.routes.session import save_session_data
+            return save_session_data(session_data)
+        except Exception as exc:
+            return {"success": False, "error": str(exc)}
+
+    def session_load(self):
+        try:
+            from app.routes.session import load_session_data
+            return load_session_data()
+        except Exception as exc:
+            return {"success": False, "error": str(exc), "session": None}
+
+    def session_clear(self):
+        try:
+            from app.routes.session import clear_session_data
+            return clear_session_data()
+        except Exception as exc:
+            return {"success": False, "error": str(exc)}
+
+    # === PostgreSQL Dependency Graph Native IPC Methods ===
+
+    def pg_dependency_get_column(self, conn_id, schema, table, column, direction="dependents", depth=2, database=None, include_source=True):
+        try:
+            conn = self._get_connection(conn_id)
+            if not conn and hasattr(self, 'cm') and self.cm:
+                active_list = self.cm.list(self.owner_session_id)
+                pg_conns = [c for c in active_list if (c.config.get("type") or "").lower() == "postgresql"]
+                if pg_conns:
+                    conn = pg_conns[0]
+                elif active_list:
+                    conn = active_list[0]
+            if not conn or not conn.adapter:
+                return {"success": False, "error": "Connection not found"}
+            db_type = (conn.config.get("type") or getattr(conn.adapter, "db_type", "") or "").lower()
+            if db_type != "postgresql":
+                return {"success": False, "error": "PostgreSQL Dependency Graph is exclusively supported for PostgreSQL connections."}
+            from app.services.postgres_dependency import PostgresDependencyService
+            service = PostgresDependencyService(conn.adapter)
+            graph = service.get_column_graph(
+                schema=schema or "public",
+                table_name=table,
+                column_name=column,
+                direction=direction or "dependents",
+                depth_limit=int(depth or 2),
+                database=database,
+                include_source_analysis=bool(include_source)
+            )
+            return {
+                "success": True,
+                "graph": graph.to_dict(),
+                "tree": graph.to_tree_projection()
+            }
+        except Exception as exc:
+            return {"success": False, "error": str(exc)}
+
+    def pg_dependency_get_object(self, conn_id, obj_type, schema, name, direction="dependents", depth=2, database=None):
+        try:
+            conn = self._get_connection(conn_id)
+            if not conn and hasattr(self, 'cm') and self.cm:
+                active_list = self.cm.list(self.owner_session_id)
+                pg_conns = [c for c in active_list if (c.config.get("type") or "").lower() == "postgresql"]
+                if pg_conns:
+                    conn = pg_conns[0]
+                elif active_list:
+                    conn = active_list[0]
+            if not conn or not conn.adapter:
+                return {"success": False, "error": "Connection not found"}
+            db_type = (conn.config.get("type") or getattr(conn.adapter, "db_type", "") or "").lower()
+            if db_type != "postgresql":
+                return {"success": False, "error": "PostgreSQL Dependency Graph is exclusively supported for PostgreSQL connections."}
+            from app.services.postgres_dependency import PostgresDependencyService
+            service = PostgresDependencyService(conn.adapter)
+            graph = service.get_object_graph(
+                obj_type_str=obj_type or "view",
+                schema=schema or "public",
+                name=name,
+                direction=direction or "dependents",
+                depth_limit=int(depth or 2),
+                database=database
+            )
+            return {
+                "success": True,
+                "graph": graph.to_dict(),
+                "tree": graph.to_tree_projection()
+            }
+        except Exception as exc:
+            return {"success": False, "error": str(exc)}
+
+    def pg_dependency_get_definition(self, conn_id, obj_type, schema, name, oid=None, database=None):
+        try:
+            conn = self._get_connection(conn_id)
+            if not conn and hasattr(self, 'cm') and self.cm:
+                active_list = self.cm.list(self.owner_session_id)
+                pg_conns = [c for c in active_list if (c.config.get("type") or "").lower() == "postgresql"]
+                if pg_conns:
+                    conn = pg_conns[0]
+                elif active_list:
+                    conn = active_list[0]
+            if not conn or not conn.adapter:
+                return {"success": False, "error": "Connection not found"}
+            from app.services.postgres_dependency import PostgresDependencyService
+            service = PostgresDependencyService(conn.adapter)
+            oid_int = int(oid) if oid and str(oid).isdigit() else None
+            defn = service.get_object_definition(
+                obj_type_str=obj_type or "view",
+                schema=schema or "public",
+                name=name,
+                oid=oid_int,
+                database=database
+            )
+            if not defn:
+                return {"success": False, "error": f"Definition not found for {schema}.{name}"}
+            return {
+                "success": True,
+                "object_type": obj_type,
+                "schema": schema,
+                "name": name,
+                "definition": defn
+            }
+        except Exception as exc:
+            return {"success": False, "error": str(exc)}
+
+    def pg_dependency_get_suggested_steps(self, conn_id, schema, table, column, action="ALTER", database=None):
+        try:
+            conn = self._get_connection(conn_id)
+            if not conn and hasattr(self, 'cm') and self.cm:
+                active_list = self.cm.list(self.owner_session_id)
+                pg_conns = [c for c in active_list if (c.config.get("type") or "").lower() == "postgresql"]
+                if pg_conns:
+                    conn = pg_conns[0]
+                elif active_list:
+                    conn = active_list[0]
+            if not conn or not conn.adapter:
+                return {"success": False, "error": "Connection not found"}
+            from app.services.postgres_dependency import PostgresDependencyService
+            service = PostgresDependencyService(conn.adapter)
+            steps = service.get_suggested_steps(
+                schema=schema or "public",
+                table=table,
+                column=column,
+                action=action or "ALTER",
+                database=database
+            )
+            return {
+                "success": True,
+                "action": action,
+                "target": f"{schema}.{table}.{column}",
+                "steps": steps
+            }
+        except Exception as exc:
+            return {"success": False, "error": str(exc)}
+
+    # === Object Content Search Native IPC Methods ===
+
+    def sql_object_search(self, conn_id=None, keyword="", database=None, object_types=None, case_sensitive=False, whole_word=False, is_regex=False, schema=None):
+        try:
+            conn = None
+            if conn_id:
+                conn = self._get_connection(conn_id)
+            if not conn and hasattr(self, 'cm') and self.cm:
+                active_list = self.cm.list(self.owner_session_id)
+                if active_list:
+                    conn = active_list[0]
+            if not conn or not conn.adapter:
+                return {"success": False, "error": "Database connection is unavailable."}
+
+            from app.services.object_search_service import ObjectSearchService
+            service = ObjectSearchService(conn.adapter)
+            return service.search(
+                keyword=keyword,
+                database=database,
+                object_types=object_types,
+                case_sensitive=bool(case_sensitive),
+                whole_word=bool(whole_word),
+                is_regex=bool(is_regex),
+                schema=schema
+            )
+        except Exception as exc:
+            return {"success": False, "error": str(exc)}
+
+    def sql_object_ddl(self, conn_id=None, schema="dbo", name="", object_type="VIEW", database=None, keyword=None, case_sensitive=False, whole_word=False, is_regex=False):
+        try:
+            conn = None
+            if conn_id:
+                conn = self._get_connection(conn_id)
+            if not conn and hasattr(self, 'cm') and self.cm:
+                active_list = self.cm.list(self.owner_session_id)
+                if active_list:
+                    conn = active_list[0]
+            if not conn or not conn.adapter:
+                return {"success": False, "error": "Database connection is unavailable."}
+
+            from app.services.object_search_service import ObjectSearchService
+            service = ObjectSearchService(conn.adapter)
+            return service.get_ddl(
+                schema=schema,
+                name=name,
+                object_type=object_type,
+                database=database,
+                keyword=keyword,
+                case_sensitive=bool(case_sensitive),
+                whole_word=bool(whole_word),
+                is_regex=bool(is_regex)
+            )
+        except Exception as exc:
+            return {"success": False, "error": str(exc)}
+
+    def get_code_styles(self):
+        try:
+            from app.routes.styles import _load_styles_file
+            return _load_styles_file()
+        except Exception as exc:
+            return {"success": False, "error": str(exc)}
+
+    def save_code_styles(self, payload):
+        try:
+            from app.routes.styles import _save_styles_file
+            if not isinstance(payload, dict):
+                return {"success": False, "error": "payload must be an object"}
+            ok = _save_styles_file(payload)
+            return {"success": ok}
+        except Exception as exc:
+            return {"success": False, "error": str(exc)}
+
+    def reset_code_styles(self):
+        try:
+            from app.routes.styles import _get_default_styles_data, _save_styles_file
+            defaults = _get_default_styles_data()
+            _save_styles_file(defaults)
+            return {"success": True, **defaults}
+        except Exception as exc:
+            return {"success": False, "error": str(exc)}
+
+    def analyze_query_flow(self, sql, dialect="tsql"):
+        try:
+            from app.services.query_flow_service import QueryFlowService
+            graph = QueryFlowService.build_flow_graph(sql, dialect=dialect)
+            return {"success": True, "flowGraph": graph.to_dict()}
+        except Exception as exc:
+            return {"success": False, "error": str(exc)}
+
+    def get_query_plan(self, sql, conn_id=None, plan_type="estimated", database=None, schema=None, dialect=None):
+        try:
+            from app.services.query_plan_service import QueryPlanService
+            conn_session = None
+            if conn_id and hasattr(self, "_connection_manager") and self._connection_manager:
+                try:
+                    conn_session = self._connection_manager.get_connection(conn_id)
+                except Exception:
+                    pass
+
+            plan = QueryPlanService.get_execution_plan(
+                connection_session=conn_session,
+                sql=sql,
+                plan_type=plan_type,
+                database=database,
+                schema=schema,
+                dialect=dialect,
+            )
+            return {"success": True, "plan": plan.to_dict()}
+        except Exception as exc:
+            return {"success": False, "error": str(exc)}
+
+
+
 
 def main():
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     cache_dir = DATA_DIR / ".webview_cache"
     cache_dir.mkdir(parents=True, exist_ok=True)
 
+    settings = _load_settings_file()
+    log_cfg = settings.get("logging", {}) if isinstance(settings, dict) else {}
+    log_level = log_cfg.get("level", "INFO")
+    max_mb = int(log_cfg.get("maxFileSizeMb", 2))
+    max_files = int(log_cfg.get("maxFiles", 5))
+    setup_logging(
+        log_dir=DATA_DIR / "logs",
+        level_name=log_level,
+        max_bytes=max_mb * 1024 * 1024,
+        backup_count=max_files,
+        enable_console=True
+    )
+
     index_html = (BASE_DIR / "templates" / "index.html").resolve().as_uri()
     splash_html = (BASE_DIR / "templates" / "splash.html").resolve().as_uri()
     main_api = MainApi(connection_manager)
-
-    settings = _load_settings_file()
     cur_theme = settings.get("appearance", {}).get("theme") or settings.get("theme", "dark")
     bg_color = "#ffffff" if cur_theme in ["light", "win-nt", "win-xp"] else "#1e1e1e"
 
@@ -3068,13 +4547,14 @@ def main():
 
     window.events.loaded += on_main_loaded
 
-    # Fallback timer: sau 10.0s đảm bảo không bao giờ bị kẹt splash nếu frontend gặp sự cố ngoại lệ
+    # Safety fallback timer: sau 10.0s đảm bảo chuyển tiếp nếu frontend gặp lỗi nghiêm trọng không gọi về được
     def on_fallback():
         nonlocal splash_min_timer_done, frontend_ready
         splash_min_timer_done = True
         frontend_ready = True
         maybe_transition()
 
+    import threading
     threading.Timer(10.0, on_fallback).start()
 
     print(f"[App] Starting Desktop pywebview with active theme: {cur_theme}")

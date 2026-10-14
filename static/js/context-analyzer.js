@@ -262,7 +262,7 @@
                     if (up === 'SELECT') {
                         const isAfterBlockOrRoutine = ['BEGIN', 'DO'].includes(prev);
                         if (!CONTINUATION_BEFORE_SELECT.has(prev) || (prev === 'AS' && (stmtStarter === 'CREATE' || stmtStarter === 'ALTER'))) {
-                            if (stmtStarter === 'SELECT' || seenFromOrValues || isAfterBlockOrRoutine || stmtStarter === 'CREATE' || stmtStarter === 'ALTER') {
+                            if (stmtStarter === 'SELECT' || stmtStarter === 'DECLARE' || seenFromOrValues || isAfterBlockOrRoutine || stmtStarter === 'CREATE' || stmtStarter === 'ALTER') {
                                 boundaries.push(t.start);
                                 stmtStarter = 'SELECT';
                                 seenFromOrValues = false;
@@ -507,14 +507,15 @@
                                 return {
                                     isAlter: true,
                                     action: action,
-                                    alterType: validTypes[targetWord]
+                                    alterType: validTypes[targetWord],
+                                    actionStart: t.start
                                 };
                             }
                         }
                     }
                 }
             }
-            return { isAlter: false, action: "", alterType: "" };
+            return { isAlter: false, action: "", alterType: "", actionStart: -1 };
         }
 
         // Fallback regex: only inspect current statement after last ';' or 'GO'
@@ -542,14 +543,16 @@
                 if (rawType === "proc" || rawType === "procedure") alterType = "procedure";
                 else if (rawType === "func" || rawType === "function") alterType = "function";
 
+                const stmtOffset = lastBoundaryMatch ? (lastBoundaryMatch.index + lastBoundaryMatch[0].length) : 0;
                 return { 
                     isAlter: true, 
                     action: action, 
-                    alterType: alterType 
+                    alterType: alterType,
+                    actionStart: stmtOffset + lastMatch.index
                 };
             }
         }
-        return { isAlter: false, action: "", alterType: "" };
+        return { isAlter: false, action: "", alterType: "", actionStart: -1 };
     }
 
     // ─────────────────────────────────────────────────────────────────────────────
@@ -899,20 +902,111 @@
             const allTokens = tokenizer.tokenize(sqlText);
             const codeTokens = tokenizer.filterCodeTokens(allTokens);
             const nonAliases = new Set([
-                "WHERE", "ON", "JOIN", "INNER", "LEFT", "RIGHT", "FULL", "CROSS",
-                "GROUP", "ORDER", "HAVING", "LIMIT", "UNION", "APPLY", "WITH",
+                "WHERE", "ON", "JOIN", "INNER", "LEFT", "RIGHT", "FULL", "CROSS", "OUTER",
+                "GROUP", "ORDER", "HAVING", "LIMIT", "UNION", "APPLY", "LATERAL", "NATURAL", "WITH",
                 "SELECT", "FROM", "INTO", "SET", "VALUES", "IN", "AND", "OR"
             ]);
 
             for (let i = 0; i < codeTokens.length; i++) {
                 const upper = (codeTokens[i].upper || codeTokens[i].value).toUpperCase();
-                if (upper === 'FROM' || upper === 'JOIN') {
+                if (upper === 'FROM' || upper === 'JOIN' || upper === 'APPLY' || upper === 'LATERAL') {
                     if (i + 1 >= codeTokens.length) continue;
 
                     let j = i + 1;
-                    let tableParts = [];
 
-                    // Collect dot-separated table path: id . id . id
+                    // 1. Check if a subquery immediately follows: (SELECT ...
+                    if (codeTokens[j].value === '(') {
+                        const openP = j;
+                        let depth = 1;
+                        let k = j + 1;
+                        let isSubquery = false;
+                        while (k < codeTokens.length && depth > 0) {
+                            if (codeTokens[k].value === '(') depth++;
+                            else if (codeTokens[k].value === ')') depth--;
+                            if (depth === 1 && (codeTokens[k].upper || codeTokens[k].value).toUpperCase() === 'SELECT') {
+                                isSubquery = true;
+                            }
+                            k++;
+                        }
+                        const closeP = k - 1;
+                        if (depth === 0) {
+                            j = closeP + 1;
+                            let aliasToken = null;
+                            if (j < codeTokens.length) {
+                                const nextWord = (codeTokens[j].upper || codeTokens[j].value).toUpperCase();
+                                if (nextWord === 'AS') {
+                                    j++;
+                                    if (j < codeTokens.length && codeTokens[j].type === 'IDENTIFIER') {
+                                        aliasToken = codeTokens[j].value;
+                                        j++;
+                                    }
+                                } else if (!nonAliases.has(nextWord) && codeTokens[j].value !== ')' && codeTokens[j].value !== '(' && codeTokens[j].value !== ';' && codeTokens[j].value !== ',') {
+                                    if (codeTokens[j].type === 'IDENTIFIER') {
+                                        aliasToken = codeTokens[j].value;
+                                        j++;
+                                    }
+                                }
+                            }
+                            if (aliasToken) {
+                                const cleanAl = cleanIdentifier(aliasToken);
+                                if (!nonAliases.has(cleanAl.toUpperCase())) {
+                                    let cols = [];
+                                    // Parse explicit column aliases if present: alias(c1, c2, ...)
+                                    if (j < codeTokens.length && codeTokens[j].value === '(') {
+                                        const colOpen = j;
+                                        let colDepth = 1;
+                                        let colClose = -1;
+                                        for (let p = colOpen + 1; p < codeTokens.length; p++) {
+                                            if (codeTokens[p].value === '(') colDepth++;
+                                            else if (codeTokens[p].value === ')') {
+                                                colDepth--;
+                                                if (colDepth === 0) { colClose = p; break; }
+                                            }
+                                        }
+                                        if (colClose > colOpen) {
+                                            for (let p = colOpen + 1; p < colClose; p++) {
+                                                const cTok = codeTokens[p];
+                                                const cVal = (cTok.upper || cTok.value).toUpperCase();
+                                                if ((cTok.type === 'IDENTIFIER' || !nonAliases.has(cVal)) && cTok.value !== ',') {
+                                                    const cName = cleanIdentifier(cTok.value);
+                                                    if (cName && !cols.some(x => x.name.toLowerCase() === cName.toLowerCase())) {
+                                                        cols.push({ name: cName, type: 'column', displayType: 'Column' });
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                    if (cols.length === 0 && isSubquery && window.DefaultScopeResolver && window.DefaultScopeResolver.aliasResolver) {
+                                        cols = window.DefaultScopeResolver.aliasResolver.parseSelectProjection(codeTokens, openP + 1, closeP);
+                                    }
+                                    let subSourceTables = [];
+                                    if (window.DefaultScopeResolver && window.DefaultScopeResolver.aliasResolver) {
+                                        subSourceTables = window.DefaultScopeResolver.aliasResolver.extractSubquerySourceTables(codeTokens, openP + 1, closeP);
+                                    }
+                                    const primarySrc = subSourceTables.length > 0 ? subSourceTables[0] : null;
+                                    const subHasStar = Boolean(cols.hasStar);
+
+                                    const subType = upper === 'APPLY' ? 'apply_subquery' : (upper === 'LATERAL' ? 'lateral_subquery' : 'subquery');
+                                    const info = {
+                                        schema: primarySrc ? primarySrc.schema : '',
+                                        table: primarySrc ? primarySrc.table : cleanAl,
+                                        targetObject: primarySrc ? primarySrc.table : cleanAl,
+                                        alias: cleanAl,
+                                        type: subType,
+                                        columns: cols,
+                                        hasStar: subHasStar,
+                                        underlyingTables: subSourceTables
+                                    };
+                                    aliasMap[cleanAl.toLowerCase()] = info;
+                                    aliasMap[cleanAl] = info;
+                                }
+                            }
+                            continue;
+                        }
+                    }
+
+                    // 2. Regular table path or table function call:
+                    let tableParts = [];
                     while (j < codeTokens.length) {
                         const tok = codeTokens[j];
                         const tokVal = (tok.upper || tok.value).toUpperCase();
@@ -946,7 +1040,31 @@
                         tableName = tableParts[tableParts.length - 1];
                     }
 
-                    const info = { schema: schemaName, table: tableName };
+                    // Check if followed by function call arguments: func(...)
+                    let isFunctionCall = false;
+                    if (j < codeTokens.length && codeTokens[j].value === '(') {
+                        isFunctionCall = true;
+                        let depth = 1;
+                        j++;
+                        while (j < codeTokens.length && depth > 0) {
+                            if (codeTokens[j].value === '(') depth++;
+                            else if (codeTokens[j].value === ')') depth--;
+                            j++;
+                        }
+                    }
+
+                    let tblType = isFunctionCall ? 'table_function' : 'table';
+                    if (tableName.startsWith('#')) {
+                        tblType = 'temp_table';
+                    } else if (tableName.startsWith('@')) {
+                        tblType = 'table_variable';
+                    }
+                    const info = {
+                        schema: schemaName,
+                        table: tableName,
+                        type: tblType,
+                        columns: []
+                    };
 
                     // Optional alias
                     let aliasToken = null;
@@ -956,10 +1074,12 @@
                             j++;
                             if (j < codeTokens.length && codeTokens[j].type === 'IDENTIFIER') {
                                 aliasToken = codeTokens[j].value;
+                                j++;
                             }
                         } else if (!nonAliases.has(nextWord) && codeTokens[j].value !== ')' && codeTokens[j].value !== '(' && codeTokens[j].value !== ';' && codeTokens[j].value !== ',') {
                             if (codeTokens[j].type === 'IDENTIFIER') {
                                 aliasToken = codeTokens[j].value;
+                                j++;
                             }
                         }
                     }
@@ -968,6 +1088,31 @@
                         const cleanAl = cleanIdentifier(aliasToken);
                         if (!nonAliases.has(cleanAl.toUpperCase())) {
                             info.alias = cleanAl;
+                            // Check for explicit column aliases: alias(c1, c2, ...)
+                            if (j < codeTokens.length && codeTokens[j].value === '(') {
+                                const colOpen = j;
+                                let colDepth = 1;
+                                let colClose = -1;
+                                for (let p = colOpen + 1; p < codeTokens.length; p++) {
+                                    if (codeTokens[p].value === '(') colDepth++;
+                                    else if (codeTokens[p].value === ')') {
+                                        colDepth--;
+                                        if (colDepth === 0) { colClose = p; break; }
+                                    }
+                                }
+                                if (colClose > colOpen) {
+                                    for (let p = colOpen + 1; p < colClose; p++) {
+                                        const cTok = codeTokens[p];
+                                        const cVal = (cTok.upper || cTok.value).toUpperCase();
+                                        if ((cTok.type === 'IDENTIFIER' || !nonAliases.has(cVal)) && cTok.value !== ',') {
+                                            const cName = cleanIdentifier(cTok.value);
+                                            if (cName && !info.columns.some(x => x.name.toLowerCase() === cName.toLowerCase())) {
+                                                info.columns.push({ name: cName, type: 'column', displayType: 'Column' });
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                             aliasMap[cleanAl.toLowerCase()] = info;
                             aliasMap[cleanAl] = info;
                         }
@@ -1057,10 +1202,10 @@
         }
 
         // Fallback regex
-        const regex = /\b(?:FROM|JOIN)\s+([\[\]\"\w\.#@]+)(?:\s+(?:AS\s+)?([\[\]\"\w]+))?/gi;
+        const regex = /\b(?:FROM|JOIN|APPLY|LATERAL)\s+([\[\]\"\w\.#@]+)(?:\s+(?:AS\s+)?([\[\]\"\w]+))?/gi;
         const nonAliases = new Set([
-            "WHERE", "ON", "JOIN", "INNER", "LEFT", "RIGHT", "FULL", "CROSS",
-            "GROUP", "ORDER", "HAVING", "LIMIT", "UNION", "APPLY",
+            "WHERE", "ON", "JOIN", "INNER", "LEFT", "RIGHT", "FULL", "CROSS", "OUTER",
+            "GROUP", "ORDER", "HAVING", "LIMIT", "UNION", "APPLY", "LATERAL", "NATURAL",
             "SELECT", "FROM", "INTO", "SET", "VALUES", "IN", "AND", "OR"
         ]);
 
@@ -1112,13 +1257,18 @@
 
         Object.values(aliasMap).forEach(info => {
             if (info.table) {
-                const key = `${(info.schema || '').toLowerCase()}::${info.table.toLowerCase()}`;
+                const key = `${(info.schema || '').toLowerCase()}::${info.table.toLowerCase()}::${(info.alias || '').toLowerCase()}`;
                 if (!seen.has(key)) {
                     seen.add(key);
                     tables.push({
                         schema: info.schema,
                         table: info.table,
-                        alias: info.alias || ""
+                        targetObject: info.targetObject || info.table,
+                        alias: info.alias || "",
+                        type: info.type || 'table',
+                        columns: info.columns || [],
+                        hasStar: Boolean(info.hasStar),
+                        underlyingTables: info.underlyingTables || []
                     });
                 }
             }
@@ -1197,8 +1347,8 @@
         if (currentChunk.length > 0) chunks.push(currentChunk);
 
         const nonAliases = new Set([
-            "WHERE", "ON", "JOIN", "INNER", "LEFT", "RIGHT", "FULL", "CROSS",
-            "GROUP", "ORDER", "HAVING", "LIMIT", "UNION", "APPLY", "WITH",
+            "WHERE", "ON", "JOIN", "INNER", "LEFT", "RIGHT", "FULL", "CROSS", "OUTER",
+            "GROUP", "ORDER", "HAVING", "LIMIT", "UNION", "APPLY", "LATERAL", "NATURAL", "WITH",
             "SELECT", "FROM", "INTO", "SET", "VALUES", "IN", "AND", "OR", "AS"
         ]);
 
@@ -1456,11 +1606,12 @@
                 result.isUpdateTarget = true;
             } else {
                 // Cursor is after SET
-                // Check if there is WHERE following SET
-                const whereIdx = stmtTokens.findIndex((t, idx) => idx > setIdx && (t.upper || t.value).toUpperCase() === 'WHERE');
-                const isBeforeWhere = (whereIdx === -1 || cursorIndex < stmtTokens[whereIdx].start);
+                // Check if there is FROM / WHERE / OUTPUT following SET
+                const endSetKeywords = ['FROM', 'WHERE', 'OUTPUT'];
+                const endSetIdx = stmtTokens.findIndex((t, idx) => idx > setIdx && endSetKeywords.includes((t.upper || t.value).toUpperCase()));
+                const isBeforeEndSet = (endSetIdx === -1 || cursorIndex < stmtTokens[endSetIdx].start);
 
-                if (isBeforeWhere) {
+                if (isBeforeEndSet) {
                     // Cursor is in SET clause
                     // Determine if cursor is at column name position or value expression position
                     let lastNonWordTok = null;
@@ -1576,6 +1727,7 @@
         let currentWord = "";
         let qualifier = "";
         let fullQualifier = "";
+        let qualifierParts = [];
         let qualifierStartOffset = cursorIndex;
         let triggerChar = "";
         let previousToken = "";
@@ -1717,20 +1869,36 @@
                             qualifier = '';
                         } else {
                             triggerChar = '.';
-                            qualifier = cleanIdentifier(prevCodeTok.value);
-                            // Multi-part qualifier: db.schema.
+                            // Multi-part qualifier chain: server.db.schema.table
+                            // Also handles double-dot e.g. server.database..
                             let parts = [];
-                            let firstPartIdx = dotIdx - 1;
-                            for (let p = dotIdx - 1; p >= 0; p -= 2) {
-                                firstPartIdx = p;
-                                parts.unshift(cleanIdentifier(codeTokens[p].value));
-                                if (p >= 2 && codeTokens[p - 1].value === '.') {
-                                    // continue walking back
+                            let firstPartIdx = dotIdx;
+                            let p = dotIdx;
+                            while (p >= 0) {
+                                if (codeTokens[p].value === '.') {
+                                    p--;
+                                    if (p >= 0 && codeTokens[p].value === '.') {
+                                        // consecutive dots e.g. '..'
+                                        parts.unshift('');
+                                        firstPartIdx = p;
+                                        p--;
+                                    }
+                                } else if (codeTokens[p].type === 'IDENTIFIER' || codeTokens[p].type === 'KEYWORD' || codeTokens[p].type === 'PARAMETER') {
+                                    firstPartIdx = p;
+                                    parts.unshift(cleanIdentifier(codeTokens[p].value));
+                                    p--;
+                                    if (p >= 0 && codeTokens[p].value === '.') {
+                                        // continue to next dot
+                                    } else {
+                                        break;
+                                    }
                                 } else {
                                     break;
                                 }
                             }
+                            qualifierParts = parts;
                             fullQualifier = parts.join('.');
+                            qualifier = parts.length > 0 ? parts[parts.length - 1] : '';
                             qualifierStartOffset = codeTokens[firstPartIdx].start;
                         }
                     }
@@ -1866,7 +2034,7 @@
             contextType = IntelliSenseContextType.COLUMN;
         } else if (clause === 'FROM' || clause === 'JOIN') {
             contextType = IntelliSenseContextType.TABLE;
-        } else if (clause === 'WHERE' || clause === 'ON') {
+        } else if (clause === 'WHERE' || clause === 'ON' || clause === 'HAVING') {
             contextType = IntelliSenseContextType.COLUMN;
         } else if (clause === 'ORDER BY') {
             contextType = IntelliSenseContextType.ORDER_COLUMN;
@@ -1912,6 +2080,20 @@
                     aliasMap[k] = sym.toContextObject();
                 });
 
+                // Enrich any query table that lacks columns from visible symbols
+                queryTables.forEach(qt => {
+                    if ((!qt.columns || qt.columns.length === 0) && visibleSymbols) {
+                        const s = visibleSymbols.get((qt.table || '').toLowerCase()) || (qt.alias ? visibleSymbols.get(qt.alias.toLowerCase()) : null);
+                        if (s && s.columns && Array.isArray(s.columns) && s.columns.length > 0) {
+                            qt.columns = s.columns;
+                            if (s.type) qt.type = s.type;
+                            if (s.underlyingTables && (!qt.underlyingTables || qt.underlyingTables.length === 0)) {
+                                qt.underlyingTables = s.underlyingTables;
+                            }
+                        }
+                    }
+                });
+
                 ctes = activeScope.getSymbolsByType('cte');
                 localVariables = activeScope.getSymbolsByType('scalar_variable');
                 const scopeTableVars = activeScope.getSymbolsByType('table_variable');
@@ -1929,9 +2111,9 @@
             }
         }
 
-        // Phase 3: Forward-Looking FROM scan when in SELECT clause
-        // Guarantees that tables and aliases appearing after cursor in the same statement are bound to SELECT
-        if (clause === 'SELECT' && statementRange) {
+        // Phase 3: Forward-Looking FROM scan when in SELECT / UPDATE SET clause
+        // Guarantees that tables and aliases appearing after cursor in the same statement are bound
+        if ((clause === 'SELECT' && statementRange) || ((clause === 'SET' || dmlContext.isUpdateSet || dmlContext.isUpdateSetValue) && statementRange)) {
             const stmtText = fullSql.substring(statementRange.start, statementRange.end);
             const forwardTables = extractAllTablesInQuery(stmtText);
             const forwardAliases = extractAliases(stmtText);
@@ -1985,10 +2167,12 @@
         const selectAliases = extractSelectAliases(fullSql, statementRange);
 
         return {
+            fullSql,
             currentWord,
             rawToken: currentWord,
             qualifier,
             fullQualifier,
+            qualifierParts,
             resolvedObject,
             activeScope,
             triggerChar,
@@ -2007,6 +2191,8 @@
             execContext,
             isAlterContext: alterContext.isAlter,
             alterObjectType: alterContext.alterType,
+            alterAction: alterContext.action || '',
+            alterStartOffset: typeof alterContext.actionStart === 'number' ? alterContext.actionStart : -1,
             isInRoutine: routineContext ? routineContext.isInRoutine : false,
             isInRoutineBody: routineContext ? routineContext.isRoutineBody : false,
             routineType: routineContext ? routineContext.routineType : '',

@@ -29,17 +29,55 @@ class TraceEvent:
     app: str
     duration: float  # in milliseconds
     sql: str
+    # Unified DatabaseEvent schema extensions
+    user: Optional[str] = None
+    node_id: Optional[str] = None
+    connection: Optional[str] = None
+    operation: Optional[str] = None
+    event_type: Optional[str] = None
+    source: Optional[str] = "postgresql"
+    source_type: Optional[str] = "postgresql"
+    schema: Optional[str] = "public"
+    table: Optional[str] = None
+    transaction_id: Optional[Any] = None
+    latency_ms: Optional[float] = None
+    parameters: Optional[List[Dict[str, Any]]] = None
+    payload: Optional[Any] = None
+    metadata: Optional[Dict[str, Any]] = None
 
     def to_dict(self) -> Dict[str, Any]:
+        dur = round(float(self.duration), 2) if self.duration is not None else 0.0
+        op = (self.operation or self.event or "STATEMENT").upper()
         return {
             "id": self.id,
+            "row_num": self.id,
             "time": self.time,
+            "timestamp": self.time,
             "event": self.event,
+            "event_type": self.event_type or "DATABASE_EVENT",
             "spid": self.spid,
+            "node_id": self.node_id or str(self.spid),
             "db": self.db or "—",
+            "database": self.db or "—",
             "app": self.app or "—",
-            "duration": round(float(self.duration), 2) if self.duration is not None else 0.0,
+            "app_name": self.app or "—",
+            "duration": dur,
+            "duration_ms": dur,
+            "latency_ms": self.latency_ms if self.latency_ms is not None else dur,
             "sql": self.sql or "",
+            "command_text": self.sql or "",
+            "user": self.user or "—",
+            "connection": self.connection or "PostgreSQL",
+            "source": self.source or "postgresql",
+            "source_type": self.source_type or "postgresql",
+            "operation": op,
+            "action": op,
+            "schema": self.schema or "public",
+            "table": self.table or "—",
+            "transaction_id": self.transaction_id or "—",
+            "parameters": self.parameters or [],
+            "payload": self.payload or {},
+            "metadata": self.metadata or {},
         }
 
 
@@ -148,27 +186,39 @@ class BaseProfilerSession:
     def emit_event(
         self,
         time_str: str,
-        event_type: str,
-        spid: int,
-        db_name: str,
-        app_name: str,
-        duration_ms: float,
-        sql_text: str,
+        event_tag: Optional[str] = None,
+        spid: int = 0,
+        db_name: str = "—",
+        app_name: str = "—",
+        duration_ms: float = 0.0,
+        sql_text: str = "",
+        event_type: Optional[str] = None,
+        **kwargs,
     ):
         """Called by collector thread to enqueue a standardized trace event."""
         with self._lock:
             self.event_counter += 1
             cur_id = self.event_counter
 
+        # Flexible fallback if called with event_type as tag or category
+        actual_event = event_tag or event_type or "STATEMENT"
+        actual_type = "DATABASE_EVENT"
+        if event_tag and event_type:
+            actual_type = event_type
+        elif "source" in kwargs and kwargs.get("source") == "backend":
+            actual_type = "APPLICATION_EVENT"
+
         ev = TraceEvent(
             id=cur_id,
             time=time_str,
-            event=event_type,
+            event=actual_event,
+            event_type=actual_type,
             spid=spid,
             db=db_name,
             app=app_name,
             duration=duration_ms,
             sql=sql_text,
+            **kwargs,
         )
 
         try:
@@ -246,7 +296,10 @@ class BaseProfilerSession:
                             return
 
                 json_data = json.dumps(batch)
-                js_cmd = f"if (window.ingestTraceBatch) {{ window.ingestTraceBatch({json_data}); }}"
+                js_cmd = (
+                    f"if (window.ingestTraceBatch) {{ window.ingestTraceBatch({json_data}); }} "
+                    f"if (window.onBatchEventsReceived) {{ window.onBatchEventsReceived({json_data}); }}"
+                )
                 win.evaluate_js(js_cmd)
             except BaseException as e:
                 logger.debug("Failed evaluate_js in profiler dispatch: %s", e)

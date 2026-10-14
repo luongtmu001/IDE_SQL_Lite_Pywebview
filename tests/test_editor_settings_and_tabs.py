@@ -236,5 +236,82 @@ def test_diff_tab_live_sync_with_source_tabs():
     assert "syncDiffTabsWithSourceTab" in editor_content
 
 
+def test_four_way_split_editor_dom_and_ui():
+    for template_path in ["templates/partials/editor.html", "templates/index.html"]:
+        path = Path(template_path)
+        assert path.exists(), f"{template_path} must exist"
+        content = path.read_text(encoding="utf-8")
+
+        # Split button group and dropdown
+        assert "ide-split-btn-group" in content
+        assert "id=\"ide-btn-split-editor\"" in content
+        assert "id=\"ide-btn-split-dropdown\"" in content
+        assert "ide-split-dropdown-menu" in content
+
+        # Dropdown options for all 4 directions
+        assert "data-direction=\"right\"" in content
+        assert "data-direction=\"left\"" in content
+        assert "data-direction=\"down\"" in content
+        assert "data-direction=\"up\"" in content
+        assert "data-action=\"close\"" in content
+
+        # Quick direction switcher buttons in split pane header
+        assert "id=\"split-direction-btn-group\"" in content
+        assert "split-dir-btn" in content
+
+
+def test_four_way_split_editor_js_apis():
+    editor_js_path = Path("static/js/editor.js")
+    assert editor_js_path.exists()
+    content = editor_js_path.read_text(encoding="utf-8")
+
+    # Direction state and management APIs
+    assert "window.setSplitDirection" in content
+    assert "window.getSplitDirection" in content
+    assert "normalizeSplitDirection" in content
+    assert "applySplitLayout" in content
+    assert "updateSplitDirectionButtonsUI" in content
+
+    # Monaco context menu actions for all directions
+    assert "id: 'sql-split-right'" in content
+    assert "id: 'sql-split-left'" in content
+    assert "id: 'sql-split-down'" in content
+    assert "id: 'sql-split-up'" in content
+    assert "id: 'sql-unsplit'" in content
+
+    # Horizontal and vertical dragging logic
+    assert "ide-resizer-vertical" in content
+    assert "ide-resizer-horizontal" in content
+    assert "col-resize" in content
+    assert "row-resize" in content
+    assert "flexDirection = 'column'" in content
+    assert "flexDirection = 'row'" in content
+
+
+def test_four_way_split_tab_context_menu_and_css():
+    tabs_js_path = Path("static/js/tabs.js")
+    assert tabs_js_path.exists()
+    tabs_content = tabs_js_path.read_text(encoding="utf-8")
+
+    assert "id=\"ctx-tab-split\"" in tabs_content
+    assert "data-split-dir=\"right\"" in tabs_content
+    assert "data-split-dir=\"left\"" in tabs_content
+    assert "data-split-dir=\"down\"" in tabs_content
+    assert "data-split-dir=\"up\"" in tabs_content
+    assert "data-split-action=\"close\"" in tabs_content
+
+    css_path = Path("static/css/editor.css")
+    assert css_path.exists()
+    css_content = css_path.read_text(encoding="utf-8")
+
+    assert ".ide-split-btn-group" in css_content
+    assert ".split-dir-btn" in css_content
+    assert ".split-dir-btn.active" in css_content
+    assert ".ide-split-dropdown-menu" in css_content
+    assert "#editor-resizer.ide-resizer-vertical" in css_content
+    assert "#editor-resizer.ide-resizer-horizontal" in css_content
+
+
+
 
 

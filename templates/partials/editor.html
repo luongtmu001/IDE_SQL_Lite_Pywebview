@@ -2,14 +2,22 @@
     <!-- Action Bar (Connection context + Run controls) -->
     <div class="ide-action-bar d-flex align-items-center px-2 gap-1">
         <!-- Left: Context badges / Interactive Selectors -->
-        <div class="d-flex align-items-center gap-1 flex-grow-1 ide-ctx-selectors">
+        <div class="d-flex align-items-center gap-1 flex-shrink-0 ide-ctx-selectors flex-nowrap">
             <!-- Connection Selector -->
-            <div class="dropdown d-inline-block">
+            <div class="dropdown d-inline-block position-relative">
                 <button class="ide-ctx-badge dropdown-toggle" type="button" id="ide-ctx-connection"
-                    data-bs-toggle="dropdown" aria-expanded="false" title="Switch Connection">
+                    data-bs-toggle="dropdown" aria-expanded="false" title="Switch Connection"
+                    data-bs-popper-config='{"strategy":"fixed"}'>
                     <i class="fa-solid fa-plug-circle-bolt me-1 text-success"></i>
                     <span id="ide-ctx-conn-label" class="text-truncate" style="max-width: 130px;">No connection</span>
                 </button>
+                <div class="ide-ctx-hover-card" id="ide-ctx-conn-hover-card">
+                    <div class="d-flex align-items-center gap-1 mb-1">
+                        <i class="fa-solid fa-plug-circle-bolt text-success"></i>
+                        <strong id="ide-ctx-hc-name">No connection</strong>
+                    </div>
+                    <div class="text-muted small" id="ide-ctx-hc-details">Click to switch connection</div>
+                </div>
                 <ul class="dropdown-menu shadow" id="ide-ctx-conn-menu" aria-labelledby="ide-ctx-connection"
                     style="min-width: 220px; max-height: 280px; overflow-y: auto;">
                     <!-- Populated dynamically -->
@@ -21,7 +29,8 @@
             <!-- Database Selector -->
             <div class="dropdown d-inline-block">
                 <button class="ide-ctx-badge dropdown-toggle" type="button" id="ide-ctx-database"
-                    data-bs-toggle="dropdown" aria-expanded="false" title="Switch Database">
+                    data-bs-toggle="dropdown" aria-expanded="false" title="Switch Database"
+                    data-bs-popper-config='{"strategy":"fixed"}'>
                     <i class="fa-solid fa-database me-1 text-info"></i>
                     <span id="ide-ctx-db-label" class="text-truncate" style="max-width: 130px;">—</span>
                 </button>
@@ -36,7 +45,8 @@
             <!-- Schema Selector -->
             <div class="dropdown d-inline-block">
                 <button class="ide-ctx-badge dropdown-toggle" type="button" id="ide-ctx-schema"
-                    data-bs-toggle="dropdown" aria-expanded="false" title="Switch Schema">
+                    data-bs-toggle="dropdown" aria-expanded="false" title="Switch Schema"
+                    data-bs-popper-config='{"strategy":"fixed"}'>
                     <i class="fa-solid fa-layer-group me-1 text-warning"></i>
                     <span id="ide-ctx-schema-label" class="text-truncate" style="max-width: 110px;">—</span>
                 </button>
@@ -50,9 +60,10 @@
         <!-- Divider -->
         <span class="ide-vdivider mx-1"></span>
 
-        <!-- Right: Action buttons -->
-        <div class="d-flex align-items-center gap-1 flex-shrink-0">
-            <div class="d-flex align-items-center me-2" title="Max Rows">
+        <!-- Right: Action buttons (Always right-aligned) -->
+        <div class="d-flex align-items-center gap-1 flex-shrink-0 ide-action-bar-actions flex-nowrap ms-auto">
+            <!-- Primary / Essential: Limit Selector + Run -->
+            <div class="d-flex align-items-center me-2 ide-action-essential" title="Max Rows">
                 <i class="fa-solid fa-list-ol text-muted me-1" style="font-size: 11px;"></i>
                 <select id="ide-query-limit" class="form-select form-select-sm border-secondary bg-dark text-light"
                     style="width: 75px; height: 24px; padding: 0 4px; font-size: 11px;">
@@ -62,48 +73,127 @@
                     <option value="0">All</option>
                 </select>
             </div>
-            <button id="ide-btn-run" class="ide-action-btn ide-action-btn--run" title="Execute Query (F5)">
+            <button id="ide-btn-run" class="ide-action-btn ide-action-btn--run ide-action-essential" title="Execute Query (F5 / Ctrl+E)">
                 <i class="fa-solid fa-play me-1"></i>Run
             </button>
-            <button id="ide-btn-parse" class="ide-action-btn" title="Check / Parse SQL Syntax (Ctrl+F5)">
-                <i class="fa-solid fa-check-double me-1 text-info"></i>Parse
+            <button id="ide-btn-run-debug" class="ide-action-btn ide-action-btn--debug-toggle ide-action-essential d-none" title="Toggle Debug Mode (PostgreSQL)" type="button">
+                <i class="fa-solid fa-bug ide-debug-icon"></i>
+                <span class="ide-debug-led" title="Debug Status"></span>
             </button>
-            <button id="ide-btn-plan" class="ide-action-btn" title="Show Execution Plan">
-                <i class="fa-solid fa-diagram-project me-1"></i>Plan
-            </button>
-            <button id="ide-btn-stop" class="ide-action-btn ide-action-btn--danger" title="Cancel Query (Esc)" disabled>
+            <button id="ide-btn-stop" class="ide-action-btn ide-action-btn--danger ide-action-essential" title="Cancel Query (Esc)" disabled>
                 <i class="fa-solid fa-stop me-1"></i>Stop
             </button>
-            <span class="ide-vdivider mx-1"></span>
-            <button class="ide-action-btn" title="Import SQL file">
+
+            <!-- Collapsible: secondary buttons collapsed into 3-dots on narrow screens -->
+            <button id="ide-btn-parse" class="ide-action-btn ide-action-collapsible" title="Check / Parse SQL Syntax (Ctrl+F5)">
+                <i class="fa-solid fa-check-double me-1 text-info"></i>Parse
+            </button>
+            <button id="ide-btn-format" class="ide-action-btn ide-action-collapsible" title="Format SQL Code (Ctrl+K, Ctrl+D / Shift+Alt+F)">
+                <i class="fa-solid fa-align-left me-1 text-primary"></i>Format
+            </button>
+            <button id="ide-btn-plan" class="ide-action-btn ide-action-collapsible" title="Show Execution Plan">
+                <i class="fa-solid fa-diagram-project me-1"></i>Plan
+            </button>
+            <span class="ide-vdivider mx-1 ide-action-collapsible"></span>
+            <button id="ide-btn-import-file" class="ide-action-btn ide-action-collapsible" title="Open / Import SQL file (Ctrl+O)">
                 <i class="fa-solid fa-file-import me-1"></i>Import
             </button>
-            <button class="ide-action-btn" title="Export results">
+            <button id="ide-btn-export-results" class="ide-action-btn ide-action-collapsible" title="Export results">
                 <i class="fa-solid fa-file-export me-1"></i>Export
             </button>
-            <span class="ide-vdivider mx-1"></span>
-            <button id="ide-btn-split-editor" class="ide-action-btn" title="Toggle Split Editor (Ctrl+\)">
-                <i class="fa-solid fa-table-columns me-1 text-info"></i>Split
-            </button>
-            <button id="ide-btn-compare" class="ide-action-btn" title="Compare / Diff Files...">
+            <div class="btn-group ide-action-collapsible ide-split-btn-group" role="group">
+                <button id="ide-btn-split-editor" class="ide-action-btn" title="Toggle Split Editor (Ctrl+\)">
+                    <i class="fa-solid fa-table-columns me-1 text-info"></i>Split
+                </button>
+                <button id="ide-btn-split-dropdown" type="button" class="ide-action-btn dropdown-toggle dropdown-toggle-split px-1"
+                    data-bs-toggle="dropdown" aria-expanded="false" title="Tùy chọn chia màn hình (Split Direction)">
+                    <span class="visually-hidden">Split Direction</span>
+                </button>
+                <ul class="dropdown-menu dropdown-menu-dark ide-split-dropdown-menu shadow py-1" style="font-size: 11px; min-width: 190px; z-index: 2100;">
+                    <li><h6 class="dropdown-header text-uppercase py-1" style="font-size: 10px;">Hướng chia (Split)</h6></li>
+                    <li><a class="dropdown-item d-flex align-items-center gap-2 ide-split-opt" href="#" data-direction="right"><i class="fa-solid fa-arrow-right text-info"></i> Chia sang phải (Right)</a></li>
+                    <li><a class="dropdown-item d-flex align-items-center gap-2 ide-split-opt" href="#" data-direction="left"><i class="fa-solid fa-arrow-left text-info"></i> Chia sang trái (Left)</a></li>
+                    <li><a class="dropdown-item d-flex align-items-center gap-2 ide-split-opt" href="#" data-direction="down"><i class="fa-solid fa-arrow-down text-info"></i> Chia xuống dưới (Down)</a></li>
+                    <li><a class="dropdown-item d-flex align-items-center gap-2 ide-split-opt" href="#" data-direction="up"><i class="fa-solid fa-arrow-up text-info"></i> Chia lên trên (Up)</a></li>
+                    <li><hr class="dropdown-divider my-1"></li>
+                    <li><a class="dropdown-item d-flex align-items-center gap-2 text-danger ide-split-opt-close" href="#" data-action="close"><i class="fa-solid fa-xmark"></i> Đóng chia màn hình</a></li>
+                </ul>
+            </div>
+            <button id="ide-btn-compare" class="ide-action-btn ide-action-collapsible" title="Compare / Diff Files...">
                 <i class="fa-solid fa-code-compare me-1 text-warning"></i>Compare
             </button>
+            <button id="ide-btn-history" class="ide-action-btn ide-action-collapsible" title="Query History (Ctrl+Alt+H)">
+                <i class="fa-solid fa-clock-rotate-left me-1 text-warning"></i>History
+            </button>
+            <button id="ide-btn-file-history" class="ide-action-btn ide-action-collapsible" title="Xem log của file đang mở (Ctrl+Shift+H)">
+                <i class="fa-solid fa-file-waveform me-1 text-info"></i>File Log
+            </button>
+            <button id="ide-btn-object-search" class="ide-action-btn ide-action-collapsible" title="Tìm kiếm nội dung Object DDL (Ctrl+Shift+F)">
+                <i class="fa-solid fa-magnifying-glass me-1 text-primary"></i>Search Objects
+            </button>
+
+            <!-- Overflow 3-dots Menu for narrow/responsive view (Bug 3) -->
+            <div class="dropdown ide-action-overflow-wrap" id="ide-action-overflow-wrap">
+                <button class="ide-action-btn ide-action-btn--overflow" type="button" id="ide-btn-action-overflow"
+                    data-bs-toggle="dropdown" aria-expanded="false" title="More Actions"
+                    data-bs-popper-config='{"strategy":"fixed"}'>
+                    <i class="fa-solid fa-ellipsis"></i>
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end shadow ide-action-overflow-dropdown" id="ide-action-overflow-menu" aria-labelledby="ide-btn-action-overflow" style="min-width: 190px;">
+                    <li><a class="dropdown-item d-flex align-items-center gap-2" href="#" id="ide-overflow-btn-object-search"><i class="fa-solid fa-magnifying-glass text-primary"></i> Search Objects <span class="ms-auto text-muted small">Ctrl+Shift+F</span></a></li>
+                    <li><a class="dropdown-item d-flex align-items-center gap-2" href="#" id="ide-overflow-btn-parse"><i class="fa-solid fa-check-double text-info"></i> Parse <span class="ms-auto text-muted small">Ctrl+F5</span></a></li>
+                    <li><a class="dropdown-item d-flex align-items-center gap-2" href="#" id="ide-overflow-btn-format"><i class="fa-solid fa-align-left text-primary"></i> Format <span class="ms-auto text-muted small">Ctrl+K,D</span></a></li>
+                    <li><a class="dropdown-item d-flex align-items-center gap-2" href="#" id="ide-overflow-btn-plan"><i class="fa-solid fa-diagram-project"></i> Execution Plan</a></li>
+                    <li><hr class="dropdown-divider my-1"></li>
+                    <li><a class="dropdown-item d-flex align-items-center gap-2" href="#" id="ide-overflow-btn-history"><i class="fa-solid fa-clock-rotate-left text-warning"></i> Query History <span class="ms-auto text-muted small">Ctrl+Alt+H</span></a></li>
+                    <li><a class="dropdown-item d-flex align-items-center gap-2" href="#" id="ide-overflow-btn-file-history"><i class="fa-solid fa-file-waveform text-info"></i> File Log <span class="ms-auto text-muted small">Ctrl+Shift+H</span></a></li>
+                    <li><a class="dropdown-item d-flex align-items-center gap-2" href="#" id="ide-overflow-btn-import"><i class="fa-solid fa-file-import"></i> Import File... <span class="ms-auto text-muted small">Ctrl+O</span></a></li>
+                    <li><a class="dropdown-item d-flex align-items-center gap-2" href="#" id="ide-overflow-btn-export"><i class="fa-solid fa-file-export"></i> Export Results...</a></li>
+                    <li><hr class="dropdown-divider my-1"></li>
+                    <li><a class="dropdown-item d-flex align-items-center gap-2" href="#" id="ide-overflow-btn-split"><i class="fa-solid fa-table-columns text-info"></i> Split Editor <span class="ms-auto text-muted small">Ctrl+\</span></a></li>
+                    <li><a class="dropdown-item d-flex align-items-center gap-2" href="#" id="ide-overflow-btn-compare"><i class="fa-solid fa-code-compare text-warning"></i> Compare Files...</a></li>
+                </ul>
+            </div>
         </div>
     </div>
     <!-- Editor Tabs -->
-    <div class="ide-tabs-container d-flex align-items-end px-1">
+    <div class="ide-tabs-container d-flex align-items-end px-1 position-relative">
         <ul id="ide-tabs-bar" class="nav nav-tabs border-0 m-0 p-0 flex-nowrap" style="overflow: hidden;">
             <!-- Tabs will be injected here by tabs.js -->
         </ul>
-        <li id="ide-new-tab-li" class="list-unstyled d-flex align-items-center ms-1 mb-0">
-            <button id="ide-new-tab-btn" class="ide-toolbar-btn" title="New Query Tab (Ctrl+T)">
+        <li id="ide-new-tab-li" class="list-unstyled d-flex align-items-center ms-1 mb-0 flex-shrink-0">
+            <button id="ide-new-tab-btn" class="ide-toolbar-btn" title="New Query Tab (Ctrl+T, Ctrl+N)">
                 <i class="fa-solid fa-plus"></i>
             </button>
         </li>
+        <div id="ide-tab-overflow-wrap" class="ms-auto d-flex align-items-center mb-0 flex-shrink-0">
+            <button id="ide-tabs-overflow-btn" class="ide-toolbar-btn" title="More Tabs (...)">
+                <i class="fa-solid fa-ellipsis"></i>
+            </button>
+        </div>
     </div>
 
     <!-- Code Editor Area -->
     <div class="ide-editor-wrap d-flex w-100 overflow-hidden position-relative">
+        <!-- Empty State Placeholder when all tabs are closed -->
+        <div id="ide-empty-tabs-placeholder" class="d-none position-absolute w-100 h-100 d-flex flex-column align-items-center justify-content-center"
+            style="inset: 0; z-index: 25; background: var(--ide-bg-editor, #1e1e1e); color: var(--ide-text-color, #d4d4d4); user-select: none;">
+            <div class="text-center p-4" style="max-width: 440px;">
+                <div class="mb-3 d-inline-flex align-items-center justify-content-center rounded-circle"
+                    style="width: 72px; height: 72px; background: rgba(255, 255, 255, 0.04); border: 1px solid var(--ide-border, #333);">
+                    <i class="fa-solid fa-code text-primary" style="font-size: 30px; opacity: 0.85;"></i>
+                </div>
+                <h5 class="fw-semibold mb-2" style="font-size: 16px; color: var(--ide-text-color, #e0e0e0);">Không có tab nào đang mở</h5>
+                <p class="text-muted small mb-3" style="line-height: 1.5;">
+                    Chọn một bảng hoặc thủ tục từ cây đối tượng bên trái, hoặc nhấn nút bên dưới để mở cửa sổ soạn thảo SQL mới.
+                </p>
+                <button id="ide-empty-new-query-btn" type="button" class="btn btn-primary btn-sm px-3 py-1 fw-medium shadow-sm"
+                    style="font-size: 13px;">
+                    <i class="fa-solid fa-plus me-1"></i>New Query (Ctrl+N)
+                </button>
+            </div>
+        </div>
+
         <div id="editor-pane-1" class="flex-grow-1 position-relative h-100" style="width: 100%; min-width: 100px;">
             <div id="monaco-sql-editor" style="width: 100%; height: 100%; position: absolute; inset: 0;"></div>
             <textarea id="sql-editor" class="d-none"></textarea>
@@ -123,6 +213,12 @@
                     </select>
                 </div>
                 <div class="d-flex align-items-center gap-1">
+                    <div class="btn-group btn-group-sm me-1" id="split-direction-btn-group" role="group" title="Đổi hướng chia màn hình">
+                        <button type="button" class="btn btn-xs btn-outline-secondary py-0 px-1 border-0 split-dir-btn" data-direction="right" title="Chia sang phải (Split Right)"><i class="fa-solid fa-arrow-right"></i></button>
+                        <button type="button" class="btn btn-xs btn-outline-secondary py-0 px-1 border-0 split-dir-btn" data-direction="left" title="Chia sang trái (Split Left)"><i class="fa-solid fa-arrow-left"></i></button>
+                        <button type="button" class="btn btn-xs btn-outline-secondary py-0 px-1 border-0 split-dir-btn" data-direction="down" title="Chia xuống dưới (Split Down)"><i class="fa-solid fa-arrow-down"></i></button>
+                        <button type="button" class="btn btn-xs btn-outline-secondary py-0 px-1 border-0 split-dir-btn" data-direction="up" title="Chia lên trên (Split Up)"><i class="fa-solid fa-arrow-up"></i></button>
+                    </div>
                     <button id="btn-close-split" type="button" class="btn btn-sm btn-outline-secondary py-0 px-1 border-0"
                         style="font-size: 11px; line-height: 1.4;"
                         title="Close Split View (Ctrl+\)" onclick="if(window.unsplitEditor) window.unsplitEditor();">
@@ -133,6 +229,74 @@
             <div class="flex-grow-1 position-relative w-100 h-100 overflow-hidden">
                 <div id="monaco-sql-editor-2" style="width: 100%; height: 100%; position: absolute; inset: 0;"></div>
                 <textarea id="sql-editor-2" class="d-none"></textarea>
+            </div>
+        </div>
+
+        <!-- Resizable File History Sidebar (Docked on Right side of Text Editor) -->
+        <div id="ide-file-history-resizer" class="ide-file-history-resizer d-none"
+            title="Kéo sang trái / phải để chỉnh độ rộng bảng Log file"></div>
+        <div id="ide-file-history-panel" class="ide-file-history-panel d-none flex-column h-100 position-relative"
+            style="width: 380px; min-width: 260px; max-width: 800px; flex-shrink: 0; z-index: 17;">
+            <!-- 1. Header -->
+            <div class="fhs-header d-flex align-items-center justify-content-between px-2 py-1 border-bottom flex-shrink-0">
+                <div class="d-flex align-items-center gap-1 overflow-hidden flex-grow-1 me-1">
+                    <i class="fa-solid fa-file-waveform text-info" style="font-size: 12px;"></i>
+                    <span id="fhs-doc-title" class="fw-semibold text-truncate small text-light" style="font-size: 12px;" title="Log file">File Log</span>
+                    <span id="fhs-runs-badge" class="badge bg-secondary-subtle text-secondary border border-secondary" style="font-size: 10px;">0 runs</span>
+                </div>
+                <div class="d-flex align-items-center gap-1 flex-shrink-0">
+                    <button id="fhs-btn-refresh" class="btn btn-sm btn-icon-tool" type="button" title="Làm mới log file">
+                        <i class="fa-solid fa-rotate-right"></i>
+                    </button>
+                    <button id="fhs-btn-open-full" class="btn btn-sm btn-icon-tool" type="button" title="Mở cửa sổ Query History đầy đủ">
+                        <i class="fa-solid fa-arrow-up-right-from-square"></i>
+                    </button>
+                    <button id="fhs-btn-close" class="btn btn-sm btn-icon-tool" type="button" title="Đóng bảng Log (Ctrl+Shift+H)">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- 2. Filter & Search Toolbar -->
+            <div class="fhs-toolbar px-2 py-1 border-bottom flex-shrink-0 d-flex flex-column gap-1">
+                <div class="fhs-search-box position-relative w-100">
+                    <i class="fa-solid fa-magnifying-glass position-absolute text-muted" style="left: 7px; top: 6px; font-size: 10px;"></i>
+                    <input type="text" id="fhs-search-input" class="form-control form-control-sm ps-4 pe-4 py-0" placeholder="Lọc nội dung câu lệnh..." style="font-size: 11px; height: 22px;">
+                    <button type="button" id="fhs-btn-clear-search" class="btn btn-sm position-absolute border-0 p-0 text-muted d-none" style="right: 6px; top: 2px; font-size: 11px;">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+                <div class="fhs-pills-bar d-flex align-items-center gap-1">
+                    <button type="button" class="fhs-pill-btn active" data-filter="all">Tất cả</button>
+                    <button type="button" class="fhs-pill-btn" data-filter="ok"><i class="fa-solid fa-check text-success me-1"></i>OK</button>
+                    <button type="button" class="fhs-pill-btn" data-filter="error"><i class="fa-solid fa-xmark text-danger me-1"></i>Lỗi</button>
+                    <button type="button" class="fhs-pill-btn" data-filter="snapshot"><i class="fa-regular fa-file text-warning me-1"></i>Snapshot</button>
+                </div>
+            </div>
+
+            <!-- 3. Entries Scroll Container -->
+            <div id="fhs-entries-container" class="fhs-entries-container flex-grow-1 overflow-auto p-2"
+                style="min-height: 120px;">
+                <!-- Rendered dynamically by file-history-sidebar.js -->
+            </div>
+
+            <!-- 4. Selected Entry Quick Actions Drawer (Collapsible bottom footer) -->
+            <div id="fhs-detail-footer" class="fhs-detail-footer border-top p-2 flex-shrink-0 d-none">
+                <div class="d-flex align-items-center justify-content-between mb-1">
+                    <span id="fhs-detail-time" class="small fw-semibold text-truncate" style="font-size: 11px;">Chi tiết lần chạy</span>
+                    <span id="fhs-detail-status" class="badge" style="font-size: 10px;">OK</span>
+                </div>
+                <div class="d-flex gap-1">
+                    <button type="button" id="fhs-btn-diff" class="btn btn-sm btn-outline-info flex-grow-1 py-1" style="font-size: 11px;" title="So sánh với nội dung Editor hiện tại">
+                        <i class="fa-solid fa-code-compare me-1"></i>Diff Editor
+                    </button>
+                    <button type="button" id="fhs-btn-apply" class="btn btn-sm btn-outline-warning flex-grow-1 py-1" style="font-size: 11px;" title="Khôi phục câu lệnh vào Editor">
+                        <i class="fa-solid fa-arrow-turn-down me-1"></i>Khôi phục
+                    </button>
+                    <button type="button" id="fhs-btn-copy" class="btn btn-sm btn-outline-secondary py-1 px-2" style="font-size: 11px;" title="Sao chép câu SQL">
+                        <i class="fa-regular fa-copy"></i>
+                    </button>
+                </div>
             </div>
         </div>
 
@@ -170,6 +334,8 @@
 
         <!-- Hidden input for file comparison -->
         <input type="file" id="diff-file-input" accept=".sql,.txt,.json,.xml" class="d-none">
+        <!-- Hidden input for opening files -->
+        <input type="file" id="ide-open-file-input" accept=".sql,.txt,.json,.xml,.csv,*.*" multiple class="d-none">
 
 
         <!-- IntelliSense Dual-Panel Popup -->
@@ -225,6 +391,90 @@
     <!-- Table Data Editor Area -->
     <div id="table-data-editor-container" class="d-none flex-grow-1 flex-column overflow-hidden">
         <!-- Built and managed dynamically by table-data-editor.js -->
+    </div>
+
+    <!-- PostgreSQL Dependency Graph Area -->
+    <div id="dependency-graph-container" class="d-none d-flex flex-grow-1 flex-column overflow-hidden position-relative">
+        <!-- Built and managed dynamically by dependency-controller.js -->
+    </div>
+
+    <!-- Object Content Search Area -->
+    <div id="object-content-search-container" class="d-none d-flex flex-grow-1 flex-column overflow-hidden position-relative">
+        <!-- Built and managed dynamically by object-search-controller.js -->
+    </div>
+
+    <!-- SQL Query Visualizer / Design View Area -->
+    <div id="sql-visualizer-container" class="d-none d-flex flex-grow-1 flex-column overflow-hidden position-relative">
+        <!-- Built and managed dynamically by sql-visualizer.js -->
+    </div>
+
+    <!-- Modal: Normal Mode Debug Extension Detected -->
+    <div class="modal fade" id="ide-modal-debug-extension-warning" tabindex="-1" aria-hidden="true" data-bs-backdrop="static" style="z-index: 100050 !important;">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content border-warning bg-dark text-light">
+                <div class="modal-header py-2 bg-dark text-warning border-warning">
+                    <h6 class="modal-title mb-0 d-flex align-items-center">
+                        <i class="fa-solid fa-triangle-exclamation me-2"></i>
+                        Phát hiện IDE Debug Extension (bs.*)
+                    </h6>
+                    <button type="button" class="btn-close btn-close-white btn-sm" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body py-3">
+                    <p class="mb-2 text-secondary">
+                        Mã nguồn hiện tại có chứa các hàm <code>bs.*</code> (IDE Debug Extensions). Những hàm này chỉ hoạt động trong chế độ <strong>Run Debug</strong> và không thể chạy trực tiếp trên PostgreSQL ở chế độ thông thường (Run).
+                    </p>
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-muted mb-1">
+                            Danh sách vị trí xuất hiện (Click vào dòng để xem/xóa thủ công):
+                        </label>
+                        <div id="ide-debug-ext-locations-list" class="list-group list-group-flush border border-secondary rounded bg-dark" style="max-height: 200px; overflow-y: auto;">
+                            <!-- Danh sách các vị trí bs.* được render tại đây -->
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer py-2 d-flex justify-content-between border-secondary">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">
+                        <i class="fa-solid fa-xmark me-1"></i>Hủy (Cancel)
+                    </button>
+                    <div class="d-flex gap-2">
+                        <button type="button" id="ide-btn-ext-comment-and-run" class="btn btn-outline-warning btn-sm" title="Tự động comment lại tất cả các hàm bs.* trong editor và thực thi câu truy vấn">
+                            <i class="fa-solid fa-comment-slash me-1"></i>Comment hết bs.* và Chạy (Run)
+                        </button>
+                        <button type="button" id="ide-btn-ext-switch-debug" class="btn btn-warning btn-sm fw-semibold" title="Chuyển sang chế độ Run Debug với instrumentation">
+                            <i class="fa-solid fa-bug me-1"></i>Chuyển sang Run Debug (Alt+F5)
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Confirm Format Entire Document -->
+    <div class="modal fade" id="ide-modal-format-confirm" tabindex="-1" aria-hidden="true" data-bs-backdrop="static" style="z-index: 10050 !important;">
+        <div class="modal-dialog modal-dialog-centered modal-sm">
+            <div class="modal-content shadow-lg">
+                <div class="modal-header py-2">
+                    <h6 class="modal-title mb-0 d-flex align-items-center">
+                        <i class="fa-solid fa-align-left me-2 text-primary"></i>
+                        Format Code
+                    </h6>
+                    <button type="button" class="btn-close btn-sm" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body py-3">
+                    <p class="mb-0 small" style="color: var(--ide-text-muted, #858585);">
+                        Toàn bộ nội dung SQL trong tài liệu hiện tại sẽ được định dạng lại (Format Document). Bạn có muốn tiếp tục?
+                    </p>
+                </div>
+                <div class="modal-footer py-2 d-flex justify-content-end gap-2">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">
+                        Hủy
+                    </button>
+                    <button type="button" id="ide-btn-confirm-format" class="btn btn-primary btn-sm fw-semibold">
+                        <i class="fa-solid fa-check me-1"></i>Format
+                    </button>
+                </div>
+            </div>
+        </div>
     </div>
 
 </div>

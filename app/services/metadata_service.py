@@ -31,13 +31,14 @@ class MetadataService:
 
         return self.session.metadata_cache[key]
 
-    def list_objects(self, database, schema, object_type, search=None):
+    def list_objects(self, database, schema, object_type, search=None, limit=0):
         key = self._cache_key(
             "objects",
             database,
             schema,
             object_type,
             search,
+            limit,
         )
 
         if key not in self.session.metadata_cache:
@@ -47,7 +48,8 @@ class MetadataService:
                         database,
                         schema,
                         object_type,
-                        search
+                        search,
+                        limit=limit
                     )
                 )
 
@@ -135,7 +137,80 @@ class MetadataService:
                     self.session.metadata_cache[key] = []
         return self.session.metadata_cache[key]
 
+    def list_linked_servers(self):
+        key = self._cache_key("linked_servers")
+        if key not in self.session.metadata_cache:
+            with self.session.lock:
+                if hasattr(self.session.adapter, "list_linked_servers"):
+                    self.session.metadata_cache[key] = self.session.adapter.list_linked_servers()
+                elif hasattr(self.session.adapter, "list_foreign_servers"):
+                    self.session.metadata_cache[key] = self.session.adapter.list_foreign_servers()
+                else:
+                    self.session.metadata_cache[key] = []
+        return self.session.metadata_cache[key]
+
+    def list_remote_databases(self, server):
+        key = self._cache_key("remote_databases", server)
+        if key not in self.session.metadata_cache:
+            with self.session.lock:
+                if hasattr(self.session.adapter, "list_remote_databases"):
+                    self.session.metadata_cache[key] = self.session.adapter.list_remote_databases(server)
+                else:
+                    self.session.metadata_cache[key] = []
+        return self.session.metadata_cache[key]
+
+    def list_remote_schemas(self, server, database=None):
+        key = self._cache_key("remote_schemas", server, database)
+        if key not in self.session.metadata_cache:
+            with self.session.lock:
+                if hasattr(self.session.adapter, "list_remote_schemas"):
+                    self.session.metadata_cache[key] = self.session.adapter.list_remote_schemas(server, database)
+                else:
+                    self.session.metadata_cache[key] = [{"name": "dbo"}]
+        return self.session.metadata_cache[key]
+
+    def list_remote_objects(self, server, database=None, schema=None):
+        key = self._cache_key("remote_objects", server, database, schema)
+        if key not in self.session.metadata_cache:
+            with self.session.lock:
+                if hasattr(self.session.adapter, "list_remote_objects"):
+                    self.session.metadata_cache[key] = self.session.adapter.list_remote_objects(server, database, schema)
+                else:
+                    self.session.metadata_cache[key] = []
+        return self.session.metadata_cache[key]
+
+    def list_remote_columns(self, server, database=None, schema=None, table=None):
+        key = self._cache_key("remote_columns", server, database, schema, table)
+        if key not in self.session.metadata_cache:
+            with self.session.lock:
+                if hasattr(self.session.adapter, "list_remote_columns"):
+                    self.session.metadata_cache[key] = self.session.adapter.list_remote_columns(server, database, schema, table)
+                else:
+                    self.session.metadata_cache[key] = []
+        return self.session.metadata_cache[key]
+
+    def list_foreign_servers(self):
+        key = self._cache_key("foreign_servers")
+        if key not in self.session.metadata_cache:
+            with self.session.lock:
+                if hasattr(self.session.adapter, "list_foreign_servers"):
+                    self.session.metadata_cache[key] = self.session.adapter.list_foreign_servers()
+                else:
+                    self.session.metadata_cache[key] = []
+        return self.session.metadata_cache[key]
+
+    def list_foreign_tables(self, schema=None):
+        key = self._cache_key("foreign_tables", schema)
+        if key not in self.session.metadata_cache:
+            with self.session.lock:
+                if hasattr(self.session.adapter, "list_foreign_tables"):
+                    self.session.metadata_cache[key] = self.session.adapter.list_foreign_tables(schema=schema)
+                else:
+                    self.session.metadata_cache[key] = []
+        return self.session.metadata_cache[key]
+
     def invalidate(self):
         with self.session.lock:
             self.session.metadata_cache.clear()
+
 

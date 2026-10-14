@@ -18,6 +18,49 @@ function initExplorer() {
     // Database filter: keyed by `connId`
     const dbFilters = {};
 
+    // ── Connection health tracking ───────────────────────────────────────────
+    // Maps connId or 'name::dbType' -> 'connected' | 'lost' | 'disconnected' | 'reconnecting'
+    const connectionStatuses = {};
+    window.AppConnectionStatuses = connectionStatuses;
+
+    function getConnectionStatus(connId, name, dbType, isActive = true) {
+        if (connId && connectionStatuses[connId]) return connectionStatuses[connId];
+        const key = name + '::' + dbType;
+        if (connectionStatuses[key]) return connectionStatuses[key];
+        return isActive ? 'connected' : 'disconnected';
+    }
+
+    function setConnectionStatus(connId, name, dbType, status) {
+        if (connId) connectionStatuses[connId] = status;
+        if (name && dbType) connectionStatuses[name + '::' + dbType] = status;
+        const key = connId || (name + '::' + dbType);
+        connectionStatuses[key] = status;
+
+        // Update tree node indicators
+        const query = `.conn-status-indicator[data-conn-id="${connId}"], .conn-status-indicator[data-conn-key="${key}"], .tree-item[data-conn-id="${connId}"] .conn-status-dot`;
+        document.querySelectorAll(query).forEach(el => {
+            const dot = el.classList.contains('conn-status-dot') ? el : el.querySelector('.conn-status-dot');
+            if (dot) {
+                dot.className = `fa-solid ${status === 'reconnecting' ? 'fa-spinner fa-spin' : 'fa-circle'} conn-status-dot status-${status}`;
+                dot.title = status === 'connected' ? 'Connected (Đang kết nối)' 
+                          : status === 'lost' ? 'Lost Connection (Mất kết nối - Bấm Reconnect để kết nối lại)'
+                          : status === 'reconnecting' ? 'Đang kết nối lại...' : 'Disconnected';
+            }
+        });
+
+        // Update mini-rail collapsed items
+        const railBadges = document.querySelectorAll(`.ide-collapsed-conn-item[data-conn-id="${connId}"] .ide-collapsed-conn-badge, .ide-collapsed-conn-item[data-conn-key="${key}"] .ide-collapsed-conn-badge`);
+        railBadges.forEach(badge => {
+            badge.className = `ide-collapsed-conn-badge conn-status-badge status-${status}`;
+            const item = badge.closest('.ide-collapsed-conn-item');
+            if (item) {
+                const cName = item.getAttribute('data-conn-name') || name || 'Connection';
+                const statusLabel = status === 'connected' ? 'Connected' : status === 'lost' ? 'Lost Connection' : status === 'reconnecting' ? 'Reconnecting' : 'Disconnected';
+                item.title = `${cName} (${statusLabel})`;
+            }
+        });
+    }
+
     function escapeHtml(str) {
         if (str === null || str === undefined) return '';
         return String(str)
@@ -47,6 +90,8 @@ function initExplorer() {
             if (!ctx.database && nd.database) ctx.database = nd.database;
             if (!ctx.schema && nd.schema) ctx.schema = nd.schema;
             if (!ctx.dbType && nd.dbType) ctx.dbType = nd.dbType;
+            if (!ctx.tableName && nd.tableName) ctx.tableName = nd.tableName;
+            if (!ctx.table && nd.table) ctx.table = nd.table;
 
             const parentUl = current.closest('ul');
             if (!parentUl || parentUl.id === 'ide-tree-root') break;
@@ -93,10 +138,10 @@ function initExplorer() {
         const activeTabState = window.AppTabs && typeof window.AppTabs.getActiveTabState === 'function' 
             ? window.AppTabs.getActiveTabState() 
             : null;
-        const currentTabConnId = activeTabState?.connectionId || window.ActiveConnectionId;
-        const currentTabConnName = activeTabState?.connectionName || window.ActiveConnectionName;
+        const currentTabConnId = activeTabState?.connectionId || null;
+        const currentTabConnName = activeTabState?.connectionName || null;
 
-        const tabHasNoConnection = !currentTabConnId && !currentTabConnName;
+        const tabHasNoConnection = !currentTabConnId || !currentTabConnName || currentTabConnName === 'No connection';
         const isSameConnection = Boolean(
             (ctx.connectionId && ctx.connectionId === currentTabConnId) ||
             (ctx.connectionName && ctx.connectionName === currentTabConnName)
@@ -147,22 +192,52 @@ function initExplorer() {
         if (item) detectAndApplyTreeContext(item);
     });
 
+    // ── Create Action Menu Button [⋮] (Priority 1) ───────────────────────────
+    function createMoreBtn(nodeData) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'tree-more-btn';
+        btn.title = 'Actions (Thao tác)';
+        btn.setAttribute('aria-label', 'Actions');
+        btn.innerHTML = '<i class="fa-solid fa-ellipsis-vertical"></i>';
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            const treeItem = btn.closest('.tree-item');
+            if (treeItem) {
+                document.querySelectorAll('.tree-item').forEach(el => el.classList.remove('selected'));
+                treeItem.classList.add('selected');
+                const ctx = detectAndApplyTreeContext(treeItem) || {};
+                const fullData = { ...treeItem._nodeData, ...nodeData, ...ctx };
+                const rect = btn.getBoundingClientRect();
+                if (window.ContextMenu) {
+                    window.ContextMenu.show(fullData.type || 'database', fullData, rect.right, rect.bottom);
+                }
+            }
+        });
+        return btn;
+    }
+
     // ── Render a tree node ────────────────────────────────────────────────────
     function renderNode(container, opts) {
         const {
             name, type, icon, iconColor,
             hasChildren, loadCallback,
             nodeData = {}, rightEl = null,
-            iconImg = null, iconFallback = null, iconClass = ''
+            iconImg = null, iconFallback = null, iconClass = '',
+            countBadgeEl = null,
+            title = null
         } = opts;
 
         const li   = document.createElement('li');
         const item = document.createElement('div');
         item.className = 'tree-item';
-        item._nodeData = { ...nodeData, name, type };
+        if (title) item.title = title;
+        item._nodeData = { ...nodeData, name: nodeData.name || name, type: nodeData.type || type, label: name };
 
         // Transfer data attrs for context menu
         if (nodeData.connId)   item.dataset.connId   = nodeData.connId;
+        if (nodeData.connName) item.dataset.connName = nodeData.connName;
         if (nodeData.database) item.dataset.database = nodeData.database;
         if (nodeData.schema)   item.dataset.schema   = nodeData.schema;
         item.dataset.nodeType = type || '';
@@ -193,9 +268,15 @@ function initExplorer() {
         label.textContent = name;
 
         item.append(toggle, iconEl, label);
+        if (countBadgeEl) {
+            item.appendChild(countBadgeEl);
+        }
 
         if (rightEl) {
             rightEl.addEventListener('click', e => e.stopPropagation());
+            if (!rightEl.classList.contains('tree-node-actions')) {
+                rightEl.classList.add('tree-node-actions');
+            }
             item.appendChild(rightEl);
         }
 
@@ -242,21 +323,52 @@ function initExplorer() {
 
         container.appendChild(li);
 
+        const reloadFn = async () => {
+            loaded = false;
+            if (childUl) { childUl.innerHTML = ''; childUl.style.display = 'none'; }
+            toggle.classList.replace('fa-caret-down', 'fa-caret-right');
+            item.click();
+        };
+        item._reload = reloadFn;
+
         return {
             item,
-            reload: async () => {
-                loaded = false;
-                if (childUl) { childUl.innerHTML = ''; childUl.style.display = 'none'; }
-                toggle.classList.replace('fa-caret-down', 'fa-caret-right');
-                item.click();
-            }
+            reload: reloadFn
         };
     }
 
     // ── Fetch databases ───────────────────────────────────────────────────────
     async function fetchDatabases(containerUl, connId, connName, dbType, config = null) {
-        const res  = await fetch(`/api/metadata/${connId}/databases`);
-        const data = await res.json();
+        let res, data;
+        try {
+            res = await fetch(`/api/metadata/${connId}/databases`);
+            data = await res.json();
+            if (!res.ok) {
+                setConnectionStatus(connId, connName, dbType, 'lost');
+                const errMsg = escapeHtml(data.error || 'Mất kết nối tới máy chủ');
+                containerUl.innerHTML = `<li><div class="tree-item text-danger" style="font-size:11px;"><i class="fa-solid fa-triangle-exclamation me-1"></i>${errMsg} - <a href="javascript:void(0)" class="text-info ide-reconnect-inline ms-1 font-weight-bold">Kết nối lại</a></div></li>`;
+                const retryBtn = containerUl.querySelector('.ide-reconnect-inline');
+                if (retryBtn) {
+                    retryBtn.onclick = (e) => {
+                        e.stopPropagation();
+                        reconnectConnection(connId, connName, dbType, config);
+                    };
+                }
+                return;
+            }
+            setConnectionStatus(connId, connName, dbType, 'connected');
+        } catch (fetchErr) {
+            setConnectionStatus(connId, connName, dbType, 'lost');
+            containerUl.innerHTML = `<li><div class="tree-item text-danger" style="font-size:11px;"><i class="fa-solid fa-triangle-exclamation me-1"></i>Mất kết nối mạng: ${escapeHtml(fetchErr.message)} - <a href="javascript:void(0)" class="text-info ide-reconnect-inline ms-1 font-weight-bold">Kết nối lại</a></div></li>`;
+            const retryBtn = containerUl.querySelector('.ide-reconnect-inline');
+            if (retryBtn) {
+                retryBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    reconnectConnection(connId, connName, dbType, config);
+                };
+            }
+            return;
+        }
         containerUl.innerHTML = '';
 
         let items = data.items || [];
@@ -285,20 +397,18 @@ function initExplorer() {
         if (!items.length) {
             const msg = dbFilter ? '(No matching databases)' : '(No databases)';
             containerUl.innerHTML = `<li><div class="tree-item text-muted" style="font-size:11px;">${msg}</div></li>`;
-            return;
-        }
-
-        // Determine default schema for this connection
-        let connDefaultSchema = (config && config.schema) ? config.schema : null;
-        if (!connDefaultSchema && typeof getSavedConnections === 'function') {
-            const savedList = getSavedConnections() || [];
-            const profile = savedList.find(s => s && (s.name === connName || s.server === connName || (config && s.id === config.id)));
-            if (profile && profile.schema) {
-                connDefaultSchema = profile.schema;
+        } else {
+            // Determine default schema for this connection
+            let connDefaultSchema = (config && config.schema) ? config.schema : null;
+            if (!connDefaultSchema && typeof getSavedConnections === 'function') {
+                const savedList = getSavedConnections() || [];
+                const profile = savedList.find(s => s && (s.name === connName || s.server === connName || (config && s.id === config.id)));
+                if (profile && profile.schema) {
+                    connDefaultSchema = profile.schema;
+                }
             }
-        }
 
-        items.forEach(db => {
+            items.forEach(db => {
             const dbName = db.name || db;
             const filterKey = `${connId}::${dbName}`;
 
@@ -308,18 +418,35 @@ function initExplorer() {
                 schemaFilters[filterKey] = [connDefaultSchema];
             }
 
+            // Database actions wrapper: [⋮] [Filter]
+            const dbActions = document.createElement('div');
+            dbActions.className = 'tree-node-actions';
+
+            const dbDefaultSchema = (Array.isArray(schemaFilters[filterKey]) && schemaFilters[filterKey].length > 0)
+                ? schemaFilters[filterKey][0]
+                : (connDefaultSchema || null);
+
+            const moreBtn = createMoreBtn({
+                connId, connName, database: dbName, schema: dbDefaultSchema,
+                type: 'database', dbType
+            });
+
             // Schema filter checklist button
             const schemaFilterBtn = document.createElement('button');
+            schemaFilterBtn.type = 'button';
             schemaFilterBtn.className = 'tree-filter-btn ide-schema-filter-btn';
             schemaFilterBtn.title = 'Filter Schemas';
             schemaFilterBtn.setAttribute('aria-label', 'Filter Schemas');
             schemaFilterBtn.innerHTML = '<i class="fa-solid fa-filter"></i>';
 
-            const isSchemaFiltered = Array.isArray(schemaFilters[filterKey]);
+            const isSchemaFiltered = Array.isArray(schemaFilters[filterKey]) && schemaFilters[filterKey].length > 0;
             if (isSchemaFiltered) {
                 schemaFilterBtn.classList.add('filter-active');
                 schemaFilterBtn.title = `Filter Schemas (${schemaFilters[filterKey].length} selected)`;
+                dbActions.classList.add('has-active-filter');
             }
+
+            dbActions.append(moreBtn, schemaFilterBtn);
 
             let dbNodeCtrl = null;
 
@@ -330,22 +457,188 @@ function initExplorer() {
                     dbName,
                     filterKey,
                     onApply: () => {
+                        const filteredNow = Array.isArray(schemaFilters[filterKey]) && schemaFilters[filterKey].length > 0;
+                        if (filteredNow) {
+                            schemaFilterBtn.classList.add('filter-active');
+                            dbActions.classList.add('has-active-filter');
+                        } else {
+                            schemaFilterBtn.classList.remove('filter-active');
+                            dbActions.classList.remove('has-active-filter');
+                        }
                         if (dbNodeCtrl) dbNodeCtrl.reload();
                     }
                 });
             });
 
-            const dbDefaultSchema = (Array.isArray(schemaFilters[filterKey]) && schemaFilters[filterKey].length > 0)
-                ? schemaFilters[filterKey][0]
-                : (connDefaultSchema || null);
             dbNodeCtrl = renderNode(containerUl, {
                 name: dbName, type: 'database', icon: 'database', iconColor: 'var(--ide-accent)',
                 hasChildren: true,
                 loadCallback: ul => fetchSchemas(ul, connId, connName, dbName, dbType, connDefaultSchema),
                 nodeData: { connId, connName, database: dbName, schema: dbDefaultSchema, dbType },
-                rightEl: schemaFilterBtn,
+                rightEl: dbActions
             });
         });
+    }
+
+        // ── Render Linked Servers group at the same level as databases (SQL Server) ──
+        const isSqlServer = !dbType || ['sqlserver', 'mssql', 'tsql'].includes(String(dbType).toLowerCase());
+        if (isSqlServer) {
+            const lsActions = document.createElement('div');
+            lsActions.className = 'tree-node-actions';
+            lsActions.appendChild(createMoreBtn({
+                connId, connName, dbType, type: 'linked_servers_group'
+            }));
+
+            renderNode(containerUl, {
+                name: 'Linked Servers',
+                type: 'linked_servers_group',
+                icon: 'server',
+                iconColor: 'var(--ide-info, #17a2b8)',
+                hasChildren: true,
+                loadCallback: ul => fetchLinkedServers(ul, connId, connName, dbType),
+                nodeData: { connId, connName, dbType, type: 'linked_servers_group' },
+                rightEl: lsActions
+            });
+        }
+    }
+
+    // ── Fetch Linked Servers ──────────────────────────────────────────────────
+    async function fetchLinkedServers(containerUl, connId, connName, dbType) {
+        containerUl.innerHTML = '<li><div class="tree-item text-muted" style="font-size:11px;"><i class="fa-solid fa-spinner fa-spin me-1"></i>Đang tải Linked Servers...</div></li>';
+        try {
+            const res = await fetch(`/api/metadata/${connId}/linked_servers`);
+            const data = await res.json();
+            containerUl.innerHTML = '';
+            if (!data || !data.success) {
+                const errMsg = (data && data.error) ? data.error : 'Không thể tải Linked Servers';
+                containerUl.innerHTML = `<li><div class="tree-item text-danger" style="font-size:11px;"><i class="fa-solid fa-triangle-exclamation me-1"></i>${escapeHtml(errMsg)}</div></li>`;
+                return;
+            }
+            const items = Array.isArray(data.items) ? data.items : [];
+            if (!items.length) {
+                containerUl.innerHTML = '<li><div class="tree-item text-muted" style="font-size:11px;">(No linked servers)</div></li>';
+                return;
+            }
+
+            items.forEach(ls => {
+                const lsName = ls.name || ls.LinkedServerName || 'Unknown Server';
+                const lsProduct = ls.product || ls.Product || 'SQL Server';
+                const lsProvider = ls.provider || ls.Provider || '';
+                const lsDataSource = ls.data_source || ls.DataSource_IP_Or_Instance || '';
+                const lsTitle = `${lsName} (${lsProduct}${lsDataSource ? ' - ' + lsDataSource : ''})`;
+
+                const lsActions = document.createElement('div');
+                lsActions.className = 'tree-node-actions';
+                lsActions.appendChild(createMoreBtn({
+                    connId,
+                    connName,
+                    dbType,
+                    server: lsName,
+                    name: lsName,
+                    product: lsProduct,
+                    provider: lsProvider,
+                    data_source: lsDataSource,
+                    type: 'linked_server'
+                }));
+
+                renderNode(containerUl, {
+                    name: lsName,
+                    type: 'linked_server',
+                    icon: 'link',
+                    iconColor: 'var(--ide-accent, #61afef)',
+                    title: lsTitle,
+                    hasChildren: true,
+                    loadCallback: ul => fetchRemoteDatabases(ul, connId, connName, lsName, dbType),
+                    nodeData: {
+                        connId,
+                        connName,
+                        dbType,
+                        server: lsName,
+                        name: lsName,
+                        product: lsProduct,
+                        provider: lsProvider,
+                        data_source: lsDataSource,
+                        type: 'linked_server'
+                    },
+                    rightEl: lsActions
+                });
+            });
+        } catch (err) {
+            console.error('[Explorer] fetchLinkedServers error:', err);
+            containerUl.innerHTML = `<li><div class="tree-item text-danger" style="font-size:11px;"><i class="fa-solid fa-triangle-exclamation me-1"></i>Lỗi tải Linked Servers: ${escapeHtml(err.message)}</div></li>`;
+        }
+    }
+
+    // ── Fetch Remote Databases under Linked Server ────────────────────────────
+    async function fetchRemoteDatabases(containerUl, connId, connName, serverName, dbType) {
+        containerUl.innerHTML = '<li><div class="tree-item text-muted" style="font-size:11px;"><i class="fa-solid fa-spinner fa-spin me-1"></i>Đang tải Catalogs...</div></li>';
+        try {
+            const res = await fetch(`/api/metadata/${connId}/linked_server/databases?server=${encodeURIComponent(serverName)}`);
+            const data = await res.json();
+            containerUl.innerHTML = '';
+            const items = (data && data.success && Array.isArray(data.items)) ? data.items : [];
+            if (!items.length) {
+                containerUl.innerHTML = '<li><div class="tree-item text-muted" style="font-size:11px;">(No catalogs or offline)</div></li>';
+                return;
+            }
+
+            items.forEach(db => {
+                const dbName = db.name || db;
+                const dbActions = document.createElement('div');
+                dbActions.className = 'tree-node-actions';
+                dbActions.appendChild(createMoreBtn({
+                    connId, connName, dbType, server: serverName, database: dbName, type: 'remote_database'
+                }));
+
+                renderNode(containerUl, {
+                    name: dbName,
+                    type: 'remote_database',
+                    icon: 'database',
+                    iconColor: 'var(--ide-info, #17a2b8)',
+                    hasChildren: true,
+                    loadCallback: ul => fetchRemoteObjects(ul, connId, connName, serverName, dbName, dbType),
+                    nodeData: { connId, connName, dbType, server: serverName, database: dbName, type: 'remote_database' },
+                    rightEl: dbActions
+                });
+            });
+        } catch (err) {
+            containerUl.innerHTML = `<li><div class="tree-item text-danger" style="font-size:11px;"><i class="fa-solid fa-triangle-exclamation me-1"></i>${escapeHtml(err.message)}</div></li>`;
+        }
+    }
+
+    // ── Fetch Remote Objects under Remote Database ────────────────────────────
+    async function fetchRemoteObjects(containerUl, connId, connName, serverName, dbName, dbType) {
+        containerUl.innerHTML = '<li><div class="tree-item text-muted" style="font-size:11px;"><i class="fa-solid fa-spinner fa-spin me-1"></i>Đang tải bảng từ xa...</div></li>';
+        try {
+            const res = await fetch(`/api/metadata/${connId}/linked_server/objects?server=${encodeURIComponent(serverName)}&database=${encodeURIComponent(dbName)}`);
+            const data = await res.json();
+            containerUl.innerHTML = '';
+            const items = (data && data.success && Array.isArray(data.items)) ? data.items : [];
+            if (!items.length) {
+                containerUl.innerHTML = '<li><div class="tree-item text-muted" style="font-size:11px;">(No tables)</div></li>';
+                return;
+            }
+
+            items.forEach(obj => {
+                const objName = obj.name || 'table';
+                const objSchema = obj.schema || 'dbo';
+                const isView = obj.type === 'remote_view' || obj.type === 'view';
+                renderNode(containerUl, {
+                    name: `${objSchema}.${objName}`,
+                    type: isView ? 'remote_view' : 'remote_table',
+                    icon: isView ? 'table-columns' : 'table',
+                    iconColor: isView ? 'var(--ide-info)' : 'var(--ide-primary)',
+                    hasChildren: false,
+                    nodeData: {
+                        connId, connName, dbType,
+                        server: serverName, database: dbName, schema: objSchema, name: objName,
+                        type: isView ? 'remote_view' : 'remote_table'
+                    }
+                });
+            });
+        } catch (err) {
+            containerUl.innerHTML = `<li><div class="tree-item text-danger" style="font-size:11px;"><i class="fa-solid fa-triangle-exclamation me-1"></i>${escapeHtml(err.message)}</div></li>`;
+        }
     }
 
     // ── Fetch schemas ─────────────────────────────────────────────────────────
@@ -380,11 +673,18 @@ function initExplorer() {
 
         schemas.forEach(s => {
             const schemaName = s.name || s;
+            const schemaActions = document.createElement('div');
+            schemaActions.className = 'tree-node-actions';
+            schemaActions.appendChild(createMoreBtn({
+                connId, connName, database: dbName, schema: schemaName, type: 'schema', dbType
+            }));
+
             renderNode(containerUl, {
                 name: schemaName, type: 'schema', icon: 'folder', iconColor: '#E8C859',
                 hasChildren: true,
                 loadCallback: ul => fetchCategories(ul, connId, connName, dbName, schemaName, dbType),
                 nodeData: { connId, connName, database: dbName, schema: schemaName, dbType },
+                rightEl: schemaActions,
             });
         });
     }
@@ -394,6 +694,10 @@ function initExplorer() {
         containerUl.innerHTML = '';
 
         const isPg = (dbType || window.ActiveDbType || '').toLowerCase().includes('postgr');
+        const isSqlServer = !isPg && ((dbType || window.ActiveDbType || '').toLowerCase().includes('sqlserver') || (dbType || window.ActiveDbType || '').toLowerCase().includes('ssms') || (dbType || window.ActiveDbType || '').toLowerCase() === 'mssql');
+        const defaultSchema = isPg ? 'public' : 'dbo';
+        const safeSchema = schemaName || defaultSchema;
+
         const categories = [
             { label: 'Tables',             type: 'tables',             icon: 'table',           color: '#6897BB' },
             { label: 'Views',              type: 'views',              icon: 'eye',             color: '#6897BB' },
@@ -402,58 +706,244 @@ function initExplorer() {
             { label: 'Functions',          type: 'functions',          icon: 'calculator',      color: '#CC7832' },
             { label: 'Triggers',           type: 'triggers',           icon: 'bolt',            color: '#CC7832' },
             { label: 'Sequences',          type: 'sequences',          icon: 'arrow-down-1-9',  color: '#8892b0' },
+            ...(isSqlServer ? [{ label: 'Synonyms', type: 'synonyms', icon: 'link', color: '#6897BB' }] : []),
             { label: 'User Defined Types', type: 'user_types',         icon: 'cube',            color: '#98c379' },
         ];
 
+        const countBadges = {};
+
         categories.forEach(cat => {
-            const fk = `${connId}::${dbName}::${cat.type}`;
+            const fk = `${connId}::${dbName}::${safeSchema}::${cat.type}`;
+            const fkLegacy = `${connId}::${dbName}::${cat.type}`;
+
+            // Category actions wrapper: [⋮] [Filter]
+            const catActions = document.createElement('div');
+            catActions.className = 'tree-node-actions';
+
+            const moreBtn = createMoreBtn({
+                connId, connName, database: dbName, schema: safeSchema,
+                type: `group-${cat.type}`, dbType
+            });
 
             // Filter button
             const filterBtn = document.createElement('button');
+            filterBtn.type = 'button';
             filterBtn.className = 'tree-filter-btn';
             filterBtn.title = `Filter ${cat.label}`;
             filterBtn.setAttribute('aria-label', `Filter ${cat.label}`);
             filterBtn.innerHTML = '<i class="fa-solid fa-filter"></i>';
 
-            const hasActiveFilter = () => !!(filterState[fk]?.search);
-            if (hasActiveFilter()) filterBtn.classList.add('filter-active');
+            const countBadge = document.createElement('span');
+            countBadge.className = 'tree-count-badge';
+            countBadges[cat.type] = countBadge;
+
+            const updateFilterActiveUi = () => {
+                if (hasActiveFilter(fk) || hasActiveFilter(fkLegacy)) {
+                    filterBtn.classList.add('filter-active');
+                    filterBtn.title = `Filter ${cat.label} (Filtered)`;
+                    catActions.classList.add('has-active-filter');
+                } else {
+                    filterBtn.classList.remove('filter-active');
+                    filterBtn.title = `Filter ${cat.label}`;
+                    catActions.classList.remove('has-active-filter');
+                }
+            };
+            updateFilterActiveUi();
 
             filterBtn.addEventListener('click', e => {
                 e.stopPropagation();
                 showFilterModal({
                     title: `Filter ${cat.label}`,
                     filterKey: fk,
-                    connId, dbName, schemaName,
+                    connId, dbName, schemaName: safeSchema,
                     objectType: cat.type,
-                    onApply: () => { catNodeCtrl.reload(); }
+                    onApply: () => {
+                        updateFilterActiveUi();
+                        // Update count badge immediately from cache if available
+                        const isFilterActive = hasActiveFilter(fk) || hasActiveFilter(fkLegacy);
+                        const filter = filterState[fk] || filterState[fkLegacy];
+                        const cacheKey = `${connId}::${dbName}::${safeSchema}::${cat.type}`;
+                        const items = categoryDataCache[cacheKey] || [];
+                        const totalCount = items.length;
+                        const filteredItems = isFilterActive 
+                            ? items.filter(obj => matchFilterItem(obj, safeSchema, filter))
+                            : items;
+                        if (countBadge) {
+                            if (isFilterActive) {
+                                countBadge.textContent = `${filteredItems.length}/${totalCount}`;
+                                countBadge.className = 'tree-count-badge is-filtered';
+                                countBadge.title = `Filtered: ${filteredItems.length} of ${totalCount} objects`;
+                            } else {
+                                countBadge.textContent = `${totalCount}`;
+                                countBadge.className = 'tree-count-badge';
+                                countBadge.title = `Total: ${totalCount} objects`;
+                            }
+                        }
+                        catNodeCtrl.reload();
+                    }
                 });
             });
+
+            catActions.append(moreBtn, filterBtn);
 
             let catNodeCtrl;
             catNodeCtrl = renderNode(containerUl, {
                 name: cat.label, type: `group-${cat.type}`, icon: cat.icon, iconColor: cat.color,
                 hasChildren: true,
-                loadCallback: ul => fetchObjects(ul, connId, connName, dbName, schemaName, cat.type, dbType),
-                nodeData: { connId, connName, database: dbName, schema: schemaName, dbType },
-                rightEl: filterBtn,
+                loadCallback: ul => fetchObjects(ul, connId, connName, dbName, safeSchema, cat.type, dbType, countBadge),
+                nodeData: { connId, connName, database: dbName, schema: safeSchema, dbType },
+                rightEl: catActions,
+                countBadgeEl: countBadge
+            });
+        });
+
+        // 1. Calculate object counts for each category immediately upon schema expansion
+        categories.forEach(cat => {
+            const countBadge = countBadges[cat.type];
+            loadCategoryObjects(connId, dbName, safeSchema, cat.type, dbType).then(items => {
+                const fk = `${connId}::${dbName}::${safeSchema}::${cat.type}`;
+                const fkLegacy = `${connId}::${dbName}::${cat.type}`;
+                const filter = filterState[fk] || filterState[fkLegacy];
+                const isFilterActive = hasActiveFilter(fk) || hasActiveFilter(fkLegacy);
+                const totalCount = items.length;
+                const filteredItems = isFilterActive 
+                    ? items.filter(obj => matchFilterItem(obj, safeSchema, filter))
+                    : items;
+                if (countBadge) {
+                    if (isFilterActive) {
+                        countBadge.textContent = `${filteredItems.length}/${totalCount}`;
+                        countBadge.className = 'tree-count-badge is-filtered';
+                        countBadge.title = `Filtered: ${filteredItems.length} of ${totalCount} objects`;
+                    } else {
+                        countBadge.textContent = `${totalCount}`;
+                        countBadge.className = 'tree-count-badge';
+                        countBadge.title = `Total: ${totalCount} objects`;
+                    }
+                }
+            }).catch(err => {
+                console.warn(`[Explorer] Error calculating count for ${cat.label}:`, err);
             });
         });
     }
 
+    // Cache for raw category object lists: cacheKey -> array of objects
+    const categoryDataCache = {};
+    const categoryPromiseCache = {};
+
+    async function loadCategoryObjects(connId, dbName, schemaName, catType, dbType = null, forceRefresh = false) {
+        const isPg = ((dbType || window.ActiveDbType || '').toLowerCase().includes('postgr'));
+        const safeSchema = schemaName || (isPg ? 'public' : 'dbo');
+        const cacheKey = `${connId}::${dbName}::${safeSchema}::${catType}`;
+        if (!forceRefresh && categoryDataCache[cacheKey]) {
+            return categoryDataCache[cacheKey];
+        }
+        if (!forceRefresh && categoryPromiseCache[cacheKey]) {
+            return categoryPromiseCache[cacheKey];
+        }
+
+        const fetchPromise = (async () => {
+            try {
+                const params = new URLSearchParams({ database: dbName, schema: safeSchema, type: catType });
+                const res = await fetch(`/api/metadata/${connId}/objects?${params}`);
+                const data = await res.json();
+                const items = data.items || [];
+                categoryDataCache[cacheKey] = items;
+                return items;
+            } catch (err) {
+                console.warn(`[Explorer] Failed to load objects for ${catType}:`, err);
+                return [];
+            } finally {
+                delete categoryPromiseCache[cacheKey];
+            }
+        })();
+
+        categoryPromiseCache[cacheKey] = fetchPromise;
+        return fetchPromise;
+    }
+
+    function hasActiveFilter(fk) {
+        const f = filterState[fk];
+        if (!f) return false;
+        if (f.search && f.search.trim()) return true;
+        if (Array.isArray(f.conditions) && f.conditions.some(c => c && (c.value || '').trim())) return true;
+        return false;
+    }
+
+    function matchFilterItem(obj, defaultSchema, filter) {
+        if (!filter) return true;
+
+        let conditions = [];
+        if (Array.isArray(filter.conditions) && filter.conditions.length > 0) {
+            conditions = filter.conditions.filter(c => c && (c.value || '').trim());
+        } else if (filter.search && filter.search.trim()) {
+            conditions = [{ field: 'name', operator: 'contains', value: filter.search.trim() }];
+        }
+
+        if (conditions.length === 0) return true;
+
+        const objName = String(obj.name || obj || '').toLowerCase();
+        const objSchema = String(obj.schema || defaultSchema || 'dbo').toLowerCase();
+
+        const checkCond = (c) => {
+            const target = c.field === 'schema' ? objSchema : objName;
+            const val = String(c.value || '').trim().toLowerCase();
+            if (!val) return true;
+
+            switch (c.operator) {
+                case 'contains':
+                    return target.includes(val);
+                case 'startswith':
+                    return target.startsWith(val);
+                case 'endswith':
+                    return target.endsWith(val);
+                case 'equals':
+                    return target === val;
+                case 'notequals':
+                    return target !== val;
+                default:
+                    return target.includes(val);
+            }
+        };
+
+        if (filter.logic === 'OR') {
+            return conditions.some(checkCond);
+        } else {
+            return conditions.every(checkCond);
+        }
+    }
+
     // ── Fetch objects ─────────────────────────────────────────────────────────
-    async function fetchObjects(containerUl, connId, connName, dbName, schema, objType, dbType) {
+    async function fetchObjects(containerUl, connId, connName, dbName, schema, objType, dbType, countBadgeEl = null, forceRefresh = false) {
         const effectiveDbType = dbType || window.ActiveDbType;
-        const fk = `${connId}::${dbName}::${objType}`;
-        const filter = filterState[fk];
+        const isPg = (effectiveDbType || '').toLowerCase().includes('postgr');
+        const safeSchema = schema || (isPg ? 'public' : 'dbo');
+        const fk = `${connId}::${dbName}::${safeSchema}::${objType}`;
+        const fkLegacy = `${connId}::${dbName}::${objType}`;
+        const filter = filterState[fk] || filterState[fkLegacy];
 
-        const params = new URLSearchParams({ database: dbName, schema: schema || 'dbo', type: objType });
-        if (filter?.search) params.set('search', filter.search);
+        const allItems = await loadCategoryObjects(connId, dbName, safeSchema, objType, effectiveDbType, forceRefresh);
+        const totalCount = allItems.length;
+        const isFilterActive = hasActiveFilter(fk) || hasActiveFilter(fkLegacy);
+        const filteredItems = isFilterActive 
+            ? allItems.filter(obj => matchFilterItem(obj, safeSchema, filter))
+            : allItems;
 
-        const res  = await fetch(`/api/metadata/${connId}/objects?${params}`);
-        const data = await res.json();
+        // Section 52: Hiển thị số lượng Object và trạng thái lọc
+        if (countBadgeEl) {
+            if (isFilterActive) {
+                countBadgeEl.textContent = `${filteredItems.length}/${totalCount}`;
+                countBadgeEl.className = 'tree-count-badge is-filtered';
+                countBadgeEl.title = `Filtered: ${filteredItems.length} of ${totalCount} objects`;
+            } else {
+                countBadgeEl.textContent = `${totalCount}`;
+                countBadgeEl.className = 'tree-count-badge';
+                countBadgeEl.title = `Total: ${totalCount} objects`;
+            }
+        }
+
         containerUl.innerHTML = '';
 
-        if (!data.items?.length) {
+        if (!filteredItems.length) {
             containerUl.innerHTML = '<li><div class="tree-item text-muted" style="font-size:11px;">(Empty)</div></li>';
             return;
         }
@@ -466,6 +956,7 @@ function initExplorer() {
             functions: 'calculator', 
             triggers: 'bolt',
             sequences: 'arrow-down-1-9',
+            synonyms: 'link',
             user_types: 'cube'
         };
         const typeMap = { 
@@ -476,23 +967,49 @@ function initExplorer() {
             functions: 'function', 
             triggers: 'trigger',
             sequences: 'sequence',
+            synonyms: 'synonym',
             user_types: 'user_type'
         };
 
         const fragment = document.createDocumentFragment();
-        data.items.forEach(obj => {
+        filteredItems.forEach(obj => {
             const objName = obj.name || obj;
             const objSchema = obj.schema || schema || 'dbo';
             const mappedType = typeMap[objType] || objType;
-            const isLeaf = objType === 'sequences' || objType === 'user_types';
+            const isLeaf = objType === 'sequences' || objType === 'user_types' || objType === 'synonyms';
+            const baseName = obj.base_name || (typeof objName === 'string' && objName.includes('(') ? objName.slice(0, objName.indexOf('(')).trim() : objName);
+            const identityArgs = obj.identity_args !== undefined ? obj.identity_args : (typeof objName === 'string' && objName.includes('(') ? objName.slice(objName.indexOf('(') + 1, -1).trim() : '');
+            
+            const nData = { 
+                connId, 
+                connName, 
+                database: dbName, 
+                schema: objSchema, 
+                name: objName, 
+                baseName,
+                base_object_name: obj.base_object_name || null,
+                identityArgs,
+                oid: obj.oid || null,
+                type: mappedType, 
+                object_type: mappedType.toUpperCase(),
+                isColumn: false,
+                dbType: effectiveDbType 
+            };
+
+            const objActions = document.createElement('div');
+            objActions.className = 'tree-node-actions';
+            objActions.appendChild(createMoreBtn(nData));
+
             renderNode(fragment, {
                 name: objName, 
                 type: mappedType, 
                 icon: iconMap[objType] || 'file-code', 
-                iconColor: objType === 'sequences' ? '#8892b0' : (objType === 'user_types' ? '#98c379' : '#c7cfcf'),
+                iconColor: objType === 'sequences' ? '#8892b0' : (objType === 'user_types' ? '#98c379' : (objType === 'synonyms' ? '#6897BB' : '#c7cfcf')),
                 hasChildren: !isLeaf,
                 loadCallback: isLeaf ? null : (ul => fetchObjectFolders(ul, connId, connName, dbName, objSchema, mappedType, objName, effectiveDbType)),
-                nodeData: { connId, connName, database: dbName, schema: objSchema, name: objName, type: mappedType, dbType: effectiveDbType },
+                nodeData: nData,
+                rightEl: objActions,
+                title: (mappedType === 'synonym' && obj.base_object_name) ? `${objName} -> ${obj.base_object_name}` : objName
             });
         });
         containerUl.appendChild(fragment);
@@ -531,7 +1048,7 @@ function initExplorer() {
                 name: f.label, type: `folder-${f.type}`, icon: 'folder', iconColor: '#dcb67a',
                 hasChildren: true,
                 loadCallback: ul => fetchObjectChildren(ul, connId, connName, dbName, schema, objName, objType, f.type, effectiveDbType),
-                nodeData: { connId, connName, database: dbName, schema, dbType: effectiveDbType }
+                nodeData: { connId, connName, database: dbName, schema, tableName: objName, table: objName, dbType: effectiveDbType }
             });
         });
     }
@@ -558,22 +1075,28 @@ function initExplorer() {
         const fragment = document.createDocumentFragment();
         data.items.forEach(child => {
             if (childType === 'triggers') {
+                const trgData = {
+                    connId,
+                    connName,
+                    database: dbName,
+                    schema: safeSchema,
+                    name: child.name,
+                    tableName: objName,
+                    type: 'trigger',
+                    dbType: effectiveDbType
+                };
+                const trgActionWrap = document.createElement('div');
+                trgActionWrap.className = 'tree-node-actions';
+                trgActionWrap.appendChild(createMoreBtn(trgData));
+
                 renderNode(fragment, {
                     name: child.name,
                     type: 'trigger',
                     icon: 'bolt',
                     iconColor: '#CC7832',
                     hasChildren: false,
-                    nodeData: {
-                        connId,
-                        connName,
-                        database: dbName,
-                        schema: safeSchema,
-                        name: child.name,
-                        tableName: objName,
-                        type: 'trigger',
-                        dbType: effectiveDbType
-                    }
+                    nodeData: trgData,
+                    rightEl: trgActionWrap,
                 });
                 return;
             }
@@ -607,13 +1130,27 @@ function initExplorer() {
             renderNode(fragment, {
                 name: label, type: `leaf-${childType}`, icon: icon, iconColor: color,
                 hasChildren: false,
-                nodeData: { connId, connName, database: dbName, schema: safeSchema, name: child.name, tableName: objName, type: childType, dbType: effectiveDbType }
+                nodeData: { 
+                    connId, 
+                    connName, 
+                    database: dbName, 
+                    schema: safeSchema, 
+                    name: child.name, 
+                    columnName: childType === 'columns' ? child.name : undefined,
+                    column: childType === 'columns' ? child.name : undefined,
+                    tableName: objName, 
+                    table: objName, 
+                    type: childType === 'columns' ? 'column' : childType, 
+                    object_type: childType === 'columns' ? 'COLUMN' : childType.toUpperCase(),
+                    isColumn: childType === 'columns',
+                    dbType: effectiveDbType 
+                }
             });
         });
         containerUl.appendChild(fragment);
     }
 
-    // ── Filter modal ──────────────────────────────────────────────────────────
+    // ── Filter modal (Multiple conditions: AND/OR, Contains, Starts with, Ends with, Equals, Not equals) ─
     function showFilterModal({ title, filterKey, onApply }) {
         const current = filterState[filterKey] || {};
 
@@ -625,33 +1162,124 @@ function initExplorer() {
         modal.className = 'modal fade';
         modal.setAttribute('tabindex', '-1');
         modal.innerHTML = `
-            <div class="modal-dialog modal-sm modal-dialog-centered">
+            <div class="modal-dialog modal-dialog-centered" style="max-width: 480px;">
                 <div class="modal-content">
-                    <div class="modal-header py-2">
-                        <h6 class="modal-title" style="font-size:13px;">${title}</h6>
-                        <button type="button" class="btn-close btn-close-sm" data-bs-dismiss="modal"></button>
+                    <div class="modal-header py-2 d-flex align-items-center justify-content-between">
+                        <h6 class="modal-title d-flex align-items-center gap-2 mb-0" style="font-size:13px; font-weight: 600;">
+                            <i class="fa-solid fa-filter text-primary"></i>
+                            <span>${title}</span>
+                        </h6>
+                        <button type="button" class="btn-close btn-close-sm" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
                     <div class="modal-body py-2">
-                        <label class="form-label" style="font-size:11px; color: var(--ide-text-muted);">Name contains</label>
-                        <input type="text" id="ide-filter-search" class="form-control form-control-sm" placeholder="e.g. customer" value="${current.search || ''}">
+                        <div class="d-flex align-items-center mb-1 text-muted px-1" style="font-size: 11px; font-weight: 500;">
+                            <div style="width: 28%;">Field</div>
+                            <div style="width: 32%; padding-left: 6px;">Operator</div>
+                            <div style="width: 34%; padding-left: 6px;">Value</div>
+                            <div style="width: 6%;"></div>
+                        </div>
+                        <div id="ide-filter-conditions-list" class="d-flex flex-column gap-1 mb-2"></div>
+                        <div class="d-flex align-items-center justify-content-between pt-2 border-top border-secondary-subtle">
+                            <button type="button" class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1" id="ide-filter-add-btn" style="font-size: 12px;">
+                                <i class="fa-solid fa-plus"></i> Add condition
+                            </button>
+                            <div class="d-flex align-items-center gap-2">
+                                <label for="ide-filter-logic" class="mb-0 text-muted" style="font-size: 12px;">Logic:</label>
+                                <select id="ide-filter-logic" class="form-select form-select-sm" style="width: 80px; font-size: 12px;">
+                                    <option value="AND"${current.logic !== 'OR' ? ' selected' : ''}>AND</option>
+                                    <option value="OR"${current.logic === 'OR' ? ' selected' : ''}>OR</option>
+                                </select>
+                            </div>
+                        </div>
                     </div>
-                    <div class="modal-footer py-1 d-flex justify-content-between">
-                        <button class="btn btn-sm btn-link text-danger px-0" id="ide-filter-reset">Reset</button>
-                        <div class="d-flex gap-1">
-                            <button class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                            <button class="btn btn-sm btn-primary" id="ide-filter-apply">Apply</button>
+                    <div class="modal-footer py-2 d-flex justify-content-between">
+                        <button type="button" class="btn btn-sm btn-link text-danger text-decoration-none px-0" id="ide-filter-reset">
+                            <i class="fa-solid fa-trash-can me-1"></i>Clear
+                        </button>
+                        <div class="d-flex gap-2">
+                            <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="button" class="btn btn-sm btn-primary" id="ide-filter-apply">Apply</button>
                         </div>
                     </div>
                 </div>
             </div>
         `;
 
+        function createConditionRow(cond = { field: 'name', operator: 'contains', value: '' }) {
+            const row = document.createElement('div');
+            row.className = 'filter-condition-row d-flex align-items-center gap-1';
+            row.innerHTML = `
+                <select class="form-select form-select-sm cond-field" style="width: 28%; font-size: 12px;">
+                    <option value="name"${cond.field === 'name' ? ' selected' : ''}>Name</option>
+                    <option value="schema"${cond.field === 'schema' ? ' selected' : ''}>Schema</option>
+                </select>
+                <select class="form-select form-select-sm cond-operator" style="width: 32%; font-size: 12px;">
+                    <option value="contains"${cond.operator === 'contains' ? ' selected' : ''}>Contains</option>
+                    <option value="startswith"${cond.operator === 'startswith' ? ' selected' : ''}>Starts with</option>
+                    <option value="endswith"${cond.operator === 'endswith' ? ' selected' : ''}>Ends with</option>
+                    <option value="equals"${cond.operator === 'equals' ? ' selected' : ''}>Equals</option>
+                    <option value="notequals"${cond.operator === 'notequals' ? ' selected' : ''}>Not equals</option>
+                </select>
+                <input type="text" class="form-control form-control-sm cond-value" style="width: 34%; font-size: 12px;" placeholder="e.g. customer" value="${escapeHtml(cond.value || '')}">
+                <button type="button" class="btn btn-sm btn-link text-danger cond-remove px-1" title="Remove condition" style="width: 6%; text-decoration: none;">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            `;
+
+            row.querySelector('.cond-remove').addEventListener('click', () => {
+                const list = modal.querySelector('#ide-filter-conditions-list');
+                if (list.children.length > 1) {
+                    row.remove();
+                } else {
+                    row.querySelector('.cond-value').value = '';
+                }
+            });
+
+            row.querySelector('.cond-value').addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    modal.querySelector('#ide-filter-apply').click();
+                }
+            });
+
+            return row;
+        }
+
         document.body.appendChild(modal);
         const bsModal = new bootstrap.Modal(modal);
 
+        const list = modal.querySelector('#ide-filter-conditions-list');
+        const initialConditions = Array.isArray(current.conditions) && current.conditions.length > 0
+            ? current.conditions
+            : (current.search ? [{ field: 'name', operator: 'contains', value: current.search }] : [{ field: 'name', operator: 'contains', value: '' }]);
+
+        initialConditions.forEach(c => list.appendChild(createConditionRow(c)));
+
+        modal.querySelector('#ide-filter-add-btn').addEventListener('click', () => {
+            const newRow = createConditionRow({ field: 'name', operator: 'contains', value: '' });
+            list.appendChild(newRow);
+            setTimeout(() => newRow.querySelector('.cond-value').focus(), 50);
+        });
+
         modal.querySelector('#ide-filter-apply').addEventListener('click', () => {
-            const search = modal.querySelector('#ide-filter-search').value.trim();
-            filterState[filterKey] = { search };
+            const rows = modal.querySelectorAll('.filter-condition-row');
+            const conditions = [];
+            rows.forEach(r => {
+                const field = r.querySelector('.cond-field').value;
+                const operator = r.querySelector('.cond-operator').value;
+                const value = r.querySelector('.cond-value').value.trim();
+                if (value) {
+                    conditions.push({ field, operator, value });
+                }
+            });
+
+            const logic = modal.querySelector('#ide-filter-logic')?.value || 'AND';
+            if (conditions.length > 0) {
+                filterState[filterKey] = { conditions, logic };
+            } else {
+                delete filterState[filterKey];
+            }
+
             bsModal.hide();
             if (onApply) onApply();
         });
@@ -664,7 +1292,7 @@ function initExplorer() {
 
         modal.addEventListener('hidden.bs.modal', () => modal.remove());
         bsModal.show();
-        setTimeout(() => modal.querySelector('#ide-filter-search')?.focus(), 300);
+        setTimeout(() => modal.querySelector('.cond-value')?.focus(), 300);
     }
 
     // ── Schema Checklist Modal ────────────────────────────────────────────────
@@ -998,23 +1626,32 @@ function initExplorer() {
             return null;
         }
         const typeLabel = dbType === 'sqlserver' ? 'SQL Server' : 'PostgreSQL';
-        
+        const connKey = connId || (name + '::' + dbType);
+
+        let currentStatus = getConnectionStatus(connId, name, dbType, isActive);
+        if (isActive && config && config.is_alive === false) {
+            currentStatus = 'lost';
+            setConnectionStatus(connId, name, dbType, 'lost');
+        } else if (!isActive) {
+            currentStatus = 'disconnected';
+            setConnectionStatus(connId, name, dbType, 'disconnected');
+        }
+
         const rightEl = document.createElement('div');
-        rightEl.className = 'tree-actions d-flex align-items-center gap-2';
+        rightEl.className = 'tree-actions tree-node-actions d-flex align-items-center gap-1';
         
         if (isActive) {
             rightEl.innerHTML = `
-                <i class="fa-solid fa-circle" style="color: var(--ide-success); font-size: 8px;" title="Connected"></i>
+                <i class="fa-solid fa-rotate-right tree-icon text-muted ide-conn-reconnect" title="Reconnect (Kết nối lại)"></i>
                 <button class="tree-filter-btn ide-conn-filter" title="Filter Databases" aria-label="Filter Databases">
                     <i class="fa-solid fa-filter"></i>
                 </button>
-                <i class="fa-solid fa-rotate-right tree-icon text-muted ide-conn-refresh" title="Refresh"></i>
+                <i class="fa-solid fa-arrows-rotate tree-icon text-muted ide-conn-refresh" title="Refresh Metadata"></i>
                 <i class="fa-solid fa-plug-circle-xmark tree-icon text-warning ide-conn-disconnect" title="Disconnect"></i>
             `;
         } else {
             rightEl.innerHTML = `
-                <i class="fa-solid fa-circle" style="color: var(--ide-text-dim); font-size: 8px;" title="Disconnected"></i>
-                <i class="fa-solid fa-plug tree-icon text-success ide-conn-connect" title="Connect"></i>
+                <i class="fa-solid fa-plug tree-icon text-success ide-conn-connect" title="Connect (Kết nối)"></i>
             `;
         }
 
@@ -1039,6 +1676,7 @@ function initExplorer() {
             if (hasDbFilter()) {
                 btnFilter.classList.add('filter-active');
                 btnFilter.title = `Filter Databases (Filtered)`;
+                rightEl.classList.add('has-active-filter');
             }
 
             btnFilter.addEventListener('click', (e) => {
@@ -1047,6 +1685,13 @@ function initExplorer() {
                     connId,
                     connName: name,
                     onApply: () => {
+                        if (hasDbFilter()) {
+                            btnFilter.classList.add('filter-active');
+                            rightEl.classList.add('has-active-filter');
+                        } else {
+                            btnFilter.classList.remove('filter-active');
+                            rightEl.classList.remove('has-active-filter');
+                        }
                         if (dbNodeCtrl) dbNodeCtrl.reload();
                     }
                 });
@@ -1060,7 +1705,18 @@ function initExplorer() {
                 if (window.AppMetadataCache && typeof window.AppMetadataCache.invalidateConnection === 'function') {
                     window.AppMetadataCache.invalidateConnection(connId);
                 }
+                Object.keys(categoryDataCache).forEach(k => {
+                    if (k.startsWith(`${connId}::`)) delete categoryDataCache[k];
+                });
                 if (dbNodeCtrl) dbNodeCtrl.reload();
+            });
+        }
+
+        const btnReconnect = rightEl.querySelector('.ide-conn-reconnect');
+        if (btnReconnect) {
+            btnReconnect.addEventListener('click', (e) => {
+                e.stopPropagation();
+                reconnectConnection(connId, name, dbType, config);
             });
         }
         
@@ -1078,7 +1734,7 @@ function initExplorer() {
         if (btnConnect) {
             btnConnect.addEventListener('click', (e) => {
                 e.stopPropagation();
-                reconnect(name, dbType, config);
+                reconnectConnection(connId, name, dbType, config);
             });
         }
 
@@ -1103,10 +1759,13 @@ function initExplorer() {
             rightEl: rightEl
         });
 
-        if (!isActive && dbNodeCtrl && dbNodeCtrl.item) {
+        if (dbNodeCtrl && dbNodeCtrl.item) {
             dbNodeCtrl.item.addEventListener('dblclick', (e) => {
-                e.stopPropagation();
-                reconnect(name, dbType, config);
+                const curSt = getConnectionStatus(connId, name, dbType, isActive);
+                if (!isActive || curSt === 'lost') {
+                    e.stopPropagation();
+                    reconnectConnection(connId, name, dbType, config);
+                }
             });
         }
         return dbNodeCtrl;
@@ -1114,9 +1773,22 @@ function initExplorer() {
 
     // ── Load active connections from server on page load ──────────────────────
     let _cachedSavedConnections = [];
+    let _cachedActiveConnections = [];
 
     function getSavedConnections() {
+        if ((!_cachedSavedConnections || _cachedSavedConnections.length === 0) && typeof localStorage !== 'undefined') {
+            try {
+                const ls = JSON.parse(localStorage.getItem('ide_saved_connections') || '[]');
+                if (Array.isArray(ls) && ls.length > 0) {
+                    _cachedSavedConnections = ls;
+                }
+            } catch (_) {}
+        }
         return _cachedSavedConnections;
+    }
+
+    function getActiveConnections() {
+        return _cachedActiveConnections;
     }
 
     async function loadSavedConnectionsFromStorage() {
@@ -1406,7 +2078,11 @@ function initExplorer() {
         label.className = 'tree-label';
         label.textContent = groupNode.name;
 
-        item.append(toggle, iconEl, label);
+        const groupActions = document.createElement('div');
+        groupActions.className = 'tree-node-actions';
+        groupActions.appendChild(createMoreBtn({ type: 'group', name: groupNode.fullPath, label: groupNode.name }));
+
+        item.append(toggle, iconEl, label, groupActions);
         li.appendChild(item);
 
         const childUl = document.createElement('ul');
@@ -1548,7 +2224,8 @@ function initExplorer() {
             || Object.values(activeMap).find(a => (a && (a.connection_id === c.id || (a.config && a.config.id === c.id) || a.name === c.name || (a.config && a.config.name === c.name))));
         const isActive = !!activeConn;
         const connId = isActive ? activeConn.connection_id : null;
-        const ctrl = addConnectionNodeToUl(targetUl, connId, c.name, c.type, isActive, c);
+        const connConfig = { ...(c || {}), ...(activeConn?.config || {}), is_alive: activeConn?.is_alive };
+        const ctrl = addConnectionNodeToUl(targetUl, connId, c.name, c.type, isActive, connConfig);
         if (ctrl && ctrl.item && c.id) {
             ctrl.item.setAttribute('draggable', 'true');
             ctrl.item.addEventListener('dragstart', (e) => {
@@ -1671,12 +2348,15 @@ function initExplorer() {
                 if (res && res.ok) {
                     const data = await res.json();
                     if (data && data.success && Array.isArray(data.connections)) {
+                        _cachedActiveConnections = data.connections;
                         data.connections.forEach(c => {
                             if (!c) return;
                             const dbType = c.type || c.config?.type || 'sqlserver';
                             const displayName = c.name || c.config?.name || c.server || c.config?.server || 'Server';
                             activeMap[displayName + '::' + dbType] = c;
                         });
+                    } else {
+                        _cachedActiveConnections = [];
                     }
                     if (data && Array.isArray(data.saved_connections) && data.saved_connections.length > 0) {
                         fetchedSaved = data.saved_connections;
@@ -1759,6 +2439,34 @@ function initExplorer() {
                 treeContainer.ondrop = (e) => {
                     handleDropToRoot(e);
                 };
+            }
+
+            // Sync mini-rail collapsed items with latest connections and statuses
+            renderCollapsedRail();
+
+            // Auto-sync action bar if no connection is assigned yet and saved profiles exist
+            const activeTab = window.AppTabs ? window.AppTabs.getActiveTabState() : null;
+            const currentTabConn = activeTab ? activeTab.connectionName : null;
+            if ((!currentTabConn || currentTabConn === 'No connection') && (!window.ActiveConnectionName || window.ActiveConnectionName === 'No connection')) {
+                const defaultSaved = saved.find(s => s && s.type !== 'group_marker' && !String(s.name || '').startsWith('__group__'));
+                if (defaultSaved && window.AppTabs && typeof window.AppTabs.updateActiveTabContext === 'function') {
+                    const prefillCtx = {
+                        connectionName: defaultSaved.name,
+                        connectionId: defaultSaved.id || null,
+                        dbType: defaultSaved.type || 'sqlserver',
+                        database: defaultSaved.database || null,
+                        schema: defaultSaved.schema || null
+                    };
+                    window.ActiveConnectionName = defaultSaved.name;
+                    window.ActiveConnectionId = defaultSaved.id || null;
+                    window.ActiveDbType = defaultSaved.type || 'sqlserver';
+                    if (defaultSaved.database) window.ActiveDatabase = defaultSaved.database;
+                    if (defaultSaved.schema) window.ActiveSchema = defaultSaved.schema;
+                    window.AppTabs.updateActiveTabContext(prefillCtx);
+                    if (typeof window.updateActionBar === 'function') {
+                        window.updateActionBar();
+                    }
+                }
             }
 
         } catch (e) {
@@ -1912,10 +2620,11 @@ function initExplorer() {
             if (res.ok && data.connection) {
                 showToast(`✓ Connected to ${name}`, 'success');
                 await loadActiveConnections();
+                if (typeof window.activateConnectionContext === 'function') {
+                    await window.activateConnectionContext(data.connection.connection_id, name, payload.type, payload.database, payload.schema);
+                }
                 if (typeof onConnected === 'function') {
                     onConnected(data.connection, payload);
-                } else if (typeof window.activateConnectionContext === 'function') {
-                    window.activateConnectionContext(data.connection.connection_id, name, payload.type, payload.database, payload.schema);
                 }
                 return { success: true, data };
             } else {
@@ -2013,10 +2722,11 @@ function initExplorer() {
                     if (reconnectModalInstance) reconnectModalInstance.hide();
                     showToast(`✓ Connected to ${name}`, 'success');
                     await loadActiveConnections();
+                    if (typeof window.activateConnectionContext === 'function') {
+                        window.activateConnectionContext(data.connection.connection_id, name, dbType, config.database, config.schema);
+                    }
                     if (typeof onConnected === 'function') {
                         onConnected(data.connection, config);
-                    } else if (typeof window.activateConnectionContext === 'function') {
-                        window.activateConnectionContext(data.connection.connection_id, name, dbType, config.database, config.schema);
                     }
                 } else {
                     const errMsg = data.error || 'Connection failed.';
@@ -2127,6 +2837,7 @@ function initExplorer() {
             if (window.AppMetadataCache && typeof window.AppMetadataCache.invalidateAll === 'function') {
                 window.AppMetadataCache.invalidateAll();
             }
+            Object.keys(categoryDataCache).forEach(k => delete categoryDataCache[k]);
             rootUl.innerHTML = '';
             window.ActiveConnectionId = null;
             window.ActiveDatabase     = null;
@@ -2189,20 +2900,355 @@ function initExplorer() {
         loadActiveConnections();
     });
 
+    function refreshNode(nodeData) {
+        if (!nodeData) return;
+        const targetConn = nodeData.connId;
+        const targetDb = nodeData.database;
+        const targetSchema = nodeData.schema;
+        const targetName = nodeData.name ? String(nodeData.name).trim().toLowerCase() : null;
+
+        // Invalidate category count cache for refreshed scope
+        if (targetConn) {
+            const prefix = targetDb ? `${targetConn}::${targetDb}` : `${targetConn}::`;
+            for (const k of Object.keys(categoryDataCache)) {
+                if (k.startsWith(prefix)) {
+                    delete categoryDataCache[k];
+                }
+            }
+        }
+
+        const items = document.querySelectorAll('.tree-item');
+        for (const it of items) {
+            const nd = it._nodeData;
+            if (!nd) continue;
+            if (targetConn && nd.connId && nd.connId !== targetConn) continue;
+            if (targetDb && nd.database && nd.database !== targetDb) continue;
+
+            if (nodeData.type === 'linked_server' || nodeData.type === 'linked_servers_group') {
+                if (nd.type === 'linked_servers_group' && (!targetConn || nd.connId === targetConn)) {
+                    if (typeof it._reload === 'function') {
+                        it._reload();
+                        return;
+                    }
+                }
+            }
+
+            if (targetName && nd.name && String(nd.name).trim().toLowerCase() === targetName) {
+                if (typeof it._reload === 'function') {
+                    it._reload();
+                    return;
+                }
+                const parentItem = it.parentElement?.parentElement?.closest('.tree-item');
+                if (parentItem && typeof parentItem._reload === 'function') {
+                    parentItem._reload();
+                    return;
+                }
+            } else if (!targetName && targetSchema && nd.schema === targetSchema) {
+                if (typeof it._reload === 'function') {
+                    it._reload();
+                    return;
+                }
+            }
+        }
+    }
+
+    // ── Render Collapsed Mini-Rail (Representative Connection Icons) ──────────
+    function renderCollapsedRail() {
+        const rail = document.getElementById('ide-sidebar-collapsed-rail');
+        if (!rail) return;
+        rail.innerHTML = '';
+
+        const saved = getSavedConnections() || [];
+        const renderedKeys = new Set();
+
+        // 1. Add all connection items currently in the Object Explorer tree
+        const connTreeItems = rootUl.querySelectorAll('.tree-item[data-node-type="connection"]');
+        connTreeItems.forEach(item => {
+            const nd = item._nodeData || {};
+            const name = nd.connName || nd.name;
+            if (!name) return;
+            const dbType = nd.dbType || nd.config?.type || 'sqlserver';
+            const connId = nd.connId || null;
+            const key = connId || (name + '::' + dbType);
+            if (renderedKeys.has(key)) return;
+            renderedKeys.add(key);
+
+            const isPg = String(dbType || '').toLowerCase().includes('postgr');
+            const iconImg = isPg ? '/static/icons/postgresql.png' : '/static/icons/sqlserver.png';
+            const fallbackIcon = isPg 
+                ? 'https://img.icons8.com/color/48/postgreesql.png' 
+                : 'https://img.icons8.com/color/48/microsoft-sql-server.png';
+            
+            const status = getConnectionStatus(connId, name, dbType, nd.isActive);
+
+            const itemDiv = document.createElement('div');
+            itemDiv.className = `ide-collapsed-conn-item ${status === 'connected' ? 'active' : ''}`;
+            itemDiv.dataset.connKey = key;
+            if (connId) itemDiv.dataset.connId = connId;
+            itemDiv.dataset.connName = name;
+            itemDiv.dataset.dbType = dbType;
+            const statusLabel = status === 'connected' ? 'Connected (Đang kết nối)' 
+                              : status === 'lost' ? 'Lost Connection (Mất kết nối - Chuột phải để Reconnect)' 
+                              : status === 'reconnecting' ? 'Reconnecting (Đang kết nối lại...)' : 'Disconnected (Chưa kết nối)';
+            itemDiv.title = `${name} (${statusLabel})`;
+
+            const img = document.createElement('img');
+            img.src = iconImg;
+            img.className = 'ide-collapsed-conn-icon';
+            img.onerror = () => { img.onerror = null; img.src = fallbackIcon; };
+            img.alt = name;
+
+            const badge = document.createElement('span');
+            badge.className = `ide-collapsed-conn-badge conn-status-badge status-${status}`;
+
+            itemDiv.appendChild(img);
+            itemDiv.appendChild(badge);
+
+            // Left Click: Expand sidebar and focus/select this tree item
+            itemDiv.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (typeof window.expandSidebar === 'function') {
+                    window.expandSidebar();
+                }
+                setTimeout(() => {
+                    item.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    item.click();
+                }, 120);
+            });
+
+            // Right Click: Show Context Menu for this connection
+            itemDiv.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (window.ContextMenu) {
+                    window.ContextMenu.show('connection', nd, e.clientX, e.clientY);
+                }
+            });
+
+            rail.appendChild(itemDiv);
+        });
+
+        // 2. Add saved connections not in tree
+        saved.forEach(s => {
+            if (!s || s.type === 'group_marker' || String(s.name || '').startsWith('__group__')) return;
+            const key = s.id || (s.name + '::' + s.type);
+            if (renderedKeys.has(key)) return;
+            renderedKeys.add(key);
+
+            const isPg = String(s.type || '').toLowerCase().includes('postgr');
+            const iconImg = isPg ? '/static/icons/postgresql.png' : '/static/icons/sqlserver.png';
+            const fallbackIcon = isPg 
+                ? 'https://img.icons8.com/color/48/postgreesql.png' 
+                : 'https://img.icons8.com/color/48/microsoft-sql-server.png';
+            
+            const status = getConnectionStatus(s.id, s.name, s.type, false);
+
+            const itemDiv = document.createElement('div');
+            itemDiv.className = 'ide-collapsed-conn-item';
+            itemDiv.dataset.connKey = key;
+            if (s.id) itemDiv.dataset.connId = s.id;
+            itemDiv.dataset.connName = s.name;
+            itemDiv.dataset.dbType = s.type;
+            itemDiv.title = `${s.name} (${status})`;
+
+            const img = document.createElement('img');
+            img.src = iconImg;
+            img.className = 'ide-collapsed-conn-icon';
+            img.onerror = () => { img.onerror = null; img.src = fallbackIcon; };
+            img.alt = s.name;
+
+            const badge = document.createElement('span');
+            badge.className = `ide-collapsed-conn-badge conn-status-badge status-${status}`;
+
+            itemDiv.appendChild(img);
+            itemDiv.appendChild(badge);
+
+            itemDiv.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (typeof window.expandSidebar === 'function') {
+                    window.expandSidebar();
+                }
+            });
+
+            itemDiv.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (window.ContextMenu) {
+                    window.ContextMenu.show('connection', {
+                        connName: s.name,
+                        dbType: s.type,
+                        config: s,
+                        isActive: false
+                    }, e.clientX, e.clientY);
+                }
+            });
+
+            rail.appendChild(itemDiv);
+        });
+    }
+
+    // ── Reconnect Connection ──────────────────────────────────────────────────
+    async function reconnectConnection(connId, name, dbType, config) {
+        const cleanName = String(name || '').replace(/\s*\((SQL Server|PostgreSQL|SQLite)\)$/i, '').trim() || name;
+        setConnectionStatus(connId, cleanName, dbType, 'reconnecting');
+        if (typeof showToast === 'function') {
+            showToast(`Đang kết nối lại "${cleanName}"...`, 'info');
+        }
+
+        // 1. Resolve full connection profile from saved connections
+        let savedProfile = null;
+        if (typeof getSavedConnections === 'function') {
+            const savedList = getSavedConnections() || [];
+            savedProfile = savedList.find(s => s && (
+                s.name === cleanName ||
+                s.server === cleanName ||
+                (connId && (s.id === connId || s.connection_id === connId))
+            ));
+        }
+        let targetConfig = { ...(savedProfile || {}), ...(config || {}) };
+        targetConfig.name = cleanName || targetConfig.name;
+        if (dbType) targetConfig.type = dbType;
+
+        // Try getting saved password if missing and not trusted/sqlite
+        const isTrusted = targetConfig.trusted_connection === true || targetConfig.trusted_connection === 'true';
+        const isSqlite = (dbType || targetConfig.type || '').toLowerCase() === 'sqlite';
+        if (!targetConfig.password && !isTrusted && !isSqlite) {
+            if (window.AppStorage && typeof window.AppStorage.getConnectionPassword === 'function') {
+                try {
+                    const pwdRes = await window.AppStorage.getConnectionPassword(targetConfig.id || targetConfig.name || cleanName);
+                    if (pwdRes && pwdRes.success && pwdRes.password) {
+                        targetConfig.password = pwdRes.password;
+                    }
+                } catch (_) {}
+            }
+        }
+
+        let reconnectSuccess = false;
+        let newConnId = connId;
+
+        // Try direct backend session reconnect first if connId exists
+        if (connId) {
+            try {
+                const res = await fetch(`/api/connections/${connId}/reconnect`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(targetConfig.password ? { password: targetConfig.password } : {})
+                });
+                const data = await res.json();
+                if (res.ok && data.success) {
+                    reconnectSuccess = true;
+                    newConnId = data.connection?.connection_id || connId;
+                }
+            } catch (err) {
+                console.warn('[Explorer] Reconnect via session endpoint failed, falling back:', err);
+            }
+        }
+
+        // Fallback to reconnect() with credential check / password modal
+        if (!reconnectSuccess) {
+            if (targetConfig) {
+                await reconnect(cleanName, dbType || targetConfig.type, targetConfig, async (conn) => {
+                    newConnId = conn?.connection_id || connId;
+                    reconnectSuccess = true;
+                });
+            }
+        }
+
+        if (reconnectSuccess && newConnId) {
+            setConnectionStatus(newConnId, cleanName, dbType, 'connected');
+            if (window.AppMetadataCache) {
+                if (connId) window.AppMetadataCache.invalidateConnection(connId);
+                if (newConnId) window.AppMetadataCache.invalidateConnection(newConnId);
+            }
+            Object.keys(categoryDataCache).forEach(k => {
+                if ((connId && k.startsWith(`${connId}::`)) || (newConnId && k.startsWith(`${newConnId}::`))) {
+                    delete categoryDataCache[k];
+                }
+            });
+
+            if (typeof showToast === 'function') {
+                showToast(`✓ Đã kết nối lại thành công "${cleanName}"`, 'success');
+            }
+
+            // Update all open tabs that used this connection
+            if (window.AppTabs && typeof window.AppTabs.updateTabsConnectionId === 'function') {
+                window.AppTabs.updateTabsConnectionId(cleanName, newConnId, connId);
+            }
+
+            // Reload active connections and tree
+            await loadActiveConnections();
+            renderCollapsedRail();
+
+            // Auto-reload/expand the reconnected connection node in the tree so objects load immediately
+            setTimeout(() => {
+                const allTreeItems = document.querySelectorAll('.tree-item');
+                for (const item of allTreeItems) {
+                    const nd = item._nodeData || {};
+                    const matchesName = (nd.connName === cleanName || nd.name === cleanName || item.dataset.connName === cleanName);
+                    if (nd.type === 'connection' && matchesName) {
+                        if (typeof item._reload === 'function') {
+                            item._reload();
+                        } else {
+                            item.click();
+                        }
+                        break;
+                    }
+                }
+            }, 100);
+
+            return true;
+        } else if (!reconnectSuccess) {
+            setConnectionStatus(connId || newConnId, cleanName, dbType, 'lost');
+            if (typeof showToast === 'function') {
+                showToast(`Không tìm thấy cấu hình hoặc kết nối lại thất bại cho "${cleanName}".`, 'danger');
+            }
+            return false;
+        }
+    }
+
+    // ── Check Connections Health (Ping Heartbeat) ─────────────────────────────
+    async function checkConnectionsHealth() {
+        try {
+            const res = await fetch('/api/connections/ping-all', { method: 'POST' });
+            if (!res.ok) return;
+            const data = await res.json();
+            if (data && data.success && data.statuses) {
+                for (const [cId, info] of Object.entries(data.statuses)) {
+                    const status = info.is_alive ? 'connected' : 'lost';
+                    setConnectionStatus(cId, info.name, null, status);
+                }
+            }
+        } catch (e) {
+            console.warn('[Explorer] checkConnectionsHealth error:', e);
+        }
+    }
+
+    setInterval(checkConnectionsHealth, 35000);
+    window.addEventListener('focus', () => {
+        checkConnectionsHealth();
+    });
+
     window.promptReconnectPassword = promptReconnectPassword;
     return {
         addConnectionNode,
         disconnect,
         deleteConnection,
         reconnect,
+        reconnectConnection,
+        reconnectByIdOrConfig: reconnectConnection,
+        checkConnectionsHealth,
+        renderCollapsedRail,
+        setConnectionStatus,
+        getConnectionStatus,
         promptReconnectPassword,
         loadActiveConnections,
+        getActiveConnections,
         getSavedConnections,
         saveConnectionProfile,
         createGroup,
         renameGroup,
         deleteGroup,
-        refreshNode: () => {},
+        refreshNode,
         showDatabaseFilterModal,
         showSchemaChecklistModal,
         getSchemaFilter: (connId, db) => schemaFilters[`${connId}::${db}`]

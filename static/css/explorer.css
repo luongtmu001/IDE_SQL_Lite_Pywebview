@@ -31,15 +31,19 @@
 .ide-sidebar-resizer {
     width: 5px;
     cursor: col-resize;
-    background: transparent;
+    background: var(--ide-bg-toolbar, var(--ide-border, #3c3f41));
+    border-left: 1px solid var(--ide-border, #3c3f41);
+    border-right: 1px solid var(--ide-border, #3c3f41);
+    margin-left: -1px;
     flex-shrink: 0;
     z-index: 20;
     position: relative;
-    transition: background 0.15s;
+    transition: background 0.15s, border-color 0.15s;
 }
 .ide-sidebar-resizer:hover,
 .ide-sidebar-resizer.dragging {
-    background: var(--ide-accent);
+    background: var(--ide-accent, #CC7832);
+    border-color: var(--ide-accent, #CC7832);
 }
 
 /* ── Sidebar reopen (collapsed state) ────────────────────────────────────────── */
@@ -115,11 +119,12 @@
 
 /* ── Tree item ───────────────────────────────────────────────────────────────── */
 .tree-item {
-    display: inline-flex;
+    display: flex;
     align-items: center;
     width: max-content;
     min-width: 100%;
-    padding: 2px 8px 2px 2px;
+    min-height: calc(var(--ide-icon-size, 16px) + 6px);
+    padding: 2px 4px 2px 2px;
     cursor: pointer;
     white-space: nowrap;
     border-radius: 2px;
@@ -136,13 +141,13 @@
 }
 
 .tree-toggle {
-    width: 16px;
-    height: 16px;
+    width: var(--ide-icon-size, 16px);
+    height: var(--ide-icon-size, 16px);
     display: inline-flex;
     align-items: center;
     justify-content: center;
     color: var(--ide-text-dim);
-    font-size: calc(var(--ide-ui-font-size, 13px) - 3px);
+    font-size: calc(var(--ide-icon-size, 16px) - 3px);
     flex-shrink: 0;
     transition: transform 0.1s, color 0.15s;
 }
@@ -151,17 +156,22 @@
 }
 
 .tree-icon {
-    width: 16px;
+    width: var(--ide-icon-size, 16px);
+    height: var(--ide-icon-size, 16px);
     text-align: center;
     margin-right: 6px;
     flex-shrink: 0;
-    font-size: calc(var(--ide-ui-font-size, 13px) - 1px);
+    font-size: var(--ide-icon-size, 16px);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
 }
 
 /* ── Database Connection Icon (SVG / Image) ─────────────────────────────────── */
 .tree-conn-icon {
-    width: 16px;
-    height: 16px;
+    width: var(--ide-icon-size, 16px);
+    height: var(--ide-icon-size, 16px);
     object-fit: contain;
     margin-right: 6px;
     flex-shrink: 0;
@@ -192,8 +202,132 @@ html[data-bs-theme="win-nt"] .tree-conn-icon.disconnected {
 .tree-label {
     white-space: nowrap;
     user-select: none;
-    margin-right: 8px;
+    margin-right: 6px;
     font-family: var(--ide-ui-font-family, inherit);
+    flex-shrink: 0;
+}
+
+/* ── Tree Node Actions Container (Sticky right-edge overlay with theme gradient) ── */
+.tree-node-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    margin-left: auto;
+    position: sticky;
+    right: 0;
+    z-index: 5;
+    flex-shrink: 0;
+    max-width: 0;
+    padding: 0;
+    overflow: hidden;
+    border-radius: 0 3px 3px 0;
+    pointer-events: none;
+    opacity: 0;
+    visibility: hidden;
+    background: transparent;
+    transition: opacity 0.15s ease, visibility 0.15s ease;
+}
+
+/* 2.2: Chỉ hiển thị các nút chức năng khi hover vào object / database / connection / category */
+.tree-item:hover .tree-node-actions {
+    max-width: 250px;
+    overflow: visible;
+    padding-left: 18px;
+    padding-right: 4px;
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    /* 2.1: Gradient mask chuyển dần từ transparent sang màu nền sidebar của theme hiện tại */
+    background: 
+        linear-gradient(90deg, transparent 0%, var(--ide-hover-bg) 18px, var(--ide-hover-bg) 100%),
+        linear-gradient(90deg, transparent 0%, var(--ide-bg-sidebar) 18px, var(--ide-bg-sidebar) 100%);
+}
+
+.tree-item.selected .tree-node-actions {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    max-width: 0;
+    padding: 0;
+    overflow: hidden;
+}
+
+.tree-item.selected:hover .tree-node-actions {
+    max-width: 250px;
+    overflow: visible;
+    padding-left: 18px;
+    padding-right: 4px;
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    background: 
+        linear-gradient(90deg, transparent 0%, var(--ide-active-bg, var(--ide-hover-bg)) 18px, var(--ide-active-bg, var(--ide-hover-bg)) 100%),
+        linear-gradient(90deg, transparent 0%, var(--ide-bg-sidebar) 18px, var(--ide-bg-sidebar) 100%);
+}
+
+.tree-node-actions.has-active-filter {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: none;
+    background: linear-gradient(90deg, transparent 0%, var(--ide-bg-sidebar) 16px, var(--ide-bg-sidebar) 100%);
+}
+
+.tree-node-actions.has-active-filter > .filter-active {
+    pointer-events: auto;
+}
+
+.tree-item:hover .tree-node-actions.has-active-filter {
+    background: 
+        linear-gradient(90deg, transparent 0%, var(--ide-hover-bg) 18px, var(--ide-hover-bg) 100%),
+        linear-gradient(90deg, transparent 0%, var(--ide-bg-sidebar) 18px, var(--ide-bg-sidebar) 100%);
+    pointer-events: auto;
+}
+
+.tree-node-actions .tree-icon {
+    width: auto;
+    min-width: calc(var(--ide-icon-size, 16px) - 2px);
+    height: calc(var(--ide-icon-size, 16px) + 2px);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    padding: 0 3px;
+    border-radius: 2px;
+    margin-right: 0;
+    font-size: calc(var(--ide-icon-size, 16px) - 2px);
+    transition: color 0.12s, transform 0.12s, background 0.12s;
+}
+
+.tree-node-actions .tree-icon:hover {
+    background: var(--ide-hover-bg);
+}
+
+/* ── Action menu [⋮] button ─────────────────────────────────────────────────── */
+.tree-more-btn {
+    opacity: 0;
+    color: var(--ide-text-muted);
+    background: none;
+    border: none;
+    padding: 0 4px;
+    font-size: calc(var(--ide-ui-font-size, 13px) - 2px);
+    cursor: pointer;
+    border-radius: 2px;
+    line-height: 1;
+    height: 18px;
+    min-width: 16px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: opacity 0.15s ease, color 0.15s ease, background 0.15s ease;
+}
+
+.tree-item:hover .tree-more-btn {
+    opacity: 1;
+}
+
+.tree-more-btn:hover {
+    color: var(--ide-text-active);
+    background: var(--ide-hover-bg);
 }
 
 /* ── Filter icon on category nodes ──────────────────────────────────────────── */
@@ -207,13 +341,26 @@ html[data-bs-theme="win-nt"] .tree-conn-icon.disconnected {
     cursor: pointer;
     border-radius: 2px;
     line-height: 1;
-    transition: opacity 0.15s;
+    height: 18px;
+    min-width: 16px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: opacity 0.15s ease, color 0.15s ease, background 0.15s ease;
 }
-.tree-item:hover .tree-filter-btn { opacity: 1; }
-.tree-filter-btn:hover { color: var(--ide-accent); background: var(--ide-accent-subtle); }
-.tree-filter-btn.filter-active {
+
+.tree-item:hover .tree-filter-btn {
     opacity: 1;
+}
+
+.tree-filter-btn:hover {
     color: var(--ide-accent);
+    background: var(--ide-accent-subtle);
+}
+
+.tree-filter-btn.filter-active {
+    opacity: 1 !important;
+    color: var(--ide-accent) !important;
 }
 
 /* ── Dropdown action button (schema filter ...) ──────────────────────────────── */
@@ -226,13 +373,101 @@ html[data-bs-theme="win-nt"] .tree-conn-icon.disconnected {
     font-size: calc(var(--ide-ui-font-size, 13px) - 2px);
     cursor: pointer;
     border-radius: 2px;
-    transition: opacity 0.15s;
+    height: 18px;
+    min-width: 16px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: opacity 0.15s ease, color 0.15s ease, background 0.15s ease;
 }
-.tree-item:hover .tree-action-btn { opacity: 1; }
-.tree-action-btn:hover { color: var(--ide-text-active); background: var(--ide-hover-bg); }
+
+.tree-item:hover .tree-action-btn {
+    opacity: 1;
+}
+
+.tree-action-btn:hover {
+    color: var(--ide-text-active);
+    background: var(--ide-hover-bg);
+}
+
 .tree-action-btn.filter-active {
     opacity: 1 !important;
     color: var(--ide-accent) !important;
+}
+
+/* ── Tree Count Badge (Section 52: Total & Filtered object counter - Always right-aligned) ── */
+.tree-count-badge {
+    margin-left: auto;
+    margin-right: 6px;
+    font-size: calc(var(--ide-ui-font-size, 13px) - 2px);
+    color: var(--ide-text-dim, var(--ide-text-muted, #848c94));
+    padding: 0 4px;
+    font-weight: normal;
+    user-select: none;
+    flex-shrink: 0;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    transition: color 0.15s ease;
+}
+
+.tree-count-badge:empty {
+    display: none;
+}
+
+.tree-count-badge.is-filtered {
+    color: var(--ide-accent, #CC7832);
+    font-weight: 600;
+}
+
+.tree-count-badge + .tree-node-actions {
+    margin-left: 2px;
+}
+
+/* ── Multi-Condition Filter Modal Styling ────────────────────────────────────── */
+#ide-filter-modal .modal-content {
+    background-color: var(--ide-bg-modal, var(--ide-bg-sidebar, #202228));
+    color: var(--ide-text-main, #c7cfcf);
+    border: 1px solid var(--ide-border, #3c3f41);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+    border-radius: 6px;
+}
+
+#ide-filter-modal .modal-header {
+    border-bottom: 1px solid var(--ide-border, #3c3f41);
+}
+
+#ide-filter-modal .modal-footer {
+    border-top: 1px solid var(--ide-border, #3c3f41);
+}
+
+#ide-filter-modal .form-control,
+#ide-filter-modal .form-select {
+    background-color: var(--ide-bg-input, #13141A);
+    color: var(--ide-text-main, #c7cfcf);
+    border-color: var(--ide-border, #3c3f41);
+}
+
+#ide-filter-modal .form-control:focus,
+#ide-filter-modal .form-select:focus {
+    border-color: var(--ide-accent, #CC7832);
+    box-shadow: 0 0 0 2px var(--ide-accent-subtle, rgba(204, 120, 50, 0.25));
+    background-color: var(--ide-bg-input, #13141A);
+    color: var(--ide-text-main, #c7cfcf);
+}
+
+#ide-filter-modal .filter-condition-row .cond-remove {
+    color: var(--ide-text-dim, #848c94);
+    border: 1px solid transparent;
+    border-radius: 3px;
+    padding: 2px 6px;
+    background: transparent;
+    transition: color 0.12s, background 0.12s;
+}
+
+#ide-filter-modal .filter-condition-row .cond-remove:hover {
+    color: #ef4444;
+    background: rgba(239, 68, 68, 0.12);
 }
 
 /* ── Checklist Filter Modal Styling ─────────────────────────────────────────── */
@@ -277,5 +512,162 @@ html[data-bs-theme="win-nt"] .tree-conn-icon.disconnected {
 }
 .checklist-actions a:hover {
     text-decoration: underline;
+}
+
+/* ── Sidebar Toggle Button ──────────────────────────────────────────────────── */
+#ide-sidebar-toggle-btn {
+    color: var(--ide-text-muted);
+    transition: color 0.15s, transform 0.15s;
+}
+#ide-sidebar-toggle-btn:hover {
+    color: var(--ide-accent, #388bfd);
+}
+
+/* ── Sidebar Collapsed State (Mini-Rail Mode) ───────────────────────────────── */
+.ide-sidebar.collapsed {
+    width: 44px !important;
+    min-width: 44px !important;
+    max-width: 44px !important;
+    transition: width 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.ide-sidebar.collapsed .ide-sidebar-header {
+    padding: 4px 0 !important;
+    justify-content: center !important;
+    border-bottom: 1px solid var(--ide-border);
+}
+
+.ide-sidebar.collapsed .ide-sidebar-header-title,
+.ide-sidebar.collapsed #ide-btn-connect,
+.ide-sidebar.collapsed #ide-btn-new-group,
+.ide-sidebar.collapsed #ide-btn-filter-db,
+.ide-sidebar.collapsed #ide-btn-refresh-tree {
+    display: none !important;
+}
+
+.ide-sidebar.collapsed .ide-sidebar-actions {
+    justify-content: center !important;
+    width: 100% !important;
+}
+
+.ide-sidebar.collapsed #ide-sidebar-toggle-btn {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 24px;
+}
+
+.ide-sidebar.collapsed .ide-tree {
+    display: none !important;
+}
+
+.ide-sidebar.collapsed .ide-sidebar-collapsed-rail {
+    display: flex !important;
+}
+
+/* ── Collapsed Rail Container & Items ────────────────────────────────────────── */
+.ide-sidebar-collapsed-rail {
+    background: var(--ide-bg-sidebar);
+    padding: 8px 0;
+    gap: 8px;
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+.ide-collapsed-conn-item {
+    position: relative;
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    background: transparent;
+    border: 1px solid transparent;
+    transition: background-color 0.15s, border-color 0.15s, transform 0.12s;
+    user-select: none;
+    flex-shrink: 0;
+}
+
+.ide-collapsed-conn-item:hover {
+    background: var(--ide-hover-bg, rgba(255, 255, 255, 0.08));
+    border-color: var(--ide-border);
+    transform: scale(1.08);
+}
+
+.ide-collapsed-conn-item.active {
+    background: var(--ide-accent-subtle, rgba(56, 139, 253, 0.15));
+    border-color: var(--ide-accent, #388bfd);
+}
+
+.ide-collapsed-conn-icon {
+    width: 18px;
+    height: 18px;
+    object-fit: contain;
+    pointer-events: none;
+}
+
+.ide-collapsed-conn-badge {
+    position: absolute;
+    bottom: 2px;
+    right: 2px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    border: 1.5px solid var(--ide-bg-sidebar, #1e1e1e);
+    pointer-events: none;
+}
+
+/* ── Connection Status Indicators (Colors & Pulsing) ────────────────────────── */
+.conn-status-indicator,
+.conn-status-dot {
+    display: none !important;
+}
+
+.conn-status-badge.status-connected {
+    background-color: #22c55e !important;
+    color: #22c55e !important;
+}
+
+.conn-status-badge.status-lost {
+    background-color: #ef4444 !important;
+    color: #ef4444 !important;
+    animation: conn-pulse-lost 1.8s infinite;
+}
+
+.conn-status-badge.status-disconnected {
+    background-color: #64748b !important;
+    color: #64748b !important;
+}
+
+.conn-status-badge.status-reconnecting {
+    background-color: #f59e0b !important;
+    color: #f59e0b !important;
+}
+
+@keyframes conn-pulse-lost {
+    0% {
+        opacity: 1;
+        box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+    }
+    70% {
+        opacity: 0.6;
+        box-shadow: 0 0 0 5px rgba(239, 68, 68, 0);
+    }
+    100% {
+        opacity: 1;
+        box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+    }
+}
+
+.ide-conn-reconnect {
+    cursor: pointer;
+    transition: color 0.15s, transform 0.2s;
+}
+.ide-conn-reconnect:hover {
+    color: var(--ide-accent, #388bfd) !important;
+    transform: rotate(90deg);
 }
 

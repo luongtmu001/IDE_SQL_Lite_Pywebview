@@ -11,6 +11,7 @@ from typing import Any, Dict, Optional
 from .base import BaseProfilerSession
 from .mssql_profiler import MssqlProfilerSession
 from .postgres_profiler import PostgresProfilerSession
+from .bravo_profiler import BravoBackendProfilerSession
 
 logger = logging.getLogger("luobtool.profiler.service")
 
@@ -39,10 +40,12 @@ class ProfilerService:
             session = MssqlProfilerSession(session_id, conn_config)
         elif db_type in ("postgres", "postgresql", "pgsql"):
             session = PostgresProfilerSession(session_id, conn_config)
+        elif db_type in ("bravo_backend", "backend", "bravo_platform", "redis", "local_backend"):
+            session = BravoBackendProfilerSession(session_id, conn_config)
         else:
             return {
                 "success": False,
-                "error": f"Hệ quản trị '{db_type}' hiện chưa được hỗ trợ Profiler. Chỉ hỗ trợ SQL Server và PostgreSQL.",
+                "error": f"Hệ quản trị '{db_type}' hiện chưa được hỗ trợ Profiler. Chỉ hỗ trợ SQL Server, PostgreSQL và BRAVO Backend.",
             }
 
         if target_window is not None:

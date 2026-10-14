@@ -2,54 +2,9 @@
 <html lang="vi" data-bs-theme="dark">
 
 <head>
-    <style>
-        html, body {
-            background-color: #1e1e1e !important;
-            color: #d4d4d4;
-        }
-        html[data-bs-theme="light"], html[data-bs-theme="light"] body,
-        html[data-bs-theme="win-nt"], html[data-bs-theme="win-nt"] body,
-        html[data-bs-theme="win-xp"], html[data-bs-theme="win-xp"] body {
-            background-color: #f3f3f3 !important;
-            color: #1e1e1e;
-        }
-    </style>
-
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PostgreSQL Event Listener — luoBTool IDE</title>
-
-    <!-- Immediate Theme & Typography Restore -->
-    <script>
-        (function () {
-            try {
-                var saved = localStorage.getItem('ide-theme');
-                if (saved) {
-                    document.documentElement.setAttribute('data-bs-theme', saved);
-                }
-                var fontFam = localStorage.getItem('ide-ui-font-family');
-                var fontSz = localStorage.getItem('ide-ui-font-size');
-                if (fontFam) {
-                    var stack = fontFam;
-                    if (fontFam === 'Segoe UI') stack = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif";
-                    else if (fontFam === 'Inter') stack = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif";
-                    else if (fontFam === 'Roboto') stack = "'Roboto', 'Segoe UI', Arial, sans-serif";
-                    else if (fontFam === 'Arial') stack = "Arial, 'Helvetica Neue', Helvetica, sans-serif";
-                    else if (fontFam === 'Tahoma') stack = "Tahoma, Verdana, 'Segoe UI', sans-serif";
-                    else if (fontFam === 'System UI') stack = "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
-                    document.documentElement.style.setProperty('--ide-ui-font-family', stack);
-                    document.documentElement.style.setProperty('--bs-body-font-family', stack);
-                }
-                if (fontSz) {
-                    var szNum = parseInt(fontSz, 10);
-                    if (!isNaN(szNum) && szNum >= 10 && szNum <= 24) {
-                        document.documentElement.style.setProperty('--ide-ui-font-size', szNum + 'px');
-                        document.documentElement.style.setProperty('--bs-body-font-size', szNum + 'px');
-                    }
-                }
-            } catch (e) { }
-        })();
-    </script>
 
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -60,8 +15,9 @@
     <link rel="stylesheet" href="../static/vendor/bootstrap/bootstrap.min.css">
     <link rel="stylesheet" href="../static/vendor/fontawesome/all.min.css">
     <link rel="stylesheet" href="../static/vendor/tabulator/tabulator.min.css">
+    <link rel="stylesheet" href="../static/vendor/codemirror/codemirror.min.css">
 
-    <!-- IDE Theme Variables & Event Listener Styles -->
+    <!-- IDE Theme Variables & Event Listener Styles (No inline CSS) -->
     <link rel="stylesheet" href="../static/css/theme-variables.css">
     <link rel="stylesheet" href="../static/css/themes.css">
     <link rel="stylesheet" href="../static/css/event-listener.css">
@@ -109,7 +65,7 @@
             <!-- Quick Search -->
             <div class="el-search-wrap">
                 <i class="fa-solid fa-magnifying-glass search-icon"></i>
-                <input type="text" id="elQuickSearch" placeholder="Lọc nhanh (Table, Operation, DB)...">
+                <input type="text" id="elQuickSearch" placeholder="Lọc nhanh (Table, Operation, DB, SQL)...">
             </div>
 
             <!-- Auto-Scroll -->
@@ -158,6 +114,9 @@
                 <button type="button" class="el-preset-btn" data-filter="delete" title="Chỉ hiện DELETE">
                     <i class="fa-solid fa-trash text-danger"></i><span>DELETE</span>
                 </button>
+                <button type="button" class="el-preset-btn" data-filter="slow" title="Chỉ hiện câu lệnh chạy chậm (> 50ms)">
+                    <i class="fa-solid fa-stopwatch text-warning"></i><span>Chậm (&gt; 50ms)</span>
+                </button>
             </div>
 
             <div class="el-chips-container" id="elFilterChips">
@@ -165,9 +124,6 @@
             </div>
         </div>
         <div class="el-filter-bar-right">
-            <button type="button" class="btn btn-sm btn-outline-secondary" id="btnFilterSettings" title="Cấu hình bộ lọc nâng cao">
-                <i class="fa-solid fa-sliders text-info me-1"></i>Bộ lọc
-            </button>
             <button type="button" class="btn btn-sm btn-outline-danger" id="btnClearFilters" title="Xóa toàn bộ bộ lọc">
                 <i class="fa-solid fa-trash me-1"></i>Xóa lọc
             </button>
@@ -194,6 +150,15 @@
                         <i class="fa-solid fa-circle-info"></i>
                         <span>Chi tiết sự kiện</span>
                     </div>
+                    <div class="el-detail-tab" data-tab="command" id="tabCommand">
+                        <i class="fa-solid fa-terminal"></i>
+                        <span>CommandText</span>
+                    </div>
+                    <div class="el-detail-tab" data-tab="params" id="tabParams">
+                        <i class="fa-solid fa-list-check"></i>
+                        <span>Parameters</span>
+                        <span class="badge bg-secondary ms-1 el-param-count-badge" id="elParamCountBadge">0</span>
+                    </div>
                     <div class="el-detail-tab" data-tab="payload" id="tabPayload">
                         <i class="fa-solid fa-code"></i>
                         <span>Payload</span>
@@ -204,14 +169,21 @@
                     </div>
                 </div>
                 <div class="el-detail-actions">
-                    <button type="button" class="btn btn-sm btn-outline-secondary" id="btnCopyEvent" title="Sao chép sự kiện">
+                    <button type="button" class="btn btn-sm btn-outline-warning d-none" id="btnBuildQuery" title="Tự động điền tham số vào SQL">
+                        <i class="fa-solid fa-wand-magic-sparkles me-1"></i>Build Query
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" id="btnFormatSql" title="Định dạng thụt lề câu lệnh SQL">
+                        <i class="fa-solid fa-align-left me-1"></i>Format SQL
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" id="btnCopyEvent" title="Sao chép nội dung">
                         <i class="fa-solid fa-copy me-1"></i>Copy
                     </button>
                 </div>
             </div>
 
-            <!-- Detail Tab: Event Detail -->
+            <!-- Detail Body Container -->
             <div class="el-detail-body" id="elDetailBody">
+                <!-- Tab 1: Event Detail -->
                 <div class="el-modal-tab-content active" data-tab-content="detail" id="detailContent">
                     <div class="el-event-fields" id="eventDetailFields">
                         <span class="field-label">Event ID</span>
@@ -220,6 +192,10 @@
                         <span class="field-value" id="detSource">—</span>
                         <span class="field-label">Event Type</span>
                         <span class="field-value" id="detEventType">—</span>
+                        <span class="field-label">Connection</span>
+                        <span class="field-value" id="detConnection">—</span>
+                        <span class="field-label">User</span>
+                        <span class="field-value" id="detUser">—</span>
                         <span class="field-label">Database</span>
                         <span class="field-value accent" id="detDatabase">—</span>
                         <span class="field-label">Schema</span>
@@ -228,13 +204,15 @@
                         <span class="field-value accent" id="detTable">—</span>
                         <span class="field-label">Operation</span>
                         <span class="field-value" id="detOperation">—</span>
+                        <span class="field-label">Node ID / SPID</span>
+                        <span class="field-value" id="detNodeId">—</span>
                         <span class="field-label">Timestamp</span>
                         <span class="field-value" id="detTimestamp">—</span>
                         <span class="field-label">Transaction ID</span>
                         <span class="field-value" id="detTransactionId">—</span>
                         <span class="field-label">LSN</span>
                         <span class="field-value" id="detLSN">—</span>
-                        <span class="field-label">Latency</span>
+                        <span class="field-label">Duration / Latency</span>
                         <span class="field-value" id="detLatency">—</span>
                     </div>
                     <div class="el-payload-section">
@@ -246,16 +224,45 @@
                     </div>
                 </div>
 
+                <!-- Tab 2: CommandText (CodeMirror SQL Viewer) -->
+                <div class="el-modal-tab-content" data-tab-content="command" id="commandContent">
+                    <div class="el-editor-wrap" id="detailEditorWrap">
+                        <textarea id="detailSqlTextarea" readonly></textarea>
+                    </div>
+                </div>
+
+                <!-- Tab 3: Parameters Table -->
+                <div class="el-modal-tab-content" data-tab-content="params" id="paramsContent">
+                    <div class="el-param-table-wrap">
+                        <table class="table table-sm el-param-table" id="paramsTable">
+                            <thead>
+                                <tr>
+                                    <th class="col-param-name">Parameter</th>
+                                    <th class="col-param-type">DbType</th>
+                                    <th class="col-param-val">Value</th>
+                                </tr>
+                            </thead>
+                            <tbody id="paramsTableBody">
+                                <tr>
+                                    <td colspan="3" class="text-center text-muted py-3">Không có tham số cho câu lệnh này.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Tab 4: Event Payload -->
                 <div class="el-modal-tab-content" data-tab-content="payload" id="payloadContent">
                     <div class="el-payload-section">
                         <div class="el-payload-header">
                             <i class="fa-solid fa-file-code text-warning"></i>
                             <span>Event Payload</span>
                         </div>
-                        <div class="el-payload-area" id="detPayload" style="min-height: 200px;">Chọn một sự kiện để xem payload.</div>
+                        <div class="el-payload-area el-payload-tall" id="detPayload">Chọn một sự kiện để xem payload.</div>
                     </div>
                 </div>
 
+                <!-- Tab 5: Event / Connection Log -->
                 <div class="el-modal-tab-content" data-tab-content="log" id="logContent">
                     <div class="el-log-list" id="elLogList">
                         <div class="el-log-entry">
@@ -276,8 +283,8 @@
             <span id="elStatusMessage">Sẵn sàng. Kết nối và nhấn "Lắng nghe" để theo dõi sự kiện PostgreSQL.</span>
         </div>
         <div class="el-statusbar-item ms-auto">
-            <span class="text-muted">Bộ nhớ đệm: 10,000 events</span>
-            <span class="text-muted" style="margin: 0 6px;">|</span>
+            <span class="text-muted">Bộ nhớ đệm trần: 15,000 events</span>
+            <span class="text-muted el-status-sep">|</span>
             <span class="text-muted">Unified Event Model</span>
         </div>
     </footer>
@@ -313,13 +320,13 @@
                         </select>
                     </div>
 
-                    <button type="button" class="el-btn el-btn-outline-primary" id="btnDiscoverBackend" style="margin-bottom: 14px;">
+                    <button type="button" class="el-btn el-btn-outline-primary el-btn-discover" id="btnDiscoverBackend">
                         <i class="fa-solid fa-magnifying-glass me-1"></i>Quét lại Backend
                     </button>
 
                     <div class="el-form-group">
                         <label class="el-form-label"><i class="fa-solid fa-circle-check me-1 text-success"></i>Trạng thái</label>
-                        <div style="padding: 4px 0; font-size: 12px;">
+                        <div class="el-status-subtext">
                             <span class="text-muted" id="localBackendStatus">Chưa quét. Nhấn "Quét lại Backend" để dò tìm.</span>
                         </div>
                     </div>
@@ -335,16 +342,11 @@
                     </div>
 
                     <!-- Test Connection Results -->
-                    <div class="el-test-results" id="localTestResults">
-                        <div class="el-test-item pending">
-                            <i class="fa-solid fa-circle-notch fa-spin check-icon"></i>
-                            <span>Đang kiểm tra...</span>
-                        </div>
-                    </div>
+                    <div class="el-test-results" id="localTestResults"></div>
 
                     <div class="el-modal-info-text">
                         <i class="fa-solid fa-circle-info"></i>
-                        <span>Phát hiện tự động Backend qua IIS, Windows Service hoặc cấu hình cục bộ trên máy chủ BRAVO.</span>
+                        <span>Phát hiện tự động Backend qua IIS, Windows Service hoặc cổng cấu hình cục bộ trên máy chủ BRAVO.</span>
                     </div>
                 </div>
 
@@ -370,8 +372,8 @@
                         </button>
                     </div>
 
-                    <!-- Import file sub-tab (hidden by default) -->
-                    <div id="subTabImport" style="display: none;">
+                    <!-- Import file sub-tab -->
+                    <div id="subTabImport" class="d-none">
                         <button type="button" class="el-load-config-btn" id="btnImportFile">
                             <i class="fa-solid fa-file-import me-1"></i>Chọn file cấu hình (.json)
                         </button>
@@ -414,7 +416,7 @@
                     </div>
 
                     <!-- Dual Backend: Redis Config (hidden initially) -->
-                    <div id="dualBackendSection" style="display: none;">
+                    <div id="dualBackendSection" class="d-none">
                         <hr class="el-section-divider">
                         <div class="el-form-group">
                             <label class="el-form-label fw-semibold"><i class="fa-solid fa-database me-1 text-danger"></i>Cấu hình Redis Cache</label>
@@ -549,8 +551,10 @@
     <!-- Vendor Scripts -->
     <script src="../static/vendor/bootstrap/bootstrap.bundle.min.js"></script>
     <script src="../static/vendor/tabulator/tabulator.min.js"></script>
+    <script src="../static/vendor/codemirror/codemirror.min.js"></script>
+    <script src="../static/vendor/codemirror/sql.min.js"></script>
 
-    <!-- App Scripts -->
+    <!-- App Scripts (Strictly separate files, no inline JS) -->
     <script src="../static/js/api.js"></script>
     <script src="../static/js/clipboard-bridge.js"></script>
     <script src="../static/js/storage.js"></script>

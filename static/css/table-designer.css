@@ -4,10 +4,18 @@
     background-color: var(--ide-bg-main, #1C1D23);
     color: var(--ide-text-main, #c7cfcf);
     font-family: var(--ide-ui-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif);
-    font-size: calc(var(--ide-ui-font-size, 13px) - 1px);
+    font-size: var(--ide-ui-font-size, 13px);
+    line-height: var(--ide-ui-line-height, 1.45);
     height: 100%;
     display: flex;
     flex-direction: column;
+}
+
+#table-designer-container input,
+#table-designer-container select,
+#table-designer-container textarea,
+#table-designer-container button {
+    font-family: inherit;
 }
 
 /* Table Header Bar (Schema & Editable Table Name) */
@@ -55,7 +63,7 @@
     background: transparent;
     border: 1px solid transparent;
     color: var(--ide-text-main, #c7cfcf);
-    font-size: 11px;
+    font-size: var(--ide-font-sm, calc(var(--ide-ui-font-size, 13px) * 0.88));
     padding: 2px 8px;
     border-radius: 3px;
     display: inline-flex;
@@ -131,7 +139,7 @@
     cursor: pointer;
     color: var(--ide-text-muted, #848c94);
     border-bottom: 2px solid transparent;
-    font-size: 12px;
+    font-size: var(--ide-font-sm, calc(var(--ide-ui-font-size, 13px) * 0.88));
     transition: color 0.15s, border-color 0.15s, background-color 0.15s;
     user-select: none;
 }
@@ -170,7 +178,7 @@
 .td-table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 11px;
+    font-size: var(--ide-ui-font-size, 13px);
     table-layout: auto;
     color: var(--ide-text-main, #c7cfcf);
 }
@@ -178,6 +186,7 @@
 .td-table thead th {
     background: var(--ide-grid-header-bg, #202228);
     color: var(--ide-text-main, #c7cfcf);
+    font-size: var(--ide-font-sm, calc(var(--ide-ui-font-size, 13px) * 0.88));
     font-weight: 600;
     text-align: left;
     padding: 4px 8px;
@@ -194,7 +203,8 @@
     border: 1px solid var(--ide-border, #3c3f41);
     vertical-align: middle;
     white-space: nowrap;
-    height: 24px;
+    height: calc(var(--ide-ui-font-size, 13px) * 1.85);
+    min-height: 24px;
     background: inherit;
     color: inherit;
 }
@@ -236,7 +246,8 @@ html[data-bs-theme="light"] .td-table tbody tr.selected td {
     background: transparent;
     border: 1px solid transparent;
     color: inherit;
-    font-size: 11px;
+    font-family: inherit;
+    font-size: inherit;
     padding: 1px 4px;
     border-radius: 2px;
     outline: none;
@@ -304,7 +315,7 @@ html[data-bs-theme="light"] .td-select:focus {
     display: flex;
     align-items: center;
     margin-bottom: 6px;
-    font-size: 11px;
+    font-size: var(--ide-font-sm, calc(var(--ide-ui-font-size, 13px) * 0.88));
 }
 
 .td-inspector-label {
@@ -325,6 +336,8 @@ html[data-bs-theme="light"] .td-select:focus {
     background: var(--ide-bg-input, #13141A) !important;
     border: 1px solid var(--ide-border, #3c3f41) !important;
     color: var(--ide-text-main, #c7cfcf) !important;
+    font-family: inherit;
+    font-size: inherit;
     border-radius: 3px;
     transition: border-color 0.15s, box-shadow 0.15s;
 }
@@ -359,7 +372,7 @@ html[data-bs-theme="light"] .td-select:focus {
     padding: 3px 10px;
     display: flex;
     gap: 12px;
-    font-size: 11px;
+    font-size: var(--ide-font-sm, calc(var(--ide-ui-font-size, 13px) * 0.88));
     color: var(--ide-text-muted, #848c94);
 }
 
@@ -400,7 +413,7 @@ html[data-bs-theme="light"] .td-select:focus {
     padding: 0 10px;
     display: flex;
     align-items: center;
-    font-size: 11px;
+    font-size: var(--ide-font-xs, calc(var(--ide-ui-font-size, 13px) * 0.78));
     color: var(--ide-text-muted, #848c94);
     user-select: none;
     gap: 20px;
@@ -439,7 +452,7 @@ html[data-bs-theme="light"] .td-select:focus {
     display: flex;
     align-items: center;
     gap: 10px;
-    font-size: 11px;
+    font-size: var(--ide-font-sm, calc(var(--ide-ui-font-size, 13px) * 0.88));
     color: var(--ide-text-muted, #848c94);
     flex-shrink: 0;
 }
@@ -460,7 +473,8 @@ html[data-bs-theme="light"] .td-select:focus {
     border-radius: 4px;
     padding: 4px 0;
     min-width: 170px;
-    font-size: 11px;
+    font-family: var(--ide-ui-font-family, inherit);
+    font-size: var(--ide-font-sm, calc(var(--ide-ui-font-size, 13px) * 0.88));
     color: var(--ide-text-main, #c7cfcf);
     user-select: none;
 }
@@ -491,6 +505,8 @@ html[data-bs-theme="light"] .td-select:focus {
     background-color: var(--ide-bg-modal, #202228);
     border-color: var(--ide-border, #3c3f41);
     color: var(--ide-text-main, #c7cfcf);
+    font-family: var(--ide-ui-font-family, inherit);
+    font-size: var(--ide-ui-font-size, 13px);
 }
 
 #table-design-confirm-modal .modal-header,
@@ -511,7 +527,7 @@ html[data-bs-theme="light"] .td-select:focus {
 
 .td-drag-handle {
     color: var(--ide-text-dim, #5a6068);
-    font-size: 11px;
+    font-size: var(--ide-font-sm, calc(var(--ide-ui-font-size, 13px) * 0.88));
     cursor: grab;
     transition: color 0.15s;
 }
@@ -551,7 +567,7 @@ html[data-bs-theme="light"] .td-select:focus {
     border: 1px dashed var(--ide-border, #3c3f41);
     color: var(--ide-text-muted, #848c94);
     border-radius: 4px;
-    font-size: 11px;
+    font-size: var(--ide-font-sm, calc(var(--ide-ui-font-size, 13px) * 0.88));
     padding: 3px 12px;
     cursor: pointer;
     transition: all 0.15s ease;
@@ -577,7 +593,7 @@ html[data-bs-theme="light"] .td-select:focus {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    font-size: 12px;
+    font-size: var(--ide-font-md, var(--ide-ui-font-size, 13px));
     font-weight: 600;
     margin-bottom: 8px;
 }
@@ -586,7 +602,7 @@ html[data-bs-theme="light"] .td-select:focus {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
     gap: 8px;
-    font-size: 11px;
+    font-size: var(--ide-font-sm, calc(var(--ide-ui-font-size, 13px) * 0.88));
 }
 
 .td-audit-item {
@@ -672,7 +688,7 @@ html[data-bs-theme="light"] .td-select:focus {
     padding: 4px 12px;
     background: var(--ide-bg-toolbar, #202228);
     border-bottom: 1px solid var(--ide-border, #3c3f41);
-    font-size: 11px;
+    font-size: var(--ide-font-sm, calc(var(--ide-ui-font-size, 13px) * 0.88));
     user-select: none;
 }
 

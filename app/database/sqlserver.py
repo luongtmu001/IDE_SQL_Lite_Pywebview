@@ -1,4 +1,5 @@
 import re
+import time
 from app.database.base import DatabaseAdapter
 from app.utils.db_message import clean_db_message, parse_error_details
 
@@ -28,6 +29,85 @@ def serialize_cell(val):
     if isinstance(val, (bytes, bytearray, memoryview)):
         return "0x" + bytes(val).hex()
     return str(val)
+
+def qualify_sql_with_schema(sql: str, schema: str) -> str:
+    """
+    Qualify unqualified table names in DQL/DML queries with target schema
+    to enforce schema isolation in SQL Server (which otherwise falls back to 'dbo').
+    """
+    if not sql or not schema:
+        return sql
+    clean_schema = str(schema).strip().strip("[]")
+    if not clean_schema or clean_schema.lower() in ("dbo", "sys", "information_schema"):
+        return sql
+
+    # Identify CTE names in WITH clause if any
+    cte_names = set()
+    with_match = re.search(r'^\s*WITH\s+([A-Za-z0-9_#$]+|\[[^\]]+\]|"[^"]+")\s+AS\s*\(', sql, re.IGNORECASE)
+    if with_match:
+        raw_cte = with_match.group(1).strip().strip('[]"')
+        cte_names.add(raw_cte.lower())
+        for extra in re.finditer(r',\s*([A-Za-z0-9_#$]+|\[[^\]]+\]|"[^"]+")\s+AS\s*\(', sql, re.IGNORECASE):
+            cte_names.add(extra.group(1).strip().strip('[]"').lower())
+
+    # Protect string literals and comments
+    tokens = []
+    def save_token(m):
+        tokens.append(m.group(0))
+        return f"__SQL_LITERAL_{len(tokens)-1}__"
+
+    pattern_literals = r"('(?:''|[^'])*'|--[^\r\n]*|/\*[\s\S]*?\*/)"
+    masked_sql = re.sub(pattern_literals, save_token, sql)
+
+    built_in_table_funcs = {
+        "string_split", "openjson", "openxml", "openrowset", "opendatasource",
+        "generate_series", "f_table", "fn_get_sql", "values", "select",
+        "sysobjects", "syscolumns", "sysindexes", "sysusers", "syscomments",
+        "sysdatabases", "sysprocesses", "sysfiles"
+    }
+
+    # Match tokens after FROM, JOIN, UPDATE, INTO, TABLE, USING, or DELETE (not followed by FROM)
+    clause_regex = re.compile(
+        r'(\b(?:FROM|JOIN|UPDATE|INTO|TABLE|USING|DELETE(?!\s+FROM))\s+)'
+        r'([A-Za-z0-9_#@$]+|\[[^\]]+\]|"[^"]+")'
+        r'(\s*(?:\.|\())?',
+        re.IGNORECASE
+    )
+
+    def replace_table(match):
+        prefix = match.group(1)
+        raw_table = match.group(2)
+        following = match.group(3) or ""
+
+        # If followed by '.', it's a database or schema prefix: db.schema or schema.table
+        if following.strip().startswith("."):
+            return match.group(0)
+
+        # Temp table, table variable, subquery or numeric
+        if raw_table.startswith("#") or raw_table.startswith("@") or raw_table.isdigit():
+            return match.group(0)
+
+        pure_table = raw_table.strip().strip('[]"')
+        lower_table = pure_table.lower()
+
+        # If it's a CTE or known built-in / system object
+        if lower_table in cte_names or lower_table in built_in_table_funcs:
+            return match.group(0)
+
+        # If followed by '(', check if it's a function call (no space before '(') vs column list
+        if following.strip().startswith("(") and not re.search(r'\bINTO\s+$', prefix, re.IGNORECASE):
+            if not following.startswith(" ") or lower_table.startswith("fn_"):
+                return match.group(0)
+
+        return f"{prefix}[{clean_schema}].[{pure_table}]{following}"
+
+    transformed_sql = clause_regex.sub(replace_table, masked_sql)
+
+    # Restore string literals and comments
+    for i, tok in enumerate(tokens):
+        transformed_sql = transformed_sql.replace(f"__SQL_LITERAL_{i}__", tok)
+
+    return transformed_sql
 
 class SqlServerAdapter(DatabaseAdapter):
     db_type = "sqlserver"
@@ -231,8 +311,10 @@ class SqlServerAdapter(DatabaseAdapter):
             results = []
             messages = []
             errors = []
+            statements = []
             total_affected = 0
             seen_messages = set()
+            stop_on_error = kwargs.get("stop_on_error", True)
 
             def collect_messages():
                 if hasattr(cursor, 'messages') and cursor.messages:
@@ -246,8 +328,15 @@ class SqlServerAdapter(DatabaseAdapter):
             for b_info in batches:
                 if self._is_cancelled:
                     break
+                t_b0 = time.perf_counter()
                 batch_sql = b_info["sql"]
+                if schema and schema.strip().strip("[]").lower() not in ("dbo", "sys", "information_schema"):
+                    batch_sql = qualify_sql_with_schema(batch_sql, schema)
                 b_start = b_info["start_line"]
+                batch_start_res_len = len(results)
+                batch_error_str = None
+                batch_affected_start = total_affected
+
                 try:
                     cursor.execute(batch_sql, params or ())
                     collect_messages()
@@ -255,7 +344,7 @@ class SqlServerAdapter(DatabaseAdapter):
                         if self._is_cancelled:
                             break
                         if cursor.description:
-                            columns = [desc[0] for desc in cursor.description]
+                            columns = [(desc[0] if (desc[0] and str(desc[0]).strip()) else "(No column name)") for desc in cursor.description]
                             fetch_limit = limit if limit is not None else int(self.config.get("max_rows", 1000))
                             res_index = len(results)
 
@@ -269,7 +358,7 @@ class SqlServerAdapter(DatabaseAdapter):
                                 except Exception:
                                     pass
 
-                                rows = []
+                                row_count = 0
                                 first_chunk = True
                                 while True:
                                     if self._is_cancelled:
@@ -277,7 +366,7 @@ class SqlServerAdapter(DatabaseAdapter):
                                     chunk_size = 100 if first_chunk else 500
                                     first_chunk = False
                                     if fetch_limit > 0:
-                                        remaining = fetch_limit - len(rows)
+                                        remaining = fetch_limit - row_count
                                         if remaining <= 0:
                                             break
                                         chunk_size = min(chunk_size, remaining)
@@ -286,7 +375,7 @@ class SqlServerAdapter(DatabaseAdapter):
                                     if not raw_chunk or not isinstance(raw_chunk, (list, tuple)):
                                         break
                                     serialized_chunk = [[serialize_cell(c) for c in r] for r in raw_chunk]
-                                    rows.extend(serialized_chunk)
+                                    row_count += len(serialized_chunk)
 
                                     try:
                                         progress_callback({
@@ -294,23 +383,29 @@ class SqlServerAdapter(DatabaseAdapter):
                                             "result_index": res_index,
                                             "columns": columns,
                                             "rows": serialized_chunk,
-                                            "total_so_far": len(rows),
+                                            "total_so_far": row_count,
                                         })
                                     except Exception:
                                         pass
+
+                                results.append({
+                                    "columns": columns,
+                                    "rows": [],
+                                    "row_count": row_count,
+                                    "streamed": True
+                                })
                             else:
                                 if fetch_limit == 0:
                                     raw_rows = cursor.fetchall()
                                 else:
                                     raw_rows = cursor.fetchmany(fetch_limit)
                                 rows = [[serialize_cell(c) for c in r] for r in (raw_rows or []) if r is not None]
-
-                            row_count = len(rows)
-                            results.append({
-                                "columns": columns,
-                                "rows": rows,
-                                "row_count": row_count
-                            })
+                                row_count = len(rows)
+                                results.append({
+                                    "columns": columns,
+                                    "rows": rows,
+                                    "row_count": row_count
+                                })
                             messages.append(f"({row_count} row(s) returned)")
                         else:
                             rc = cursor.rowcount
@@ -331,6 +426,7 @@ class SqlServerAdapter(DatabaseAdapter):
                                 err_detail = parse_error_details(sql, nextset_err, batch_start_line=b_start)
                                 if err_detail["clean_message"]:
                                     errors.append(err_detail)
+                                    batch_error_str = err_detail["clean_message"]
                                     if err_detail.get("line"):
                                         messages.append(f"Msg: Line {err_detail['line']}: {err_detail['clean_message']}")
                                     else:
@@ -347,10 +443,28 @@ class SqlServerAdapter(DatabaseAdapter):
                         err_detail = parse_error_details(sql, batch_err, batch_start_line=b_start)
                         if err_detail["clean_message"]:
                             errors.append(err_detail)
+                            batch_error_str = err_detail["clean_message"]
                             if err_detail.get("line"):
                                 messages.append(f"Msg: Line {err_detail['line']}: {err_detail['clean_message']}")
                             else:
                                 messages.append(f"Msg: {err_detail['clean_message']}")
+
+                b_ms = round((time.perf_counter() - t_b0) * 1000)
+                b_results = results[batch_start_res_len:]
+                b_first_res = b_results[0] if b_results else {}
+                statements.append({
+                    "index": len(statements) + 1,
+                    "sql": batch_sql,
+                    "start_line": b_start,
+                    "rows": b_first_res.get("rows", []),
+                    "columns": b_first_res.get("columns", []),
+                    "rows_affected": total_affected - batch_affected_start,
+                    "duration_ms": b_ms,
+                    "error": batch_error_str
+                })
+
+                if stop_on_error and batch_error_str:
+                    break
 
             current_db = None
             try:
@@ -370,6 +484,7 @@ class SqlServerAdapter(DatabaseAdapter):
                 "rows": first["rows"],
                 "row_count": first["row_count"],
                 "results": results,
+                "statements": statements,
                 "messages": messages,
                 "errors": errors,
                 "cancelled": self._is_cancelled,
@@ -385,7 +500,8 @@ class SqlServerAdapter(DatabaseAdapter):
     def list_databases(self):
         result = self.execute(
             "SELECT name, state_desc "
-            "FROM sys.databases ORDER BY name"
+            "FROM sys.databases ORDER BY name",
+            limit=0
         )
 
         return [
@@ -399,6 +515,7 @@ class SqlServerAdapter(DatabaseAdapter):
         try:
             result = self.execute(
                 f"SELECT name FROM {db_prefix}sys.schemas ORDER BY name",
+                limit=0,
                 database=database
             )
             rows = result.get("rows", [])
@@ -410,13 +527,14 @@ class SqlServerAdapter(DatabaseAdapter):
         try:
             result = self.execute(
                 "SELECT name FROM sys.schemas ORDER BY name",
+                limit=0,
                 database=database
             )
             return [{"name": row[0]} for row in result.get("rows", [])]
         except Exception:
             return []
 
-    def list_objects(self, database, schema, object_type, search=None):
+    def list_objects(self, database, schema, object_type, search=None, limit=0):
         type_map = {
             "tables": "U",
             "views": "V",
@@ -424,6 +542,8 @@ class SqlServerAdapter(DatabaseAdapter):
             "triggers": "TR",
             "sequences": "SO",
             "sequence": "SO",
+            "synonyms": "SN",
+            "synonym": "SN",
         }
 
         clean_db = str(database).replace("]", "]]") if database else None
@@ -449,7 +569,7 @@ class SqlServerAdapter(DatabaseAdapter):
 
             rows = []
             try:
-                result = self.execute(sql, tuple(params), database=database)
+                result = self.execute(sql, tuple(params), limit=limit, database=database)
                 rows = result.get("rows", [])
             except Exception:
                 rows = []
@@ -473,7 +593,7 @@ class SqlServerAdapter(DatabaseAdapter):
                     fb_params.append(f"%{search}%")
                 fallback_sql += "\n            ORDER BY sq.name"
                 try:
-                    result = self.execute(fallback_sql, tuple(fb_params), database=database)
+                    result = self.execute(fallback_sql, tuple(fb_params), limit=limit, database=database)
                     rows = result.get("rows", [])
                 except Exception:
                     pass
@@ -497,7 +617,7 @@ class SqlServerAdapter(DatabaseAdapter):
                     so_params.append(f"%{search}%")
                 so_sql += "\n            ORDER BY o.name"
                 try:
-                    result = self.execute(so_sql, tuple(so_params), database=database)
+                    result = self.execute(so_sql, tuple(so_params), limit=limit, database=database)
                     rows = result.get("rows", [])
                 except Exception:
                     pass
@@ -531,7 +651,7 @@ class SqlServerAdapter(DatabaseAdapter):
 
             rows = []
             try:
-                result = self.execute(sql, tuple(params), database=database)
+                result = self.execute(sql, tuple(params), limit=limit, database=database)
                 rows = result.get("rows", [])
             except Exception:
                 rows = []
@@ -554,7 +674,7 @@ class SqlServerAdapter(DatabaseAdapter):
                     fb_params.append(f"%{search}%")
                 fallback_sql += "\n            ORDER BY t.name"
                 try:
-                    result = self.execute(fallback_sql, tuple(fb_params), database=database)
+                    result = self.execute(fallback_sql, tuple(fb_params), limit=limit, database=database)
                     rows = result.get("rows", [])
                 except Exception:
                     pass
@@ -564,6 +684,64 @@ class SqlServerAdapter(DatabaseAdapter):
                     "schema": row[0],
                     "name": row[1],
                     "id": row[2],
+                }
+                for row in rows
+            ]
+
+        elif object_type in ("synonyms", "synonym"):
+            clean_schema = schema.strip("[]") if schema else None
+            sql = f"""
+                SELECT s.name, sy.name, sy.object_id, sy.base_object_name
+                FROM {db_prefix}sys.synonyms AS sy
+                JOIN {db_prefix}sys.schemas AS s
+                  ON s.schema_id = sy.schema_id
+                WHERE 1=1
+            """
+            params = []
+            if clean_schema:
+                sql += " AND (s.name = ? OR LOWER(s.name) = LOWER(?))"
+                params.extend([clean_schema, clean_schema])
+            if search:
+                sql += " AND sy.name LIKE ?"
+                params.append(f"%{search}%")
+            sql += "\n            ORDER BY sy.name"
+
+            rows = []
+            try:
+                result = self.execute(sql, tuple(params), limit=limit, database=database)
+                rows = result.get("rows", [])
+            except Exception:
+                rows = []
+
+            # Fallback without db_prefix if database was specified
+            if not rows and database:
+                fallback_sql = """
+                    SELECT s.name, sy.name, sy.object_id, sy.base_object_name
+                    FROM sys.synonyms AS sy
+                    JOIN sys.schemas AS s
+                      ON s.schema_id = sy.schema_id
+                    WHERE 1=1
+                """
+                fb_params = []
+                if clean_schema:
+                    fallback_sql += " AND (s.name = ? OR LOWER(s.name) = LOWER(?))"
+                    fb_params.extend([clean_schema, clean_schema])
+                if search:
+                    fallback_sql += " AND sy.name LIKE ?"
+                    fb_params.append(f"%{search}%")
+                fallback_sql += "\n            ORDER BY sy.name"
+                try:
+                    result = self.execute(fallback_sql, tuple(fb_params), limit=limit, database=database)
+                    rows = result.get("rows", [])
+                except Exception:
+                    pass
+
+            return [
+                {
+                    "schema": row[0],
+                    "name": row[1],
+                    "id": row[2],
+                    "base_object_name": row[3] if len(row) > 3 else None,
                 }
                 for row in rows
             ]
@@ -589,7 +767,7 @@ class SqlServerAdapter(DatabaseAdapter):
             
         sql += "\n            ORDER BY o.name"
 
-        result = self.execute(sql, tuple(params))
+        result = self.execute(sql, tuple(params), limit=limit, database=database)
 
         return [
             {
@@ -602,7 +780,7 @@ class SqlServerAdapter(DatabaseAdapter):
 
     def get_intellisense_objects(self, database=None, schema=None):
         db_prefix = f"[{database}]." if database else ""
-        schema_filter = "AND LOWER(s.name) = LOWER(?)" if schema else ""
+        schema_filter = "AND (LOWER(s.name) = LOWER(?) OR o.type = 'SN')" if schema else ""
         params = [schema] if schema else []
 
         query = f"""
@@ -732,22 +910,28 @@ class SqlServerAdapter(DatabaseAdapter):
             # If no columns found directly, check if table_name is a SYNONYM (common in BRAVO ERP)
             if not items:
                 try:
+                    syn_order = "ORDER BY CASE WHEN LOWER(s.name) = LOWER(?) THEN 0 WHEN LOWER(s.name) = 'dbo' THEN 1 ELSE 2 END" if schema else "ORDER BY CASE WHEN LOWER(s.name) = 'dbo' THEN 0 ELSE 1 END"
+                    syn_params = [table_name, schema] if schema else [table_name]
                     syn_query = f"""
                         SELECT 
+                            PARSENAME(sn.base_object_name, 4) AS target_server,
                             PARSENAME(sn.base_object_name, 3) AS target_db,
                             PARSENAME(sn.base_object_name, 2) AS target_schema,
                             PARSENAME(sn.base_object_name, 1) AS target_table
                         FROM {db_prefix}sys.synonyms sn
                         JOIN {db_prefix}sys.schemas s ON sn.schema_id = s.schema_id
-                        WHERE 1=1 {schema_filter} AND sn.name = ?
+                        WHERE sn.name = ?
+                        {syn_order}
                     """
-                    syn_res = self.execute(syn_query, params, limit=1, database=database)
+                    syn_res = self.execute(syn_query, syn_params, limit=1, database=database)
                     syn_rows = syn_res.get("rows", [])
                     if syn_rows and syn_rows[0]:
-                        target_db, target_sch, target_tbl = syn_rows[0]
+                        target_srv, target_db, target_sch, target_tbl = syn_rows[0]
                         resolved_db = target_db or database
-                        resolved_sch = target_sch or schema
+                        resolved_sch = target_sch or 'dbo'
                         resolved_tbl = target_tbl or table_name
+                        if target_srv and hasattr(self, 'list_remote_columns'):
+                            return self.list_remote_columns(target_srv, resolved_db, resolved_sch, resolved_tbl)
                         return self.get_intellisense_columns(database=resolved_db, schema=resolved_sch, table_name=resolved_tbl)
                 except Exception:
                     pass
@@ -814,6 +998,7 @@ class SqlServerAdapter(DatabaseAdapter):
                   AND tr.name = ?
                 """,
                 (schema, name),
+                database=database,
             )
             if result["rows"]:
                 return result["rows"][0][0]
@@ -827,6 +1012,7 @@ class SqlServerAdapter(DatabaseAdapter):
                 WHERE tr.name = ?
                 """,
                 (name,),
+                database=database,
             )
             if result["rows"]:
                 return result["rows"][0][0]
@@ -931,6 +1117,65 @@ class SqlServerAdapter(DatabaseAdapter):
             if result.get("rows"):
                 return result["rows"][0][0]
 
+        if object_type in ("synonym", "synonyms"):
+            clean_schema = (schema or "dbo").strip("[] \t\r\n")
+            clean_name = (name or "").strip("[] \t\r\n")
+            clean_db = str(database).replace("]", "]]") if database else None
+            db_prefix = f"[{clean_db}]." if clean_db else ""
+
+            syn_sql = f"""
+                SELECT 
+                    'CREATE SYNONYM ' + QUOTENAME(s.name) + '.' + QUOTENAME(sy.name) + CHAR(13) + CHAR(10) +
+                    'FOR ' + sy.base_object_name + ';'
+                FROM {db_prefix}sys.synonyms AS sy
+                JOIN {db_prefix}sys.schemas AS s ON s.schema_id = sy.schema_id
+                WHERE (s.name = ? OR LOWER(s.name) = LOWER(?))
+                  AND (sy.name = ? OR LOWER(sy.name) = LOWER(?))
+            """
+            try:
+                result = self.execute(syn_sql, (clean_schema, clean_schema, clean_name, clean_name), database=database)
+                if result.get("rows") and result["rows"][0][0]:
+                    return result["rows"][0][0]
+            except Exception:
+                pass
+
+            # Fallback without db_prefix
+            fallback_sql = """
+                SELECT 
+                    'CREATE SYNONYM ' + QUOTENAME(s.name) + '.' + QUOTENAME(sy.name) + CHAR(13) + CHAR(10) +
+                    'FOR ' + sy.base_object_name + ';'
+                FROM sys.synonyms AS sy
+                JOIN sys.schemas AS s ON s.schema_id = sy.schema_id
+                WHERE (s.name = ? OR LOWER(s.name) = LOWER(?))
+                  AND (sy.name = ? OR LOWER(sy.name) = LOWER(?))
+            """
+            try:
+                result = self.execute(fallback_sql, (clean_schema, clean_schema, clean_name, clean_name), database=database)
+                if result.get("rows") and result["rows"][0][0]:
+                    return result["rows"][0][0]
+            except Exception:
+                pass
+
+            # Secondary fallback: query raw metadata and construct safely
+            try:
+                raw_sql = f"""
+                    SELECT s.name, sy.name, sy.base_object_name
+                    FROM {db_prefix}sys.synonyms AS sy
+                    JOIN {db_prefix}sys.schemas AS s ON s.schema_id = sy.schema_id
+                    WHERE (s.name = ? OR LOWER(s.name) = LOWER(?))
+                      AND (sy.name = ? OR LOWER(sy.name) = LOWER(?))
+                """
+                res = self.execute(raw_sql, (clean_schema, clean_schema, clean_name, clean_name), database=database)
+                if res.get("rows") and res["rows"][0]:
+                    s_name = res["rows"][0][0]
+                    sy_name = res["rows"][0][1]
+                    base_obj = res["rows"][0][2]
+                    s_quoted = f"[{str(s_name).replace(']', ']]')}]"
+                    sy_quoted = f"[{str(sy_name).replace(']', ']]')}]"
+                    return f"CREATE SYNONYM {s_quoted}.{sy_quoted}\r\nFOR {base_obj};"
+            except Exception:
+                pass
+
         clean_schema = (schema or "dbo").strip("[] \t\r\n")
         clean_name = (name or "").strip("[] \t\r\n")
 
@@ -946,6 +1191,7 @@ class SqlServerAdapter(DatabaseAdapter):
               AND (o.name = ? OR LOWER(o.name) = LOWER(?))
             """,
             (clean_schema, clean_schema, clean_name, clean_name),
+            database=database,
         )
 
         if result.get("rows") and result["rows"][0][0]:
@@ -961,6 +1207,7 @@ class SqlServerAdapter(DatabaseAdapter):
             WHERE (o.name = ? OR LOWER(o.name) = LOWER(?))
             """,
             (clean_name, clean_name),
+            database=database,
         )
         return fallback_res["rows"][0][0] if fallback_res.get("rows") else None
 
@@ -983,7 +1230,7 @@ class SqlServerAdapter(DatabaseAdapter):
             JOIN {db_prefix}sys.schemas s ON s.schema_id = o.schema_id
             WHERE s.name = ? AND o.name = ?
         """
-        obj_res = self.execute(obj_sql, (schema, name))
+        obj_res = self.execute(obj_sql, (schema, name), limit=1, database=database)
         if not obj_res["rows"]:
             return []
             
@@ -997,7 +1244,7 @@ class SqlServerAdapter(DatabaseAdapter):
                 WHERE c.object_id = ?
                 ORDER BY c.column_id
             """
-            res = self.execute(sql, (object_id,))
+            res = self.execute(sql, (object_id,), limit=0, database=database)
             for r in res["rows"]:
                 items.append({"name": r[0], "type": r[1], "length": r[2], "nullable": r[3]})
                 
@@ -1011,7 +1258,7 @@ class SqlServerAdapter(DatabaseAdapter):
                 FROM {db_prefix}sys.foreign_keys f
                 WHERE f.parent_object_id = ?
             """
-            res = self.execute(sql, (object_id, object_id))
+            res = self.execute(sql, (object_id, object_id), limit=0, database=database)
             for r in res["rows"]:
                 items.append({"name": r[0], "type": r[1]})
                 
@@ -1021,7 +1268,7 @@ class SqlServerAdapter(DatabaseAdapter):
                 UNION ALL
                 SELECT d.name, 'DEFAULT' as type FROM {db_prefix}sys.default_constraints d WHERE d.parent_object_id = ?
             """
-            res = self.execute(sql, (object_id, object_id))
+            res = self.execute(sql, (object_id, object_id), limit=0, database=database)
             for r in res["rows"]:
                 items.append({"name": r[0], "type": r[1]})
                 
@@ -1029,7 +1276,7 @@ class SqlServerAdapter(DatabaseAdapter):
             sql = f"""
                 SELECT tr.name FROM {db_prefix}sys.triggers tr WHERE tr.parent_id = ?
             """
-            res = self.execute(sql, (object_id,))
+            res = self.execute(sql, (object_id,), limit=0, database=database)
             for r in res["rows"]:
                 items.append({"name": r[0]})
                 
@@ -1037,7 +1284,7 @@ class SqlServerAdapter(DatabaseAdapter):
             sql = f"""
                 SELECT i.name FROM {db_prefix}sys.indexes i WHERE i.object_id = ? AND i.type > 0
             """
-            res = self.execute(sql, (object_id,))
+            res = self.execute(sql, (object_id,), limit=0, database=database)
             for r in res["rows"]:
                 if r[0]:  # sometimes nameless indexes exist
                     items.append({"name": r[0]})
@@ -1049,7 +1296,7 @@ class SqlServerAdapter(DatabaseAdapter):
                 WHERE p.object_id = ?
                 ORDER BY p.parameter_id
             """
-            res = self.execute(sql, (object_id,))
+            res = self.execute(sql, (object_id,), limit=0, database=database)
             for r in res["rows"]:
                 name_val = r[0] if r[0] else 'Return Value'
                 items.append({"name": name_val, "type": r[1]})
@@ -1067,7 +1314,7 @@ class SqlServerAdapter(DatabaseAdapter):
                 WHERE t.is_user_defined = 1 
                 ORDER BY s.name, t.name
             """
-            res = self.execute(udt_sql, database=database)
+            res = self.execute(udt_sql, limit=0, database=database)
             if res and res.get("rows"):
                 user_types = []
                 for r in res["rows"]:
@@ -1149,7 +1396,7 @@ class SqlServerAdapter(DatabaseAdapter):
             WHERE c.object_id = ?
             ORDER BY c.column_id
         """
-        col_res = self.execute(col_sql, (object_id, object_id), database=database)
+        col_res = self.execute(col_sql, (object_id, object_id), limit=0, database=database)
         columns = []
         for r in col_res.get("rows", []):
             is_udt = bool(r[14]) if len(r) > 14 else False
@@ -1225,7 +1472,7 @@ class SqlServerAdapter(DatabaseAdapter):
             WHERE i.object_id = ? AND i.type > 0 AND i.is_primary_key = 0 AND i.is_unique_constraint = 0
             ORDER BY i.index_id, ic.key_ordinal
         """
-        idx_res = self.execute(idx_sql, (object_id,), database=database)
+        idx_res = self.execute(idx_sql, (object_id,), limit=0, database=database)
         idx_map = {}
         for r in idx_res.get("rows", []):
             iname = r[1]
@@ -1271,7 +1518,7 @@ class SqlServerAdapter(DatabaseAdapter):
             WHERE fk.parent_object_id = ?
             ORDER BY fk.name, fkc.constraint_column_id
         """
-        fk_res = self.execute(fk_sql, (object_id,), database=database)
+        fk_res = self.execute(fk_sql, (object_id,), limit=0, database=database)
         fk_map = {}
         for r in fk_res.get("rows", []):
             fk_name = r[0]
@@ -1308,7 +1555,7 @@ class SqlServerAdapter(DatabaseAdapter):
             WHERE kc.parent_object_id = ? AND kc.type = 'UQ'
             ORDER BY kc.name, ic.key_ordinal
         """
-        uq_res = self.execute(uq_sql, (object_id,), database=database)
+        uq_res = self.execute(uq_sql, (object_id,), limit=0, database=database)
         uq_map = {}
         for r in uq_res.get("rows", []):
             uq_name = r[0]
@@ -1333,7 +1580,7 @@ class SqlServerAdapter(DatabaseAdapter):
             WHERE cc.parent_object_id = ?
             ORDER BY cc.name
         """
-        chk_res = self.execute(chk_sql, (object_id,), database=database)
+        chk_res = self.execute(chk_sql, (object_id,), limit=0, database=database)
         checks = []
         for r in chk_res.get("rows", []):
             chk_def = (r[1] or "").strip()
@@ -1362,7 +1609,7 @@ class SqlServerAdapter(DatabaseAdapter):
             WHERE tr.parent_id = ?
             ORDER BY tr.name
         """
-        trig_res = self.execute(trig_sql, (object_id,), database=database)
+        trig_res = self.execute(trig_sql, (object_id,), limit=0, database=database)
         triggers = []
         for r in trig_res.get("rows", []):
             triggers.append({
@@ -1488,7 +1735,7 @@ class SqlServerAdapter(DatabaseAdapter):
         sql += " ORDER BY fk.name, fkc.constraint_column_id"
 
         try:
-            res = self.execute(sql, tuple(params) if params else None, database=database)
+            res = self.execute(sql, tuple(params) if params else None, limit=0, database=database)
             fk_map = {}
             for r in res.get("rows", []):
                 c_name, f_sch, f_tbl, f_col, t_sch, t_tbl, t_col, _ = r
@@ -1509,3 +1756,289 @@ class SqlServerAdapter(DatabaseAdapter):
             return list(fk_map.values())
         except Exception:
             return []
+
+    def list_linked_servers(self):
+        sql = """
+            SELECT 
+                server_id,
+                name AS [LinkedServerName],
+                product AS [Product],
+                provider AS [Provider],
+                data_source AS [DataSource_IP_Or_Instance],
+                modify_date AS [ModifiedDate],
+                is_linked AS [IsLinked]
+            FROM sys.servers
+            WHERE is_linked = 1
+            ORDER BY name
+        """
+        try:
+            res = self.execute(sql, limit=0)
+            results = []
+            for row in res.get("rows", []):
+                if isinstance(row, dict):
+                    s_id = row.get("server_id")
+                    s_name = row.get("LinkedServerName") or row.get("name")
+                    s_prod = row.get("Product") or row.get("product")
+                    s_prov = row.get("Provider") or row.get("provider")
+                    s_ds = row.get("DataSource_IP_Or_Instance") or row.get("data_source")
+                    s_mod = row.get("ModifiedDate") or row.get("modify_date")
+                    s_link = row.get("IsLinked", row.get("is_linked", True))
+                elif len(row) >= 7:
+                    s_id, s_name, s_prod, s_prov, s_ds, s_mod, s_link = row[0], row[1], row[2], row[3], row[4], row[5], row[6]
+                elif len(row) == 5:
+                    s_id, s_name, s_prod, s_prov, s_ds, s_mod, s_link = 1, row[0], row[1], row[2], row[3], None, row[4]
+                else:
+                    s_id, s_name, s_prod, s_prov, s_ds, s_mod, s_link = None, row[0] if len(row) > 0 else "", "", "", "", None, True
+
+                results.append({
+                    "server_id": s_id,
+                    "name": s_name,
+                    "LinkedServerName": s_name,
+                    "product": s_prod or "",
+                    "Product": s_prod or "",
+                    "provider": s_prov or "",
+                    "Provider": s_prov or "",
+                    "data_source": s_ds or "",
+                    "DataSource_IP_Or_Instance": s_ds or "",
+                    "modify_date": str(s_mod) if s_mod else None,
+                    "ModifiedDate": str(s_mod) if s_mod else None,
+                    "is_linked": bool(s_link),
+                    "IsLinked": bool(s_link)
+                })
+            return results
+        except Exception as exc:
+            import logging
+            logging.getLogger(__name__).warning("Failed to list linked servers: %s", exc)
+            return []
+
+    def test_linked_server(self, server_name):
+        if not server_name:
+            return {"success": False, "error": "Server name is required"}
+        clean_server = server_name.strip("[] \t\r\n")
+        try:
+            self.execute("EXEC sp_testlinkedserver @servername = ?", (clean_server,))
+            return {"success": True, "message": f"Connection to linked server '{clean_server}' was successful."}
+        except Exception as exc:
+            return {"success": False, "error": str(exc)}
+
+    def get_linked_server_script(self, server_name, mode="create"):
+        if not server_name:
+            return ""
+        clean_server = server_name.strip("[] \t\r\n")
+        sql_info = """
+            SELECT 
+                s.server_id, s.name, s.product, s.provider, s.data_source, 
+                s.location, s.provider_string, s.catalog, s.is_linked
+            FROM sys.servers s
+            WHERE s.name = ?
+        """
+        info = {}
+        try:
+            res = self.execute(sql_info, (clean_server,), limit=1)
+            rows = res.get("rows", [])
+            if rows:
+                r = rows[0]
+                info = {
+                    "server_id": r[0],
+                    "name": r[1],
+                    "product": r[2] or "",
+                    "provider": r[3] or "",
+                    "data_source": r[4] or "",
+                    "location": r[5] or "",
+                    "provider_string": r[6] or "",
+                    "catalog": r[7] or "",
+                    "is_linked": bool(r[8]) if len(r) > 8 else True,
+                }
+        except Exception:
+            pass
+
+        srv_name = info.get("name") or clean_server
+        srv_product = info.get("product") or "SQL Server"
+        srv_provider = info.get("provider") or "SQLNCLI"
+        srv_datasource = info.get("data_source") or ""
+        srv_location = info.get("location") or ""
+        srv_provstring = info.get("provider_string") or ""
+        srv_catalog = info.get("catalog") or ""
+
+        drop_script = f"""-- =========================================================================
+-- Script: Drop Linked Server [{srv_name}]
+-- =========================================================================
+USE [master]
+GO
+
+IF EXISTS (SELECT 1 FROM sys.servers WHERE name = N'{srv_name}' AND is_linked = 1)
+BEGIN
+    EXEC master.dbo.sp_dropserver @server = N'{srv_name}', @droplogins = 'droplogins';
+    PRINT 'Linked Server [{srv_name}] dropped successfully.';
+END
+GO
+"""
+
+        create_lines = [
+            f"-- =========================================================================",
+            f"-- Script: Create Linked Server [{srv_name}]",
+            f"-- =========================================================================",
+            f"USE [master]",
+            f"GO",
+            f"",
+            f"EXEC master.dbo.sp_addlinkedserver",
+            f"    @server = N'{srv_name}',",
+            f"    @srvproduct = N'{srv_product}',",
+            f"    @provider = N'{srv_provider}'"
+        ]
+        if srv_datasource:
+            create_lines.append(f"    ,@datasrc = N'{srv_datasource}'")
+        if srv_location:
+            create_lines.append(f"    ,@location = N'{srv_location}'")
+        if srv_provstring:
+            create_lines.append(f"    ,@provstr = N'{srv_provstring}'")
+        if srv_catalog:
+            create_lines.append(f"    ,@catalog = N'{srv_catalog}'")
+        create_lines.append("GO\n")
+
+        create_lines.extend([
+            f"EXEC master.dbo.sp_serveroption @server = N'{srv_name}', @optname = N'data access', @optvalue = N'true';",
+            f"GO",
+            f"EXEC master.dbo.sp_serveroption @server = N'{srv_name}', @optname = N'rpc', @optvalue = N'true';",
+            f"GO",
+            f"EXEC master.dbo.sp_serveroption @server = N'{srv_name}', @optname = N'rpc out', @optvalue = N'true';",
+            f"GO",
+            f"EXEC master.dbo.sp_serveroption @server = N'{srv_name}', @optname = N'use remote collation', @optvalue = N'true';",
+            f"GO"
+        ])
+        create_script = "\n".join(create_lines)
+
+        mode_clean = (mode or "create").lower()
+        if mode_clean in ("drop", "drop_to"):
+            return drop_script
+        elif mode_clean in ("drop_and_create", "drop_create", "drop_and_create_to"):
+            return drop_script + "\n" + create_script
+        else:
+            return create_script
+
+    def drop_linked_server(self, server_name):
+        if not server_name:
+            return {"success": False, "error": "Server name is required"}
+        clean_server = server_name.strip("[] \t\r\n")
+        try:
+            self.execute("EXEC master.dbo.sp_dropserver @server = ?, @droplogins = 'droplogins'", (clean_server,))
+            return {"success": True, "message": f"Linked Server '{clean_server}' was dropped successfully."}
+        except Exception as exc:
+            return {"success": False, "error": str(exc)}
+
+    def list_remote_databases(self, server):
+        if not server:
+            return []
+        clean_server = server.strip("[] \t\r\n")
+        try:
+            res = self.execute("EXEC sp_catalogs @server_name = ?", (clean_server,), limit=0)
+            items = []
+            for row in res.get("rows", []):
+                if row and row[0]:
+                    items.append({"name": row[0]})
+            return items
+        except Exception:
+            return []
+
+    def list_remote_schemas(self, server, database=None):
+        if not server:
+            return []
+        clean_server = server.strip("[] \t\r\n")
+        clean_db = database.strip("[] \t\r\n") if database else None
+        try:
+            params = [clean_server]
+            sql = "EXEC sp_tables_ex @table_server = ?"
+            if clean_db:
+                sql += ", @table_catalog = ?"
+                params.append(clean_db)
+            res = self.execute(sql, tuple(params), limit=0)
+            schemas = set()
+            for row in res.get("rows", []):
+                if len(row) > 1 and row[1]:
+                    schemas.add(row[1])
+            if not schemas:
+                schemas.add("dbo")
+            return [{"name": s} for s in sorted(schemas)]
+        except Exception:
+            return [{"name": "dbo"}]
+
+    def list_remote_objects(self, server, database=None, schema=None):
+        if not server:
+            return []
+        clean_server = server.strip("[] \t\r\n")
+        clean_db = database.strip("[] \t\r\n") if database else None
+        clean_sch = schema.strip("[] \t\r\n") if schema else None
+        try:
+            params = [clean_server]
+            sql = "EXEC sp_tables_ex @table_server = ?"
+            if clean_db:
+                sql += ", @table_catalog = ?"
+                params.append(clean_db)
+            if clean_sch:
+                if not clean_db:
+                    sql += ", @table_catalog = NULL"
+                sql += ", @table_schema = ?"
+                params.append(clean_sch)
+            res = self.execute(sql, tuple(params), limit=0)
+            items = []
+            seen = set()
+            for row in res.get("rows", []):
+                if len(row) >= 3 and row[2]:
+                    t_cat = row[0] if len(row) > 0 else clean_db
+                    t_sch = row[1] if len(row) > 1 else (clean_sch or "dbo")
+                    t_name = row[2]
+                    t_type = (row[3] if len(row) > 3 else "TABLE") or "TABLE"
+                    type_str = "remote_table" if "VIEW" not in t_type.upper() else "remote_view"
+                    key = (t_name.lower(), (t_sch or "").lower())
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    items.append({
+                        "name": t_name,
+                        "schema": t_sch or "dbo",
+                        "database": t_cat or clean_db,
+                        "server": clean_server,
+                        "type": type_str,
+                        "sourceType": "REMOTE_TABLE"
+                    })
+            return items
+        except Exception:
+            return []
+
+    def list_remote_columns(self, server, database=None, schema=None, table_name=None, table=None):
+        target_tbl = table_name or table
+        if not server or not target_tbl:
+            return []
+        clean_server = server.strip("[] \t\r\n")
+        clean_db = database.strip("[] \t\r\n") if database else None
+        clean_sch = schema.strip("[] \t\r\n") if schema else None
+        clean_tbl = target_tbl.strip("[] \t\r\n")
+        try:
+            sql = "EXEC sp_columns_ex @table_server = ?"
+            params = [clean_server]
+            if clean_tbl:
+                sql += ", @table_name = ?"
+                params.append(clean_tbl)
+            if clean_sch:
+                sql += ", @table_schema = ?"
+                params.append(clean_sch)
+            if clean_db:
+                sql += ", @table_catalog = ?"
+                params.append(clean_db)
+            res = self.execute(sql, tuple(params), limit=0)
+            items = []
+            for row in res.get("rows", []):
+                if len(row) > 3 and row[3]:
+                    col_name = str(row[3])
+                    type_name = str(row[5] or "").lower() if len(row) > 5 else "varchar"
+                    nullable = bool(row[10] == 1) if len(row) > 10 else True
+                    items.append({
+                        "name": col_name,
+                        "data_type": type_name,
+                        "is_nullable": nullable,
+                        "is_pk": False
+                    })
+            return items
+        except Exception:
+            return []
+

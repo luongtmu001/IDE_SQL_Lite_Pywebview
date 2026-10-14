@@ -27,6 +27,7 @@ html[data-bs-theme="dark"] {
     --ide-bg-toolbar:           #202228;
     --ide-bg-editor:            #18191E;
     --ide-bg-panel:             #1C1D23;
+    --ide-bg-panel-header:      var(--ide-bg-toolbar, #202228);
     --ide-bg-result:            #1C1D23;
     --ide-bg-input:             #13141A;
     --ide-bg-modal:             #202228;
@@ -108,6 +109,7 @@ html[data-bs-theme="light"] {
     --ide-bg-toolbar:           #dcdcdc;
     --ide-bg-editor:            #ffffff;
     --ide-bg-panel:             #f5f5f5;
+    --ide-bg-panel-header:      #dcdcdc;
     --ide-bg-result:            #f5f5f5;
     --ide-bg-input:             #ffffff;
     --ide-bg-modal:             #ffffff;
@@ -203,6 +205,7 @@ html[data-bs-theme="light"] .CodeMirror-activeline-background {
 
 /* ── Typography & Component Font Variables ───────────────────────────────────── */
 :root {
+    --ide-text-color:            var(--ide-text-main);
     --ide-editor-font-family:    'Consolas', 'JetBrains Mono', 'Fira Code', monospace;
     --ide-editor-font-size:      14px;
     --ide-grid-font-family:      'Segoe UI', -apple-system, BlinkMacSystemFont, Arial, sans-serif;

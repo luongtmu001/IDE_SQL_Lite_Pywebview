@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="vi" data-bs-theme="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Query History — luoBTool IDE</title>
+
+    <!-- Immediate Theme & Font Restore (Khôi phục theme ngay lập tức để tránh nhấp nháy giao diện) -->
+    <script>
+        (function () {
+            try {
+                var savedTheme = localStorage.getItem('ide-theme');
+                if (!savedTheme) {
+                    var stRaw = localStorage.getItem('ide-settings');
+                    if (stRaw) {
+                        try {
+                            var stObj = JSON.parse(stRaw);
+                            savedTheme = stObj.appearance?.theme || stObj.theme;
+                        } catch (_) {}
+                    }
+                }
+                if (savedTheme) {
+                    document.documentElement.setAttribute('data-bs-theme', savedTheme);
+                }
+                var fontFam = localStorage.getItem('ide-ui-font-family');
+                var fontSz = localStorage.getItem('ide-ui-font-size');
+                if (fontFam) {
+                    var stack = fontFam;
+                    if (fontFam === 'Segoe UI') stack = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif";
+                    else if (fontFam === 'Inter') stack = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif";
+                    else if (fontFam === 'Roboto') stack = "'Roboto', 'Segoe UI', Arial, sans-serif";
+                    document.documentElement.style.setProperty('--ide-ui-font-family', stack);
+                }
+                if (fontSz) {
+                    var szNum = parseInt(fontSz, 10);
+                    if (!isNaN(szNum) && szNum >= 10 && szNum <= 24) {
+                        document.documentElement.style.setProperty('--ide-ui-font-size', szNum + 'px');
+                    }
+                }
+            } catch (_) { }
+        })();
+    </script>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Roboto:wght@400;500;700&display=swap"
+        rel="stylesheet">
+
+    <!-- Vendor CSS -->
+    <link rel="stylesheet" href="../static/vendor/bootstrap/bootstrap.min.css">
+    <link rel="stylesheet" href="../static/vendor/fontawesome/all.min.css">
+    <!-- Monaco Editor CSS -->
+    <link rel="stylesheet" href="../static/vendor/monaco/vs/editor/editor.main.css">
+
+    <!-- IDE Project Theme Variables & Dedicated Styles -->
+    <link rel="stylesheet" href="../static/css/theme-variables.css">
+    <link rel="stylesheet" href="../static/css/themes.css">
+    <link rel="stylesheet" href="../static/css/query-history.css">
+</head>
+
+<body>
+    <div class="qh-container">
+
+        <!-- ═══════════════ Top Window Toolbar ═══════════════ -->
+        <header class="qh-toolbar" id="qhToolbar">
+            <div class="qh-toolbar-left">
+                <div class="qh-brand">
+                    <i class="fa-solid fa-clock-rotate-left"></i>
+                    <span>Query History</span>
+                    <span class="qh-badge-sub">F5 Execution Logger</span>
+                </div>
+            </div>
+
+            <div class="qh-toolbar-center">
+                <!-- Search bar -->
+                <div class="qh-search-wrap">
+                    <i class="fa-solid fa-magnifying-glass qh-search-icon"></i>
+                    <input type="text" class="qh-search-input" id="qhSearchInput"
+                        placeholder="Tìm theo tên file, server, database, SQL...">
+                    <button type="button" class="qh-search-clear" id="qhSearchClear" title="Xóa tìm kiếm">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+
+                <!-- Action buttons -->
+                <button type="button" class="qh-btn-tool" id="btnFilterFav"
+                    title="Chỉ hiển thị các document đã gắn sao yêu thích">
+                    <i class="fa-solid fa-star text-warning"></i>
+                    <span>Favorites</span>
+                </button>
+                <button type="button" class="qh-btn-tool" id="btnAdvancedFilter" title="Bộ lọc nâng cao (Server, Database, Thời gian, Tag)">
+                    <i class="fa-solid fa-filter"></i>
+                    <span>Lọc</span>
+                    <span class="qh-badge-filter-count d-none" id="qhFilterBadge">0</span>
+                </button>
+                <button type="button" class="qh-btn-tool" id="btnExportHistory" title="Xuất lịch sử thành file JSON">
+                    <i class="fa-solid fa-file-export"></i>
+                    <span>Xuất</span>
+                </button>
+                <button type="button" class="qh-btn-tool" id="btnImportHistory" title="Nhập lịch sử từ file JSON">
+                    <i class="fa-solid fa-file-import"></i>
+                    <span>Nhập</span>
+                </button>
+                <input type="file" id="qhImportFileInput" accept=".json" style="display: none;">
+                <button type="button" class="qh-btn-tool" id="btnRefresh" title="Làm mới danh sách">
+                    <i class="fa-solid fa-arrows-rotate"></i>
+                    <span>Làm mới</span>
+                </button>
+            </div>
+
+            <div class="qh-toolbar-right">
+            </div>
+        </header>
+
+        <!-- ═══════════════ Filter Drawer (Phase 5) ═══════════════ -->
+        <div class="qh-filter-drawer d-none" id="qhFilterDrawer">
+            <div class="qh-filter-row">
+                <div class="qh-filter-item">
+                    <label for="qhFilterServer"><i class="fa-solid fa-server me-1"></i>Server:</label>
+                    <select id="qhFilterServer" class="qh-select-sm">
+                        <option value="">Tất cả Server</option>
+                    </select>
+                </div>
+                <div class="qh-filter-item">
+                    <label for="qhFilterDatabase"><i class="fa-solid fa-database me-1"></i>Database:</label>
+                    <select id="qhFilterDatabase" class="qh-select-sm">
+                        <option value="">Tất cả Database</option>
+                    </select>
+                </div>
+                <div class="qh-filter-item">
+                    <label for="qhFilterDateRange"><i class="fa-regular fa-calendar me-1"></i>Thời gian:</label>
+                    <select id="qhFilterDateRange" class="qh-select-sm">
+                        <option value="all">Tất cả thời gian</option>
+                        <option value="today">Hôm nay</option>
+                        <option value="yesterday">Hôm qua</option>
+                        <option value="7days">7 ngày qua</option>
+                        <option value="30days">30 ngày qua</option>
+                    </select>
+                </div>
+                <div class="qh-filter-item">
+                    <label for="qhFilterTag"><i class="fa-solid fa-tag me-1"></i>Nhãn (Tag):</label>
+                    <select id="qhFilterTag" class="qh-select-sm">
+                        <option value="">Tất cả nhãn</option>
+                    </select>
+                </div>
+                <div class="qh-filter-actions-bar">
+                    <button type="button" class="qh-btn-filter-reset" id="btnResetFilters" title="Đặt lại toàn bộ bộ lọc">
+                        <i class="fa-solid fa-rotate-left me-1"></i>Đặt lại
+                    </button>
+                    <button type="button" class="qh-btn-filter-close" id="btnCloseFilterDrawer" title="Đóng bộ lọc">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ═══════════════ Main Workspace ═══════════════ -->
+        <main class="qh-workspace" id="qhWorkspace">
+
+            <!-- ── Left Column (Documents + History Entries) ── -->
+            <div class="qh-left-col" id="qhLeftCol">
+
+                <!-- 1. Top-Left: Recent Queries (Documents) -->
+                <section class="qh-docs-panel" id="qhDocsPanel">
+                    <div class="qh-panel-header">
+                        <div class="qh-panel-header-left">
+                            <i class="fa-solid fa-folder-tree"></i>
+                            <span>Recent Queries</span>
+                            <span class="qh-count-pill" id="qhDocCount">0 files</span>
+                        </div>
+                        <div class="qh-panel-actions">
+                            <button type="button" class="qh-icon-btn" id="btnOpenContainingFolder"
+                                title="Mở thư mục chứa file">
+                                <i class="fa-regular fa-folder-open"></i>
+                            </button>
+                            <button type="button" class="qh-icon-btn" id="btnClearHistory"
+                                title="Xóa lịch sử của document đang chọn">
+                                <i class="fa-regular fa-trash-can"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Documents Tree Scroll -->
+                    <div class="qh-tree-scroll" id="qhTreeScroll">
+                        <!-- Rendered by query-history.js -->
+                    </div>
+                </section>
+
+                <!-- Horizontal Splitter -->
+                <div class="qh-h-resizer" id="qhHResizer" title="Kéo để chỉnh độ cao danh sách History"></div>
+
+                <!-- 2. Bottom-Left: History Entries of Selected Doc -->
+                <section class="qh-entries-panel" id="qhEntriesPanel">
+                    <div class="qh-panel-header">
+                        <div class="qh-panel-header-left text-truncate">
+                            <i class="fa-solid fa-list-ul text-info"></i>
+                            <span>History for: </span>
+                            <strong class="text-white text-truncate ms-1" id="qhEntriesDocTitle">SQLQuery1.sql</strong>
+                        </div>
+                        <span class="qh-count-pill" id="qhEntryCountPill">0 lần</span>
+                    </div>
+
+                    <!-- Fast filter pills -->
+                    <div class="qh-entries-filter-bar">
+                        <button type="button" class="qh-pill-btn active" data-filter="all">Tất cả</button>
+                        <button type="button" class="qh-pill-btn" data-filter="ok"><i
+                                class="fa-solid fa-check text-success me-1"></i>Thành công</button>
+                        <button type="button" class="qh-pill-btn" data-filter="error"><i
+                                class="fa-solid fa-xmark text-danger me-1"></i>Lỗi</button>
+                        <button type="button" class="qh-pill-btn" data-filter="selection"><i
+                                class="fa-solid fa-i-cursor me-1"></i>Selection</button>
+                        <button type="button" class="qh-pill-btn" data-filter="favorite" id="btnEntryFavFilter"><i
+                                class="fa-solid fa-star text-warning me-1"></i>⭐ Yêu thích</button>
+                    </div>
+
+                    <!-- History Entries Scroll -->
+                    <div class="qh-entries-scroll" id="qhEntriesScroll">
+                        <!-- Rendered by query-history.js -->
+                    </div>
+                </section>
+
+            </div>
+
+            <!-- Vertical Splitter -->
+            <div class="qh-v-resizer" id="qhVResizer" title="Kéo để chỉnh tỷ lệ chiều rộng bảng Code Preview"></div>
+
+            <!-- ── Right Column: SQL Preview & Details ── -->
+            <section class="qh-preview-panel" id="qhPreviewPanel">
+
+                <!-- Preview Header -->
+                <header class="qh-preview-header">
+                    <div class="qh-preview-header-left">
+                        <i class="fa-solid fa-file-code text-warning"></i>
+                        <span class="qh-preview-title" id="qhPreviewTitle">SQLQuery1.sql</span>
+                        <span class="qh-badge qh-badge-ok" id="qhPreviewStatusPill"><i
+                                class="fa-solid fa-circle-check me-1"></i>Thành công</span>
+                        <span class="qh-preview-timestamp" id="qhPreviewTimestamp">21/09/2026 23:43:12</span>
+                        <button type="button" class="qh-btn-tool qh-preview-star-btn ms-2" id="btnToggleEntryFav" title="Đánh dấu yêu thích lần chạy này">
+                            <i class="fa-regular fa-star text-muted" id="iconEntryFav"></i>
+                        </button>
+                    </div>
+
+                    <div class="qh-preview-header-right">
+                        <div class="qh-diff-menu-wrap position-relative">
+                            <button type="button" class="qh-btn-tool" id="btnDiffMenu" title="So sánh mã nguồn (Diff)">
+                                <i class="fa-solid fa-code-compare text-info"></i>
+                                <span>Diff</span>
+                                <i class="fa-solid fa-caret-down ms-1 text-muted" style="font-size: 10px;"></i>
+                            </button>
+                            <div class="qh-diff-dropdown d-none" id="qhDiffDropdown">
+                                <div class="qh-diff-item" id="btnDiffPrev">
+                                    <i class="fa-solid fa-clock-rotate-left me-2 text-warning"></i>
+                                    <span>So sánh với bản trước</span>
+                                </div>
+                                <div class="qh-diff-item" id="btnDiffActive">
+                                    <i class="fa-solid fa-file-pen me-2 text-info"></i>
+                                    <span>So sánh với Editor chính</span>
+                                </div>
+                                <div class="qh-diff-item" id="btnDiffPushMain">
+                                    <i class="fa-solid fa-arrow-up-right-from-square me-2 text-success"></i>
+                                    <span>Mở Diff ở Editor chính</span>
+                                </div>
+                            </div>
+                        </div>
+                        <button type="button" class="qh-btn-tool" id="btnHeaderFind" title="Tìm kiếm trong SQL (Ctrl+F)">
+                            <i class="fa-solid fa-magnifying-glass"></i>
+                            <span>Tìm (Ctrl+F)</span>
+                        </button>
+                        <button type="button" class="qh-btn-tool" id="btnToggleFold" title="Thu gọn / Mở rộng khối code (Collapse / Expand All)">
+                            <i class="fa-solid fa-compress"></i>
+                            <span>Fold</span>
+                        </button>
+                        <button type="button" class="qh-btn-tool" id="btnToggleWrap" title="Bật/Tắt ngắt dòng tự động">
+                            <i class="fa-solid fa-text-width"></i>
+                            <span>Wrap</span>
+                        </button>
+                        <button type="button" class="qh-btn-tool" id="btnHeaderCopy"
+                            title="Sao chép toàn bộ script này">
+                            <i class="fa-regular fa-copy"></i>
+                            <span>Sao chép</span>
+                        </button>
+                    </div>
+                </header>
+
+                <!-- Note & Tag Bar (Phase 5 / 5.7) -->
+                <div class="qh-note-bar" id="qhNoteBar">
+                    <div class="qh-note-bar-left">
+                        <span class="qh-tag-pill d-none" id="qhCurrentTagPill"><i class="fa-solid fa-tag me-1"></i><span id="qhCurrentTagText"></span><i class="fa-solid fa-xmark ms-1 qh-tag-remove" id="btnRemoveTag" title="Gỡ tag"></i></span>
+                        <div class="qh-tags-container" id="qhTagsContainer">
+                            <!-- Tag pills rendered dynamically -->
+                        </div>
+                        <input type="text" class="qh-note-input" id="qhNoteInput" placeholder="Thêm ghi chú cho lần chạy này... (Enter để lưu)">
+                    </div>
+                    <div class="qh-note-bar-right position-relative">
+                        <div class="d-flex align-items-center gap-1">
+                            <select id="qhTagSelect" class="d-none" aria-hidden="true"></select>
+                            <button type="button" class="qh-btn-xs" id="btnOpenTagPopover" title="Gắn nhãn (Tag)">
+                                <i class="fa-solid fa-tags me-1"></i>+ Tag
+                            </button>
+                            <button type="button" class="qh-btn-xs" id="btnSaveNote" title="Lưu ghi chú">
+                                <i class="fa-solid fa-check me-1"></i>Lưu
+                            </button>
+                        </div>
+                        <div class="qh-tag-popover d-none" id="qhTagPopover">
+                            <div class="d-flex gap-1 mb-2">
+                                <input type="text" class="qh-input-xs flex-grow-1" id="qhCustomTagInput" placeholder="Nhập tên tag...">
+                                <button type="button" class="qh-btn-xs" id="btnAddCustomTag">Thêm</button>
+                            </div>
+                            <div class="qh-tag-suggestions" id="qhTagSuggestions">
+                                <div class="qh-tag-suggestion-item" data-tag="Release">Release</div>
+                                <div class="qh-tag-suggestion-item" data-tag="Hotfix">Hotfix</div>
+                                <div class="qh-tag-suggestion-item" data-tag="Test">Test</div>
+                                <div class="qh-tag-suggestion-item" data-tag="Migration">Migration</div>
+                                <div class="qh-tag-suggestion-item" data-tag="Production">Production</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Diff Status Banner (Hiện khi đang ở chế độ xem Diff) -->
+                <div class="qh-diff-banner d-none" id="qhDiffBanner">
+                    <div class="qh-diff-banner-left">
+                        <i class="fa-solid fa-code-compare text-info me-2"></i>
+                        <span id="qhDiffDescription">Đang so sánh bản trước với bản hiện tại</span>
+                    </div>
+                    <div class="qh-diff-banner-right">
+                        <button type="button" class="qh-btn-xs" id="btnToggleDiffInline" title="Chuyển đổi Chế độ xem song song / Cuộn dòng">
+                            <i class="fa-solid fa-table-columns me-1"></i><span>Inline</span>
+                        </button>
+                        <button type="button" class="qh-btn-xs" id="btnDiffPushFromBanner" title="Mở Diff sang Editor chính">
+                            <i class="fa-solid fa-arrow-up-right-from-square me-1"></i><span>Editor chính</span>
+                        </button>
+                        <button type="button" class="qh-btn-xs qh-btn-close-diff" id="btnCloseDiff" title="Đóng Diff và quay lại xem code">
+                            <i class="fa-solid fa-xmark me-1"></i><span>Đóng Diff</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Error Message Banner (Hiện khi entry có trạng thái lỗi) -->
+                <div class="qh-error-banner" id="qhErrorBanner" style="display: none;">
+                    <i class="fa-solid fa-triangle-exclamation"></i>
+                    <div class="qh-error-msg" id="qhErrorMsg">Msg 208, Level 16, State 1: Invalid object name.</div>
+                </div>
+
+                <!-- SQL Code Display Container (Monaco Editor với tính năng Tìm kiếm, Folding, Diff và Zoom font chữ) -->
+                <div class="qh-code-wrap" id="qhCodeWrap">
+                    <div id="qhMonacoEditor" class="qh-monaco-container"></div>
+                    <div id="qhMonacoDiffContainer" class="qh-monaco-container d-none"></div>
+                </div>
+
+                <!-- Preview Footer -->
+                <footer class="qh-preview-footer">
+                    <div class="qh-footer-meta">
+                        <div class="qh-meta-item">
+                            <i class="fa-solid fa-server text-secondary"></i>
+                            <span>Server:</span>
+                            <strong id="qhMetaServer">SRV-BRAVO-PROD</strong>
+                        </div>
+                        <div class="qh-meta-item">
+                            <i class="fa-solid fa-database text-secondary"></i>
+                            <span>Database:</span>
+                            <strong id="qhMetaDb">BRAVO_ERP_2026</strong>
+                        </div>
+                        <div class="qh-meta-item">
+                            <i class="fa-solid fa-user text-secondary"></i>
+                            <span>User:</span>
+                            <strong id="qhMetaUser">sa</strong>
+                        </div>
+                        <div class="qh-meta-item">
+                            <i class="fa-regular fa-clock text-secondary"></i>
+                            <span>Duration:</span>
+                            <strong id="qhMetaDuration">48 ms</strong>
+                        </div>
+                        <div class="qh-meta-item">
+                            <i class="fa-solid fa-weight-hanging text-secondary"></i>
+                            <span>Size:</span>
+                            <strong id="qhMetaSize">452 B</strong>
+                        </div>
+                    </div>
+
+                    <div class="qh-footer-actions">
+                        <button type="button" class="qh-btn-secondary" id="btnCopySql">
+                            <i class="fa-regular fa-copy"></i>
+                            <span>Sao chép SQL</span>
+                        </button>
+                        <button type="button" class="qh-btn-primary" id="btnOpenEditor"
+                            title="Mở đoạn SQL này vào Tab mới của Editor (Enter)">
+                            <i class="fa-solid fa-arrow-up-right-from-square"></i>
+                            <span>Mở</span>
+                        </button>
+                    </div>
+                </footer>
+
+            </section>
+
+        </main>
+
+        <!-- ═══════════════ Bottom Statusbar ═══════════════ -->
+        <footer class="qh-statusbar">
+            <div class="qh-statusbar-left">
+                <span class="qh-shortcut-hint"><span class="qh-kbd">Enter</span> Mở tab mới</span>
+                <span class="qh-shortcut-hint"><span class="qh-kbd">Ctrl+D</span> Yêu thích</span>
+                <span class="qh-shortcut-hint"><span class="qh-kbd">Ctrl+F</span> Tìm kiếm</span>
+                <span class="qh-shortcut-hint"><span class="qh-kbd">Ctrl+Wheel</span> Thu phóng</span>
+                <span class="qh-shortcut-hint"><span class="qh-kbd">↑ / ↓</span> Chuyển lần chạy</span>
+            </div>
+            <div class="qh-statusbar-right">
+                <span>Storage engine: <strong>SQLite</strong></span>
+                <span>Max retention: <strong>200 runs / doc</strong></span>
+            </div>
+        </footer>
+
+    </div>
+
+    <!-- ═══════════════ Action Toast Notification ═══════════════ -->
+    <div class="qh-toast" id="qhToast">
+        <i class="fa-solid fa-circle-check"></i>
+        <span id="qhToastMsg">Thông báo</span>
+    </div>
+
+    <!-- Vendor Scripts -->
+    <script src="../static/vendor/bootstrap/bootstrap.bundle.min.js"></script>
+
+    <!-- Monaco Editor AMD Loader & Dialect Setup -->
+    <script src="../static/vendor/monaco/vs/loader.js"></script>
+    <script src="../static/js/monaco-init.js"></script>
+    <script src="../static/js/monaco-sql-lang.js"></script>
+
+    <!-- Zero-Network Native IPC Bridge -->
+    <script src="../static/js/api.js"></script>
+
+    <!-- Query History Dedicated Script -->
+    <script src="../static/js/query-history.js"></script>
+</body>
+
+</html>

@@ -26,12 +26,33 @@ body, html {
 }
 .form-control::placeholder { color: var(--ide-text-muted) !important; }
 
-/* ── Toolbar ─────────────────────────────────────────────────────────────────── */
+/* ── Toolbar / Navbar ─────────────────────────────────────────────────────────── */
 .ide-toolbar {
+    position: relative;
+    z-index: 10000 !important;
+    overflow: visible !important;
     background: var(--ide-bg-toolbar) !important;
     border-bottom: 1px solid var(--ide-border) !important;
     height: 36px;
     flex-shrink: 0;
+}
+
+/* Ensure navbar-nav and all sub-navs / dropdown menus float above all content with highest priority */
+.ide-toolbar .navbar-nav,
+.ide-toolbar .nav-item,
+.ide-toolbar .dropdown {
+    overflow: visible !important;
+}
+
+.ide-toolbar .dropdown-menu,
+.ide-toolbar .dropdown-menu .dropdown-menu,
+nav.navbar .dropdown-menu,
+nav.navbar .dropdown-menu .dropdown-menu,
+.navbar-nav .dropdown-menu,
+.navbar-nav .dropdown-menu .dropdown-menu {
+    position: absolute;
+    z-index: 10002 !important;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
 }
 .ide-brand {
     color: var(--ide-accent);
@@ -73,6 +94,11 @@ body, html {
     border: 1px solid var(--ide-border);
     font-family: var(--ide-ui-font-family, inherit);
     font-size: calc(var(--ide-ui-font-size, 13px) - 1px);
+}
+
+/* ── Main Area ────────────────────────────────────────────────────────────────── */
+#ide-main-area {
+    background: var(--ide-bg-main);
 }
 
 /* ── Common resizer (editor / results) ──────────────────────────────────────── */
@@ -152,6 +178,7 @@ html[data-bs-theme="dark"] .btn-close { filter: invert(0.8); }
 
 /* ── Dropdown menus ──────────────────────────────────────────────────────────── */
 .dropdown-menu {
+    z-index: 10002 !important;
     background: var(--ide-bg-dropdown) !important;
     border: 1px solid var(--ide-border);
     border-radius: 3px;

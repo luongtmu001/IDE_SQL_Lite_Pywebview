@@ -7,6 +7,7 @@
     'use strict';
 
     let _cachedNativeApi = null;
+
     global.waitForPywebview = function () {
         if (_cachedNativeApi) return Promise.resolve(_cachedNativeApi);
         if (window.pywebview && window.pywebview.api) {
@@ -19,8 +20,10 @@
                 if (done) return;
                 done = true;
                 window.removeEventListener('pywebviewready', onReady);
-                if (api) _cachedNativeApi = api;
-                resolve(api || null);
+                if (api) {
+                    _cachedNativeApi = api;
+                }
+                resolve(_cachedNativeApi || null);
             };
 
             const onReady = () => {
@@ -28,18 +31,18 @@
             };
             window.addEventListener('pywebviewready', onReady);
 
-            // Active interval polling (up to 8 seconds) in case event was fired early or missed
+            // Active interval polling (up to 2500ms max, 30ms interval)
             let elapsed = 0;
             const poll = setInterval(() => {
-                elapsed += 100;
+                elapsed += 30;
                 if (window.pywebview && window.pywebview.api) {
                     clearInterval(poll);
                     finish(window.pywebview.api);
-                } else if (elapsed >= 8000) {
+                } else if (elapsed >= 2500) {
                     clearInterval(poll);
                     finish(null);
                 }
-            }, 100);
+            }, 30);
         });
     };
 
@@ -60,6 +63,9 @@
 
         const api = await global.waitForPywebview();
         if (!api) {
+            if (originalFetch) {
+                return originalFetch(input, init);
+            }
             console.error('[IPC] pywebview.api not ready for url:', url);
             return new Response(JSON.stringify({ success: false, error: "Native API bridge not ready" }), {
                 status: 500,
@@ -87,7 +93,22 @@
             // === Connections Routes ===
             if (path === '/api/connections') {
                 if (method === 'GET') {
-                    result = await api.list_connections();
+                    if (typeof api.list_connections === 'function') {
+                        result = await api.list_connections();
+                    }
+                    if (!result || result.success === false) {
+                        if (typeof api.get_saved_connections === 'function') {
+                            const savedRes = await api.get_saved_connections();
+                            if (savedRes && savedRes.success) {
+                                result = {
+                                    success: true,
+                                    connections: [],
+                                    saved_connections: savedRes.connections || [],
+                                    active_connections: []
+                                };
+                            }
+                        }
+                    }
                 } else if (method === 'POST') {
                     result = await api.create_connection(body);
                 }
@@ -124,6 +145,29 @@
                     result = await api.get_definition(connId, searchParams.get('database'), searchParams.get('schema'), searchParams.get('name'), searchParams.get('type'));
                 } else if (action === 'foreign_keys') {
                     result = await api.get_foreign_keys(connId, searchParams.get('database'), searchParams.get('schema'), searchParams.get('table'));
+                } else if (action === 'linked_servers') {
+                    result = await api.get_linked_servers(connId);
+                } else if (action === 'linked_server') {
+                    const server = searchParams.get('server') || body.server;
+                    if (subAction === 'databases') {
+                        result = await api.get_remote_databases(connId, server);
+                    } else if (subAction === 'schemas') {
+                        result = await api.get_remote_schemas(connId, server, searchParams.get('database'));
+                    } else if (subAction === 'objects') {
+                        result = await api.get_remote_objects(connId, server, searchParams.get('database'), searchParams.get('schema'));
+                    } else if (subAction === 'columns') {
+                        result = await api.get_remote_columns(connId, server, searchParams.get('database'), searchParams.get('schema'), searchParams.get('table'));
+                    } else if (subAction === 'test') {
+                        result = await api.test_linked_server(connId, server);
+                    } else if (subAction === 'script') {
+                        result = await api.get_linked_server_script(connId, server, searchParams.get('mode') || 'create');
+                    } else if (subAction === 'drop') {
+                        result = await api.drop_linked_server(connId, server);
+                    }
+                } else if (action === 'foreign_servers') {
+                    result = await api.get_foreign_servers(connId);
+                } else if (action === 'foreign_tables') {
+                    result = await api.get_foreign_tables(connId, searchParams.get('schema'));
                 } else if (action === 'object_children') {
                     result = await api.get_object_children(connId, searchParams.get('database'), searchParams.get('schema'), searchParams.get('name'), searchParams.get('type'), searchParams.get('child_type'));
                 } else if (action === 'table-design') {
@@ -175,11 +219,54 @@
 
             // === Query Routes ===
             else if (path === '/api/query/execute' && method === 'POST') {
-                result = await api.execute_query(body.connection_id, body.sql, body.limit, body.database, body.schema, body.query_id);
+                result = await api.execute_query(
+                    body.connection_id,
+                    body.sql,
+                    body.limit,
+                    body.database,
+                    body.schema,
+                    body.query_id,
+                    body.mode,
+                    body.debug_session_id,
+                    body.traces,
+                    body.confirmed,
+                    body.parameters,
+                    body.stop_on_error !== undefined ? body.stop_on_error : true
+                );
+            } else if (path === '/api/query/parse-parameters' && method === 'POST') {
+                result = typeof api.parse_query_parameters === 'function'
+                    ? await api.parse_query_parameters(body.sql, body.dialect)
+                    : { success: false, error: 'parse_query_parameters not supported' };
             } else if (path === '/api/query/cancel' && method === 'POST') {
                 result = await api.cancel_query(body.connection_id);
             } else if (path === '/api/query/explain' && method === 'POST') {
                 result = await api.explain_query(body.connection_id, body.sql, body.database);
+            } else if (path === '/api/query/syntax-check' && method === 'POST') {
+                result = await api.syntax_check(body.connection_id, body.sql, body.dialect, body.database, body.schema, body.is_debug, body.cached_tables);
+            }
+
+            // === Explicit Transaction Routes ===
+            else if (path === '/api/tx/begin' && method === 'POST') {
+                result = typeof api.tx_begin === 'function'
+                    ? await api.tx_begin(body.connection_id)
+                    : { success: false, error: 'tx_begin not supported by native api' };
+            } else if (path === '/api/tx/commit' && method === 'POST') {
+                result = typeof api.tx_commit === 'function'
+                    ? await api.tx_commit(body.connection_id)
+                    : { success: false, error: 'tx_commit not supported by native api' };
+            } else if (path === '/api/tx/rollback' && method === 'POST') {
+                result = typeof api.tx_rollback === 'function'
+                    ? await api.tx_rollback(body.connection_id)
+                    : { success: false, error: 'tx_rollback not supported by native api' };
+            } else if (path === '/api/tx/status' && (method === 'GET' || method === 'POST')) {
+                const connId = body.connection_id || searchParams.get('connection_id');
+                result = typeof api.tx_status === 'function'
+                    ? await api.tx_status(connId)
+                    : { success: false, error: 'tx_status not supported by native api' };
+            } else if (path === '/api/connection/set_read_only' && method === 'POST') {
+                result = typeof api.set_connection_read_only === 'function'
+                    ? await api.set_connection_read_only(body.connection_id, body.read_only)
+                    : { success: false, error: 'set_connection_read_only not supported by native api' };
             }
 
             // === Profiler Routes ===
@@ -242,6 +329,170 @@
                 }
             }
 
+            // === Query History Routes (Phase 2 & Phase 3) ===
+            else if (path.startsWith('/api/history/')) {
+                const hAction = path.replace('/api/history/', '');
+                if (hAction === 'log_execution' && method === 'POST') {
+                    result = await api.history_log_execution(body);
+                } else if (hAction === 'update_execution' && method === 'POST') {
+                    result = await api.history_update_execution(body);
+                } else if (hAction === 'update_document' && method === 'POST') {
+                    result = await api.history_update_document(body);
+                } else if (hAction === 'document_by_path' && method === 'GET') {
+                    result = await api.history_get_document_by_path(searchParams.get('path'));
+                } else if (hAction === 'documents' && method === 'GET') {
+                    result = await api.history_get_documents(
+                        searchParams.get('search'),
+                        searchParams.get('favorites_only') === 'true',
+                        searchParams.get('limit') ? parseInt(searchParams.get('limit'), 10) : 200,
+                        searchParams.get('server'),
+                        searchParams.get('database'),
+                        searchParams.get('from_timestamp') ? parseInt(searchParams.get('from_timestamp'), 10) : null,
+                        searchParams.get('to_timestamp') ? parseInt(searchParams.get('to_timestamp'), 10) : null
+                    );
+                } else if (hAction.startsWith('document/') && method === 'GET') {
+                    const docId = hAction.replace('document/', '');
+                    result = await api.history_get_document(docId);
+                } else if (hAction.startsWith('document/') && method === 'DELETE') {
+                    const docId = hAction.replace('document/', '');
+                    result = await api.history_delete_document(docId);
+                } else if (hAction === 'entries' && method === 'GET') {
+                    result = await api.history_get_entries(
+                        searchParams.get('doc_id'),
+                        searchParams.get('status') ? parseInt(searchParams.get('status'), 10) : null,
+                        searchParams.get('limit') ? parseInt(searchParams.get('limit'), 10) : 200,
+                        searchParams.get('server'),
+                        searchParams.get('database'),
+                        searchParams.get('from_timestamp') ? parseInt(searchParams.get('from_timestamp'), 10) : null,
+                        searchParams.get('to_timestamp') ? parseInt(searchParams.get('to_timestamp'), 10) : null,
+                        searchParams.get('tag'),
+                        searchParams.get('entry_type') ? parseInt(searchParams.get('entry_type'), 10) : null
+                    );
+                } else if (hAction.startsWith('entry/') && hAction.endsWith('/note') && method === 'POST') {
+                    const entryId = parseInt(hAction.replace('entry/', '').replace('/note', ''), 10);
+                    result = await api.history_update_entry_note(entryId, body.note, body.tag);
+                } else if (hAction.startsWith('entry/') && method === 'GET') {
+                    const entryId = parseInt(hAction.replace('entry/', ''), 10);
+                    result = await api.history_get_entry_detail(entryId);
+                } else if (hAction.startsWith('entry/') && method === 'DELETE') {
+                    const entryId = parseInt(hAction.replace('entry/', ''), 10);
+                    result = await api.history_delete_entry(entryId);
+                } else if (hAction === 'filters' && method === 'GET') {
+                    result = typeof api.history_get_filters === 'function' ? await api.history_get_filters() : { success: false, filters: { servers: [], databases: [], tags: [] } };
+                } else if (hAction === 'export' && method === 'POST') {
+                    result = typeof api.history_export === 'function' ? await api.history_export(body) : { success: false, error: 'Not supported' };
+                } else if (hAction === 'import' && method === 'POST') {
+                    result = typeof api.history_import === 'function' ? await api.history_import(body) : { success: false, error: 'Not supported' };
+                } else if (hAction === 'active_editor_content' && method === 'GET') {
+                    result = typeof api.get_active_editor_content === 'function' ? await api.get_active_editor_content() : (typeof api.history_get_active_editor_content === 'function' ? await api.history_get_active_editor_content() : { success: false, content: '' });
+                } else if (hAction === 'open_diff_in_editor' && method === 'POST') {
+                    result = typeof api.open_diff_in_editor === 'function' ? await api.open_diff_in_editor(body) : (typeof api.history_open_diff_in_editor === 'function' ? await api.history_open_diff_in_editor(body) : { success: false, error: 'Not supported' });
+                } else if (hAction === 'toggle_star' && method === 'POST') {
+                    result = await api.history_toggle_star(body.doc_id, body.is_starred);
+                } else if (hAction === 'purge' && method === 'POST') {
+                    result = await api.history_purge(body.max_age_days, body.max_entries_per_doc, body.max_db_size_mb);
+                } else if (hAction === 'compact' && method === 'POST') {
+                    result = typeof api.history_compact === 'function' ? await api.history_compact() : { success: false, error: 'Not supported' };
+                } else if (hAction === 'clear_all' && method === 'POST') {
+                    result = typeof api.history_clear_all === 'function' ? await api.history_clear_all(body.keep_favorites) : { success: false, error: 'Not supported' };
+                } else if (hAction === 'stats' && method === 'GET') {
+                    result = await api.history_get_stats();
+                } else if (hAction === 'open-window' && method === 'POST') {
+                    result = typeof api.open_query_history_window === 'function' ? await api.open_query_history_window() : { success: false, error: 'Not supported' };
+                } else if (hAction === 'open_in_editor' && method === 'POST') {
+                    result = typeof api.open_in_editor === 'function' ? await api.open_in_editor(body) : (typeof api.history_open_in_editor === 'function' ? await api.history_open_in_editor(body) : { success: false, error: 'Not supported' });
+                } else if (hAction === 'open_containing_folder' && method === 'POST') {
+                    result = typeof api.open_containing_folder === 'function' ? await api.open_containing_folder(body.file_path) : (typeof api.history_open_containing_folder === 'function' ? await api.history_open_containing_folder(body.file_path) : { success: false, error: 'Not supported' });
+                }
+            }
+
+            // === PostgreSQL Dependency Graph Routes ===
+            else if (path.startsWith('/api/postgresql/dependency/')) {
+                const parts = path.split('/').filter(Boolean);
+                // URL: /api/postgresql/dependency/<connId>/<action>
+                const connId = decodeURIComponent(parts[3] || '');
+                const action = parts[4] || '';
+
+                if (action === 'column') {
+                    result = typeof api.pg_dependency_get_column === 'function'
+                        ? await api.pg_dependency_get_column(
+                            connId,
+                            searchParams.get('schema') || 'public',
+                            searchParams.get('table'),
+                            searchParams.get('column'),
+                            searchParams.get('direction') || 'dependents',
+                            parseInt(searchParams.get('depth') || '2', 10),
+                            searchParams.get('database'),
+                            searchParams.get('include_source') !== 'false'
+                        )
+                        : { success: false, error: 'Native method pg_dependency_get_column not available' };
+                } else if (action === 'object') {
+                    result = typeof api.pg_dependency_get_object === 'function'
+                        ? await api.pg_dependency_get_object(
+                            connId,
+                            searchParams.get('type') || 'view',
+                            searchParams.get('schema') || 'public',
+                            searchParams.get('name'),
+                            searchParams.get('direction') || 'dependents',
+                            parseInt(searchParams.get('depth') || '2', 10),
+                            searchParams.get('database')
+                        )
+                        : { success: false, error: 'Native method pg_dependency_get_object not available' };
+                } else if (action === 'definition') {
+                    result = typeof api.pg_dependency_get_definition === 'function'
+                        ? await api.pg_dependency_get_definition(
+                            connId,
+                            searchParams.get('type') || 'view',
+                            searchParams.get('schema') || 'public',
+                            searchParams.get('name'),
+                            searchParams.get('oid'),
+                            searchParams.get('database')
+                        )
+                        : { success: false, error: 'Native method pg_dependency_get_definition not available' };
+                } else if (action === 'suggested-steps') {
+                    result = typeof api.pg_dependency_get_suggested_steps === 'function'
+                        ? await api.pg_dependency_get_suggested_steps(
+                            connId,
+                            searchParams.get('schema') || 'public',
+                            searchParams.get('table'),
+                            searchParams.get('column'),
+                            searchParams.get('action') || 'ALTER',
+                            searchParams.get('database')
+                        )
+                        : { success: false, error: 'Native method pg_dependency_get_suggested_steps not available' };
+                }
+            }
+
+            // === Object Content Search Routes ===
+            else if (path === '/api/sql/object-search' && method === 'POST') {
+                result = typeof api.sql_object_search === 'function'
+                    ? await api.sql_object_search(
+                        body.connection_id || searchParams.get('connection_id'),
+                        body.keyword,
+                        body.database || searchParams.get('database'),
+                        body.object_types,
+                        body.case_sensitive,
+                        body.whole_word,
+                        body.is_regex,
+                        body.schema || searchParams.get('schema')
+                    )
+                    : { success: false, error: 'Native method sql_object_search not available' };
+            } else if (path === '/api/sql/object-ddl' && method === 'GET') {
+                result = typeof api.sql_object_ddl === 'function'
+                    ? await api.sql_object_ddl(
+                        searchParams.get('connection_id'),
+                        searchParams.get('schema') || 'dbo',
+                        searchParams.get('name'),
+                        searchParams.get('type') || 'VIEW',
+                        searchParams.get('database'),
+                        searchParams.get('keyword'),
+                        searchParams.get('case_sensitive') === 'true',
+                        searchParams.get('whole_word') === 'true',
+                        searchParams.get('is_regex') === 'true'
+                    )
+                    : { success: false, error: 'Native method sql_object_ddl not available' };
+            }
+
             // === Grid Export Routes ===
             else if (path === '/api/grid/open-excel' && method === 'POST') {
                 result = await api.grid_open_in_excel(body.columns, body.rows);
@@ -255,6 +506,21 @@
                     result = await api.get_system_fonts();
                 } else {
                     result = { success: false, error: 'get_system_fonts not supported by native api' };
+                }
+            }
+
+            // === System Logs Routes ===
+            else if (path === '/api/system/logs/open' && method === 'POST') {
+                if (typeof api.open_log_folder === 'function') {
+                    result = await api.open_log_folder();
+                } else {
+                    result = { success: false, error: 'open_log_folder not supported by native api' };
+                }
+            } else if (path === '/api/system/logs/info' && method === 'GET') {
+                if (typeof api.get_log_info === 'function') {
+                    result = await api.get_log_info();
+                } else {
+                    result = { success: false, error: 'get_log_info not supported by native api' };
                 }
             }
         } catch (ipcErr) {

@@ -55,13 +55,19 @@ def schemas(connection_id):
 def objects(connection_id):
     try:
         connection = get_connection(connection_id)
+        limit_arg = request.args.get("limit")
+        try:
+            limit = int(limit_arg) if limit_arg is not None else 0
+        except (ValueError, TypeError):
+            limit = 0
         return jsonify(
             success=True,
             items=connection.metadata_service.list_objects(
                 request.args.get("database"),
                 request.args.get("schema"),
                 request.args.get("type", "tables"),
-                request.args.get("search")
+                request.args.get("search"),
+                limit=limit
             ),
         )
     except Exception as exc:
@@ -82,7 +88,10 @@ def definition(connection_id):
             name,
             obj_type,
         )
-        return jsonify(success=True, definition=value)
+        resp = jsonify(success=True, definition=value)
+        resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        resp.headers["Pragma"] = "no-cache"
+        return resp
     except Exception as exc:
         return jsonify(success=False, error=str(exc)), 400
 
@@ -262,6 +271,204 @@ def foreign_keys(connection_id):
         return jsonify(success=True, items=items)
     except Exception as exc:
         return jsonify(success=False, error=str(exc)), 400
+
+
+@metadata_bp.get("/<connection_id>/linked_servers")
+def linked_servers(connection_id):
+    try:
+        connection = get_connection(connection_id)
+        items = connection.metadata_service.list_linked_servers()
+        return jsonify(success=True, items=items)
+    except Exception as exc:
+        return jsonify(success=False, error=str(exc)), 400
+
+
+@metadata_bp.get("/<connection_id>/linked_server/databases")
+def linked_server_databases(connection_id):
+    try:
+        connection = get_connection(connection_id)
+        server = request.args.get("server")
+        if not server:
+            return jsonify(success=False, error="Parameter 'server' is required"), 400
+        items = connection.metadata_service.list_remote_databases(server)
+        return jsonify(success=True, items=items)
+    except Exception as exc:
+        return jsonify(success=False, error=str(exc)), 400
+
+
+@metadata_bp.get("/<connection_id>/linked_server/schemas")
+def linked_server_schemas(connection_id):
+    try:
+        connection = get_connection(connection_id)
+        server = request.args.get("server")
+        database = request.args.get("database")
+        if not server:
+            return jsonify(success=False, error="Parameter 'server' is required"), 400
+        items = connection.metadata_service.list_remote_schemas(server, database)
+        return jsonify(success=True, items=items)
+    except Exception as exc:
+        return jsonify(success=False, error=str(exc)), 400
+
+
+@metadata_bp.get("/<connection_id>/linked_server/objects")
+def linked_server_objects(connection_id):
+    try:
+        connection = get_connection(connection_id)
+        server = request.args.get("server")
+        database = request.args.get("database")
+        schema = request.args.get("schema")
+        if not server:
+            return jsonify(success=False, error="Parameter 'server' is required"), 400
+        items = connection.metadata_service.list_remote_objects(server, database, schema)
+        return jsonify(success=True, items=items)
+    except Exception as exc:
+        return jsonify(success=False, error=str(exc)), 400
+
+
+@metadata_bp.get("/<connection_id>/linked_server/columns")
+def linked_server_columns(connection_id):
+    try:
+        connection = get_connection(connection_id)
+        server = request.args.get("server")
+        database = request.args.get("database")
+        schema = request.args.get("schema")
+        table = request.args.get("table")
+        if not server or not table:
+            return jsonify(success=False, error="Parameters 'server' and 'table' are required"), 400
+        items = connection.metadata_service.list_remote_columns(server, database, schema, table)
+        return jsonify(success=True, items=items)
+    except Exception as exc:
+        return jsonify(success=False, error=str(exc)), 400
+
+
+@metadata_bp.get("/<connection_id>/foreign_servers")
+def foreign_servers(connection_id):
+    try:
+        connection = get_connection(connection_id)
+        items = connection.metadata_service.list_foreign_servers()
+        return jsonify(success=True, items=items)
+    except Exception as exc:
+        return jsonify(success=False, error=str(exc)), 400
+
+
+@metadata_bp.get("/<connection_id>/foreign_tables")
+def foreign_tables(connection_id):
+    try:
+        connection = get_connection(connection_id)
+        schema = request.args.get("schema")
+        items = connection.metadata_service.list_foreign_tables(schema=schema)
+        return jsonify(success=True, items=items)
+    except Exception as exc:
+        return jsonify(success=False, error=str(exc)), 400
+
+
+@metadata_bp.post("/<connection_id>/linked_server/test")
+def test_linked_server_endpoint(connection_id):
+    try:
+        connection = get_connection(connection_id)
+        data = request.get_json(silent=True) or {}
+        server = data.get("server") or request.args.get("server")
+        if not server:
+            return jsonify(success=False, error="Parameter 'server' is required"), 400
+        if hasattr(connection.adapter, "test_linked_server"):
+            res = connection.adapter.test_linked_server(server)
+            status = 200 if res.get("success") else 400
+            return jsonify(res), status
+        return jsonify(success=False, error="Test linked server is not supported on this adapter"), 400
+    except Exception as exc:
+        return jsonify(success=False, error=str(exc)), 400
+
+
+@metadata_bp.get("/<connection_id>/linked_server/script")
+def script_linked_server_endpoint(connection_id):
+    try:
+        connection = get_connection(connection_id)
+        server = request.args.get("server")
+        mode = request.args.get("mode", "create")
+        if not server:
+            return jsonify(success=False, error="Parameter 'server' is required"), 400
+        if hasattr(connection.adapter, "get_linked_server_script"):
+            script = connection.adapter.get_linked_server_script(server, mode=mode)
+            return jsonify(success=True, script=script)
+        return jsonify(success=False, error="Script linked server is not supported on this adapter"), 400
+    except Exception as exc:
+        return jsonify(success=False, error=str(exc)), 400
+
+
+@metadata_bp.post("/<connection_id>/linked_server/drop")
+def drop_linked_server_endpoint(connection_id):
+    try:
+        connection = get_connection(connection_id)
+        data = request.get_json(silent=True) or {}
+        server = data.get("server") or request.args.get("server")
+        if not server:
+            return jsonify(success=False, error="Parameter 'server' is required"), 400
+        if hasattr(connection.adapter, "drop_linked_server"):
+            res = connection.adapter.drop_linked_server(server)
+            if hasattr(connection, "metadata_service") and hasattr(connection.metadata_service, "session"):
+                connection.metadata_service.session.metadata_cache.pop(
+                    connection.metadata_service._cache_key("linked_servers"), None
+                )
+            status = 200 if res.get("success") else 400
+            return jsonify(res), status
+        return jsonify(success=False, error="Drop linked server is not supported on this adapter"), 400
+    except Exception as exc:
+        return jsonify(success=False, error=str(exc)), 400
+
+
+@metadata_bp.post("/query-flow")
+def analyze_query_flow_endpoint():
+    """
+    Analyzes SQL query and returns the QueryFlowGraph representation.
+    """
+    try:
+        from app.services.query_flow_service import QueryFlowService
+        data = request.get_json(silent=True) or {}
+        sql = data.get("sql", "")
+        dialect = data.get("dialect", "tsql")
+        graph = QueryFlowService.build_flow_graph(sql, dialect=dialect)
+        return jsonify(success=True, flowGraph=graph.to_dict())
+    except Exception as exc:
+        return jsonify(success=False, error=str(exc)), 400
+
+
+@metadata_bp.post("/query-plan")
+def get_query_plan_endpoint():
+    """
+    Retrieves the physical execution plan (estimated or actual) for a SQL query.
+    Complies with Section 11 & Phase 6 of .SKILL/query_plan_visualization.md.
+    """
+    try:
+        from app.services.query_plan_service import QueryPlanService
+        data = request.get_json(silent=True) or {}
+        conn_id = data.get("connectionId") or data.get("connId")
+        sql = data.get("sql", "")
+        plan_type = data.get("planType", "estimated")
+        database = data.get("database")
+        schema = data.get("schema")
+        dialect = data.get("dialect")
+
+        conn_session = None
+        if conn_id:
+            try:
+                conn_session = get_connection(conn_id)
+            except Exception:
+                pass
+
+        plan = QueryPlanService.get_execution_plan(
+            connection_session=conn_session,
+            sql=sql,
+            plan_type=plan_type,
+            database=database,
+            schema=schema,
+            dialect=dialect,
+        )
+        return jsonify(success=True, plan=plan.to_dict())
+    except Exception as exc:
+        return jsonify(success=False, error=str(exc)), 400
+
+
+
 
 
 

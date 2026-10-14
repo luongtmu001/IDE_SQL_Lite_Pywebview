@@ -27,7 +27,7 @@
         'FOREIGN', 'REFERENCES', 'IDENTITY', 'NULL', 'NOT', 'AND', 'OR', 'AS', 'DISTINCT',
         'TOP', 'LIMIT', 'OFFSET', 'CASE', 'WHEN', 'THEN', 'ELSE', 'END', 'OVER', 'WITH',
         'EXEC', 'EXECUTE', 'USER', 'FILE', 'COLUMN', 'DECLARE', 'ROWCOUNT', 'STATUS',
-        'PERCENT', 'TIES', 'OUTPUT', 'APPLY', 'WINDOW', 'QUALIFY', 'PARTITION'
+        'PERCENT', 'TIES', 'OUTPUT', 'APPLY', 'LATERAL', 'WINDOW', 'QUALIFY', 'PARTITION'
     ]);
 
     // ─────────────────────────────────────────────────────────────────────────────
@@ -659,9 +659,10 @@
                 const name = item.name || item.label || '';
                 const nameLower = name.toLowerCase();
 
-                // Also check with leading # and @ stripped for friendly prefix matching
-                const nameClean = (nameLower.startsWith('#') || nameLower.startsWith('@')) ? nameLower.replace(/^#+|^@+/, '') : nameLower;
-                const queryClean = (cleanQuery.startsWith('#') || cleanQuery.startsWith('@')) ? cleanQuery.replace(/^#+|^@+/, '') : cleanQuery;
+                // Also check with leading #, @ and delimiters [, ", ` stripped for friendly matching
+                const stripDelims = (s) => (s || '').replace(/^[\["`#@]+|[\]"`]+$/g, '');
+                const nameClean = stripDelims(nameLower);
+                const queryClean = stripDelims(cleanQuery);
 
                 // Phase 9: Star Expansion query matching (*, expand, all, star, columns)
                 if (item.type === 'star_expansion') {
@@ -799,7 +800,7 @@
 
                 // 2. FROM / JOIN / INSERT INTO / UPDATE clause priorities (Section 25, 26, 39, Phase 4 DML)
                 if ((isFromClause || isDmlTableClause) && !context.qualifier) {
-                    if (['table', 'view', 'cte', 'subquery', 'temp_table', 'table_variable', 'synonym', 'pseudo_table'].includes(type)) {
+                    if (['table', 'view', 'cte', 'subquery', 'apply_subquery', 'lateral_subquery', 'table_function', 'temp_table', 'table_variable', 'synonym', 'pseudo_table', 'linked_server', 'foreign_server'].includes(type)) {
                         contextScore += (type === 'cte' || type === 'pseudo_table') ? 85 : 80;
                     } else if (isFromClause && type === 'keyword' && ['JOIN', 'LEFT', 'RIGHT', 'INNER', 'ON', 'WHERE'].includes(item.name.toUpperCase())) {
                         contextScore += 30;
@@ -829,6 +830,8 @@
                 if (!context.clause && !context.qualifier) {
                     if (type === 'scalar_variable') {
                         contextScore += 70;
+                    } else if (type === 'linked_server' || type === 'foreign_server') {
+                        contextScore += 75;
                     }
                 }
 
@@ -843,6 +846,8 @@
                     } else {
                         if (type === 'procedure' || type === 'stored_procedure') {
                             contextScore += 95;
+                        } else if (type === 'linked_server' || type === 'foreign_server') {
+                            contextScore += 80;
                         }
                     }
                 }
@@ -874,7 +879,7 @@
                 // 4d. Snippet Priority: When user types snippet prefix, prioritize snippets at the top!
                 if (type === 'snippet') {
                     if (item.displayType === 'FK Join Snippet') {
-                        contextScore += 190; // Top snippet in JOIN clause!
+                        contextScore += 270; // Top snippet in JOIN clause (#1 over raw tables)!
                     } else {
                         const snipName = (item.name || '').toLowerCase();
                         if (cleanQuery && snipName === cleanQuery) {
@@ -889,7 +894,7 @@
 
                 // Phase 5: JOIN & ON Clause Priorities (Spec 11.4)
                 if (type === 'join_condition') {
-                    contextScore += 200; // #1 candidate in ON clause!
+                    contextScore += 280; // #1 candidate in ON clause!
                 }
                 if (item.isFkTarget) {
                     contextScore += 180; // Boost FK-related tables to the top in JOIN clause!
@@ -912,6 +917,8 @@
                 } else if (isUpdateSet) {
                     if (type === 'pk_column' || type === 'column') {
                         contextScore += 100; // Top priority in UPDATE SET column list!
+                    } else if (type === 'keyword') {
+                        contextScore -= 40; // Demote keywords so target columns appear first
                     }
                 }
 
@@ -921,8 +928,10 @@
                         contextScore += 100;
                     } else if (type === 'pk_column') {
                         contextScore += 95;
-                    } else if (type === 'column') {
+                    } else if (type === 'column' || type === 'remote_column') {
                         contextScore += 90;
+                    } else if (['database', 'remote_database', 'schema', 'remote_schema', 'remote_table', 'remote_view'].includes(type)) {
+                        contextScore += 92;
                     }
                     // Phase 3: Alias che ten goc (Spec 8.3 Rule 1)
                     // If qualifier is masked by an alias (e.g. Customers. instead of c.), downgrade priority
@@ -975,6 +984,181 @@
             this.metadataCache = metadataCache;
         }
 
+        async _getLinkedServers(connId) {
+            if (!connId) return [];
+            if (this.metadataCache && typeof this.metadataCache.getLinkedServers === 'function') {
+                const cached = this.metadataCache.getLinkedServers(connId);
+                if (cached && Array.isArray(cached) && cached.length > 0) return cached;
+            }
+            let res = null;
+            if (this.dataProvider && typeof this.dataProvider.getLinkedServers === 'function') {
+                res = await this.dataProvider.getLinkedServers(connId);
+            } else if (window.AppMetadataProvider && typeof window.AppMetadataProvider.getLinkedServers === 'function') {
+                res = await window.AppMetadataProvider.getLinkedServers(connId);
+            } else if (typeof window !== 'undefined' && window.location && window.location.protocol === 'file:' && !window.pywebview && typeof window.waitForPywebview !== 'function') {
+                res = [];
+            } else {
+                try {
+                    const fetchRes = await fetch(`/api/metadata/${connId}/linked_servers`);
+                    const data = await fetchRes.json();
+                    res = data && data.success && Array.isArray(data.items) ? data.items : [];
+                } catch (e) {
+                    res = [];
+                }
+            }
+            if (res && this.metadataCache && typeof this.metadataCache.setLinkedServers === 'function') {
+                this.metadataCache.setLinkedServers(connId, res);
+            }
+            return res || [];
+        }
+
+        async _getRemoteDatabases(connId, server) {
+            if (!connId || !server) return [];
+            if (this.metadataCache && typeof this.metadataCache.getRemoteDatabases === 'function') {
+                const cached = this.metadataCache.getRemoteDatabases(connId, server);
+                if (cached && Array.isArray(cached) && cached.length > 0) return cached;
+            }
+            let res = null;
+            if (this.dataProvider && typeof this.dataProvider.getRemoteDatabases === 'function') {
+                res = await this.dataProvider.getRemoteDatabases(connId, server);
+            } else if (window.AppMetadataProvider && typeof window.AppMetadataProvider.getRemoteDatabases === 'function') {
+                res = await window.AppMetadataProvider.getRemoteDatabases(connId, server);
+            } else if (typeof window !== 'undefined' && window.location && window.location.protocol === 'file:' && !window.pywebview && typeof window.waitForPywebview !== 'function') {
+                res = [];
+            } else {
+                try {
+                    const q = `?server=${encodeURIComponent(server)}`;
+                    const fetchRes = await fetch(`/api/metadata/${connId}/linked_server/databases${q}`);
+                    const data = await fetchRes.json();
+                    res = data && data.success && Array.isArray(data.items) ? data.items : [];
+                } catch (e) {
+                    res = [];
+                }
+            }
+            if (res && this.metadataCache && typeof this.metadataCache.setRemoteDatabases === 'function') {
+                this.metadataCache.setRemoteDatabases(connId, server, res);
+            }
+            return res || [];
+        }
+
+        async _getRemoteSchemas(connId, server, database) {
+            if (!connId || !server) return [];
+            if (this.metadataCache && typeof this.metadataCache.getRemoteSchemas === 'function') {
+                const cached = this.metadataCache.getRemoteSchemas(connId, server, database);
+                if (cached && Array.isArray(cached) && cached.length > 0) return cached;
+            }
+            let res = null;
+            if (this.dataProvider && typeof this.dataProvider.getRemoteSchemas === 'function') {
+                res = await this.dataProvider.getRemoteSchemas(connId, server, database);
+            } else if (window.AppMetadataProvider && typeof window.AppMetadataProvider.getRemoteSchemas === 'function') {
+                res = await window.AppMetadataProvider.getRemoteSchemas(connId, server, database);
+            } else if (typeof window !== 'undefined' && window.location && window.location.protocol === 'file:' && !window.pywebview && typeof window.waitForPywebview !== 'function') {
+                res = [];
+            } else {
+                try {
+                    const params = new URLSearchParams({ server });
+                    if (database) params.append('database', database);
+                    const fetchRes = await fetch(`/api/metadata/${connId}/linked_server/schemas?${params.toString()}`);
+                    const data = await fetchRes.json();
+                    res = data && data.success && Array.isArray(data.items) ? data.items : [];
+                } catch (e) {
+                    res = [];
+                }
+            }
+            if (res && this.metadataCache && typeof this.metadataCache.setRemoteSchemas === 'function') {
+                this.metadataCache.setRemoteSchemas(connId, server, database, res);
+            }
+            return res || [];
+        }
+
+        async _getRemoteObjects(connId, server, database, schema) {
+            if (!connId || !server) return [];
+            if (this.metadataCache && typeof this.metadataCache.getRemoteObjects === 'function') {
+                const cached = this.metadataCache.getRemoteObjects(connId, server, database, schema);
+                if (cached && Array.isArray(cached) && cached.length > 0) return cached;
+            }
+            let res = null;
+            if (this.dataProvider && typeof this.dataProvider.getRemoteObjects === 'function') {
+                res = await this.dataProvider.getRemoteObjects(connId, server, database, schema);
+            } else if (window.AppMetadataProvider && typeof window.AppMetadataProvider.getRemoteObjects === 'function') {
+                res = await window.AppMetadataProvider.getRemoteObjects(connId, server, database, schema);
+            } else if (typeof window !== 'undefined' && window.location && window.location.protocol === 'file:' && !window.pywebview && typeof window.waitForPywebview !== 'function') {
+                res = [];
+            } else {
+                try {
+                    const params = new URLSearchParams({ server });
+                    if (database) params.append('database', database);
+                    if (schema) params.append('schema', schema);
+                    const fetchRes = await fetch(`/api/metadata/${connId}/linked_server/objects?${params.toString()}`);
+                    const data = await fetchRes.json();
+                    res = data && data.success && Array.isArray(data.items) ? data.items : [];
+                } catch (e) {
+                    res = [];
+                }
+            }
+            if (res && this.metadataCache && typeof this.metadataCache.setRemoteObjects === 'function') {
+                this.metadataCache.setRemoteObjects(connId, server, database, schema, res);
+            }
+            return res || [];
+        }
+
+        async _getRemoteColumns(connId, server, database, schema, table) {
+            if (!connId || !server || !table) return [];
+            if (this.metadataCache && typeof this.metadataCache.getRemoteColumns === 'function') {
+                const cached = this.metadataCache.getRemoteColumns(connId, server, database, schema, table);
+                if (cached && Array.isArray(cached) && cached.length > 0) return cached;
+            }
+            let res = null;
+            if (this.dataProvider && typeof this.dataProvider.getRemoteColumns === 'function') {
+                res = await this.dataProvider.getRemoteColumns(connId, server, database, schema, table);
+            } else if (window.AppMetadataProvider && typeof window.AppMetadataProvider.getRemoteColumns === 'function') {
+                res = await window.AppMetadataProvider.getRemoteColumns(connId, server, database, schema, table);
+            } else if (typeof window !== 'undefined' && window.location && window.location.protocol === 'file:' && !window.pywebview && typeof window.waitForPywebview !== 'function') {
+                res = [];
+            } else {
+                try {
+                    const params = new URLSearchParams({ server, table });
+                    if (database) params.append('database', database);
+                    if (schema) params.append('schema', schema);
+                    const fetchRes = await fetch(`/api/metadata/${connId}/linked_server/columns?${params.toString()}`);
+                    const data = await fetchRes.json();
+                    res = data && data.success && Array.isArray(data.items) ? data.items : [];
+                } catch (e) {
+                    res = [];
+                }
+            }
+            if (res && this.metadataCache && typeof this.metadataCache.setRemoteColumns === 'function') {
+                this.metadataCache.setRemoteColumns(connId, server, database, schema, table, res);
+            }
+            return res || [];
+        }
+
+        async _getForeignServers(connId) {
+            if (!connId) return [];
+            if (this.metadataCache && typeof this.metadataCache.getForeignServers === 'function') {
+                const cached = this.metadataCache.getForeignServers(connId);
+                if (cached && Array.isArray(cached) && cached.length > 0) return cached;
+            }
+            let res = null;
+            if (this.dataProvider && typeof this.dataProvider.getForeignServers === 'function') {
+                res = await this.dataProvider.getForeignServers(connId);
+            } else if (typeof window !== 'undefined' && window.location && window.location.protocol === 'file:' && !window.pywebview && typeof window.waitForPywebview !== 'function') {
+                res = [];
+            } else {
+                try {
+                    const fetchRes = await fetch(`/api/metadata/${connId}/foreign_servers`);
+                    const data = await fetchRes.json();
+                    res = data && data.success && Array.isArray(data.items) ? data.items : [];
+                } catch (e) {
+                    res = [];
+                }
+            }
+            if (res && this.metadataCache && typeof this.metadataCache.setForeignServers === 'function') {
+                this.metadataCache.setForeignServers(connId, res);
+            }
+            return res || [];
+        }
+
         formatInsertText(name, type, context, tabCtx) {
             if (!name) return "";
             if (['keyword', 'operator', 'snippet', 'scalar_variable', 'table_variable', 'data_type'].includes(type)) {
@@ -1024,18 +1208,32 @@
                 const tblName = tbl.table || tbl.name;
                 if (!tblName) return [];
 
-                const isPhysical = !['subquery', 'cte', 'temp_table', 'table_variable', 'pseudo_table'].includes(tbl.type);
+                const isPhysical = !['subquery', 'apply_subquery', 'lateral_subquery', 'table_function', 'cte', 'temp_table', 'table_variable', 'pseudo_table'].includes(tbl.type);
 
                 // 1. For physical tables, query Metadata Cache / Data Provider for full schema
                 if (isPhysical && tabCtx.connectionId) {
                     let cols = null;
-                    if (this.metadataCache && typeof this.metadataCache.getColumns === 'function') {
-                        cols = this.metadataCache.getColumns(tabCtx.connectionId, tabCtx.database, targetSchema, tblName);
-                    }
-                    if (!cols && this.dataProvider && typeof this.dataProvider.fetchColumns === 'function') {
-                        cols = await this.dataProvider.fetchColumns(tabCtx.connectionId, tabCtx.database, targetSchema, tblName);
-                    } else if (!cols && this.dataProvider && typeof this.dataProvider.getColumns === 'function') {
-                        cols = await this.dataProvider.getColumns(tabCtx.connectionId, tabCtx.database, targetSchema, tblName);
+                    if (tbl.server || tbl.sourceType === 'REMOTE_TABLE') {
+                        const targetServer = tbl.server;
+                        const targetDb = tbl.database || tabCtx.database;
+                        if (this.metadataCache && typeof this.metadataCache.getRemoteColumns === 'function') {
+                            cols = this.metadataCache.getRemoteColumns(tabCtx.connectionId, targetServer, targetDb, targetSchema, tblName);
+                        }
+                        if (!cols && this.dataProvider && typeof this.dataProvider.getRemoteColumns === 'function') {
+                            cols = await this.dataProvider.getRemoteColumns(tabCtx.connectionId, targetServer, targetDb, targetSchema, tblName);
+                            if (cols && this.metadataCache && typeof this.metadataCache.setRemoteColumns === 'function') {
+                                this.metadataCache.setRemoteColumns(tabCtx.connectionId, targetServer, targetDb, targetSchema, tblName, cols);
+                            }
+                        }
+                    } else {
+                        if (this.metadataCache && typeof this.metadataCache.getColumns === 'function') {
+                            cols = this.metadataCache.getColumns(tabCtx.connectionId, tabCtx.database, targetSchema, tblName);
+                        }
+                        if (!cols && this.dataProvider && typeof this.dataProvider.fetchColumns === 'function') {
+                            cols = await this.dataProvider.fetchColumns(tabCtx.connectionId, tabCtx.database, targetSchema, tblName);
+                        } else if (!cols && this.dataProvider && typeof this.dataProvider.getColumns === 'function') {
+                            cols = await this.dataProvider.getColumns(tabCtx.connectionId, tabCtx.database, targetSchema, tblName);
+                        }
                     }
                     if (cols && cols.length > 0) {
                         return cols;
@@ -1045,6 +1243,21 @@
                 // 2. Direct columns on object (CTE, subquery, temp_table, table_variable)
                 if (tbl.columns && Array.isArray(tbl.columns) && tbl.columns.length > 0) {
                     return tbl.columns;
+                }
+
+                // If subquery hasStar or has underlying table:
+                if (['subquery', 'apply_subquery', 'lateral_subquery'].includes(tbl.type) && tabCtx.connectionId) {
+                    const uTblName = (tbl.underlyingTables && tbl.underlyingTables[0]) ? tbl.underlyingTables[0].table : (tbl.targetObject && tbl.targetObject !== tbl.alias ? tbl.targetObject : '');
+                    if (uTblName) {
+                        const uSchema = tbl.schema || tabCtx.schema;
+                        let cols = this.metadataCache && typeof this.metadataCache.getColumns === 'function' ? this.metadataCache.getColumns(tabCtx.connectionId, tabCtx.database, uSchema, uTblName) : null;
+                        if (!cols && this.dataProvider && typeof this.dataProvider.fetchColumns === 'function') {
+                            cols = await this.dataProvider.fetchColumns(tabCtx.connectionId, tabCtx.database, uSchema, uTblName);
+                        } else if (!cols && this.dataProvider && typeof this.dataProvider.getColumns === 'function') {
+                            cols = await this.dataProvider.getColumns(tabCtx.connectionId, tabCtx.database, uSchema, uTblName);
+                        }
+                        if (cols && cols.length > 0) return cols;
+                    }
                 }
 
                 // 3. Active scope symbol lookup
@@ -1071,12 +1284,28 @@
                 if (context.resolvedObject && context.resolvedObject.object) {
                     targetTable = context.resolvedObject.object;
                     if (context.resolvedObject.schema) targetSchema = context.resolvedObject.schema;
-                    matchedTbl = { table: targetTable, schema: targetSchema, type: context.resolvedObject.type, columns: context.resolvedObject.columns };
+                    matchedTbl = {
+                        table: targetTable,
+                        schema: targetSchema,
+                        server: context.resolvedObject.server || null,
+                        database: context.resolvedObject.database || null,
+                        sourceType: context.resolvedObject.sourceType || null,
+                        type: context.resolvedObject.type,
+                        columns: context.resolvedObject.columns
+                    };
                 } else if (context.aliasMap && context.aliasMap[qualLower]) {
                     const mapped = context.aliasMap[qualLower];
                     targetTable = mapped.table || mapped.object || mapped.name;
                     if (mapped.schema) targetSchema = mapped.schema;
-                    matchedTbl = { table: targetTable, schema: targetSchema, type: mapped.type, columns: mapped.columns };
+                    matchedTbl = {
+                        table: targetTable,
+                        schema: targetSchema,
+                        server: mapped.server || null,
+                        database: mapped.database || null,
+                        sourceType: mapped.sourceType || null,
+                        type: mapped.type,
+                        columns: mapped.columns
+                    };
                 } else if (context.queryTables && context.queryTables.length > 0) {
                     const found = context.queryTables.find(t => (t.alias && t.alias.toLowerCase() === qualLower) || (t.table && t.table.toLowerCase() === qualLower));
                     if (found) {
@@ -1328,9 +1557,23 @@
                     });
                 });
 
+                const isInsertCols = Boolean(context.isInsertColumns || context.clause === 'INSERT_COLUMNS');
+                const isUpdateSet = Boolean(context.isUpdateSet || (context.clause === 'SET' && !context.isUpdateSetValue));
+
                 // Phase 3: Query Table Aliases in active scope (e.g. c for Customers)
                 if (!context.qualifier && context.queryTables && context.queryTables.length > 0) {
                     context.queryTables.forEach(tbl => {
+                        // In UPDATE SET clause (left side of =): only suggest alias of the target table
+                        if (isUpdateSet && context.targetTable && context.targetTable.table) {
+                            const tgtName = (context.targetTable.table || '').toLowerCase();
+                            const tgtAlias = (context.targetTable.alias || '').toLowerCase();
+                            const tblName = (tbl.table || '').toLowerCase();
+                            const tblAlias = (tbl.alias || '').toLowerCase();
+                            const isTarget = (tblName === tgtName) ||
+                                             (tblAlias && tblAlias === tgtName) ||
+                                             (tgtAlias && (tblName === tgtAlias || tblAlias === tgtAlias));
+                            if (!isTarget) return;
+                        }
                         if (tbl.alias) {
                             allCandidates.push({
                                 name: tbl.alias,
@@ -1366,8 +1609,6 @@
 
                 // D. Scalar variables & Parameters (@var in SQL Server, var_name in PostgreSQL)
                 const isVarTrigger = (context.currentWord && context.currentWord.startsWith('@')) || context.triggerChar === '@';
-                const isInsertCols = Boolean(context.isInsertColumns || context.clause === 'INSERT_COLUMNS');
-                const isUpdateSet = Boolean(context.isUpdateSet || (context.clause === 'SET' && !context.isUpdateSetValue));
                 const isExprClause = (context.clause === 'SELECT' || isInsertCols || isUpdateSet || !context.clause || ['WHERE', 'ON', 'GROUP BY', 'ORDER BY', 'HAVING', 'SET', 'VALUES', 'EXEC', 'EXECUTE'].includes(context.clause) || context.isInRoutineBody);
 
                 if (isVarTrigger || isExprClause) {
@@ -1399,17 +1640,50 @@
                         const alreadySet = new Set((context.alreadyListed || []).map(s => s.toLowerCase()));
 
                         for (const tbl of context.queryTables) {
-                            const targetSchema = tbl.schema || tabCtx.schema;
-                            // Only query database for physical tables, views, synonyms
-                            if (!['subquery', 'cte', 'temp_table', 'table_variable'].includes(tbl.type)) {
-                                let cols = null;
-                                if (this.metadataCache && typeof this.metadataCache.getColumns === 'function') {
-                                    cols = this.metadataCache.getColumns(tabCtx.connectionId, tabCtx.database, targetSchema, tbl.table);
+                            // In UPDATE SET target column position (left side of =):
+                            // ONLY suggest columns from target table (physical, temp table, table variable, or alias)
+                            if (isUpdateSet && context.targetTable && context.targetTable.table) {
+                                const tgtName = (context.targetTable.table || '').toLowerCase();
+                                const tgtAlias = (context.targetTable.alias || '').toLowerCase();
+                                const tblName = (tbl.table || '').toLowerCase();
+                                const tblAlias = (tbl.alias || '').toLowerCase();
+                                const isTarget = (tblName === tgtName) ||
+                                                 (tblAlias && tblAlias === tgtName) ||
+                                                 (tgtAlias && (tblName === tgtAlias || tblAlias === tgtAlias));
+                                if (!isTarget) {
+                                    continue; // Skip JOINed tables in UPDATE SET target position!
                                 }
-                                if (!cols && this.dataProvider && typeof this.dataProvider.fetchColumns === 'function') {
-                                    cols = await this.dataProvider.fetchColumns(tabCtx.connectionId, tabCtx.database, targetSchema, tbl.table);
-                                } else if (!cols && this.dataProvider && typeof this.dataProvider.getColumns === 'function') {
-                                    cols = await this.dataProvider.getColumns(tabCtx.connectionId, tabCtx.database, targetSchema, tbl.table);
+                            }
+
+                            const targetSchema = tbl.schema || tabCtx.schema;
+                            const isLocalTableType = ['subquery', 'apply_subquery', 'lateral_subquery', 'table_function', 'cte', 'temp_table', 'table_variable'].includes(tbl.type) ||
+                                (tbl.table && (tbl.table.startsWith('#') || tbl.table.startsWith('@')));
+
+                            // Only query database for physical tables, views, synonyms, foreign_table, remote_table
+                            if (!isLocalTableType) {
+                                let cols = null;
+                                const isRemoteTable = Boolean(tbl.server || tbl.sourceType === 'REMOTE_TABLE');
+                                if (isRemoteTable && tbl.server) {
+                                    const targetServer = tbl.server;
+                                    const targetDb = tbl.database || tabCtx.database;
+                                    if (this.metadataCache && typeof this.metadataCache.getRemoteColumns === 'function') {
+                                        cols = this.metadataCache.getRemoteColumns(tabCtx.connectionId, targetServer, targetDb, targetSchema, tbl.table);
+                                    }
+                                    if (!cols && this.dataProvider && typeof this.dataProvider.getRemoteColumns === 'function') {
+                                        cols = await this.dataProvider.getRemoteColumns(tabCtx.connectionId, targetServer, targetDb, targetSchema, tbl.table);
+                                        if (cols && this.metadataCache && typeof this.metadataCache.setRemoteColumns === 'function') {
+                                            this.metadataCache.setRemoteColumns(tabCtx.connectionId, targetServer, targetDb, targetSchema, tbl.table, cols);
+                                        }
+                                    }
+                                } else {
+                                    if (this.metadataCache && typeof this.metadataCache.getColumns === 'function') {
+                                        cols = this.metadataCache.getColumns(tabCtx.connectionId, tabCtx.database, targetSchema, tbl.table);
+                                    }
+                                    if (!cols && this.dataProvider && typeof this.dataProvider.fetchColumns === 'function') {
+                                        cols = await this.dataProvider.fetchColumns(tabCtx.connectionId, tabCtx.database, targetSchema, tbl.table);
+                                    } else if (!cols && this.dataProvider && typeof this.dataProvider.getColumns === 'function') {
+                                        cols = await this.dataProvider.getColumns(tabCtx.connectionId, tabCtx.database, targetSchema, tbl.table);
+                                    }
                                 }
                                 (cols || []).forEach(c => {
                                     const colName = c.name;
@@ -1453,28 +1727,63 @@
                                         insertText: this.formatInsertText(c.name, 'column', context, tabCtx)
                                     });
                                 });
-                            } else if (Array.isArray(tbl.columns)) {
-                                tbl.columns.forEach(c => {
-                                    const colName = c.name || c;
-                                    const colLower = (colName || '').toLowerCase();
-
-                                    if ((isInsertCols || isUpdateSet) && alreadySet.has(colLower)) {
-                                        return;
+                            } else {
+                                // Local CTE, subquery, temp_table, table_variable
+                                let localCols = tbl.columns;
+                                if ((!localCols || localCols.length === 0) && context.activeScope && typeof context.activeScope.getAllVisibleSymbols === 'function') {
+                                    const symbols = context.activeScope.getAllVisibleSymbols();
+                                    for (const [_, sym] of symbols) {
+                                        const symName = sym.name || sym.alias;
+                                        const matchesTable = symName && (symName.toLowerCase() === (tbl.table || '').toLowerCase() || (tbl.alias && symName.toLowerCase() === tbl.alias.toLowerCase()));
+                                        if (matchesTable && sym.columns && Array.isArray(sym.columns) && sym.columns.length > 0) {
+                                            localCols = sym.columns;
+                                            break;
+                                        }
                                     }
+                                }
 
-                                    allCandidates.push({
-                                        name: colName,
-                                        label: colName,
-                                        type: c.is_pk ? 'pk_column' : 'column',
-                                        kind: 'column',
-                                        level: isInsertCols ? 0.9 : 1.1,
-                                        displayType: 'Column',
-                                        dataType: c.data_type || '',
-                                        tableName: tbl.table,
-                                        tableAlias: tbl.alias,
-                                        insertText: this.formatInsertText(colName, 'column', context, tabCtx)
+                                // If localCols is empty and this is a subquery or temp table with SELECT * (hasStar or has underlying table):
+                                if ((!localCols || localCols.length === 0) && ['subquery', 'apply_subquery', 'lateral_subquery', 'temp_table', 'table_variable'].includes(tbl.type) && tabCtx.connectionId) {
+                                    let uTblName = (tbl.underlyingTables && tbl.underlyingTables[0]) ? tbl.underlyingTables[0].table : (tbl.targetObject && tbl.targetObject !== tbl.alias && tbl.targetObject !== tbl.table ? tbl.targetObject : '');
+                                    if (!uTblName && tbl.table && tbl.table !== tbl.alias) {
+                                        uTblName = tbl.table;
+                                    }
+                                    if (uTblName) {
+                                        const uSchema = tbl.schema || tabCtx.schema;
+                                        if (this.metadataCache && typeof this.metadataCache.getColumns === 'function') {
+                                            localCols = this.metadataCache.getColumns(tabCtx.connectionId, tabCtx.database, uSchema, uTblName);
+                                        }
+                                        if (!localCols && this.dataProvider && typeof this.dataProvider.fetchColumns === 'function') {
+                                            localCols = await this.dataProvider.fetchColumns(tabCtx.connectionId, tabCtx.database, uSchema, uTblName);
+                                        } else if (!localCols && this.dataProvider && typeof this.dataProvider.getColumns === 'function') {
+                                            localCols = await this.dataProvider.getColumns(tabCtx.connectionId, tabCtx.database, uSchema, uTblName);
+                                        }
+                                    }
+                                }
+
+                                if (Array.isArray(localCols)) {
+                                    localCols.forEach(c => {
+                                        const colName = c.name || c;
+                                        const colLower = (colName || '').toLowerCase();
+
+                                        if ((isInsertCols || isUpdateSet) && alreadySet.has(colLower)) {
+                                            return;
+                                        }
+
+                                        allCandidates.push({
+                                            name: colName,
+                                            label: colName,
+                                            type: c.is_pk ? 'pk_column' : 'column',
+                                            kind: 'column',
+                                            level: isInsertCols ? 0.9 : 1.1,
+                                            displayType: 'Column',
+                                            dataType: c.data_type || '',
+                                            tableName: tbl.table,
+                                            tableAlias: tbl.alias,
+                                            insertText: this.formatInsertText(colName, 'column', context, tabCtx)
+                                        });
                                     });
-                                });
+                                }
                             }
                         }
                     }
@@ -1519,47 +1828,99 @@
                 const qualLower = context.qualifier.toLowerCase();
                 let targetTable = null;
                 let targetSchema = tabCtx.schema;
+                let targetDatabase = tabCtx.database;
+                let targetServer = null;
+                let isRemote = false;
 
                 if (context.resolvedObject && context.resolvedObject.object) {
                     targetTable = context.resolvedObject.object;
                     if (context.resolvedObject.schema) targetSchema = context.resolvedObject.schema;
+                    if (context.resolvedObject.database) targetDatabase = context.resolvedObject.database;
+                    if (context.resolvedObject.server) {
+                        targetServer = context.resolvedObject.server;
+                        isRemote = true;
+                    } else if (context.resolvedObject.sourceType === 'REMOTE_TABLE') {
+                        isRemote = true;
+                    }
                 } else if (context.aliasMap && context.aliasMap[qualLower]) {
                     const mapped = context.aliasMap[qualLower];
                     targetTable = mapped.table || mapped.object;
                     if (mapped.schema) targetSchema = mapped.schema;
+                    if (mapped.database) targetDatabase = mapped.database;
+                    if (mapped.server) {
+                        targetServer = mapped.server;
+                        isRemote = true;
+                    }
                 } else {
                     targetTable = context.qualifier;
                 }
 
-                const isLocalSymbol = Boolean(context.resolvedObject && ['subquery', 'cte', 'temp_table', 'table_variable', 'pseudo_table'].includes(context.resolvedObject.type));
+                const isLocalSymbol = Boolean(
+                    (context.resolvedObject && ['subquery', 'apply_subquery', 'lateral_subquery', 'table_function', 'cte', 'temp_table', 'table_variable', 'pseudo_table'].includes(context.resolvedObject.type)) ||
+                    (targetTable && (targetTable.startsWith('#') || targetTable.startsWith('@'))) ||
+                    (context.aliasMap && context.aliasMap[qualLower] && ['subquery', 'apply_subquery', 'lateral_subquery', 'table_function', 'cte', 'temp_table', 'table_variable', 'pseudo_table'].includes(context.aliasMap[qualLower].type)) ||
+                    (context.aliasMap && context.aliasMap[qualLower] && context.aliasMap[qualLower].table && (context.aliasMap[qualLower].table.startsWith('#') || context.aliasMap[qualLower].table.startsWith('@')))
+                );
 
-                // A. Columns from database connection (Only for physical tables/views)
+                // A. Columns from database connection (Physical tables / views / remote tables)
                 if (tabCtx.connectionId && targetTable && !isLocalSymbol) {
                     let cols = null;
-                    if (this.metadataCache && typeof this.metadataCache.getColumns === 'function') {
-                        cols = this.metadataCache.getColumns(tabCtx.connectionId, tabCtx.database, targetSchema, targetTable);
-                    }
-                    if (!cols && this.dataProvider && typeof this.dataProvider.fetchColumns === 'function') {
-                        cols = await this.dataProvider.fetchColumns(tabCtx.connectionId, tabCtx.database, targetSchema, targetTable);
-                    } else if (!cols && this.dataProvider && typeof this.dataProvider.getColumns === 'function') {
-                        cols = await this.dataProvider.getColumns(tabCtx.connectionId, tabCtx.database, targetSchema, targetTable);
-                    }
-                    (cols || []).forEach(c => {
-                        allCandidates.push({
-                            name: c.name,
-                            label: c.name,
-                            type: c.is_pk ? 'pk_column' : 'column',
-                            kind: 'column',
-                            level: 2,
-                            displayType: 'Column',
-                            dataType: c.data_type,
-                            isNullable: c.is_nullable,
-                            isPk: c.is_pk,
-                            schema: targetSchema,
-                            tableName: targetTable,
-                            insertText: this.formatInsertText(c.name, 'column', context, tabCtx)
+                    if (isRemote && targetServer) {
+                        // Remote table (Linked Server) columns
+                        if (this.metadataCache && typeof this.metadataCache.getRemoteColumns === 'function') {
+                            cols = this.metadataCache.getRemoteColumns(tabCtx.connectionId, targetServer, targetDatabase, targetSchema, targetTable);
+                        }
+                        if (!cols && this.dataProvider && typeof this.dataProvider.getRemoteColumns === 'function') {
+                            cols = await this.dataProvider.getRemoteColumns(tabCtx.connectionId, targetServer, targetDatabase, targetSchema, targetTable);
+                            if (cols && this.metadataCache && typeof this.metadataCache.setRemoteColumns === 'function') {
+                                this.metadataCache.setRemoteColumns(tabCtx.connectionId, targetServer, targetDatabase, targetSchema, targetTable, cols);
+                            }
+                        }
+                        (cols || []).forEach(c => {
+                            allCandidates.push({
+                                name: c.name,
+                                label: c.name,
+                                type: c.is_pk ? 'pk_column' : 'column',
+                                kind: 'column',
+                                level: 2,
+                                displayType: 'Remote Column',
+                                dataType: c.data_type,
+                                isNullable: c.is_nullable,
+                                isPk: c.is_pk,
+                                server: targetServer,
+                                database: targetDatabase,
+                                schema: targetSchema,
+                                tableName: targetTable,
+                                insertText: this.formatInsertText(c.name, 'column', context, tabCtx)
+                            });
                         });
-                    });
+                    } else if (!isRemote) {
+                        // Local table columns
+                        if (this.metadataCache && typeof this.metadataCache.getColumns === 'function') {
+                            cols = this.metadataCache.getColumns(tabCtx.connectionId, tabCtx.database, targetSchema, targetTable);
+                        }
+                        if (!cols && this.dataProvider && typeof this.dataProvider.fetchColumns === 'function') {
+                            cols = await this.dataProvider.fetchColumns(tabCtx.connectionId, tabCtx.database, targetSchema, targetTable);
+                        } else if (!cols && this.dataProvider && typeof this.dataProvider.getColumns === 'function') {
+                            cols = await this.dataProvider.getColumns(tabCtx.connectionId, tabCtx.database, targetSchema, targetTable);
+                        }
+                        (cols || []).forEach(c => {
+                            allCandidates.push({
+                                name: c.name,
+                                label: c.name,
+                                type: c.is_pk ? 'pk_column' : 'column',
+                                kind: 'column',
+                                level: 2,
+                                displayType: 'Column',
+                                dataType: c.data_type,
+                                isNullable: c.is_nullable,
+                                isPk: c.is_pk,
+                                schema: targetSchema,
+                                tableName: targetTable,
+                                insertText: this.formatInsertText(c.name, 'column', context, tabCtx)
+                            });
+                        });
+                    }
                 }
 
                 // A2. Pseudo-table columns (NEW / OLD in PostgreSQL, inserted / deleted in SQL Server)
@@ -1636,9 +1997,141 @@
                     }
                 }
 
-                // B. Columns discovered from local query scope (Subquery / CTE / Temp table / Table var projections - Section 39, 40, 46, 47)
-                if (context.resolvedObject && Array.isArray(context.resolvedObject.columns)) {
-                    context.resolvedObject.columns.forEach(col => {
+                // A3. Multi-tier Linked Server Completion Hierarchy (Spec Section 13, 14, 45)
+                // server. -> databases
+                // server.db. -> schemas
+                // server.db.schema. -> tables/views
+                // server.db.schema.table. -> remote columns
+                const qParts = (context.qualifierParts || []).map(p => CompletionEngine.cleanIdentifier(p).trim());
+                const isKnownAlias = Boolean(context.resolvedObject && context.resolvedObject.isAlias);
+                if (tabCtx.connectionId && qParts.length > 0 && !isKnownAlias && !isLocalSymbol) {
+                    if (qParts.length >= 4) {
+                        const rServer = qParts[qParts.length - 4];
+                        const rDb = qParts[qParts.length - 3];
+                        const rSchema = qParts[qParts.length - 2] || 'dbo';
+                        const rTbl = qParts[qParts.length - 1];
+                        if (rServer && rTbl) {
+                            const cols = await this._getRemoteColumns(tabCtx.connectionId, rServer, rDb, rSchema, rTbl);
+                            (cols || []).forEach(c => {
+                                const cName = c.name || c;
+                                allCandidates.push({
+                                    name: cName,
+                                    label: cName,
+                                    type: c.is_pk ? 'pk_column' : 'column',
+                                    kind: 'column',
+                                    level: 1.5,
+                                    displayType: 'Remote Column',
+                                    dataType: c.data_type || '',
+                                    isNullable: c.is_nullable !== false,
+                                    isPk: Boolean(c.is_pk),
+                                    server: rServer,
+                                    database: rDb,
+                                    schema: rSchema,
+                                    tableName: rTbl,
+                                    insertText: this.formatInsertText(cName, 'column', context, tabCtx)
+                                });
+                            });
+                        }
+                    } else if (qParts.length === 3) {
+                        const rServer = qParts[0];
+                        const rDb = qParts[1];
+                        const rSchema = qParts[2] || 'dbo';
+                        if (rServer && rDb) {
+                            const objs = await this._getRemoteObjects(tabCtx.connectionId, rServer, rDb, rSchema);
+                            (objs || []).forEach(o => {
+                                const oName = o.name || o;
+                                const oType = o.type || 'table';
+                                allCandidates.push({
+                                    name: oName,
+                                    label: oName,
+                                    type: oType,
+                                    kind: oType,
+                                    level: 1.5,
+                                    displayType: oType === 'view' ? 'Remote View' : 'Remote Table',
+                                    server: rServer,
+                                    database: rDb,
+                                    schema: o.schema || rSchema,
+                                    insertText: this.formatInsertText(oName, oType, context, tabCtx)
+                                });
+                            });
+                        }
+                    } else if (qParts.length === 2) {
+                        const rServer = qParts[0];
+                        const rDb = qParts[1];
+                        if (rServer && rDb) {
+                            const schemas = await this._getRemoteSchemas(tabCtx.connectionId, rServer, rDb);
+                            (schemas || []).forEach(s => {
+                                const sName = s.name || s;
+                                allCandidates.push({
+                                    name: sName,
+                                    label: sName,
+                                    type: 'schema',
+                                    kind: 'schema',
+                                    level: 1.5,
+                                    displayType: 'Remote Schema',
+                                    server: rServer,
+                                    database: rDb,
+                                    insertText: this.formatInsertText(sName, 'schema', context, tabCtx)
+                                });
+                            });
+                        }
+                    } else if (qParts.length === 1) {
+                        const candidateServer = qParts[0];
+                        const lservers = await this._getLinkedServers(tabCtx.connectionId);
+                        const isLinked = (lservers || []).some(ls => (ls.name || ls.LinkedServerName || '').toLowerCase() === candidateServer.toLowerCase());
+                        if (isLinked) {
+                            const rDbs = await this._getRemoteDatabases(tabCtx.connectionId, candidateServer);
+                            (rDbs || []).forEach(db => {
+                                const dName = db.name || db;
+                                allCandidates.push({
+                                    name: dName,
+                                    label: dName,
+                                    type: 'database',
+                                    kind: 'database',
+                                    level: 1.5,
+                                    displayType: 'Remote Database',
+                                    server: candidateServer,
+                                    insertText: this.formatInsertText(dName, 'database', context, tabCtx)
+                                });
+                            });
+                        }
+                    }
+                }
+
+                // B. Columns discovered from local query scope (Subquery / APPLY / LATERAL / CTE / Temp table / Table var projections - Section 39, 40, 46, 47)
+                let localCols = (context.resolvedObject && Array.isArray(context.resolvedObject.columns) && context.resolvedObject.columns.length > 0)
+                    ? context.resolvedObject.columns
+                    : (context.aliasMap && context.aliasMap[qualLower] && Array.isArray(context.aliasMap[qualLower].columns) ? context.aliasMap[qualLower].columns : []);
+
+                // If localCols is still empty, look up in activeScope or queryTables
+                if ((!localCols || localCols.length === 0) && context.activeScope && typeof context.activeScope.getAllVisibleSymbols === 'function') {
+                    const symbols = context.activeScope.getAllVisibleSymbols();
+                    for (const [_, sym] of symbols) {
+                        const symName = sym.name || sym.alias;
+                        const matchesTable = symName && (
+                            symName.toLowerCase() === qualLower ||
+                            (targetTable && symName.toLowerCase() === targetTable.toLowerCase()) ||
+                            (sym.alias && sym.alias.toLowerCase() === qualLower)
+                        );
+                        if (matchesTable && sym.columns && Array.isArray(sym.columns) && sym.columns.length > 0) {
+                            localCols = sym.columns;
+                            break;
+                        }
+                    }
+                }
+                if ((!localCols || localCols.length === 0) && context.queryTables && Array.isArray(context.queryTables)) {
+                    const matchedQ = context.queryTables.find(qt =>
+                        (qt.alias && qt.alias.toLowerCase() === qualLower) ||
+                        (qt.table && qt.table.toLowerCase() === qualLower) ||
+                        (targetTable && qt.table && qt.table.toLowerCase() === targetTable.toLowerCase())
+                    );
+                    if (matchedQ && matchedQ.columns && Array.isArray(matchedQ.columns) && matchedQ.columns.length > 0) {
+                        localCols = matchedQ.columns;
+                    }
+                }
+
+                if (localCols && localCols.length > 0) {
+                    localCols.forEach(col => {
                         const cName = col.name || col;
                         allCandidates.push({
                             name: cName,
@@ -1657,8 +2150,72 @@
                     });
                 }
 
+                // B2. If subquery projected SELECT * (hasStar or localCols empty), fetch columns from underlying table(s)
+                const targetObj = context.resolvedObject || (context.aliasMap ? context.aliasMap[qualLower] : null);
+                const isSubqueryType = targetObj && ['subquery', 'apply_subquery', 'lateral_subquery', 'temp_table', 'table_variable'].includes(targetObj.type);
+                if (isSubqueryType && (targetObj.hasStar || localCols.length === 0)) {
+                    let underlyingList = (targetObj && Array.isArray(targetObj.underlyingTables) && targetObj.underlyingTables.length > 0)
+                        ? [...targetObj.underlyingTables]
+                        : [];
+                    if (underlyingList.length === 0 && targetObj && targetObj.targetObject && targetObj.targetObject.toLowerCase() !== qualLower) {
+                        underlyingList.push({
+                            table: targetObj.targetObject,
+                            schema: targetObj.schema || ''
+                        });
+                    }
+                    if (underlyingList.length === 0 && targetTable && targetTable.toLowerCase() !== qualLower) {
+                        underlyingList.push({
+                            table: targetTable,
+                            schema: targetSchema || ''
+                        });
+                    }
+
+                    for (const uTbl of underlyingList) {
+                        let fetchedCols = null;
+                        // 1. Check local scope (temp table #temp / table var @tbl / CTE)
+                        if (context.activeScope && typeof context.activeScope.resolve === 'function') {
+                            const sym = context.activeScope.resolve(uTbl.table);
+                            if (sym && sym.columns && Array.isArray(sym.columns) && sym.columns.length > 0) {
+                                fetchedCols = sym.columns;
+                            }
+                        }
+                        // 2. Check database connection
+                        if (!fetchedCols && tabCtx.connectionId) {
+                            const uSchema = uTbl.schema || targetSchema || tabCtx.schema;
+                            if (this.metadataCache && typeof this.metadataCache.getColumns === 'function') {
+                                fetchedCols = this.metadataCache.getColumns(tabCtx.connectionId, targetDatabase, uSchema, uTbl.table);
+                            }
+                            if (!fetchedCols && this.dataProvider && typeof this.dataProvider.fetchColumns === 'function') {
+                                fetchedCols = await this.dataProvider.fetchColumns(tabCtx.connectionId, targetDatabase, uSchema, uTbl.table);
+                            } else if (!fetchedCols && this.dataProvider && typeof this.dataProvider.getColumns === 'function') {
+                                fetchedCols = await this.dataProvider.getColumns(tabCtx.connectionId, targetDatabase, uSchema, uTbl.table);
+                            }
+                        }
+                        if (fetchedCols && Array.isArray(fetchedCols)) {
+                            fetchedCols.forEach(c => {
+                                const cName = c.name || c;
+                                if (!allCandidates.some(cand => cand.name.toLowerCase() === cName.toLowerCase() && cand.kind === 'column')) {
+                                    allCandidates.push({
+                                        name: cName,
+                                        label: cName,
+                                        type: c.is_pk ? 'pk_column' : 'column',
+                                        kind: 'column',
+                                        level: 1.1,
+                                        displayType: 'Column',
+                                        dataType: c.data_type || c.dataType || '',
+                                        isNullable: c.is_nullable !== false,
+                                        isPk: Boolean(c.is_pk),
+                                        schema: uTbl.schema || targetSchema || '',
+                                        tableName: targetTable || context.qualifier,
+                                        insertText: this.formatInsertText(cName, 'column', context, tabCtx)
+                                    });
+                                }
+                            });
+                        }
+                    }
+                }
+
                 // C. If qualifier is schema (e.g. dbo.), fetch objects in that schema
-                const isKnownAlias = Boolean(context.resolvedObject && context.resolvedObject.isAlias);
                 if (tabCtx.connectionId && !isKnownAlias && !isLocalSymbol && this.dataProvider && typeof this.dataProvider.fetchObjects === 'function') {
                     const dbObjects = await this.dataProvider.fetchObjects(tabCtx.connectionId, tabCtx.database, context.qualifier);
                     (dbObjects || []).forEach(obj => {
@@ -1690,6 +2247,48 @@
                     fkRelatedTables = await this._generateJoinTargetCandidates(allCandidates, context, tabCtx);
                 }
 
+                // Suggest Linked Servers (SQL Server) or Foreign Servers (PostgreSQL)
+                const isSqlServer = !tabCtx.dbType || ['sqlserver', 'mssql', 'tsql'].includes(String(tabCtx.dbType).toLowerCase());
+                const isPostgres = ['postgresql', 'postgres', 'pg'].includes(String(tabCtx.dbType).toLowerCase());
+                const allowServerCandidates = !isStrictAlter && !(context.isInsertColumns || context.clause === 'INSERT_COLUMNS');
+
+                if (allowServerCandidates) {
+                    if (isSqlServer) {
+                        const lservers = await this._getLinkedServers(tabCtx.connectionId);
+                        (lservers || []).forEach(ls => {
+                            const sName = ls.name || ls.LinkedServerName || '';
+                            if (!sName) return;
+                            allCandidates.push({
+                                name: sName,
+                                label: sName,
+                                type: 'linked_server',
+                                kind: 'server',
+                                level: 2.2,
+                                displayType: 'Linked Server',
+                                detail: (ls.product || ls.Product) ? `${ls.product || ls.Product} (${ls.data_source || ls.DataSource_IP_Or_Instance || ''})` : 'Linked Server',
+                                insertText: this.formatInsertText(sName, 'server', context, tabCtx)
+                            });
+                        });
+                    }
+                    if (isPostgres) {
+                        const fservers = await this._getForeignServers(tabCtx.connectionId);
+                        (fservers || []).forEach(fs => {
+                            const sName = fs.name || '';
+                            if (!sName) return;
+                            allCandidates.push({
+                                name: sName,
+                                label: sName,
+                                type: 'foreign_server',
+                                kind: 'server',
+                                level: 2.2,
+                                displayType: 'Foreign Server',
+                                detail: fs.wrapper ? `FDW: ${fs.wrapper}` : 'Foreign Server',
+                                insertText: this.formatInsertText(sName, 'server', context, tabCtx)
+                            });
+                        });
+                    }
+                }
+
                 // No qualifier: Fetch database objects for active schema
                 const dbObjects = await this.dataProvider.fetchObjects(tabCtx.connectionId, tabCtx.database, tabCtx.schema);
                 const seenTableNames = new Set();
@@ -1703,7 +2302,7 @@
                     } else if (context.isInsertColumns || context.clause === 'INSERT_COLUMNS') {
                         return;
                     } else if (context.clause === 'FROM' || context.clause === 'JOIN' || context.clause === 'INSERT INTO' || context.clause === 'UPDATE') {
-                        if (!['table', 'view', 'temp_table', 'table_variable', 'synonym'].includes(obj.type)) return;
+                        if (!['table', 'view', 'temp_table', 'table_variable', 'synonym', 'foreign_table'].includes(obj.type)) return;
                     }
 
                     const hasAlias = context.queryTables && context.queryTables.some(
@@ -1724,7 +2323,7 @@
                         kind: obj.type,
                         level: isFk ? 0.7 : 2,
                         isFkTarget: Boolean(isFk),
-                        displayType: isFk ? 'Table (FK)' : this._formatDisplayType(obj.type),
+                        displayType: obj.type === 'foreign_table' ? 'Foreign Table' : (isFk ? 'Table (FK)' : this._formatDisplayType(obj.type)),
                         detail: fkInfo ? fkInfo.detail : (obj.target_object || ''),
                         schema: obj.schema,
                         targetObject: obj.target_object,
@@ -1834,7 +2433,8 @@
 
             let precedingTables = context.queryTables || [];
             if (precedingTables.length === 0 && (context.fullSql || context.statementRange)) {
-                const textToScan = context.statementRange ? context.fullSql.substring(context.statementRange.start, context.statementRange.end) : context.fullSql;
+                const fullSql = context.fullSql || '';
+                const textToScan = context.statementRange && fullSql ? fullSql.substring(context.statementRange.start, context.statementRange.end) : fullSql;
                 if (window.SqlContextAnalyzer && typeof window.SqlContextAnalyzer.extractAllTablesInQuery === 'function') {
                     precedingTables = window.SqlContextAnalyzer.extractAllTablesInQuery(textToScan);
                 }
@@ -1843,16 +2443,16 @@
             const existingAliases = new Set(precedingTables.map(t => (t.alias || '').toLowerCase()).filter(Boolean));
 
             for (const pt of precedingTables) {
-                if (['subquery', 'cte', 'temp_table', 'table_variable'].includes(pt.type)) continue;
+                if (['subquery', 'apply_subquery', 'lateral_subquery', 'table_function', 'cte', 'temp_table', 'table_variable'].includes(pt.type)) continue;
 
-                const ptSchema = pt.schema || tabCtx.schema;
-                const ptName = pt.table;
-                const ptLower = (ptName || '').toLowerCase();
+                const ptSchema = pt.schema || '';
+                const ptName = CompletionEngine.cleanIdentifier(pt.table || '');
+                const ptLower = ptName.toLowerCase();
                 const fks = await this.dataProvider.fetchForeignKeys(tabCtx.connectionId, tabCtx.database, ptSchema, ptName, tabCtx.dbType);
 
                 (fks || []).forEach(fk => {
-                    const fromLower = (fk.from_table || '').toLowerCase();
-                    const toLower = (fk.to_table || '').toLowerCase();
+                    const fromLower = CompletionEngine.cleanIdentifier(fk.from_table || '').toLowerCase();
+                    const toLower = CompletionEngine.cleanIdentifier(fk.to_table || '').toLowerCase();
                     let relatedName = null;
                     let relatedSchema = null;
                     let isPtParent = false;
@@ -1861,12 +2461,12 @@
 
                     if (fromLower === ptLower) {
                         // pt is child, related table is parent (to_table)
-                        relatedName = fk.to_table;
+                        relatedName = CompletionEngine.cleanIdentifier(fk.to_table || '');
                         relatedSchema = fk.to_schema;
                         isPtParent = false;
                     } else if (toLower === ptLower) {
                         // pt is parent, related table is child (from_table)
-                        relatedName = fk.from_table;
+                        relatedName = CompletionEngine.cleanIdentifier(fk.from_table || '');
                         relatedSchema = fk.from_schema;
                         isPtParent = true;
                     }
@@ -1927,7 +2527,8 @@
 
             let queryTables = context.queryTables || [];
             if (queryTables.length < 2 && (context.fullSql || context.statementRange)) {
-                const textToScan = context.statementRange ? context.fullSql.substring(context.statementRange.start, context.statementRange.end) : context.fullSql;
+                const fullSql = context.fullSql || '';
+                const textToScan = context.statementRange && fullSql ? fullSql.substring(context.statementRange.start, context.statementRange.end) : fullSql;
                 if (window.SqlContextAnalyzer && typeof window.SqlContextAnalyzer.extractAllTablesInQuery === 'function') {
                     const extraTables = window.SqlContextAnalyzer.extractAllTablesInQuery(textToScan);
                     if (extraTables.length > queryTables.length) {
@@ -1941,20 +2542,22 @@
             const rightTable = queryTables[queryTables.length - 1];
             const leftTables = queryTables.slice(0, queryTables.length - 1);
             const rightRef = rightTable.alias || rightTable.table;
+            const rtName = CompletionEngine.cleanIdentifier(rightTable.table || '');
+            const rtLower = rtName.toLowerCase();
             let foundFkMatch = false;
 
             if (this.dataProvider && typeof this.dataProvider.fetchForeignKeys === 'function') {
-                const rtSchema = rightTable.schema || tabCtx.schema;
-                const fks = await this.dataProvider.fetchForeignKeys(tabCtx.connectionId, tabCtx.database, rtSchema, rightTable.table, tabCtx.dbType);
+                const rtSchema = rightTable.schema || '';
+                const fks = await this.dataProvider.fetchForeignKeys(tabCtx.connectionId, tabCtx.database, rtSchema, rtName, tabCtx.dbType);
 
                 for (const lt of leftTables) {
                     const leftRef = lt.alias || lt.table;
-                    const ltLower = (lt.table || '').toLowerCase();
-                    const rtLower = (rightTable.table || '').toLowerCase();
+                    const ltName = CompletionEngine.cleanIdentifier(lt.table || '');
+                    const ltLower = ltName.toLowerCase();
 
                     (fks || []).forEach(fk => {
-                        const fromLower = (fk.from_table || '').toLowerCase();
-                        const toLower = (fk.to_table || '').toLowerCase();
+                        const fromLower = CompletionEngine.cleanIdentifier(fk.from_table || '').toLowerCase();
+                        const toLower = CompletionEngine.cleanIdentifier(fk.to_table || '').toLowerCase();
                         let matched = false;
                         const condParts = [];
                         const fromCols = fk.from_columns || [];
@@ -1997,8 +2600,8 @@
 
             // Heuristic fallback if no explicit FK constraint found
             if (!foundFkMatch && this.dataProvider && typeof this.dataProvider.fetchColumns === 'function') {
-                const rtSchema = rightTable.schema || tabCtx.schema;
-                const rightCols = await this.dataProvider.fetchColumns(tabCtx.connectionId, tabCtx.database, rtSchema, rightTable.table, tabCtx.dbType);
+                const rtSchema = rightTable.schema || '';
+                const rightCols = await this.dataProvider.fetchColumns(tabCtx.connectionId, tabCtx.database, rtSchema, rtName, tabCtx.dbType);
 
                 const genericIgnore = new Set([
                     'name', 'code', 'status', 'type', 'description', 'notes', 'comment', 'comments',
@@ -2007,11 +2610,12 @@
                 ]);
 
                 for (const lt of leftTables) {
-                    const ltSchema = lt.schema || tabCtx.schema;
-                    const leftCols = await this.dataProvider.fetchColumns(tabCtx.connectionId, tabCtx.database, ltSchema, lt.table, tabCtx.dbType);
+                    const ltSchema = lt.schema || '';
+                    const ltName = CompletionEngine.cleanIdentifier(lt.table || '');
+                    const leftCols = await this.dataProvider.fetchColumns(tabCtx.connectionId, tabCtx.database, ltSchema, ltName, tabCtx.dbType);
                     const leftRef = lt.alias || lt.table;
-                    const ltNameClean = CompletionEngine.cleanIdentifier(lt.table).toLowerCase();
-                    const rtNameClean = CompletionEngine.cleanIdentifier(rightTable.table).toLowerCase();
+                    const ltNameClean = ltName.toLowerCase();
+                    const rtNameClean = rtName.toLowerCase();
                     const ltSingular = ltNameClean.endsWith('s') ? ltNameClean.slice(0, -1) : ltNameClean;
                     const rtSingular = rtNameClean.endsWith('s') ? rtNameClean.slice(0, -1) : rtNameClean;
 
@@ -2248,6 +2852,9 @@
         }
 
         async getCompletions(documentText, cursor, context, tabCtx) {
+            if (context && !context.fullSql) {
+                context.fullSql = documentText || '';
+            }
             const requestId = ++this._currentRequestId;
             const wordLower = (context.currentWord || '').toLowerCase();
             const alterPart = context.isAlterContext ? `ALTER_${context.alterObjectType || ''}` : '';
@@ -2364,13 +2971,7 @@
 
         cleanIdentifier(name) {
             if (!name) return '';
-            name = name.trim();
-            if ((name.startsWith('[') && name.endsWith(']')) ||
-                (name.startsWith('"') && name.endsWith('"')) ||
-                (name.startsWith('`') && name.endsWith('`'))) {
-                return name.substring(1, name.length - 1);
-            }
-            return name;
+            return CompletionEngine.cleanIdentifier(name);
         }
 
         async resolve(fullSql, cursorOffset, tabCtx = {}) {
@@ -2764,13 +3365,7 @@
 
         cleanIdentifier(name) {
             if (!name) return '';
-            name = name.trim();
-            if ((name.startsWith('[') && name.endsWith(']')) ||
-                (name.startsWith('"') && name.endsWith('"')) ||
-                (name.startsWith('`') && name.endsWith('`'))) {
-                return name.substring(1, name.length - 1);
-            }
-            return name;
+            return CompletionEngine.cleanIdentifier(name);
         }
 
         async resolve(fullSql, cursorOffset, tabCtx = {}) {
@@ -2930,8 +3525,10 @@
                     if (aliasSym.columns && aliasSym.columns.length > 0) {
                         md += `\n\nColumns: ${aliasSym.columns.map(c => `\`${c.name || c}\``).join(', ')}`;
                     }
-                } else if (aliasSym.type === 'subquery') {
-                    md = `**(Subquery Alias) ${word}**`;
+                } else if (aliasSym.type === 'subquery' || aliasSym.type === 'apply_subquery' || aliasSym.type === 'lateral_subquery') {
+                    const label = aliasSym.type === 'apply_subquery' ? 'APPLY Subquery Alias' : (aliasSym.type === 'lateral_subquery' ? 'LATERAL Subquery Alias' : 'Subquery Alias');
+                    const targetInfo = (aliasSym.targetObject && aliasSym.targetObject !== word) ? ` → \`[${aliasSym.targetObject}]\`` : '';
+                    md = `**(${label}) ${word}**${targetInfo}`;
                     if (aliasSym.columns && aliasSym.columns.length > 0) {
                         md += `\n\nColumns: ${aliasSym.columns.map(c => `\`${c.name || c}\``).join(', ')}`;
                     }
@@ -2963,16 +3560,29 @@
 
                     // For persistent database tables/views, query cache and dataProvider for authoritative column types
                     let authoritativeCols = null;
-                    if (cache && typeof cache.getColumns === 'function' && effectiveTabCtx.connectionId && tblName) {
-                        authoritativeCols = cache.getColumns(effectiveTabCtx.connectionId, effectiveTabCtx.database, schemaToUse, tblName);
-                        if ((!authoritativeCols || authoritativeCols.length === 0) && targetTbl.schema) {
-                            authoritativeCols = cache.getColumns(effectiveTabCtx.connectionId, effectiveTabCtx.database, targetTbl.schema, tblName);
+                    if (targetTbl.server || targetTbl.sourceType === 'REMOTE_TABLE') {
+                        const targetServer = targetTbl.server;
+                        const targetDb = targetTbl.database || effectiveTabCtx.database;
+                        if (cache && typeof cache.getRemoteColumns === 'function' && effectiveTabCtx.connectionId && tblName) {
+                            authoritativeCols = cache.getRemoteColumns(effectiveTabCtx.connectionId, targetServer, targetDb, schemaToUse, tblName);
                         }
-                    }
-                    if ((!authoritativeCols || authoritativeCols.length === 0) && dataProvider && typeof dataProvider.fetchColumns === 'function' && effectiveTabCtx.connectionId && tblName) {
-                        try {
-                            authoritativeCols = await dataProvider.fetchColumns(effectiveTabCtx.connectionId, effectiveTabCtx.database, schemaToUse, tblName, effectiveTabCtx.dbType);
-                        } catch (_) {}
+                        if ((!authoritativeCols || authoritativeCols.length === 0) && dataProvider && typeof dataProvider.getRemoteColumns === 'function' && effectiveTabCtx.connectionId && tblName) {
+                            try {
+                                authoritativeCols = await dataProvider.getRemoteColumns(effectiveTabCtx.connectionId, targetServer, targetDb, schemaToUse, tblName);
+                            } catch (_) {}
+                        }
+                    } else {
+                        if (cache && typeof cache.getColumns === 'function' && effectiveTabCtx.connectionId && tblName) {
+                            authoritativeCols = cache.getColumns(effectiveTabCtx.connectionId, effectiveTabCtx.database, schemaToUse, tblName);
+                            if ((!authoritativeCols || authoritativeCols.length === 0) && targetTbl.schema) {
+                                authoritativeCols = cache.getColumns(effectiveTabCtx.connectionId, effectiveTabCtx.database, targetTbl.schema, tblName);
+                            }
+                        }
+                        if ((!authoritativeCols || authoritativeCols.length === 0) && dataProvider && typeof dataProvider.fetchColumns === 'function' && effectiveTabCtx.connectionId && tblName) {
+                            try {
+                                authoritativeCols = await dataProvider.fetchColumns(effectiveTabCtx.connectionId, effectiveTabCtx.database, schemaToUse, tblName, effectiveTabCtx.dbType);
+                            } catch (_) {}
+                        }
                     }
 
                     const cols = (authoritativeCols && authoritativeCols.length > 0) ? authoritativeCols : (targetTbl.columns || []);

@@ -1,0 +1,174 @@
+Dưới đây là các câu lệnh SQL để bạn có thể **copy chạy trực tiếp trong Query Editor** để kiểm tra chính xác các View, Materialized View và Stored Procedure đang sử dụng bảng `b20customer` trên cơ sở dữ liệu của bạn:
+
+---
+
+### 1. Câu truy vấn chuẩn từ PostgreSQL System Catalog (`pg_depend` + `pg_rewrite`)
+Đây là cơ chế nội bộ của PostgreSQL ghi nhận quan hệ phụ thuộc thực tế khi View được biên dịch:
+
+```sql
+SELECT DISTINCT
+    v_ns.nspname AS view_schema,
+    v.relname AS view_name,
+    CASE v.relkind 
+        WHEN 'v' THEN 'VIEW'
+        WHEN 'm' THEN 'MATERIALIZED VIEW'
+        ELSE v.relkind::text
+    END AS view_type,
+    t_ns.nspname AS table_schema,
+    t.relname AS table_name
+FROM pg_catalog.pg_depend d
+JOIN pg_catalog.pg_rewrite rw ON rw.oid = d.objid
+JOIN pg_catalog.pg_class v ON v.oid = rw.ev_class
+JOIN pg_catalog.pg_namespace v_ns ON v_ns.oid = v.relnamespace
+JOIN pg_catalog.pg_class t ON t.oid = d.refobjid
+JOIN pg_catalog.pg_namespace t_ns ON t_ns.oid = t.relnamespace
+WHERE d.refclassid = 'pg_catalog.pg_class'::regclass
+  AND d.classid = 'pg_catalog.pg_rewrite'::regclass
+  AND lower(t.relname) = 'b20customer'
+  AND v.oid != t.oid
+  AND v.relkind IN ('v', 'm')
+ORDER BY v_ns.nspname, v.relname;
+```
+
+---
+
+### 2. Câu truy vấn theo chuẩn ANSI (`information_schema.view_table_usage`)
+PostgreSQL cung cấp sẵn view này để liệt kê các bảng được dùng trong View:
+
+```sql
+SELECT 
+    view_schema,
+    view_name,
+    table_schema,
+    table_name
+FROM information_schema.view_table_usage
+WHERE lower(table_name) = 'b20customer'
+ORDER BY view_schema, view_name;
+```
+
+---
+
+### 3. Câu truy vấn quét trực tiếp mã nguồn View (`pg_views` & `pg_matviews`)
+Câu lệnh này tìm kiếm trực tiếp trong định nghĩa SQL của View (bao gồm cả trường hợp View phức tạp dùng subquery, CTE, v.v.):
+
+```sql
+-- 3.1. Đối với View thông thường
+SELECT 
+    schemaname AS view_schema,
+    viewn
+<truncated 284 bytes>
+name AS view_name,
+    'MATERIALIZED VIEW' AS view_type,
+    definition
+FROM pg_catalog.pg_matviews
+WHERE schemaname NOT IN ('pg_catalog', 'information_schema')
+  AND definition ILIKE '%b20customer%'
+ORDER BY view_schema, view_name;
+```
+
+---
+
+### 4. Câu truy vấn tìm các Stored Procedure & Function sử dụng `b20customer`
+*(Trong PostgreSQL, hàm và thủ tục không lưu liên kết bảng trong `pg_depend`, bắt buộc phải quét từ `pg_proc`)*:
+
+```sql
+SELECT 
+    n.nspname AS routine_schema,
+    p.proname AS routine_name,
+    CASE p.prokind 
+        WHEN 'p' THEN 'PROCEDURE' 
+        WHEN 'f' THEN 'FUNCTION' 
+        ELSE p.prokind::text 
+    END AS routine_type,
+    l.lanname AS language,
+    p.prosrc AS routine_body
+FROM pg_catalog.pg_proc p
+JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace
+JOIN pg_catalog.pg_language l ON l.oid = p.prolang
+WHERE n.nspname NOT IN ('pg_catalog', 'information_schema')
+  AND l.lanname IN ('sql', 'plpgsql')
+  AND p.prosrc ILIKE '%b20customer%'
+ORDER BY n.nspname, p.proname;
+```
+
+---
+
+### 5. Câu truy vấn tìm các Bảng có Khóa ngoại (Foreign Key) trỏ tới `b20customer`
+```sql
+SELECT
+    con.conname AS fk_constraint_name,
+    src_ns.nspname AS referencing_schema,
+    src_tbl.relname AS referencing_table,
+    tgt_ns.nspname AS target_schema,
+    tgt_tbl.relname AS target_table
+FROM pg_catalog.pg_constraint con
+JOIN pg_catalog.pg_class src_tbl ON src_tbl.oid = con.conrelid
+JOIN pg_catalog.pg_namespace src_ns ON src_ns.oid = src_tbl.relnamespace
+JOIN pg_catalog.pg_class tgt_tbl ON tgt_tbl.oid = con.confrelid
+JOIN pg_catalog.pg_namespace tgt_ns ON tgt_ns.oid = tgt_tbl.relnamespace
+WHERE con.contype = 'f'
+  AND lower(tgt_tbl.relname) = 'b20customer';
+```
+
+---
+
+> [!TIP]
+> Bạn hãy mở **Query Editor** trong phần mềm, dán câu **Mục 1** hoặc **Mục 3** và nhấn F5 để chạy thử xem database của bạn trả về những dòng nào (đặc biệt là xem View `vb20customer` nằm ở schema nào: `dbo`, `public` hay schema khác nhé).Created At: 2026-10-08T23:10:54+07:00
+Completed At: 2026-10-08T23:10:54+07:00
+File Path: `file:///d:/Luong/NB_Personal/Python/IDE-SQL-Lite_New_Pyweb/scratch_trans.txt`
+Total Lines: 115
+Total Bytes: 4790
+Showing lines 50 to 100
+The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+50: Completed At: 2026-10-08T22:43:06+07:00
+51: File Path: `file:///d:/Luong/NB_Personal/Python/IDE-SQL-Lite_New_Pyweb/tests/test_postgres_dependency_service.py`
+52: Total Lines: 137
+53: Total Bytes: 5259
+54: Showing lines 85 to 135
+55: The following code has been modified to include a
+56: 
+57: Created At: 2026-10-08T22:43:26+07:00
+58: Completed At: 2026-10-08T22:43:26+07:00
+59: 
+60: 				The command exited with code 0.
+61: 				Output:
+62: 				View search error: 
+63: Traceback (most recent call last):
+64:   File "<string>", line 7, in <module>
+65:     t.test_get_object_graph_table_dependents()
+66:     ~~~~~~~~~~~~~~~~~~~~
+67: 
+68: Created At: 2026-10-08T22:43:42+07:00
+69: Completed At: 2026-10-08T22:43:43+07:00
+70: 
+71: 				The command exited with code 0.
+72: 				Output:
+73: 				NODES: [('table:dbo.b20customer', 'b20customer', <ObjectType.TABLE: 'TABLE'>), ('view:dbo.vb20customer', 'vb20customer', <ObjectType.VIEW: 'VIEW'>), ('procedure:dbo.sp_u
+74: 
+75: Tôi đã kiểm tra toàn diện và tìm ra chính xác các nguyên nhân khiến View (như `vb20customer`) và các Stored Procedure chưa hiển thị, đồng thời đã khắc phục triệt để logic như sau:
+76: 
+77: ---
+78: 
+79: ### 1. Các nguyên nhân cốt lõi đã được tìm ra & xử lý
+80: 
+81: 1. **Truy vấn View chỉ dựa vào `pg_depend`:**
+82:    - Trong Po
+83: Dưới đây là các câu lệnh SQL để bạn có thể **copy chạy trực tiếp trong Query Editor** để kiểm tra chính xác các View, Materialized View và Stored Procedure đang sử dụng bảng `b20customer` trên cơ sở dữ liệu của bạn:
+84: 
+85: ---
+86: 
+87: ### 1. Câu truy vấn chuẩn từ PostgreSQL System Catalog (`pg_depend` + `pg_rewr
+88: # Resuming from a compaction
+89: 
+90: You are continuing work on the task described above, but you have lost access to the full conversation history, and need to resume work efficiently using the progress summary below:
+91: 
+92: # User Requests
+93: The following were user requests from the truncated conversation in chr
+94: Created At: 2026-10-08T23:08:11+07:00
+95: Completed At: 2026-10-08T23:08:11+07:00
+96: File Path: `file:///d:/Luong/NB_Personal/Python/IDE-SQL-Lite_New_Pyweb/app/services/postgres_dependency/service.py`
+97: Total Lines: 428
+98: Total Bytes: 17711
+99: Showing lines 120 to 220
+100: The following code has been modified to inclu
+The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.

@@ -28,6 +28,14 @@
         if (!containerEl || typeof monaco === 'undefined' || !monaco.editor) {
             return null;
         }
+        function getUiFontSize() {
+            try {
+                const rootStyle = getComputedStyle(document.documentElement);
+                return parseInt(rootStyle.getPropertyValue('--ide-ui-font-size'), 10) || 12;
+            } catch (_) {
+                return 12;
+            }
+        }
         const defaultOptions = {
             value: options.value || '',
             language: 'sql',
@@ -35,7 +43,7 @@
             automaticLayout: true,
             mouseWheelZoom: true,
             readOnly: !!options.readOnly,
-            fontSize: 12,
+            fontSize: options.fontSize || Math.max(11, getUiFontSize() - 1),
             fontFamily: "'JetBrains Mono', Consolas, 'Courier New', monospace",
             lineNumbers: options.lineNumbers !== undefined ? options.lineNumbers : 'on',
             minimap: { enabled: false },
@@ -807,23 +815,29 @@
             }
         }
 
-        let html = '<optgroup label="Standard Types">';
-        stdTypes.forEach(t => {
-            const isSelected = (bestMatch ? t === bestMatch : false);
-            html += `<option value="${escapeHtml(t)}" ${isSelected ? 'selected' : ''}>${escapeHtml(t)}</option>`;
-        });
-        html += '</optgroup>';
-
-        if (userTypes.length > 0) {
-            html += '<optgroup label="User-Defined Types (UDT)">';
-            userTypes.forEach(t => {
-                const isSelected = (bestMatch ? t === bestMatch : false);
-                html += `<option value="${escapeHtml(t)}" ${isSelected ? 'selected' : ''}>${escapeHtml(t)}</option>`;
+        // Cache base option template to avoid generating hundreds/thousands of string concatenations per column
+        if (!supportedTypes._cachedBaseHtml) {
+            let base = '<optgroup label="Standard Types">';
+            stdTypes.forEach(t => {
+                base += `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`;
             });
-            html += '</optgroup>';
+            base += '</optgroup>';
+
+            if (userTypes.length > 0) {
+                base += '<optgroup label="User-Defined Types (UDT)">';
+                userTypes.forEach(t => {
+                    base += `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`;
+                });
+                base += '</optgroup>';
+            }
+            supportedTypes._cachedBaseHtml = base;
         }
 
-        if (selectedType && !bestMatch) {
+        let html = supportedTypes._cachedBaseHtml;
+        if (bestMatch) {
+            const target = `value="${escapeHtml(bestMatch)}"`;
+            html = html.replace(target, `${target} selected`);
+        } else if (selectedType) {
             html += `<option value="${escapeHtml(selectedType)}" selected>${escapeHtml(selectedType)}</option>`;
         }
         return html;
@@ -1302,15 +1316,15 @@
                 <!-- Table Header Bar (Schema & Editable Table Name) -->
                 <div class="td-header-bar">
                     <div class="d-flex align-items-center gap-2">
-                        <i class="fa-solid ${session.isNew ? 'fa-table-circle-plus text-success' : 'fa-table text-info'}" style="font-size: 13px;"></i>
-                        <span class="text-muted" style="font-size: 11px; font-weight: 600;">Schema:</span>
-                        <span class="badge bg-secondary" style="font-size: 11px;">${escapeHtml(session.schema)}</span>
+                        <i class="fa-solid ${session.isNew ? 'fa-table-circle-plus text-success' : 'fa-table text-info'}"></i>
+                        <span class="text-muted" style="font-weight: 600;">Schema:</span>
+                        <span class="badge bg-secondary">${escapeHtml(session.schema)}</span>
                         <span class="text-muted">.</span>
-                        <span class="text-muted" style="font-size: 11px; font-weight: 600;">Table Name:</span>
-                        <input type="text" id="td-table-name-input" class="form-control form-control-sm td-name-input" style="width: 220px; height: 26px; font-size: 12px; font-weight: 600;" value="${escapeHtml(session.table)}" placeholder="Table name..." />
-                        ${session.isNew ? '<span class="badge bg-success" style="font-size: 10px;"><i class="fa-solid fa-sparkles me-1"></i>New Table</span>' : ''}
+                        <span class="text-muted" style="font-weight: 600;">Table Name:</span>
+                        <input type="text" id="td-table-name-input" class="form-control form-control-sm td-name-input" style="width: 220px; height: 26px; font-weight: 600;" value="${escapeHtml(session.table)}" placeholder="Table name..." />
+                        ${session.isNew ? '<span class="badge bg-success"><i class="fa-solid fa-sparkles me-1"></i>New Table</span>' : ''}
                     </div>
-                    <div id="td-notification-area" class="text-info" style="font-size: 11px; transition: opacity 0.3s ease;"></div>
+                    <div id="td-notification-area" class="text-info" style="transition: opacity 0.3s ease;"></div>
                 </div>
 
                 <!-- Tab Specific Toolbar -->
@@ -1365,12 +1379,12 @@
                         <div class="d-flex align-items-center gap-2">
                             <i class="fa-solid fa-code text-info"></i>
                             <span class="fw-semibold">SQL Script</span>
-                            <span class="badge bg-secondary" style="font-size: 10px;" id="td-live-sql-status">Live</span>
+                            <span class="badge bg-secondary" id="td-live-sql-status">Live</span>
                         </div>
                         <div class="d-flex align-items-center gap-2">
                             <div class="d-flex align-items-center gap-1">
-                                <label class="small text-muted me-1 mb-0" for="td-live-sql-filter" style="font-size: 11px;">Filter:</label>
-                                <select class="form-select form-select-sm py-0 px-2" id="td-live-sql-filter" style="font-size: 11px; height: 22px; width: auto;">
+                                <label class="small text-muted me-1 mb-0" for="td-live-sql-filter">Filter:</label>
+                                <select class="form-select form-select-sm py-0 px-2" id="td-live-sql-filter" style="height: 22px; width: auto;">
                                     <option value="all" ${(session.liveSqlFilter || 'all') === 'all' ? 'selected' : ''}>All</option>
                                     <option value="tables" ${session.liveSqlFilter === 'tables' ? 'selected' : ''}>Tables</option>
                                     <option value="constraints" ${session.liveSqlFilter === 'constraints' ? 'selected' : ''}>Constraints</option>
@@ -1557,8 +1571,8 @@
                 <div class="td-inspector-row">
                     <span class="td-inspector-label">Default:</span>
                     <div class="td-inspector-control">
-                        <input type="text" id="td-insp-default" class="form-control form-control-sm td-insp-input" style="width: 240px; height: 24px; font-size: 11px;" value="${escapeHtml(selectedCol?.default_value || '')}" ${!selectedCol ? 'disabled' : ''} />
-                        <label class="form-check-label text-muted d-flex align-items-center gap-1 ms-2" style="font-size: 11px;">
+                        <input type="text" id="td-insp-default" class="form-control form-control-sm td-insp-input" style="width: 240px; height: 24px;" value="${escapeHtml(selectedCol?.default_value || '')}" ${!selectedCol ? 'disabled' : ''} />
+                        <label class="form-check-label text-muted d-flex align-items-center gap-1 ms-2">
                             <input type="checkbox" id="td-insp-with-values" class="td-checkbox" /> With Values
                         </label>
                     </div>
@@ -1566,7 +1580,7 @@
                 <div class="td-inspector-row">
                     <span class="td-inspector-label">Collation:</span>
                     <div class="td-inspector-control">
-                        <select id="td-insp-collation" class="form-select form-select-sm td-insp-select" style="width: 240px; height: 24px; font-size: 11px;" ${!selectedCol ? 'disabled' : ''}>
+                        <select id="td-insp-collation" class="form-select form-select-sm td-insp-select" style="width: 240px; height: 24px;" ${!selectedCol ? 'disabled' : ''}>
                             <option value="">(Default)</option>
                             ${collations.map(c => `<option value="${c}" ${selectedCol && selectedCol.collation === c ? 'selected' : ''}>${c}</option>`).join('')}
                         </select>
@@ -1576,27 +1590,27 @@
                     <span class="td-inspector-label">Tự tăng:</span>
                     <div class="td-inspector-control d-flex align-items-center flex-wrap gap-2">
                         <!-- Identity option -->
-                        <label class="form-check-label d-flex align-items-center gap-1" style="font-size: 11px;">
+                        <label class="form-check-label d-flex align-items-center gap-1">
                             <input type="checkbox" id="td-insp-is-identity" class="td-checkbox" ${selectedCol?.is_identity ? 'checked' : ''} ${!selectedCol ? 'disabled' : ''} />
                             <span class="fw-semibold">Identity</span>
                         </label>
                         <div id="td-insp-identity-box" class="d-flex align-items-center gap-1 ${selectedCol?.is_identity ? '' : 'd-none'}">
-                            <span class="text-muted" style="font-size: 10px;">Seed:</span>
-                            <input type="number" id="td-insp-identity-seed" class="form-control form-control-sm td-insp-input" style="width: 60px; height: 22px; font-size: 11px;" value="${selectedCol?.identity_seed ?? 1}" min="1" />
-                            <span class="text-muted ms-1" style="font-size: 10px;">Inc:</span>
-                            <input type="number" id="td-insp-identity-inc" class="form-control form-control-sm td-insp-input" style="width: 60px; height: 22px; font-size: 11px;" value="${selectedCol?.identity_increment ?? 1}" min="1" />
+                            <span class="text-muted">Seed:</span>
+                            <input type="number" id="td-insp-identity-seed" class="form-control form-control-sm td-insp-input" style="width: 60px; height: 22px;" value="${selectedCol?.identity_seed ?? 1}" min="1" />
+                            <span class="text-muted ms-1">Inc:</span>
+                            <input type="number" id="td-insp-identity-inc" class="form-control form-control-sm td-insp-input" style="width: 60px; height: 22px;" value="${selectedCol?.identity_increment ?? 1}" min="1" />
                         </div>
 
                         <span class="text-muted mx-1">|</span>
 
                         <!-- Sequence option -->
-                        <label class="form-check-label d-flex align-items-center gap-1" style="font-size: 11px;">
+                        <label class="form-check-label d-flex align-items-center gap-1">
                             <input type="checkbox" id="td-insp-use-sequence" class="td-checkbox" ${selectedCol?.sequence_name ? 'checked' : ''} ${!selectedCol ? 'disabled' : ''} />
                             <span class="fw-semibold">Sequence</span>
                         </label>
                         <div id="td-insp-seq-box" class="d-flex align-items-center gap-1 ${selectedCol?.sequence_name ? '' : 'd-none'}">
-                            <span class="text-muted" style="font-size: 10px;">Tên Seq:</span>
-                            <input type="text" id="td-insp-sequence-name" class="form-control form-control-sm td-insp-input" style="width: 170px; height: 22px; font-size: 11px;" placeholder="schema.seq_name" value="${escapeHtml(selectedCol?.sequence_name || '')}" />
+                            <span class="text-muted">Tên Seq:</span>
+                            <input type="text" id="td-insp-sequence-name" class="form-control form-control-sm td-insp-input" style="width: 170px; height: 22px;" placeholder="schema.seq_name" value="${escapeHtml(selectedCol?.sequence_name || '')}" />
                         </div>
                     </div>
                 </div>
@@ -1968,33 +1982,332 @@
         `;
     }
 
+    // ── Instant Sub-Tab Switching & Dynamic Toolbar / Editor Helpers ─────────
+    function bindToolbarActionsForActiveTab(session, container) {
+        if (!container) return;
+        switch (session.activeSubTab) {
+            case 'fields': {
+                const addFieldBtn = container.querySelector('#td-act-add-field');
+                if (addFieldBtn) addFieldBtn.onclick = () => addNewColumn(session);
+
+                const delFieldBtn = container.querySelector('#td-act-del-field');
+                if (delFieldBtn) {
+                    delFieldBtn.onclick = () => {
+                        const cols = session.modifiedData.columns;
+                        if (session.selectedFieldIndices && session.selectedFieldIndices.size > 1) {
+                            const sorted = Array.from(session.selectedFieldIndices).sort((a, b) => b - a);
+                            sorted.forEach(i => {
+                                if (i >= 0 && i < cols.length) cols.splice(i, 1);
+                            });
+                            session.selectedFieldIndex = Math.max(0, Math.min(session.selectedFieldIndex, cols.length - 1));
+                            session.selectedFieldIndices = new Set([session.selectedFieldIndex]);
+                        } else {
+                            const sel = session.selectedFieldIndex;
+                            if (sel >= 0 && sel < cols.length) {
+                                cols.splice(sel, 1);
+                                session.selectedFieldIndex = Math.max(0, Math.min(sel, cols.length - 1));
+                                session.selectedFieldIndices = new Set([session.selectedFieldIndex]);
+                            }
+                        }
+                        markDirty(session);
+                        renderDesigner(session);
+                    };
+                }
+
+                const moveUpBtn = container.querySelector('#td-act-move-up-field');
+                if (moveUpBtn) moveUpBtn.onclick = () => moveColumnUp(session);
+
+                const moveDownBtn = container.querySelector('#td-act-move-down-field');
+                if (moveDownBtn) moveDownBtn.onclick = () => moveColumnDown(session);
+
+                const copyFieldBtn = container.querySelector('#td-act-copy-field');
+                if (copyFieldBtn) copyFieldBtn.onclick = () => copySelectedColumn(session);
+
+                const copyAllFieldsBtn = container.querySelector('#td-act-copy-all-fields');
+                if (copyAllFieldsBtn) copyAllFieldsBtn.onclick = () => copyAllColumns(session);
+
+                const pasteFieldsBtn = container.querySelector('#td-act-paste-fields');
+                if (pasteFieldsBtn) pasteFieldsBtn.onclick = () => pasteColumns(session);
+
+                const pkBtn = container.querySelector('#td-act-toggle-pk');
+                if (pkBtn) {
+                    pkBtn.onclick = () => {
+                        const sel = session.selectedFieldIndex;
+                        if (sel >= 0 && sel < session.modifiedData.columns.length) {
+                            const col = session.modifiedData.columns[sel];
+                            col.is_pk = !col.is_pk;
+                            if (col.is_pk) col.nullable = false;
+                            markDirty(session);
+                            renderDesigner(session);
+                        }
+                    };
+                }
+                break;
+            }
+            case 'indexes': {
+                const addIdxBtn = container.querySelector('#td-act-add-idx');
+                if (addIdxBtn) addIdxBtn.onclick = () => addNewIndex(session);
+
+                const delIdxBtn = container.querySelector('#td-act-del-idx');
+                if (delIdxBtn) {
+                    delIdxBtn.onclick = () => {
+                        if (session.modifiedData.indexes.length > 0) {
+                            session.modifiedData.indexes.pop();
+                            markDirty(session);
+                            renderDesigner(session);
+                        }
+                    };
+                }
+                break;
+            }
+            case 'foreign-keys': {
+                const addFkBtn = container.querySelector('#td-act-add-fk');
+                if (addFkBtn) addFkBtn.onclick = () => addNewForeignKey(session);
+
+                const delFkBtn = container.querySelector('#td-act-del-fk');
+                if (delFkBtn) {
+                    delFkBtn.onclick = () => {
+                        if (session.modifiedData.foreign_keys.length > 0) {
+                            session.modifiedData.foreign_keys.pop();
+                            markDirty(session);
+                            renderDesigner(session);
+                        }
+                    };
+                }
+                break;
+            }
+            case 'uniques': {
+                const addUqBtn = container.querySelector('#td-act-add-uq');
+                if (addUqBtn) addUqBtn.onclick = () => addNewUnique(session);
+
+                const delUqBtn = container.querySelector('#td-act-del-uq');
+                if (delUqBtn) {
+                    delUqBtn.onclick = () => {
+                        if (session.modifiedData.uniques.length > 0) {
+                            session.modifiedData.uniques.pop();
+                            markDirty(session);
+                            renderDesigner(session);
+                        }
+                    };
+                }
+                break;
+            }
+            case 'checks': {
+                const addChkBtn = container.querySelector('#td-act-add-chk');
+                if (addChkBtn) addChkBtn.onclick = () => addNewCheck(session);
+
+                const delChkBtn = container.querySelector('#td-act-del-chk');
+                if (delChkBtn) {
+                    delChkBtn.onclick = () => {
+                        if (session.modifiedData.checks.length > 0) {
+                            session.modifiedData.checks.pop();
+                            markDirty(session);
+                            renderDesigner(session);
+                        }
+                    };
+                }
+                break;
+            }
+            case 'trigger': {
+                const addTrigBtn = container.querySelector('#td-act-add-trig');
+                if (addTrigBtn) addTrigBtn.onclick = () => addNewTrigger(session);
+
+                const delTrigBtn = container.querySelector('#td-act-del-trig');
+                if (delTrigBtn) {
+                    delTrigBtn.onclick = () => {
+                        if (session.modifiedData.triggers.length > 0) {
+                            session.modifiedData.triggers.splice(session.selectedTrigIndex, 1);
+                            session.selectedTrigIndex = Math.max(0, session.selectedTrigIndex - 1);
+                            markDirty(session);
+                            renderDesigner(session);
+                        }
+                    };
+                }
+                break;
+            }
+        }
+    }
+
+    function initOrLayoutTriggerEditor(session, container) {
+        if (!container) return;
+        const curTrig = session.modifiedData.triggers[session.selectedTrigIndex] || null;
+        const trigVal = curTrig ? (curTrig.definition || '') : '';
+        const trigMonacoDiv = container.querySelector('.td-trigger-def-editor');
+        const trigDefArea = container.querySelector('#td-trigger-def-editor');
+
+        if (session.triggerEditor) {
+            session._isProgrammaticUpdate = true;
+            try {
+                session.triggerEditor.setValue(trigVal);
+                session.triggerEditor.updateOptions({ readOnly: !curTrig });
+            } finally {
+                session._isProgrammaticUpdate = false;
+            }
+            setTimeout(() => { try { session.triggerEditor.layout(); } catch (_) {} }, 20);
+            return;
+        }
+
+        if (trigMonacoDiv && typeof monaco !== 'undefined' && monaco.editor) {
+            session.triggerEditor = createMonacoEditor(trigMonacoDiv, {
+                value: trigVal,
+                readOnly: !curTrig
+            });
+            if (session.triggerEditor) {
+                session.triggerEditor.onDidChangeModelContent(() => {
+                    if (session._isProgrammaticUpdate) return;
+                    const trig = session.modifiedData.triggers[session.selectedTrigIndex];
+                    if (trig) {
+                        trig.definition = session.triggerEditor.getValue();
+                        markDirty(session);
+                    }
+                });
+                setTimeout(() => { try { session.triggerEditor.layout(); } catch (_) {} }, 20);
+            }
+        } else if (trigDefArea && window.CodeMirror) {
+            if (session.triggerCm) {
+                session._isProgrammaticUpdate = true;
+                try {
+                    session.triggerCm.setValue(trigVal);
+                    session.triggerCm.setOption('readOnly', !curTrig);
+                } finally {
+                    session._isProgrammaticUpdate = false;
+                }
+                setTimeout(() => session.triggerCm.refresh(), 20);
+            } else {
+                session.triggerCm = window.CodeMirror.fromTextArea(trigDefArea, {
+                    mode: 'text/x-sql',
+                    theme: getCodeMirrorTheme(),
+                    lineNumbers: true,
+                    matchBrackets: true,
+                    readOnly: !curTrig
+                });
+                session.triggerCm.setValue(trigVal);
+                session.triggerCm.on('change', () => {
+                    if (session._isProgrammaticUpdate) return;
+                    const trig = session.modifiedData.triggers[session.selectedTrigIndex];
+                    if (trig) {
+                        trig.definition = session.triggerCm.getValue();
+                        markDirty(session);
+                    }
+                });
+                setTimeout(() => session.triggerCm.refresh(), 50);
+            }
+        }
+    }
+
+    async function initOrUpdatePreviewEditor(session, container) {
+        if (!container) return;
+        try {
+            const res = await fetch(`/api/metadata/${session.connId}/table-design/preview`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(session.modifiedData)
+            });
+            const j = await res.json();
+            if (j.success) session.previewSql = j.preview_sql;
+        } catch (e) {
+            console.error('Failed to refresh SQL preview:', e);
+        }
+
+        const prevVal = session.previewSql || '-- No preview available\n';
+        const prevMonacoDiv = container.querySelector('.td-sql-preview-editor');
+        const previewArea = container.querySelector('#td-sql-preview-editor');
+
+        if (session.previewEditor) {
+            session.previewEditor.setValue(prevVal);
+            setTimeout(() => { try { session.previewEditor.layout(); } catch (_) {} }, 20);
+            return;
+        }
+
+        if (prevMonacoDiv && typeof monaco !== 'undefined' && monaco.editor) {
+            session.previewEditor = createMonacoEditor(prevMonacoDiv, {
+                value: prevVal,
+                readOnly: true
+            });
+            if (session.previewEditor) {
+                setTimeout(() => { try { session.previewEditor.layout(); } catch (_) {} }, 20);
+            }
+        } else if (previewArea && window.CodeMirror) {
+            if (session.previewCm) {
+                session.previewCm.setValue(prevVal);
+                setTimeout(() => session.previewCm.refresh(), 20);
+            } else {
+                session.previewCm = window.CodeMirror.fromTextArea(previewArea, {
+                    mode: 'text/x-sql',
+                    theme: getCodeMirrorTheme(),
+                    lineNumbers: true,
+                    readOnly: true
+                });
+                session.previewCm.setValue(prevVal);
+                setTimeout(() => session.previewCm.refresh(), 50);
+            }
+        }
+    }
+
+    function selectTrigRow(session, idx, container) {
+        session.selectedTrigIndex = idx;
+        const targetContainer = container || session.domPane || document.getElementById('table-designer-container');
+        if (targetContainer) {
+            targetContainer.querySelectorAll('#td-pane-trigger tbody tr').forEach(r => {
+                const rIdx = parseInt(r.dataset.trigI, 10);
+                r.classList.toggle('selected', rIdx === idx);
+            });
+            initOrLayoutTriggerEditor(session, targetContainer);
+        }
+    }
+
+    async function switchSubTab(session, targetSubTab) {
+        if (!session || session.activeSubTab === targetSubTab) return;
+        session.activeSubTab = targetSubTab;
+
+        const container = session.domPane || document.getElementById('table-designer-container');
+        if (!container) return;
+
+        // 1. Toggle Sub-Tab Nav item active class
+        container.querySelectorAll('.td-nav-item').forEach(item => {
+            item.classList.toggle('active', item.dataset.subtab === targetSubTab);
+        });
+
+        // 2. Toggle Tab Pane active class
+        container.querySelectorAll('.td-tab-pane').forEach(p => {
+            p.classList.toggle('active', p.id === `td-pane-${targetSubTab}`);
+        });
+
+        // 3. Update Toolbar Actions
+        const actContainer = container.querySelector('#td-tab-actions');
+        if (actContainer) {
+            actContainer.innerHTML = renderToolbarActions(session);
+            bindToolbarActionsForActiveTab(session, container);
+        }
+
+        // 4. Update Status Bar
+        const statusBar = container.querySelector('.td-status-bar');
+        if (statusBar) {
+            statusBar.innerHTML = `<span>Number of Fields: <strong>${session.modifiedData.columns.length}</strong></span>${renderStatusBarDetails(session)}`;
+        }
+
+        // 5. Special tab handlers (Triggers, SQL Preview)
+        if (targetSubTab === 'trigger') {
+            initOrLayoutTriggerEditor(session, container);
+        } else if (targetSubTab === 'sql-preview') {
+            await initOrUpdatePreviewEditor(session, container);
+        }
+
+        // 6. Ensure Live SQL editor layout is preserved
+        if (session.liveSqlEditor) {
+            setTimeout(() => { try { session.liveSqlEditor.layout(); } catch (_) {} }, 20);
+        }
+    }
+
     // ── Event Bindings ───────────────────────────────────────────────────────
     function bindEvents(session, pane) {
         const container = pane || session.domPane || document.getElementById('table-designer-container');
         if (!container) return;
 
-        // Sub-tabs click
+        // Sub-tabs click (Zero-lag instant CSS class toggle)
         container.querySelectorAll('.td-nav-item').forEach(item => {
-            item.addEventListener('click', async () => {
-                const targetSubTab = item.dataset.subtab;
-                session.activeSubTab = targetSubTab;
-
-                // If moving to SQL Preview, fetch fresh preview from backend
-                if (targetSubTab === 'sql-preview') {
-                    try {
-                        const res = await fetch(`/api/metadata/${session.connId}/table-design/preview`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(session.modifiedData)
-                        });
-                        const j = await res.json();
-                        if (j.success) session.previewSql = j.preview_sql;
-                    } catch (e) {
-                        console.error('Failed to refresh SQL preview:', e);
-                    }
-                }
-
-                renderDesigner(session);
+            item.addEventListener('click', () => {
+                switchSubTab(session, item.dataset.subtab);
             });
         });
 
@@ -2070,160 +2383,8 @@
         container.querySelector('#td-quick-add-chk')?.addEventListener('click', () => addNewCheck(session));
         container.querySelector('#td-quick-add-trig')?.addEventListener('click', () => addNewTrigger(session));
 
-        // Toolbar: Fields actions
-        const addFieldBtn = container.querySelector('#td-act-add-field');
-        if (addFieldBtn) {
-            addFieldBtn.addEventListener('click', () => addNewColumn(session));
-        }
-
-        const delFieldBtn = container.querySelector('#td-act-del-field');
-        if (delFieldBtn) {
-            delFieldBtn.addEventListener('click', () => {
-                const cols = session.modifiedData.columns;
-                if (session.selectedFieldIndices && session.selectedFieldIndices.size > 1) {
-                    const sorted = Array.from(session.selectedFieldIndices).sort((a, b) => b - a);
-                    sorted.forEach(i => {
-                        if (i >= 0 && i < cols.length) cols.splice(i, 1);
-                    });
-                    session.selectedFieldIndex = Math.max(0, Math.min(session.selectedFieldIndex, cols.length - 1));
-                    session.selectedFieldIndices = new Set([session.selectedFieldIndex]);
-                } else {
-                    const sel = session.selectedFieldIndex;
-                    if (sel >= 0 && sel < cols.length) {
-                        cols.splice(sel, 1);
-                        session.selectedFieldIndex = Math.max(0, Math.min(sel, cols.length - 1));
-                        session.selectedFieldIndices = new Set([session.selectedFieldIndex]);
-                    }
-                }
-                markDirty(session);
-                renderDesigner(session);
-            });
-        }
-
-        const moveUpBtn = container.querySelector('#td-act-move-up-field');
-        if (moveUpBtn) {
-            moveUpBtn.addEventListener('click', () => moveColumnUp(session));
-        }
-
-        const moveDownBtn = container.querySelector('#td-act-move-down-field');
-        if (moveDownBtn) {
-            moveDownBtn.addEventListener('click', () => moveColumnDown(session));
-        }
-
-        const copyFieldBtn = container.querySelector('#td-act-copy-field');
-        if (copyFieldBtn) {
-            copyFieldBtn.addEventListener('click', () => copySelectedColumn(session));
-        }
-
-        const copyAllFieldsBtn = container.querySelector('#td-act-copy-all-fields');
-        if (copyAllFieldsBtn) {
-            copyAllFieldsBtn.addEventListener('click', () => copyAllColumns(session));
-        }
-
-        const pasteFieldsBtn = container.querySelector('#td-act-paste-fields');
-        if (pasteFieldsBtn) {
-            pasteFieldsBtn.addEventListener('click', () => pasteColumns(session));
-        }
-
-        const pkBtn = container.querySelector('#td-act-toggle-pk');
-        if (pkBtn) {
-            pkBtn.addEventListener('click', () => {
-                const sel = session.selectedFieldIndex;
-                if (sel >= 0 && sel < session.modifiedData.columns.length) {
-                    const col = session.modifiedData.columns[sel];
-                    col.is_pk = !col.is_pk;
-                    if (col.is_pk) col.nullable = false;
-                    markDirty(session);
-                    renderDesigner(session);
-                }
-            });
-        }
-
-        // Toolbar: Indexes actions
-        const addIdxBtn = container.querySelector('#td-act-add-idx');
-        if (addIdxBtn) {
-            addIdxBtn.addEventListener('click', () => addNewIndex(session));
-        }
-
-        const delIdxBtn = container.querySelector('#td-act-del-idx');
-        if (delIdxBtn) {
-            delIdxBtn.addEventListener('click', () => {
-                if (session.modifiedData.indexes.length > 0) {
-                    session.modifiedData.indexes.pop();
-                    markDirty(session);
-                    renderDesigner(session);
-                }
-            });
-        }
-
-        // Toolbar: Foreign Keys actions
-        const addFkBtn = container.querySelector('#td-act-add-fk');
-        if (addFkBtn) {
-            addFkBtn.addEventListener('click', () => addNewForeignKey(session));
-        }
-
-        const delFkBtn = container.querySelector('#td-act-del-fk');
-        if (delFkBtn) {
-            delFkBtn.addEventListener('click', () => {
-                if (session.modifiedData.foreign_keys.length > 0) {
-                    session.modifiedData.foreign_keys.pop();
-                    markDirty(session);
-                    renderDesigner(session);
-                }
-            });
-        }
-
-        // Toolbar: Uniques actions
-        const addUqBtn = container.querySelector('#td-act-add-uq');
-        if (addUqBtn) {
-            addUqBtn.addEventListener('click', () => addNewUnique(session));
-        }
-
-        const delUqBtn = container.querySelector('#td-act-del-uq');
-        if (delUqBtn) {
-            delUqBtn.addEventListener('click', () => {
-                if (session.modifiedData.uniques.length > 0) {
-                    session.modifiedData.uniques.pop();
-                    markDirty(session);
-                    renderDesigner(session);
-                }
-            });
-        }
-
-        // Toolbar: Checks actions
-        const addChkBtn = container.querySelector('#td-act-add-chk');
-        if (addChkBtn) {
-            addChkBtn.addEventListener('click', () => addNewCheck(session));
-        }
-
-        const delChkBtn = container.querySelector('#td-act-del-chk');
-        if (delChkBtn) {
-            delChkBtn.addEventListener('click', () => {
-                if (session.modifiedData.checks.length > 0) {
-                    session.modifiedData.checks.pop();
-                    markDirty(session);
-                    renderDesigner(session);
-                }
-            });
-        }
-
-        // Toolbar: Trigger actions
-        const addTrigBtn = container.querySelector('#td-act-add-trig');
-        if (addTrigBtn) {
-            addTrigBtn.addEventListener('click', () => addNewTrigger(session));
-        }
-
-        const delTrigBtn = container.querySelector('#td-act-del-trig');
-        if (delTrigBtn) {
-            delTrigBtn.addEventListener('click', () => {
-                if (session.modifiedData.triggers.length > 0) {
-                    session.modifiedData.triggers.splice(session.selectedTrigIndex, 1);
-                    session.selectedTrigIndex = Math.max(0, session.selectedTrigIndex - 1);
-                    markDirty(session);
-                    renderDesigner(session);
-                }
-            });
-        }
+        // Toolbar actions per active sub-tab
+        bindToolbarActionsForActiveTab(session, container);
 
         // Fields table row selection and inline edits
         container.querySelectorAll('#td-pane-fields tbody tr[data-field-index]').forEach(tr => {
@@ -2580,8 +2741,7 @@
             tr.addEventListener('click', e => {
                 if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
                 const idx = parseInt(tr.dataset.trigI, 10);
-                session.selectedTrigIndex = idx;
-                renderDesigner(session);
+                selectTrigRow(session, idx, container);
             });
 
             const i = parseInt(tr.dataset.trigI, 10);
@@ -2620,64 +2780,12 @@
 
         // Trigger Definition Editor (Monaco with CodeMirror fallback)
         if (session.activeSubTab === 'trigger') {
-            const curTrig = session.modifiedData.triggers[session.selectedTrigIndex] || null;
-            const trigVal = curTrig ? (curTrig.definition || '') : '';
-            const trigMonacoDiv = container.querySelector('.td-trigger-def-editor');
-            const trigDefArea = container.querySelector('#td-trigger-def-editor');
-
-            if (trigMonacoDiv && typeof monaco !== 'undefined' && monaco.editor) {
-                session.triggerEditor = createMonacoEditor(trigMonacoDiv, {
-                    value: trigVal,
-                    readOnly: !curTrig
-                });
-                if (session.triggerEditor) {
-                    session.triggerEditor.onDidChangeModelContent(() => {
-                        if (curTrig) {
-                            curTrig.definition = session.triggerEditor.getValue();
-                            markDirty(session);
-                        }
-                    });
-                }
-            } else if (trigDefArea && window.CodeMirror) {
-                session.triggerCm = window.CodeMirror.fromTextArea(trigDefArea, {
-                    mode: 'text/x-sql',
-                    theme: getCodeMirrorTheme(),
-                    lineNumbers: true,
-                    matchBrackets: true,
-                    readOnly: !curTrig
-                });
-                session.triggerCm.setValue(trigVal);
-                session.triggerCm.on('change', cm => {
-                    if (curTrig) {
-                        curTrig.definition = cm.getValue();
-                        markDirty(session);
-                    }
-                });
-                setTimeout(() => session.triggerCm.refresh(), 50);
-            }
+            initOrLayoutTriggerEditor(session, container);
         }
 
         // SQL Preview Editor (Monaco with CodeMirror fallback)
         if (session.activeSubTab === 'sql-preview') {
-            const prevMonacoDiv = container.querySelector('.td-sql-preview-editor');
-            const previewArea = container.querySelector('#td-sql-preview-editor');
-            const prevVal = session.previewSql || '-- No preview available\n';
-
-            if (prevMonacoDiv && typeof monaco !== 'undefined' && monaco.editor) {
-                session.previewEditor = createMonacoEditor(prevMonacoDiv, {
-                    value: prevVal,
-                    readOnly: true
-                });
-            } else if (previewArea && window.CodeMirror) {
-                session.previewCm = window.CodeMirror.fromTextArea(previewArea, {
-                    mode: 'text/x-sql',
-                    theme: getCodeMirrorTheme(),
-                    lineNumbers: true,
-                    readOnly: true
-                });
-                session.previewCm.setValue(prevVal);
-                setTimeout(() => session.previewCm.refresh(), 50);
-            }
+            initOrUpdatePreviewEditor(session, container);
         }
 
         // Persistent Live SQL Editor (Monaco with CodeMirror fallback)
@@ -2843,10 +2951,10 @@
                         <i class="fa-solid ${it.modified ? 'fa-pen-to-square text-success' : (it.count > 0 ? 'fa-triangle-exclamation text-warning' : 'fa-circle-check text-muted')}"></i>
                         <div>
                             <div class="fw-semibold">${escapeHtml(it.name)}</div>
-                            <div class="text-muted" style="font-size: 10px;">${escapeHtml(it.detail)}</div>
+                            <div class="text-muted small">${escapeHtml(it.detail)}</div>
                         </div>
                     </div>
-                    <span class="badge ${it.modified ? 'bg-success' : (it.count > 0 ? 'bg-warning text-dark' : 'bg-secondary')}" style="font-size: 10px;">
+                    <span class="badge ${it.modified ? 'bg-success' : (it.count > 0 ? 'bg-warning text-dark' : 'bg-secondary')}">
                         ${it.modified ? 'Đã sửa' : (it.count > 0 ? 'Chưa sửa' : 'Không có')}
                     </span>
                 </div>
@@ -3102,6 +3210,23 @@
             .replace(/"/g, '&quot;')
             .replace(/'/g, '&#039;');
     }
+
+    // Listen to ide-typography-changed event to re-layout open editors
+    window.addEventListener('ide-typography-changed', () => {
+        try {
+            for (const [_, session] of designerSessions.entries()) {
+                if (session.liveSqlEditor && typeof session.liveSqlEditor.layout === 'function') {
+                    session.liveSqlEditor.layout();
+                }
+                if (session.triggerEditor && typeof session.triggerEditor.refresh === 'function') {
+                    session.triggerEditor.refresh();
+                }
+                if (session.sqlPreviewEditor && typeof session.sqlPreviewEditor.refresh === 'function') {
+                    session.sqlPreviewEditor.refresh();
+                }
+            }
+        } catch (_) {}
+    });
 
     // Export API
     window.TableDesigner = {

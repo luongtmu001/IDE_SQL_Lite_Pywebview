@@ -1,0 +1,182 @@
+/* structured-data-viewer.css — Structured Data Viewer (JSON / XML) Styles */
+
+/* ── Structured Data Cell Link in Result Grid ──────────────────────────────── */
+.ide-structured-link {
+    color: var(--ide-accent-blue, #0d6efd) !important;
+    text-decoration: underline;
+    cursor: pointer !important;
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 1px 4px;
+    border-radius: 3px;
+    user-select: text;
+    transition: background-color 0.15s ease, color 0.15s ease;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ide-structured-link:hover {
+    color: var(--ide-accent-blue-hover, #0a58ca) !important;
+    background-color: rgba(13, 110, 253, 0.12);
+    text-decoration: underline;
+}
+
+[data-bs-theme="dark"] .ide-structured-link,
+.ag-theme-quartz-dark .ide-structured-link {
+    color: var(--ide-accent-blue, #3794ff) !important;
+}
+
+[data-bs-theme="dark"] .ide-structured-link:hover,
+.ag-theme-quartz-dark .ide-structured-link:hover {
+    color: var(--ide-accent-blue-hover, #64aeff) !important;
+    background-color: rgba(55, 148, 255, 0.15);
+}
+
+.ide-structured-link i {
+    font-size: 11px;
+    opacity: 0.9;
+    flex-shrink: 0;
+}
+
+.ide-structured-link-json i {
+    color: #198754;
+}
+
+[data-bs-theme="dark"] .ide-structured-link-json i,
+.ag-theme-quartz-dark .ide-structured-link-json i {
+    color: #4ec9b0;
+}
+
+.ide-structured-link-xml i {
+    color: #d63384;
+}
+
+[data-bs-theme="dark"] .ide-structured-link-xml i,
+.ag-theme-quartz-dark .ide-structured-link-xml i {
+    color: #ce9178;
+}
+
+/* ── Splitter Resizer for Quick Viewer ──────────────────────────────────────── */
+.ide-structured-resizer {
+    width: 5px;
+    min-width: 5px;
+    cursor: col-resize;
+    background-color: var(--ide-bg-toolbar, var(--ide-border, #3c3f41));
+    border-left: 1px solid var(--ide-border, #3c3f41);
+    border-right: 1px solid var(--ide-border, #3c3f41);
+    z-index: 25;
+    flex-shrink: 0;
+    position: relative;
+    transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.ide-structured-resizer:hover,
+.ide-structured-resizer.dragging {
+    background-color: var(--ide-accent, #0d6efd) !important;
+    border-color: var(--ide-accent, #0d6efd) !important;
+}
+
+/* ── Quick Viewer Panel ──────────────────────────────────────────────────────── */
+.ide-structured-viewer-panel {
+    width: 35%;
+    min-width: 260px;
+    max-width: 80%;
+    background-color: var(--ide-bg-panel, var(--ide-bg-sidebar, #1e1e1e));
+    border-left: 1px solid var(--ide-border, #3c3f41);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    position: relative;
+    z-index: 20;
+    flex-shrink: 0;
+}
+
+.ide-structured-viewer-panel.d-none {
+    display: none !important;
+}
+
+/* Header */
+.ide-structured-viewer-header {
+    height: 38px;
+    min-height: 38px;
+    background-color: var(--ide-bg-toolbar, var(--ide-bg-panel, #252526)) !important;
+    border-bottom: 1px solid var(--ide-border, #3c3f41) !important;
+    color: var(--ide-text-main, #cccccc) !important;
+    padding: 0 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.ide-structured-viewer-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--ide-text-main, inherit) !important;
+    line-height: 1.2;
+}
+
+.ide-structured-viewer-sub {
+    font-size: 11px;
+    color: var(--ide-text-muted, #858585) !important;
+    line-height: 1.2;
+}
+
+.ide-structured-viewer-actions {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.ide-structured-viewer-actions .btn {
+    font-size: 11px;
+    padding: 2px 7px;
+    border-radius: 3px;
+    line-height: 1.4;
+    white-space: nowrap;
+    background-color: var(--ide-bg-main, var(--ide-bg-toolbar, transparent)) !important;
+    color: var(--ide-text-main, inherit) !important;
+    border: 1px solid var(--ide-border, #444444) !important;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.ide-structured-viewer-actions .btn:hover {
+    background-color: var(--ide-hover-bg, rgba(255, 255, 255, 0.1)) !important;
+    color: var(--ide-text-active, #ffffff) !important;
+    border-color: var(--ide-accent, #0d6efd) !important;
+}
+
+.ide-structured-viewer-actions .btn.active {
+    background-color: var(--ide-accent, #0d6efd) !important;
+    color: #ffffff !important;
+    border-color: var(--ide-accent, #0d6efd) !important;
+}
+
+.ide-btn-structured-close {
+    font-size: 15px !important;
+    line-height: 1 !important;
+    padding: 2px 6px !important;
+    font-weight: bold;
+    color: var(--ide-text-muted, #858585) !important;
+}
+
+.ide-btn-structured-close:hover {
+    color: var(--ide-danger, #ff5c5c) !important;
+    border-color: var(--ide-danger, #ff5c5c) !important;
+}
+
+/* Monaco Editor container inside Quick Viewer */
+#ide-structured-viewer-editor-container {
+    flex: 1 1 auto;
+    width: 100%;
+    height: calc(100% - 38px);
+    min-height: 0;
+    min-width: 0;
+    position: relative;
+    overflow: hidden;
+    background-color: var(--ide-bg-editor, #1e1e1e);
+}

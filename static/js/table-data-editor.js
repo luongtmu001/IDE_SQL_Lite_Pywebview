@@ -257,7 +257,7 @@
 
                 <!-- Top Limit Selector -->
                 <div class="d-flex align-items-center gap-1 ms-1" title="Số dòng tối đa tải về">
-                    <span class="text-muted small" style="font-size: 11px;">Top:</span>
+                    <span class="text-muted small">Top:</span>
                     <select class="tde-criteria-select" id="tde-select-top" style="width: 75px; padding: 2px 4px;">
                         <option value="100" ${session.topN === 100 ? 'selected' : ''}>100</option>
                         <option value="200" ${session.topN === 200 ? 'selected' : ''}>200</option>
@@ -287,7 +287,7 @@
                         <div class="d-flex align-items-center gap-2">
                             <i class="fa-solid fa-filter text-info"></i>
                             <span>CRITERIA PANE (ĐIỀU KIỆN LỌC & SẮP XẾP)</span>
-                            <span class="badge bg-secondary-subtle text-muted" id="tde-crit-count-badge" style="font-size: 10px;">${session.criteriaRows.length} điều kiện</span>
+                            <span class="badge bg-secondary-subtle text-muted" id="tde-crit-count-badge">${session.criteriaRows.length} điều kiện</span>
                         </div>
                         <div class="d-flex align-items-center gap-1">
                             <button class="tde-btn tde-btn--sm" id="tde-crit-btn-add" title="Thêm cột muốn lọc">
@@ -314,7 +314,7 @@
                             <span>SQL PANE (CÂU TRUY VẤN SQL)</span>
                         </div>
                         <div class="d-flex align-items-center gap-2">
-                            <span class="small text-muted" style="font-size: 10.5px;">(Đồng bộ tự động từ Criteria hoặc chỉnh sửa trực tiếp)</span>
+                            <span class="small text-muted">(Đồng bộ tự động từ Criteria hoặc chỉnh sửa trực tiếp)</span>
                         </div>
                     </div>
                     <div class="tde-sql-editor-wrap">
@@ -357,7 +357,7 @@
         if (rows.length === 0) {
             return `
                 <div class="d-flex flex-column align-items-center justify-content-center p-3 text-muted" style="height: 100%; min-height: 80px;">
-                    <div class="mb-2" style="font-size: 11.5px;">
+                    <div class="mb-2">
                         <i class="fa-solid fa-filter me-1 text-info"></i>Chưa có điều kiện lọc nào. Bấm nút <strong>"+ Thêm điều kiện"</strong> để thêm cột và giá trị cần lọc.
                     </div>
                     <button class="tde-btn tde-btn--sm" id="tde-crit-empty-add-btn">
@@ -388,7 +388,7 @@
             const isNullOp = (r.operator === 'IS NULL' || r.operator === 'IS NOT NULL');
             html += `
                 <tr data-row-idx="${idx}">
-                    <td class="text-center text-muted" style="font-size: 10.5px;">${idx + 1}</td>
+                    <td class="text-center text-muted">${idx + 1}</td>
                     <td>
                         <select class="tde-criteria-select tde-crit-col" data-idx="${idx}">
                             ${columns.map(col => `
@@ -728,11 +728,24 @@
         if (typeof showToast === 'function') showToast(`Đã Redo. Còn ${session.redoStack.length} bước.`, 'secondary');
     }
 
+    // Helper: Resolve canvas measurement font according to IDE UI typography settings
+    function getUiCanvasFont(fontWeight = 'normal', sizeOffset = 0) {
+        try {
+            const rootStyle = getComputedStyle(document.documentElement);
+            const family = rootStyle.getPropertyValue('--ide-ui-font-family').trim() || '"Segoe UI", -apple-system, sans-serif';
+            const baseSize = parseFloat(rootStyle.getPropertyValue('--ide-ui-font-size')) || 13;
+            const finalSize = Math.max(10, Math.round(baseSize + sizeOffset));
+            return `${fontWeight} ${finalSize}px ${family}`;
+        } catch (_) {
+            return `${fontWeight} 12px "Segoe UI", sans-serif`;
+        }
+    }
+
     // Helper: Compute minimum width for a column based on its header title & controls
     function getColumnHeaderMinWidth(session, colName) {
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
-        ctx.font = '600 12px "Segoe UI", Tahoma, Geneva, Verdana, sans-serif';
+        ctx.font = getUiCanvasFont('600', -1);
         const textWidth = ctx.measureText(colName || '').width;
 
         // Extra width: left/right padding 14px + filter button 20px + resizer 8px + gap 4px
@@ -754,7 +767,7 @@
         const minW = getColumnHeaderMinWidth(session, colName);
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
-        ctx.font = '12px "Segoe UI", Tahoma, Geneva, Verdana, sans-serif';
+        ctx.font = getUiCanvasFont('normal', 0);
         let maxW = minW;
         const rows = session.rows || [];
         const sampleSize = Math.min(rows.length, 30);
@@ -945,7 +958,8 @@
             this.tbody = gridTable.querySelector('tbody') || gridTable.appendChild(document.createElement('tbody'));
             this.tbody.innerHTML = '';
 
-            this.rowHeight = 24;
+            const baseUiSize = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--ide-ui-font-size')) || 13;
+            this.rowHeight = Math.max(24, Math.round(baseUiSize * 1.85));
             this.POOL_SIZE = 70;
             this.buffer = 15;
             this.rowPool = [];
@@ -2195,7 +2209,7 @@
 
                 <div class="tde-cfp-section-title mt-2">Lọc theo danh sách giá trị</div>
                 <input type="text" class="tde-cfp-search-input" placeholder="Tìm kiếm trong danh sách...">
-                <div class="d-flex align-items-center justify-content-between px-1" style="font-size: 11px;">
+                <div class="d-flex align-items-center justify-content-between px-1">
                     <label class="d-flex align-items-center gap-1" style="cursor: pointer;">
                         <input type="checkbox" id="tde-cfp-select-all">
                         <span>(Chọn tất cả)</span>
@@ -2205,10 +2219,10 @@
                 <div class="tde-cfp-values-list"></div>
             </div>
             <div class="tde-cfp-footer">
-                <button type="button" class="btn btn-sm btn-outline-secondary" id="tde-cfp-clear-btn" style="font-size: 11px; padding: 2px 8px;">Xóa lọc</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" id="tde-cfp-clear-btn" style="padding: 2px 8px;">Xóa lọc</button>
                 <div class="d-flex align-items-center gap-2">
-                    <button type="button" class="btn btn-sm btn-secondary" id="tde-cfp-cancel-btn" style="font-size: 11px; padding: 2px 8px;">Hủy</button>
-                    <button type="button" class="btn btn-sm btn-primary" id="tde-cfp-apply-btn" style="font-size: 11px; padding: 2px 10px;">Áp dụng</button>
+                    <button type="button" class="btn btn-sm btn-secondary" id="tde-cfp-cancel-btn" style="padding: 2px 8px;">Hủy</button>
+                    <button type="button" class="btn btn-sm btn-primary" id="tde-cfp-apply-btn" style="padding: 2px 10px;">Áp dụng</button>
                 </div>
             </div>
         `;
@@ -2301,7 +2315,7 @@
             valuesList.innerHTML = '';
             renderedCount = 0;
             if (activeFilteredList.length === 0) {
-                valuesList.innerHTML = '<div class="text-muted text-center py-3" style="font-size: 11px;">Không tìm thấy kết quả</div>';
+                valuesList.innerHTML = '<div class="text-muted text-center py-3">Không tìm thấy kết quả</div>';
             } else {
                 renderNextBatch();
             }
@@ -2634,7 +2648,7 @@
                                 <span class="tde-constraint-name">${esc(chk.name || 'CK_' + (session.table || 'Table'))}</span>
                                 <span class="tde-constraint-pill tde-constraint-pill--chk">CHECK</span>
                             </div>
-                            <div class="tde-constraint-cols font-monospace" style="font-size: 11px;">
+                            <div class="tde-constraint-cols font-monospace">
                                 ${esc(chk.definition || chk.clause || '')}
                             </div>
                         </div>
@@ -2840,11 +2854,11 @@
                         <div class="text-danger" style="font-size: 28px; line-height: 1;">
                             <i class="fa-solid fa-circle-xmark"></i>
                         </div>
-                        <div style="font-size: 12.5px; line-height: 1.5; color: var(--ide-text-base); flex: 1;">
-                            <div class="fw-semibold mb-2">D\u1eef li\u1ec7u vi ph\u1ea1m r\u00e0ng bu\u1ed9c c\u1ee7a c\u01a1 s\u1edf d\u1eef li\u1ec7u.</div>
+                        <div style="font-size: var(--ide-font-sm, 12px); line-height: 1.5; color: var(--ide-text-base); flex: 1;">
+                            <div class="fw-semibold mb-2">Dữ liệu vi phạm ràng buộc của cơ sở dữ liệu.</div>
                             ${detailHtml}
-                            <div class="p-2 rounded border border-danger border-opacity-50 font-monospace text-danger" style="font-size: 11px; word-break: break-word; white-space: pre-wrap; background: color-mix(in srgb, var(--ide-bg-base) 90%, red);">${esc(cleanMsg)}</div>
-                            <div class="text-muted small mt-2">H\u00e3y s\u1eeda l\u1ea1i gi\u00e1 tr\u1ecb ho\u1eb7c nh\u1ea5n <strong>ESC</strong> \u0111\u1ec3 hu\u1ef7 b\u1ecf thay \u0111\u1ed5i.</div>
+                            <div class="p-2 rounded border border-danger border-opacity-50 font-monospace text-danger" style="font-size: var(--ide-font-xs, 11px); word-break: break-word; white-space: pre-wrap; background: color-mix(in srgb, var(--ide-bg-base) 90%, red);">${esc(cleanMsg)}</div>
+                            <div class="text-muted small mt-2">Hãy sửa lại giá trị hoặc nhấn <strong>ESC</strong> để huỷ bỏ thay đổi.</div>
                         </div>
                     </div>
                 </div>
@@ -3916,6 +3930,10 @@
             try {
                 copied = await window.ClipboardBridge.copyToClipboard(textToCopy);
             } catch (_) {}
+        } else if (typeof window.copyToClipboard === 'function') {
+            try {
+                copied = await window.copyToClipboard(textToCopy);
+            } catch (_) {}
         }
         if (!copied && navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
             try {
@@ -4598,7 +4616,7 @@
                     <button class="tde-btn-close text-white" id="tde-btn-constraint-close" style="background: none; border: none; font-size: 16px; cursor: pointer;"><i class="fa-solid fa-xmark"></i></button>
                 </div>
                 <div class="tde-modal-body p-3">
-                    <div class="alert alert-danger d-flex align-items-center mb-3" style="font-size: 12.5px; background: rgba(220, 53, 69, 0.1); border-color: rgba(220, 53, 69, 0.25);">
+                    <div class="alert alert-danger d-flex align-items-center mb-3" style="font-size: var(--ide-font-sm, 12px); background: rgba(220, 53, 69, 0.1); border-color: rgba(220, 53, 69, 0.25);">
                         <i class="fa-solid fa-circle-xmark fa-lg text-danger me-2"></i>
                         <div>
                             Phát hiện <strong>${errorResults.length}</strong> dòng vi phạm ràng buộc dữ liệu từ hệ thống CSDL (Khóa ngoại, Khóa chính, Ràng buộc kiểm tra hoặc Kiểu dữ liệu).
@@ -4850,7 +4868,7 @@
                                 <i class="fa-solid fa-file-code me-1"></i>Format XML
                             </button>
                         </div>
-                        <div id="tde-insp-status" class="small text-muted" style="font-size: 11px;">
+                        <div id="tde-insp-status" class="small text-muted">
                             Độ dài: ${rawValStr.length} ký tự
                         </div>
                     </div>
@@ -5298,7 +5316,7 @@
         const minW = getColumnHeaderMinWidth(session, colName);
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
-        ctx.font = '12px "Segoe UI", Tahoma, Geneva, Verdana, sans-serif';
+        ctx.font = getUiCanvasFont('normal', 0);
 
         // Header text width
         let maxW = minW;
@@ -5448,6 +5466,20 @@
             activeTabId = null;
         }
     }
+
+    // Listen for IDE Typography Settings Changes
+    window.addEventListener('ide-typography-changed', () => {
+        try {
+            const baseUiSize = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--ide-ui-font-size')) || 13;
+            const targetRowH = Math.max(24, Math.round(baseUiSize * 1.85));
+            for (const [_, session] of sessions.entries()) {
+                if (session.virtualGrid) {
+                    session.virtualGrid.rowHeight = targetRowH;
+                    session.virtualGrid.render(true);
+                }
+            }
+        } catch (_) {}
+    });
 
     // Export TableDataEditor global
     window.TableDataEditor = {

@@ -3,11 +3,27 @@
 function initTabs() {
     const tabsBar  = document.getElementById('ide-tabs-bar');
     const newTabBtn = document.getElementById('ide-new-tab-btn');
+    const overflowBtn = document.getElementById('ide-tabs-overflow-btn');
+    const tabsContainer = document.querySelector('.ide-tabs-container');
 
     let tabCounter = 0;
     // tabId -> { tabType, title, content, isDirty, designerData, connectionId, connectionName, database, schema, dbType, ... }
     const tabsData = new Map();
     let activeTabId = null;
+
+    // Tab Layout & Overflow State
+    let tabDisplayMode = 'overflow';
+    try {
+        const savedMode = localStorage.getItem('ide_tab_display_mode');
+        if (savedMode === 'all' || savedMode === 'overflow') {
+            tabDisplayMode = savedMode;
+        }
+    } catch (_) {}
+
+    let tabOrder = [];
+    const pinnedTabs = new Set();
+    let visibleTabIds = new Set();
+    let overflowTabIds = new Set();
 
     function loadSavedDefaultContext() {
         try {
@@ -45,12 +61,141 @@ function initTabs() {
         window.ActiveDbType         = defaultContext.dbType;
     }
 
+    function getUniqueFileName(candidateName, existingNames) {
+        if (!candidateName) candidateName = 'Untitled.sql';
+        
+        const existingSet = new Set();
+        if (existingNames) {
+            for (const name of existingNames) {
+                if (name) existingSet.add(String(name).trim().toLowerCase());
+            }
+        }
+
+        const trimmed = String(candidateName).trim();
+        if (!existingSet.has(trimmed.toLowerCase())) {
+            return trimmed;
+        }
+
+        // Split extension (e.g., .sql, .xml, .txt)
+        const dotIdx = trimmed.lastIndexOf('.');
+        let baseStem = trimmed;
+        let ext = '';
+        if (dotIdx > 0) {
+            baseStem = trimmed.substring(0, dotIdx);
+            ext = trimmed.substring(dotIdx);
+        }
+
+        // If baseStem already ends in (N), strip it to find rootStem
+        const match = baseStem.match(/^(.*?)(?:\((\d+)\))?$/);
+        const rootStem = (match && match[1]) ? match[1].trim() : baseStem;
+
+        // Increment i starting from 1 until finding an unused name
+        let i = 1;
+        while (true) {
+            const testName = `${rootStem}(${i})${ext}`;
+            if (!existingSet.has(testName.toLowerCase())) {
+                return testName;
+            }
+            i++;
+        }
+    }
+    window.getUniqueFileName = getUniqueFileName;
+
+    function serializeSession() {
+        const list = [];
+        if (activeTabId && tabsData.has(activeTabId)) {
+            const activeTab = tabsData.get(activeTabId);
+            if (activeTab && isTextEditorTab(activeTab) && window.AppEditor) {
+                activeTab.content = window.AppEditor.getValue();
+                const rawEd = window.AppEditor.rawEditor || (typeof window.resolveMonacoEditor === 'function' ? window.resolveMonacoEditor(window.AppEditor) : null);
+                if (rawEd) {
+                    if (typeof rawEd.getPosition === 'function') {
+                        activeTab.savedCursorPosition = rawEd.getPosition();
+                    }
+                    if (typeof rawEd.saveViewState === 'function') {
+                        activeTab.viewState = rawEd.saveViewState();
+                    }
+                    if (typeof rawEd.getScrollTop === 'function') {
+                        activeTab.scroll = {
+                            scrollTop: rawEd.getScrollTop(),
+                            scrollLeft: typeof rawEd.getScrollLeft === 'function' ? rawEd.getScrollLeft() : 0
+                        };
+                    }
+                }
+            }
+        }
+
+        tabOrder.forEach(id => {
+            const t = tabsData.get(id);
+            if (t) {
+                list.push({
+                    id,
+                    title: t.title,
+                    tabType: t.tabType || 'query',
+                    docId: t.docId,
+                    filePath: t.filePath || null,
+                    connectionId: t.connectionId,
+                    connectionName: t.connectionName,
+                    database: t.database,
+                    schema: t.schema,
+                    dbType: t.dbType,
+                    environment: t.environment || '',
+                    read_only: Boolean(t.read_only),
+                    isDirty: Boolean(t.isDirty),
+                    isPinned: pinnedTabs.has(id),
+                    content: t.content,
+                    cursor: t.savedCursorPosition || { lineNumber: 1, column: 1 },
+                    scroll: t.scroll || null,
+                    viewState: t.viewState || null
+                });
+            }
+        });
+
+        return {
+            version: 1,
+            savedAt: Date.now(),
+            activeTabId,
+            sidebarWidth: window.AppSession ? window.AppSession.getSidebarWidth() : 260,
+            sidebarCollapsed: window.AppSession ? window.AppSession.isSidebarCollapsed() : false,
+            resultsHeight: window.AppSession ? window.AppSession.getResultsHeight() : 280,
+            defaultContext: getDefaultContext(),
+            tabs: list
+        };
+    }
+    window.serializeTabsSession = serializeSession;
+
+    function syncTabsSession() {
+        if (!window.AppSession) return;
+        const sessionData = serializeSession();
+        window.AppSession.setOpenTabs(sessionData.tabs);
+        if (typeof window.AppSession.scheduleAutoSave === 'function') {
+            window.AppSession.scheduleAutoSave(3000);
+        }
+    }
+
+    if (window.AppSession && typeof window.AppSession.registerSerializer === 'function') {
+        window.AppSession.registerSerializer(serializeSession);
+    }
+
+    function isTextEditorTab(tabState) {
+        if (!tabState) return false;
+        if (tabState.isTextEditor !== undefined) return Boolean(tabState.isTextEditor);
+        const nonTextEditorTypes = ['object-search', 'designer', 'data-editor', 'dependency-graph', 'query-designer'];
+        return !nonTextEditorTypes.includes(tabState.tabType);
+    }
+    window.isTextEditorTab = isTextEditorTab;
+
     function createTab(opts = {}) {
         tabCounter++;
         const tabId = `tab-${tabCounter}`;
         const tabType = opts.tabType || 'query';
-        const tabTitle = opts.title || `Query ${tabCounter}`;
-        const icon = opts.icon || (tabType === 'designer' ? 'fa-drafting-compass' : 'fa-table-list');
+        const existingTabTitles = [];
+        for (const t of tabsData.values()) {
+            if (t && t.title) existingTabTitles.push(t.title);
+        }
+        let tabTitle = opts.title || `Query ${tabCounter}`;
+        tabTitle = getUniqueFileName(tabTitle, existingTabTitles);
+        const icon = opts.icon || (tabType === 'designer' ? 'fa-drafting-compass' : (tabType === 'dependency-graph' ? 'fa-diagram-project' : (tabType === 'object-search' ? 'fa-magnifying-glass' : (tabType === 'query-designer' ? 'fa-diagram-project' : 'fa-table-list'))));
 
         // Prefer explicit options, then last focused tree node context, then current global context, then saved defaultContext
         const focusedCtx = window.LastFocusedTreeContext || {};
@@ -111,41 +256,129 @@ function initTabs() {
             }
         }
 
+        const docId = opts.docId || (window.crypto && window.crypto.randomUUID ? window.crypto.randomUUID() : ('doc-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10)));
+        const filePath = opts.filePath || null;
+
         tabsData.set(tabId, {
             tabType:        tabType,
+            isTextEditor:   isTextEditorTab({ tabType, isTextEditor: opts.isTextEditor }),
+            savedCursorPosition: opts.savedCursorPosition || { lineNumber: 1, column: 1 },
+            viewState:      opts.viewState      || null,
             title:          tabTitle,
+            docId:          docId,
+            filePath:       filePath,
             isDirty:        false,
             designerData:   opts.designerData   || null,
+            context:        opts.context        || null,
             content:        opts.content        || '-- Write your SQL query here\nSELECT * FROM ',
             connectionId:   connId,
             connectionName: connName,
             database:       db,
             schema:         sch,
             dbType:         typ,
+            environment:    opts.environment !== undefined ? opts.environment : '',
+            read_only:      opts.read_only !== undefined ? Boolean(opts.read_only) : false,
             resultData:     null,
             activeView:     'results-grid',
             messageText:    '',
             planText:       '',
+            isResultPanelHidden: opts.isResultPanelHidden !== undefined ? opts.isResultPanelHidden : true,
             originalText:   opts.originalText   !== undefined ? opts.originalText : '',
             modifiedText:   opts.modifiedText   !== undefined ? opts.modifiedText : '',
             originalTitle:  opts.originalTitle  || '',
             modifiedTitle:  opts.modifiedTitle  || '',
-            originalTabId:  opts.originalTabId  !== undefined ? opts.originalTabId : null,
-            modifiedTabId:  opts.modifiedTabId  !== undefined ? opts.modifiedTabId : null
+            originalTabId:  opts.originalTabId  || null,
+            modifiedTabId:  opts.modifiedTabId  || null,
+            language:       opts.language || (tabType === 'structured-data' ? (opts.structuredFormat || 'json') : 'sql'),
+            structuredFormat: opts.structuredFormat || opts.language || null,
+            originalValue:  opts.originalValue !== undefined ? opts.originalValue : (opts.content || ''),
+            isDebugActive:  opts.isDebugActive  !== undefined ? Boolean(opts.isDebugActive) : false
         });
+
+        const tabData = tabsData.get(tabId);
+        if (tabData && (!tabData.environment || !tabData.read_only)) {
+            let curConn = null;
+            if (window.AppExplorer && typeof window.AppExplorer.getActiveConnections === 'function') {
+                const list = window.AppExplorer.getActiveConnections() || [];
+                curConn = list.find(c => c && (String(c.connection_id) === String(connId) || c.name === connName));
+            }
+            if (curConn) {
+                if (!tabData.environment && curConn.environment) tabData.environment = curConn.environment;
+                if (!tabData.read_only && curConn.read_only) tabData.read_only = Boolean(curConn.read_only);
+            }
+        }
+
+        if (tabData && tabData.isTextEditor && typeof monaco !== 'undefined' && monaco.editor && typeof monaco.editor.createModel === 'function') {
+            try {
+                tabData.monacoModel = monaco.editor.createModel(tabData.content || '', tabData.language || 'sql');
+                tabData.monacoModel.onDidChangeContent(() => {
+                    tabData.content = tabData.monacoModel.getValue();
+                });
+            } catch (_) {}
+        }
 
         const tabEl = document.createElement('li');
         tabEl.className = 'nav-item ide-tab d-flex align-items-center';
         tabEl.dataset.tabId = tabId;
+        tabEl.dataset.docId = docId;
+        if (filePath) tabEl.dataset.filePath = filePath;
+
+        let envBadgeHtml = '';
+        const tabEnv = (tabData?.environment || '').toLowerCase();
+        if (tabEnv === 'prod') {
+            envBadgeHtml = '<span class="badge bg-danger ms-1 tab-env-badge" style="font-size: 8px; padding: 1px 3px; font-weight: 700; line-height: 1;">PROD</span>';
+        } else if (tabEnv === 'test') {
+            envBadgeHtml = '<span class="badge bg-warning text-dark ms-1 tab-env-badge" style="font-size: 8px; padding: 1px 3px; font-weight: 700; line-height: 1;">TEST</span>';
+        } else if (tabEnv === 'dev') {
+            envBadgeHtml = '<span class="badge bg-primary ms-1 tab-env-badge" style="font-size: 8px; padding: 1px 3px; font-weight: 700; line-height: 1;">DEV</span>';
+        }
+
+        const roBadgeHtml = tabData?.read_only ? '<i class="fa-solid fa-lock ms-1 text-warning tab-ro-badge" style="font-size: 9px; cursor: pointer;" title="Chỉ đọc - Click để chuyển sang chế độ Ghi"></i>' : '';
+
         tabEl.innerHTML = `
             <i class="fa-solid ${icon} me-1 tab-icon" style="font-size: 11px;"></i>
             <span class="tab-label text-truncate" style="max-width: 140px;" title="${tabTitle}">${tabTitle}</span>
+            ${envBadgeHtml}
+            ${roBadgeHtml}
             <span class="tab-dirty-dot ms-1 d-none text-warning" style="font-size: 10px;" title="Unsaved changes">●</span>
-            <i class="fa-solid fa-xmark tab-close ms-2"></i>
+            <span class="tab-close ms-2" title="Đóng tab" draggable="false">
+                <i class="fa-solid fa-xmark"></i>
+            </span>
         `;
 
+        const closeBtn = tabEl.querySelector('.tab-close');
+        if (closeBtn) {
+            closeBtn.addEventListener('mousedown', e => {
+                e.stopPropagation();
+            });
+            closeBtn.addEventListener('pointerdown', e => {
+                e.stopPropagation();
+            });
+            closeBtn.addEventListener('click', e => {
+                e.stopPropagation();
+                e.preventDefault();
+                closeTab(tabId, tabEl);
+            });
+        }
+
         tabEl.addEventListener('click', e => {
+            if (e.target.closest('.tab-ro-badge')) {
+                e.stopPropagation();
+                e.preventDefault();
+                const state = tabsData.get(tabId);
+                if (window.SqlProtection && typeof window.SqlProtection.showSwitchToWriteModeDialog === 'function') {
+                    window.SqlProtection.showSwitchToWriteModeDialog({
+                        connectionId: state?.connectionId,
+                        connectionName: state?.connectionName,
+                        database: state?.database,
+                        environment: state?.environment
+                    });
+                }
+                return;
+            }
             if (e.target.closest('.tab-close')) {
+                e.stopPropagation();
+                e.preventDefault();
                 closeTab(tabId, tabEl);
             } else {
                 switchTab(tabId);
@@ -178,19 +411,41 @@ function initTabs() {
             showTabContextMenu(e, tabId);
         });
 
+        setupTabDragAndDrop(tabEl, tabId);
+
         // Append to the tabs list
         tabsBar.appendChild(tabEl);
+        tabOrder.push(tabId);
 
+        if (opts.pinned) {
+            pinTab(tabId);
+        }
+
+        updateEmptyTabsState();
         switchTab(tabId);
+        calculateTabLayout();
+        syncTabsSession();
         return tabId;
     }
 
     function switchTab(tabId) {
-        // Save current editor content if switching from a query tab or diff tab
+        // Save current editor content and cursor/viewState if switching from an editor tab or diff tab
         if (activeTabId && tabsData.has(activeTabId)) {
             const prev = tabsData.get(activeTabId);
-            if (prev.tabType !== 'designer' && prev.tabType !== 'diff' && window.AppEditor) {
+            if (isTextEditorTab(prev) && window.AppEditor) {
                 prev.content = window.AppEditor.getValue();
+                const rawEd = window.AppEditor.rawEditor || (typeof window.resolveMonacoEditor === 'function' ? window.resolveMonacoEditor(window.AppEditor) : null);
+                if (rawEd && typeof rawEd.saveViewState === 'function') {
+                    prev.viewState = rawEd.saveViewState();
+                } else if (typeof window.AppEditor.saveViewState === 'function') {
+                    prev.viewState = window.AppEditor.saveViewState();
+                }
+                if (rawEd && typeof rawEd.getPosition === 'function') {
+                    const pos = rawEd.getPosition();
+                    if (pos) prev.savedCursorPosition = { lineNumber: pos.lineNumber, column: pos.column };
+                } else if (typeof window.AppEditor.getPosition === 'function') {
+                    prev.savedCursorPosition = window.AppEditor.getPosition();
+                }
                 syncDiffTabsWithSourceTab(activeTabId, prev.content);
             } else if (prev.tabType === 'diff' && typeof window.getDiffEditorValues === 'function') {
                 const diffVals = window.getDiffEditorValues();
@@ -207,11 +462,34 @@ function initTabs() {
         if (tabEl) tabEl.classList.add('active');
 
         activeTabId = tabId;
+        if (window.AppSession) {
+            window.AppSession.setActiveTabId(tabId);
+        }
+        syncTabsSession();
         const state = tabsData.get(tabId);
+        updateEmptyTabsState();
 
-        // Toggle workspace views: Query View vs Table Designer View vs Table Data Editor View vs Diff View
+        // Toggle Editor Status Bar based on isTextEditor
+        const isCurrentTextEd = isTextEditorTab(state);
+        const editorStatusBar = document.getElementById('ide-editor-status-bar');
+        if (editorStatusBar) {
+            if (!isCurrentTextEd) {
+                editorStatusBar.classList.add('d-none');
+            } else {
+                editorStatusBar.classList.remove('d-none');
+            }
+        }
+
+        if (window.FileHistorySidebar && typeof window.FileHistorySidebar.onTabChanged === 'function') {
+            window.FileHistorySidebar.onTabChanged(tabId, state);
+        }
+
+        // Toggle workspace views: Query View vs Table Designer View vs Table Data Editor View vs Diff View vs Dependency Graph View vs SQL Visualizer View
         const designerContainer = document.getElementById('table-designer-container');
         const dataEditorContainer = document.getElementById('table-data-editor-container');
+        const depContainer = document.getElementById('dependency-graph-container');
+        const ocsContainer = document.getElementById('object-content-search-container');
+        const visualizerContainer = document.getElementById('sql-visualizer-container');
         const editorWrap = document.querySelector('.ide-editor-wrap');
         const resizer = document.querySelector('.ide-resizer-horizontal');
         const resultsPane = document.getElementById('ide-result-panel') || document.getElementById('ide-results-pane') || (resizer ? resizer.nextElementSibling : null);
@@ -223,11 +501,29 @@ function initTabs() {
             if (resizer) resizer.classList.add('d-none');
             if (resultsPane) resultsPane.classList.add('d-none');
             if (dataEditorContainer) dataEditorContainer.classList.add('d-none');
+            if (depContainer) depContainer.classList.add('d-none');
+            if (ocsContainer) ocsContainer.classList.add('d-none');
+            if (visualizerContainer) visualizerContainer.classList.add('d-none');
             if (queryControls) queryControls.classList.add('opacity-50', 'pe-none');
             if (designerContainer) designerContainer.classList.remove('d-none');
 
             if (window.TableDesigner) {
                 window.TableDesigner.activateTab(tabId);
+            }
+        } else if (state && state.tabType === 'query-designer') {
+            if (typeof window.hideDiffView === 'function') window.hideDiffView();
+            if (editorWrap) editorWrap.classList.add('d-none');
+            if (resizer) resizer.classList.add('d-none');
+            if (resultsPane) resultsPane.classList.add('d-none');
+            if (designerContainer) designerContainer.classList.add('d-none');
+            if (dataEditorContainer) dataEditorContainer.classList.add('d-none');
+            if (depContainer) depContainer.classList.add('d-none');
+            if (ocsContainer) ocsContainer.classList.add('d-none');
+            if (queryControls) queryControls.classList.add('opacity-50', 'pe-none');
+            if (visualizerContainer) visualizerContainer.classList.remove('d-none');
+
+            if (window.SqlVisualizer) {
+                window.SqlVisualizer.activateTab(tabId);
             }
         } else if (state && state.tabType === 'data-editor') {
             if (typeof window.hideDiffView === 'function') window.hideDiffView();
@@ -235,15 +531,61 @@ function initTabs() {
             if (resizer) resizer.classList.add('d-none');
             if (resultsPane) resultsPane.classList.add('d-none');
             if (designerContainer) designerContainer.classList.add('d-none');
+            if (depContainer) depContainer.classList.add('d-none');
+            if (ocsContainer) ocsContainer.classList.add('d-none');
+            if (visualizerContainer) visualizerContainer.classList.add('d-none');
             if (queryControls) queryControls.classList.add('opacity-50', 'pe-none');
             if (dataEditorContainer) dataEditorContainer.classList.remove('d-none');
 
             if (window.TableDataEditor) {
                 window.TableDataEditor.activateTab(tabId);
             }
+        } else if (state && state.tabType === 'dependency-graph') {
+            if (typeof window.hideDiffView === 'function') window.hideDiffView();
+            if (editorWrap) editorWrap.classList.add('d-none');
+            if (resizer) resizer.classList.add('d-none');
+            if (resultsPane) resultsPane.classList.add('d-none');
+            if (designerContainer) designerContainer.classList.add('d-none');
+            if (dataEditorContainer) dataEditorContainer.classList.add('d-none');
+            if (ocsContainer) ocsContainer.classList.add('d-none');
+            if (visualizerContainer) visualizerContainer.classList.add('d-none');
+            if (queryControls) queryControls.classList.add('opacity-50', 'pe-none');
+            if (depContainer) depContainer.classList.remove('d-none');
+
+            if (window.PostgresDependencyGraph) {
+                window.PostgresDependencyGraph.activateTab(tabId, state.context);
+            }
+        } else if (state && state.tabType === 'object-search') {
+            if (typeof window.hideDiffView === 'function') window.hideDiffView();
+            if (editorWrap) editorWrap.classList.add('d-none');
+            if (resizer) resizer.classList.add('d-none');
+            if (resultsPane) resultsPane.classList.add('d-none');
+            if (designerContainer) designerContainer.classList.add('d-none');
+            if (dataEditorContainer) dataEditorContainer.classList.add('d-none');
+            if (depContainer) depContainer.classList.add('d-none');
+            if (visualizerContainer) visualizerContainer.classList.add('d-none');
+            if (queryControls) queryControls.classList.add('opacity-50', 'pe-none');
+            if (ocsContainer) ocsContainer.classList.remove('d-none');
+
+            if (window.ObjectContentSearch) {
+                if (!window.ObjectContentSearch.initialized) {
+                    window.ObjectContentSearch.init();
+                }
+                const ocsCtx = Object.assign({
+                    connectionId: state.connectionId,
+                    connectionName: state.connectionName,
+                    database: state.database,
+                    schema: state.schema,
+                    dbType: state.dbType
+                }, state.context || {});
+                window.ObjectContentSearch.activateTab(tabId, ocsCtx);
+            }
         } else if (state && state.tabType === 'diff') {
             if (designerContainer) designerContainer.classList.add('d-none');
             if (dataEditorContainer) dataEditorContainer.classList.add('d-none');
+            if (depContainer) depContainer.classList.add('d-none');
+            if (ocsContainer) ocsContainer.classList.add('d-none');
+            if (visualizerContainer) visualizerContainer.classList.add('d-none');
             if (editorWrap) editorWrap.classList.remove('d-none');
             if (resizer) resizer.classList.add('d-none');
             if (resultsPane) resultsPane.classList.add('d-none');
@@ -276,23 +618,113 @@ function initTabs() {
             if (typeof window.hideDiffView === 'function') window.hideDiffView();
             if (designerContainer) designerContainer.classList.add('d-none');
             if (dataEditorContainer) dataEditorContainer.classList.add('d-none');
+            if (depContainer) depContainer.classList.add('d-none');
+            if (ocsContainer) ocsContainer.classList.add('d-none');
+            if (visualizerContainer) visualizerContainer.classList.add('d-none');
             if (editorWrap) editorWrap.classList.remove('d-none');
-            const isResultHidden = window.isResultPanelHidden && window.isResultPanelHidden();
-            if (!isResultHidden) {
-                if (resizer) resizer.classList.remove('d-none');
-                if (resultsPane) resultsPane.classList.remove('d-none');
-            }
-            if (queryControls) queryControls.classList.remove('opacity-50', 'pe-none');
 
-            // Restore editor content
+            // Restore editor content immediately before UI panels/getters trigger to prevent stale content overwrites
             if (state && window.AppEditor) {
-                window.AppEditor.setValue(state.content || '');
+                const rawEd = window.AppEditor.rawEditor || (typeof window.resolveMonacoEditor === 'function' ? window.resolveMonacoEditor(window.AppEditor) : null);
+                const nextVal = state.content || '';
+                const lang = state.language || (state.tabType === 'structured-data' ? (state.structuredFormat || 'json') : 'sql');
+
+                if (rawEd && typeof monaco !== 'undefined' && monaco.editor && typeof monaco.editor.createModel === 'function') {
+                    if (!state.monacoModel || state.monacoModel.isDisposed()) {
+                        state.monacoModel = monaco.editor.createModel(nextVal, lang);
+                        state.monacoModel.onDidChangeContent(() => {
+                            state.content = state.monacoModel.getValue();
+                        });
+                    } else if (state.monacoModel.getValue() !== nextVal) {
+                        state.monacoModel.setValue(nextVal);
+                    }
+                    if (rawEd.getModel() !== state.monacoModel) {
+                        rawEd.setModel(state.monacoModel);
+                    }
+                } else {
+                    const currentVal = window.AppEditor.getValue();
+                    if (currentVal !== nextVal) {
+                        window.AppEditor.setValue(nextVal);
+                    }
+                }
+
+                if (state.viewState && rawEd && typeof rawEd.restoreViewState === 'function') {
+                    try {
+                        rawEd.restoreViewState(state.viewState);
+                    } catch (_) {}
+                } else if (state.savedCursorPosition) {
+                    if (rawEd && typeof rawEd.setPosition === 'function') {
+                        try {
+                            rawEd.setPosition(state.savedCursorPosition);
+                            if (typeof rawEd.revealPositionInCenterIfOutsideViewport === 'function') {
+                                rawEd.revealPositionInCenterIfOutsideViewport(state.savedCursorPosition);
+                            }
+                        } catch (_) {}
+                    } else if (typeof window.AppEditor.setPosition === 'function') {
+                        window.AppEditor.setPosition(state.savedCursorPosition);
+                    }
+                }
+
+                // Switch language model if structured data or text tab
+                const targetLang = state.language || (state.tabType === 'structured-data' ? (state.structuredFormat || 'json') : 'sql');
+                if (rawEd && typeof rawEd.getModel === 'function' && typeof monaco !== 'undefined' && monaco.editor && typeof monaco.editor.setModelLanguage === 'function') {
+                    const model = rawEd.getModel();
+                    if (model && model.getLanguageId && model.getLanguageId() !== targetLang) {
+                        try {
+                            monaco.editor.setModelLanguage(model, targetLang);
+                        } catch (_) {}
+                    }
+                }
+            }
+
+            const hasExecuted = Boolean(state && (state.resultData || state.messageText || state.planText));
+            const shouldHide = (state && state.isResultPanelHidden !== undefined) ? state.isResultPanelHidden : !hasExecuted;
+            if (shouldHide) {
+                if (typeof window.hideResultPanel === 'function') {
+                    window.hideResultPanel();
+                } else {
+                    if (resizer) resizer.classList.add('d-none');
+                    if (resultsPane) resultsPane.classList.add('d-none');
+                }
+            } else {
+                if (typeof window.showResultPanel === 'function') {
+                    window.showResultPanel(false);
+                } else {
+                    if (resizer) resizer.classList.remove('d-none');
+                    if (resultsPane) resultsPane.classList.remove('d-none');
+                }
+            }
+            if (state && state.tabType === 'structured-data') {
+                if (queryControls) queryControls.classList.add('opacity-50', 'pe-none');
+            } else {
+                if (queryControls) queryControls.classList.remove('opacity-50', 'pe-none');
+            }
+
+            // Staggered layout refresh
+            if (state && window.AppEditor) {
                 setTimeout(() => { if (window.AppEditor) { if (window.AppEditor.layout) window.AppEditor.layout(); else if (window.AppEditor.refresh) window.AppEditor.refresh(); } }, 10);
             }
         }
 
         // Sync active context globals to tab state
         if (state) {
+            // Check if connection was reconnected/renewed or if connection is active
+            if (state.connectionName && window.AppExplorer && typeof window.AppExplorer.getActiveConnections === 'function') {
+                const activeList = window.AppExplorer.getActiveConnections() || [];
+                const cleanTabConnName = String(state.connectionName).replace(/\s*\((SQL Server|PostgreSQL|SQLite)\)$/i, '').trim();
+                const matched = activeList.find(a => (
+                    a && (
+                        (a.name && (a.name.toLowerCase() === state.connectionName.toLowerCase() || a.name.toLowerCase() === cleanTabConnName.toLowerCase())) ||
+                        (a.server && (a.server.toLowerCase() === state.connectionName.toLowerCase() || a.server.toLowerCase() === cleanTabConnName.toLowerCase()))
+                    ) && (
+                        !state.dbType || !a.type || a.type === state.dbType
+                    )
+                ));
+                if (matched && matched.connection_id && state.connectionId !== matched.connection_id) {
+                    state.connectionId = matched.connection_id;
+                }
+            }
+
             window.ActiveConnectionId   = state.connectionId;
             window.ActiveConnectionName = state.connectionName;
             window.ActiveDatabase       = state.database;
@@ -304,6 +736,71 @@ function initTabs() {
         document.dispatchEvent(new CustomEvent('ide-tab-switched', { detail: { tabId, state } }));
         if (typeof window.updateActionBar === 'function') {
             window.updateActionBar();
+        }
+
+        if (tabDisplayMode === 'overflow' && (overflowTabIds.has(tabId) || !visibleTabIds.has(tabId))) {
+            calculateTabLayout();
+        }
+    }
+
+    function updateEmptyTabsState() {
+        const remaining = document.querySelectorAll('.ide-tab[data-tab-id]');
+        const emptyPlaceholder = document.getElementById('ide-empty-tabs-placeholder');
+        const editorWrap = document.querySelector('.ide-editor-wrap');
+        const resizer = document.querySelector('.ide-resizer-horizontal');
+        const resultsPane = document.getElementById('ide-result-panel') || document.getElementById('ide-results-pane') || (resizer ? resizer.nextElementSibling : null);
+        const queryControls = document.querySelector('.ide-action-bar .d-flex.align-items-center.gap-1.flex-shrink-0');
+
+        if (remaining.length === 0) {
+            if (typeof window.hideDiffView === 'function') {
+                window.hideDiffView();
+            }
+            document.getElementById('table-designer-container')?.classList.add('d-none');
+            document.getElementById('table-data-editor-container')?.classList.add('d-none');
+            document.getElementById('dependency-graph-container')?.classList.add('d-none');
+            document.getElementById('object-content-search-container')?.classList.add('d-none');
+            document.getElementById('sql-visualizer-container')?.classList.add('d-none');
+            document.getElementById('ide-editor-status-bar')?.classList.add('d-none');
+            if (emptyPlaceholder) emptyPlaceholder.classList.remove('d-none');
+            if (editorWrap) editorWrap.classList.remove('d-none');
+            if (resizer) resizer.classList.add('d-none');
+            if (resultsPane) resultsPane.classList.add('d-none');
+            if (queryControls) queryControls.classList.add('opacity-50', 'pe-none');
+            if (window.AppEditor) {
+                window.AppEditor.setValue('');
+                if (typeof window.AppEditor.updateOptions === 'function') {
+                    window.AppEditor.updateOptions({ readOnly: true });
+                } else if (typeof window.AppEditor.setOption === 'function') {
+                    window.AppEditor.setOption('readOnly', 'nocursor');
+                }
+            }
+            if (window.AppEditor2) {
+                if (typeof window.AppEditor2.updateOptions === 'function') {
+                    window.AppEditor2.updateOptions({ readOnly: true });
+                } else if (typeof window.AppEditor2.setOption === 'function') {
+                    window.AppEditor2.setOption('readOnly', 'nocursor');
+                }
+            }
+            if (window.FileHistorySidebar && typeof window.FileHistorySidebar.onAllTabsClosed === 'function') {
+                window.FileHistorySidebar.onAllTabsClosed();
+            }
+        } else {
+            if (emptyPlaceholder) emptyPlaceholder.classList.add('d-none');
+            if (queryControls) queryControls.classList.remove('opacity-50', 'pe-none');
+            if (window.AppEditor) {
+                if (typeof window.AppEditor.updateOptions === 'function') {
+                    window.AppEditor.updateOptions({ readOnly: false });
+                } else if (typeof window.AppEditor.setOption === 'function') {
+                    window.AppEditor.setOption('readOnly', false);
+                }
+            }
+            if (window.AppEditor2) {
+                if (typeof window.AppEditor2.updateOptions === 'function') {
+                    window.AppEditor2.updateOptions({ readOnly: false });
+                } else if (typeof window.AppEditor2.setOption === 'function') {
+                    window.AppEditor2.setOption('readOnly', false);
+                }
+            }
         }
     }
 
@@ -322,17 +819,55 @@ function initTabs() {
     function forceCloseTab(tabId, tabEl) {
         const state = tabsData.get(tabId);
         const title = state ? state.title : 'Editor';
+
+        // Snapshot khi đóng tab (📄 - entry_type = 2)
+        if (state && state.tabType === 'query' && state.docId) {
+            const closingContent = (window.AppEditor && activeTabId === tabId) ? window.AppEditor.getValue() : (state.content || '');
+            if (closingContent && closingContent.trim()) {
+                fetch('/api/history/log_execution', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        doc_id: state.docId,
+                        display_name: state.title,
+                        file_path: state.filePath || null,
+                        sql: closingContent,
+                        entry_type: 2, // 2 = Snapshot/Close 📄
+                        server: state.connectionName || window.ActiveConnectionName || 'Local',
+                        database: state.database || window.ActiveDatabase || 'master',
+                        status: 0,
+                        duration_ms: 0
+                    })
+                }).then(() => {
+                    document.dispatchEvent(new CustomEvent('ide-history-updated', { detail: { docId: state.docId } }));
+                }).catch(() => {});
+            }
+        }
+
         if (state && state.tabType === 'designer' && window.TableDesigner) {
             window.TableDesigner.closeTab(tabId);
         } else if (state && state.tabType === 'data-editor' && window.TableDataEditor) {
             window.TableDataEditor.closeTab(tabId);
+        } else if (state && state.tabType === 'dependency-graph' && window.PostgresDependencyGraph) {
+            window.PostgresDependencyGraph.closeTab(tabId);
+        } else if (state && state.tabType === 'object-search' && window.ObjectContentSearch) {
+            window.ObjectContentSearch.closeTab(tabId);
+        } else if (state && state.tabType === 'query-designer' && window.SqlVisualizer) {
+            window.SqlVisualizer.closeTab(tabId);
         } else if (state && state.tabType === 'diff') {
             if (typeof window.closeDiffView === 'function') {
                 window.closeDiffView();
             }
         }
 
+        if (state && state.monacoModel) {
+            try { state.monacoModel.dispose(); } catch (_) {}
+            state.monacoModel = null;
+        }
+
         tabsData.delete(tabId);
+        pinnedTabs.delete(tabId);
+        tabOrder = tabOrder.filter(id => id !== tabId);
         document.dispatchEvent(new CustomEvent('ide-tab-closed', { detail: { tabId } }));
         tabEl.remove();
 
@@ -356,6 +891,9 @@ function initTabs() {
                 document.dispatchEvent(new CustomEvent('ide-tab-switched', { detail: { tabId: null, state: null } }));
             }
         }
+        updateEmptyTabsState();
+        calculateTabLayout();
+        syncTabsSession();
     }
 
     function showCloseConfirmModal(title, isDirty, onConfirm) {
@@ -584,6 +1122,13 @@ function initTabs() {
         const newEl = document.querySelector(`.ide-tab[data-tab-id="${newTabId}"]`);
         if (origEl && newEl && origEl.nextSibling && origEl.nextSibling !== newEl) {
             tabsBar.insertBefore(newEl, origEl.nextSibling);
+            const origIdx = tabOrder.indexOf(tabId);
+            const newIdx = tabOrder.indexOf(newTabId);
+            if (origIdx !== -1 && newIdx !== -1) {
+                tabOrder.splice(newIdx, 1);
+                tabOrder.splice(origIdx + 1, 0, newTabId);
+            }
+            calculateTabLayout();
         }
 
         if (typeof showToast === 'function') {
@@ -732,6 +1277,10 @@ function initTabs() {
                 <span class="ide-ctx-label">Close All</span>
             </button>
             <div class="ide-ctx-separator"></div>
+            <button class="ide-ctx-item" id="ctx-tab-pin">
+                <i class="fa-solid fa-thumbtack ide-ctx-icon ${pinnedTabs.has(tabId) ? 'text-warning' : ''}"></i>
+                <span class="ide-ctx-label">${pinnedTabs.has(tabId) ? 'Unpin Tab' : 'Pin Tab'}</span>
+            </button>
             <button class="ide-ctx-item" id="ctx-tab-duplicate">
                 <i class="fa-solid fa-clone ide-ctx-icon"></i>
                 <span class="ide-ctx-label">Duplicate Tab</span>
@@ -746,10 +1295,36 @@ function initTabs() {
             </button>
             ${isQuery ? `
             <div class="ide-ctx-separator"></div>
-            <button class="ide-ctx-item" id="ctx-tab-split">
+            <div class="ide-ctx-item has-submenu" id="ctx-tab-split">
                 <i class="fa-solid fa-table-columns ide-ctx-icon text-info"></i>
-                <span class="ide-ctx-label">${isSplit ? 'Close Split View' : 'Split to Right'}</span>
-            </button>
+                <span class="ide-ctx-label">Split Editor</span>
+                <i class="fa-solid fa-chevron-right ide-ctx-arrow"></i>
+                <div class="ide-ctx-submenu">
+                    <button class="ide-ctx-item" data-split-dir="right">
+                        <i class="fa-solid fa-arrow-right ide-ctx-icon text-info"></i>
+                        <span class="ide-ctx-label">Split to Right (Sang phải)</span>
+                    </button>
+                    <button class="ide-ctx-item" data-split-dir="left">
+                        <i class="fa-solid fa-arrow-left ide-ctx-icon text-info"></i>
+                        <span class="ide-ctx-label">Split to Left (Sang trái)</span>
+                    </button>
+                    <button class="ide-ctx-item" data-split-dir="down">
+                        <i class="fa-solid fa-arrow-down ide-ctx-icon text-info"></i>
+                        <span class="ide-ctx-label">Split to Down (Xuống dưới)</span>
+                    </button>
+                    <button class="ide-ctx-item" data-split-dir="up">
+                        <i class="fa-solid fa-arrow-up ide-ctx-icon text-info"></i>
+                        <span class="ide-ctx-label">Split to Up (Lên trên)</span>
+                    </button>
+                    ${isSplit ? `
+                    <div class="ide-ctx-separator"></div>
+                    <button class="ide-ctx-item danger" data-split-action="close">
+                        <i class="fa-solid fa-xmark ide-ctx-icon"></i>
+                        <span class="ide-ctx-label">Close Split View</span>
+                    </button>
+                    ` : ''}
+                </div>
+            </div>
             <button class="ide-ctx-item" id="ctx-tab-compare">
                 <i class="fa-solid fa-code-compare ide-ctx-icon text-warning"></i>
                 <span class="ide-ctx-label">Compare with...</span>
@@ -775,6 +1350,17 @@ function initTabs() {
         if (rect.bottom > window.innerHeight - 8) {
             menu.style.top = Math.max(8, window.innerHeight - rect.height - 8) + 'px';
         }
+
+        // Auto-flip submenus if overflowing right edge
+        menu.querySelectorAll('.has-submenu').forEach(subItem => {
+            const submenu = subItem.querySelector('.ide-ctx-submenu');
+            if (submenu) {
+                const subRect = subItem.getBoundingClientRect();
+                if (subRect.right + 200 > window.innerWidth) {
+                    submenu.classList.add('open-left');
+                }
+            }
+        });
 
         const closeMenu = () => {
             menu.remove();
@@ -834,6 +1420,16 @@ function initTabs() {
             closeAllTabs();
         });
 
+        menu.querySelector('#ctx-tab-pin')?.addEventListener('click', (ev) => {
+            ev.preventDefault();
+            closeMenu();
+            if (pinnedTabs.has(tabId)) {
+                unpinTab(tabId);
+            } else {
+                pinTab(tabId);
+            }
+        });
+
         menu.querySelector('#ctx-tab-duplicate')?.addEventListener('click', (ev) => {
             ev.preventDefault();
             closeMenu();
@@ -853,16 +1449,23 @@ function initTabs() {
         });
 
         if (isQuery) {
-            menu.querySelector('#ctx-tab-split')?.addEventListener('click', (ev) => {
-                ev.preventDefault();
-                closeMenu();
-                if (window.isEditorSplit && window.isEditorSplit()) {
-                    window.unsplitEditor();
-                } else {
+            menu.querySelectorAll('[data-split-dir]').forEach(btn => {
+                btn.addEventListener('click', (ev) => {
+                    ev.preventDefault();
+                    closeMenu();
+                    const dir = btn.dataset.splitDir;
                     switchTab(tabId);
                     if (window.splitEditor) {
-                        window.splitEditor(tabId);
+                        window.splitEditor(tabId, dir);
                     }
+                });
+            });
+
+            menu.querySelector('[data-split-action="close"]')?.addEventListener('click', (ev) => {
+                ev.preventDefault();
+                closeMenu();
+                if (window.unsplitEditor) {
+                    window.unsplitEditor();
                 }
             });
 
@@ -1051,6 +1654,49 @@ function initTabs() {
         input.click();
     }
 
+    function openFilesFromDisk() {
+        let input = document.getElementById('ide-open-file-input');
+        if (!input) {
+            input = document.createElement('input');
+            input.type = 'file';
+            input.id = 'ide-open-file-input';
+            input.accept = '.sql,.txt,.json,.xml,.csv,*.*';
+            input.multiple = true;
+            input.className = 'd-none';
+            document.body.appendChild(input);
+        }
+        input.value = '';
+        input.onchange = (e) => {
+            const files = Array.from(e.target.files || []);
+            if (!files.length) return;
+            files.forEach(async file => {
+                const reader = new FileReader();
+                reader.onload = async (ev) => {
+                    const content = ev.target.result || '';
+                    const pathCandidate = file.path || file.name;
+                    let existingDocId = null;
+                    try {
+                        const checkRes = await fetch(`/api/history/document_by_path?path=${encodeURIComponent(pathCandidate)}`);
+                        const checkData = await checkRes.json();
+                        if (checkData && checkData.success && checkData.document) {
+                            existingDocId = checkData.document.DocId;
+                        }
+                    } catch (_) {}
+
+                    createTab({
+                        title: file.name,
+                        filePath: pathCandidate,
+                        docId: existingDocId || undefined,
+                        content: content,
+                        isDirty: false
+                    });
+                };
+                reader.readAsText(file);
+            });
+        };
+        input.click();
+    }
+
     function saveActiveTab() {
         if (!activeTabId) return;
         const state = tabsData.get(activeTabId);
@@ -1062,7 +1708,8 @@ function initTabs() {
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = (state.title || 'query') + '.sql';
+            const fileName = (state.title && state.title.endsWith('.sql')) ? state.title : ((state.title || 'query') + '.sql');
+            a.download = fileName;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
@@ -1070,6 +1717,46 @@ function initTabs() {
             
             setTabDirty(activeTabId, false);
             if (typeof showToast === 'function') showToast('Saved ' + state.title, 'success');
+
+            // Cập nhật Document trong Query History (gộp theo FilePath nếu đã có)
+            if (state.docId) {
+                fetch('/api/history/update_document', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        doc_id: state.docId,
+                        display_name: state.title,
+                        file_path: state.filePath || fileName
+                    })
+                }).then(r => r.json()).then(data => {
+                    if (data && data.doc_id && data.doc_id !== state.docId) {
+                        state.docId = data.doc_id;
+                        const el = document.querySelector(`.ide-tab[data-tab-id="${activeTabId}"]`);
+                        if (el) el.dataset.docId = data.doc_id;
+                    }
+                }).catch(() => {});
+
+                // Snapshot khi Lưu file (📄 - entry_type = 2)
+                if (content && content.trim()) {
+                    fetch('/api/history/log_execution', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            doc_id: state.docId,
+                            display_name: state.title,
+                            file_path: state.filePath || fileName,
+                            sql: content,
+                            entry_type: 2, // 2 = Snapshot/Save 📄
+                            server: state.connectionName || window.ActiveConnectionName || 'Local',
+                            database: state.database || window.ActiveDatabase || 'master',
+                            status: 0,
+                            duration_ms: 0
+                        })
+                    }).then(() => {
+                        document.dispatchEvent(new CustomEvent('ide-history-updated', { detail: { docId: state.docId } }));
+                    }).catch(() => {});
+                }
+            }
         } else if (state.tabType === 'designer' && window.TableDesigner) {
             // Save logic for designer if any
         } else if (state.tabType === 'data-editor' && window.TableDataEditor) {
@@ -1105,15 +1792,28 @@ function initTabs() {
                 label.title = title;
             }
         }
+        if (state.docId) {
+            fetch('/api/history/update_document', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    doc_id: state.docId,
+                    display_name: title,
+                    file_path: state.filePath || null
+                })
+            }).then(r => r.json()).then(data => {
+                if (data && data.doc_id && data.doc_id !== state.docId) {
+                    state.docId = data.doc_id;
+                    if (tabEl) tabEl.dataset.docId = data.doc_id;
+                }
+            }).catch(() => {});
+        }
+        calculateTabLayout();
     }
 
     function getActiveTabState() {
         if (!activeTabId) return null;
-        const state = tabsData.get(activeTabId);
-        if (state && state.tabType !== 'designer' && window.AppEditor) {
-            state.content = window.AppEditor.getValue();
-        }
-        return state;
+        return tabsData.get(activeTabId) || null;
     }
 
     function getActiveTabId() { return activeTabId; }
@@ -1124,6 +1824,76 @@ function initTabs() {
 
     function getAllTabs() {
         return tabsData;
+    }
+
+    function updateTabSafetyBadges(tabId) {
+        if (!tabId || !tabsData.has(tabId)) return;
+        const state = tabsData.get(tabId);
+        const tabEl = tabsBar ? tabsBar.querySelector(`.ide-tab[data-tab-id="${tabId}"]`) : null;
+        if (!tabEl || !state) return;
+
+        let env = (state.environment || '').toLowerCase();
+        let isRo = Boolean(state.read_only);
+
+        if (!env || !isRo) {
+            let curConn = null;
+            if (window.AppExplorer && typeof window.AppExplorer.getActiveConnections === 'function') {
+                const list = window.AppExplorer.getActiveConnections() || [];
+                curConn = list.find(c => c && (String(c.connection_id) === String(state.connectionId) || c.name === state.connectionName));
+            }
+            if (curConn) {
+                if (!env && curConn.environment) env = (curConn.environment || '').toLowerCase();
+                if (!isRo && curConn.read_only) isRo = Boolean(curConn.read_only);
+            }
+        }
+
+        // Update env badge
+        let envBadge = tabEl.querySelector('.tab-env-badge');
+        if (env === 'prod') {
+            if (!envBadge) {
+                envBadge = document.createElement('span');
+                envBadge.className = 'badge bg-danger ms-1 tab-env-badge';
+                envBadge.style.cssText = 'font-size: 8px; padding: 1px 3px; font-weight: 700; line-height: 1;';
+                tabEl.querySelector('.tab-label')?.after(envBadge);
+            }
+            envBadge.className = 'badge bg-danger ms-1 tab-env-badge';
+            envBadge.textContent = 'PROD';
+        } else if (env === 'test') {
+            if (!envBadge) {
+                envBadge = document.createElement('span');
+                envBadge.className = 'badge bg-warning text-dark ms-1 tab-env-badge';
+                envBadge.style.cssText = 'font-size: 8px; padding: 1px 3px; font-weight: 700; line-height: 1;';
+                tabEl.querySelector('.tab-label')?.after(envBadge);
+            }
+            envBadge.className = 'badge bg-warning text-dark ms-1 tab-env-badge';
+            envBadge.textContent = 'TEST';
+        } else if (env === 'dev') {
+            if (!envBadge) {
+                envBadge = document.createElement('span');
+                envBadge.className = 'badge bg-primary ms-1 tab-env-badge';
+                envBadge.style.cssText = 'font-size: 8px; padding: 1px 3px; font-weight: 700; line-height: 1;';
+                tabEl.querySelector('.tab-label')?.after(envBadge);
+            }
+            envBadge.className = 'badge bg-primary ms-1 tab-env-badge';
+            envBadge.textContent = 'DEV';
+        } else if (envBadge) {
+            envBadge.remove();
+        }
+
+        // Update read-only badge
+        let roBadge = tabEl.querySelector('.tab-ro-badge');
+        if (isRo) {
+            if (!roBadge) {
+                roBadge = document.createElement('i');
+                roBadge.className = 'fa-solid fa-lock ms-1 text-warning tab-ro-badge';
+                roBadge.style.fontSize = '9px';
+                roBadge.title = 'Chỉ đọc';
+                const insertAfterEl = tabEl.querySelector('.tab-env-badge') || tabEl.querySelector('.tab-label');
+                if (insertAfterEl) insertAfterEl.after(roBadge);
+            }
+        } else if (roBadge) {
+            roBadge.remove();
+        }
     }
 
     function updateActiveTabContext(ctx = {}) {
@@ -1138,6 +1908,7 @@ function initTabs() {
         if (activeTabId && tabsData.has(activeTabId)) {
             const state = tabsData.get(activeTabId);
             Object.assign(state, ctx);
+            updateTabSafetyBadges(activeTabId);
         }
         document.dispatchEvent(new CustomEvent('ide-context-changed', { detail: ctx }));
         if (typeof window.updateActionBar === 'function') {
@@ -1145,7 +1916,516 @@ function initTabs() {
         }
     }
 
-    if (newTabBtn) newTabBtn.addEventListener('click', () => createTab());
+    function updateTabsConnectionId(connName, newConnId, oldConnId = null) {
+        if (!connName && !oldConnId) return;
+        const cleanTargetName = connName ? String(connName).replace(/\s*\((SQL Server|PostgreSQL|SQLite)\)$/i, '').trim().toLowerCase() : '';
+        tabsData.forEach((state, tId) => {
+            if (!state) return;
+            const curConnName = state.connectionName ? String(state.connectionName).replace(/\s*\((SQL Server|PostgreSQL|SQLite)\)$/i, '').trim().toLowerCase() : '';
+            const matchName = cleanTargetName && curConnName && curConnName === cleanTargetName;
+            const matchOldId = oldConnId && state.connectionId === oldConnId;
+            if (matchName || matchOldId) {
+                state.connectionId = newConnId;
+                if (connName) state.connectionName = connName;
+                if (tId === activeTabId) {
+                    window.ActiveConnectionId = newConnId;
+                    if (connName) window.ActiveConnectionName = connName;
+                    if (typeof window.updateActionBar === 'function') {
+                        window.updateActionBar();
+                    }
+                }
+            }
+        });
+    }
+
+    function setupTabDragAndDrop(tabEl, tabId) {
+        tabEl.setAttribute('draggable', 'true');
+
+        tabEl.addEventListener('dragstart', (e) => {
+            if (e.target.closest('.tab-close')) {
+                e.preventDefault();
+                return false;
+            }
+            e.dataTransfer.setData('text/plain', tabId);
+            e.dataTransfer.effectAllowed = 'move';
+            tabEl.classList.add('dragging');
+        });
+
+        tabEl.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            const rect = tabEl.getBoundingClientRect();
+            const midX = rect.left + rect.width / 2;
+            if (e.clientX < midX) {
+                tabEl.classList.add('drag-over-left');
+                tabEl.classList.remove('drag-over-right');
+            } else {
+                tabEl.classList.add('drag-over-right');
+                tabEl.classList.remove('drag-over-left');
+            }
+        });
+
+        tabEl.addEventListener('dragleave', () => {
+            tabEl.classList.remove('drag-over-left', 'drag-over-right');
+        });
+
+        tabEl.addEventListener('drop', (e) => {
+            e.preventDefault();
+            tabEl.classList.remove('drag-over-left', 'drag-over-right');
+            const sourceTabId = e.dataTransfer.getData('text/plain');
+            if (!sourceTabId || sourceTabId === tabId) return;
+
+            const sourceEl = document.querySelector(`.ide-tab[data-tab-id="${sourceTabId}"]`);
+            if (!sourceEl) return;
+
+            const sourcePinned = pinnedTabs.has(sourceTabId);
+            const targetPinned = pinnedTabs.has(tabId);
+            if (sourcePinned && !targetPinned) return;
+            if (!sourcePinned && targetPinned) return;
+
+            const rect = tabEl.getBoundingClientRect();
+            const midX = rect.left + rect.width / 2;
+            if (e.clientX < midX) {
+                tabsBar.insertBefore(sourceEl, tabEl);
+            } else {
+                tabsBar.insertBefore(sourceEl, tabEl.nextSibling);
+            }
+
+            const currentDomIds = Array.from(tabsBar.querySelectorAll('.ide-tab[data-tab-id]')).map(el => el.dataset.tabId);
+            tabOrder = currentDomIds;
+            calculateTabLayout();
+        });
+
+        tabEl.addEventListener('dragend', () => {
+            tabEl.classList.remove('dragging', 'drag-over-left', 'drag-over-right');
+            document.querySelectorAll('.ide-tab').forEach(el => el.classList.remove('drag-over-left', 'drag-over-right', 'dragging'));
+        });
+    }
+
+    function pinTab(tabId) {
+        if (!tabsData.has(tabId)) return;
+        pinnedTabs.add(tabId);
+        const tabEl = document.querySelector(`.ide-tab[data-tab-id="${tabId}"]`);
+        if (tabEl) {
+            tabEl.classList.add('pinned');
+            if (!tabEl.querySelector('.tab-pin-icon')) {
+                const pinIcon = document.createElement('i');
+                pinIcon.className = 'fa-solid fa-thumbtack tab-pin-icon me-1 text-warning';
+                pinIcon.title = 'Pinned';
+                const iconEl = tabEl.querySelector('.tab-icon');
+                if (iconEl) iconEl.insertAdjacentElement('beforebegin', pinIcon);
+                else tabEl.prepend(pinIcon);
+            }
+        }
+        const pinned = tabOrder.filter(id => pinnedTabs.has(id));
+        const unpinned = tabOrder.filter(id => !pinnedTabs.has(id));
+        tabOrder = [...pinned, ...unpinned];
+
+        const firstUnpinned = tabsBar.querySelector('.ide-tab[data-tab-id]:not(.pinned)');
+        if (tabEl) {
+            if (firstUnpinned) {
+                tabsBar.insertBefore(tabEl, firstUnpinned);
+            } else {
+                tabsBar.appendChild(tabEl);
+            }
+        }
+        calculateTabLayout();
+    }
+
+    function unpinTab(tabId) {
+        if (!tabsData.has(tabId)) return;
+        pinnedTabs.delete(tabId);
+        const tabEl = document.querySelector(`.ide-tab[data-tab-id="${tabId}"]`);
+        if (tabEl) {
+            tabEl.classList.remove('pinned');
+            tabEl.querySelector('.tab-pin-icon')?.remove();
+        }
+        const pinned = tabOrder.filter(id => pinnedTabs.has(id));
+        const unpinned = tabOrder.filter(id => !pinnedTabs.has(id));
+        tabOrder = [...pinned, ...unpinned];
+        calculateTabLayout();
+    }
+
+    function isTabPinned(tabId) {
+        return pinnedTabs.has(tabId);
+    }
+
+    function calculateTabLayout(forcedContainerWidth = null) {
+        const tabsContainerEl = document.querySelector('.ide-tabs-container');
+        if (!tabsContainerEl || !tabsBar) return;
+
+        if (tabDisplayMode === 'all') {
+            tabsContainerEl.classList.add('display-all');
+            tabsBar.classList.add('display-all');
+
+            tabOrder.forEach(id => {
+                const el = document.querySelector(`.ide-tab[data-tab-id="${id}"]`);
+                if (el) el.classList.remove('tab-overflow-hidden');
+            });
+            visibleTabIds = new Set(tabOrder);
+            overflowTabIds = new Set();
+            if (window.AppEditor && typeof window.AppEditor.layout === 'function') {
+                window.AppEditor.layout();
+            }
+            return;
+        }
+
+        tabsContainerEl.classList.remove('display-all');
+        tabsBar.classList.remove('display-all');
+
+        const containerWidth = forcedContainerWidth !== null ? forcedContainerWidth : tabsContainerEl.clientWidth;
+        if (containerWidth <= 0) return;
+
+        const tabEls = Array.from(tabsBar.querySelectorAll('.ide-tab[data-tab-id]'));
+        if (tabEls.length === 0) {
+            visibleTabIds = new Set();
+            overflowTabIds = new Set();
+            return;
+        }
+
+        // Measure widths: ensure element is measurable by temporarily unhiding if hidden
+        const tabWidthMap = new Map();
+        let totalTabsWidth = 0;
+        tabEls.forEach(el => {
+            const wasHidden = el.classList.contains('tab-overflow-hidden');
+            if (wasHidden) {
+                el.style.visibility = 'hidden';
+                el.classList.remove('tab-overflow-hidden');
+            }
+            const rect = el.getBoundingClientRect();
+            const w = (rect.width || el.offsetWidth || 120) + 2;
+            tabWidthMap.set(el.dataset.tabId, w);
+            totalTabsWidth += w;
+            if (wasHidden) {
+                el.classList.add('tab-overflow-hidden');
+                el.style.visibility = '';
+            }
+        });
+
+        const newTabBtnWidth = 32;
+        const overflowBtnWidth = 32;
+        const reservedWidth = newTabBtnWidth + overflowBtnWidth + 24;
+
+        if (totalTabsWidth <= (containerWidth - reservedWidth)) {
+            // All tabs fit!
+            visibleTabIds = new Set(tabOrder);
+            overflowTabIds = new Set();
+            tabEls.forEach(el => el.classList.remove('tab-overflow-hidden'));
+            return;
+        }
+
+        // Tab overflow exists!
+        const availableWidth = Math.max(80, containerWidth - reservedWidth);
+
+        // Prioritize pinned tabs: [Pinned Tabs] -> [Normal Tabs] -> [Overflow Tabs]
+        const pinnedList = tabOrder.filter(id => pinnedTabs.has(id));
+        const normalList = tabOrder.filter(id => !pinnedTabs.has(id));
+
+        let pinnedUsed = 0;
+        const visiblePinned = [];
+        for (const pid of pinnedList) {
+            const w = tabWidthMap.get(pid) || 100;
+            if (pinnedUsed + w <= availableWidth) {
+                visiblePinned.push(pid);
+                pinnedUsed += w;
+            } else {
+                break;
+            }
+        }
+
+        const remainingForNormal = Math.max(0, availableWidth - pinnedUsed);
+        let visibleNormal = [];
+
+        if (normalList.length > 0 && remainingForNormal > 0) {
+            let activeIdx = normalList.indexOf(activeTabId);
+            if (activeIdx === -1) {
+                let used = 0;
+                for (const nid of normalList) {
+                    const w = tabWidthMap.get(nid) || 120;
+                    if (used + w <= remainingForNormal) {
+                        visibleNormal.push(nid);
+                        used += w;
+                    } else {
+                        break;
+                    }
+                }
+            } else {
+                // Ensure activeTabId is in visible window
+                let fitsFromStart = true;
+                let used = 0;
+                const fromStartList = [];
+                for (let i = 0; i <= activeIdx; i++) {
+                    used += (tabWidthMap.get(normalList[i]) || 120);
+                    if (used > remainingForNormal) {
+                        fitsFromStart = false;
+                        break;
+                    }
+                    fromStartList.push(normalList[i]);
+                }
+
+                if (fitsFromStart) {
+                    for (let i = activeIdx + 1; i < normalList.length; i++) {
+                        const w = tabWidthMap.get(normalList[i]) || 120;
+                        if (used + w <= remainingForNormal) {
+                            used += w;
+                            fromStartList.push(normalList[i]);
+                        } else {
+                            break;
+                        }
+                    }
+                    visibleNormal = fromStartList;
+                } else {
+                    let start = activeIdx;
+                    let end = activeIdx;
+                    let usedW = tabWidthMap.get(normalList[activeIdx]) || 120;
+
+                    while (end + 1 < normalList.length && (usedW + (tabWidthMap.get(normalList[end + 1]) || 120) <= remainingForNormal)) {
+                        end++;
+                        usedW += (tabWidthMap.get(normalList[end]) || 120);
+                    }
+                    while (start - 1 >= 0 && (usedW + (tabWidthMap.get(normalList[start - 1]) || 120) <= remainingForNormal)) {
+                        start--;
+                        usedW += (tabWidthMap.get(normalList[start]) || 120);
+                    }
+                    for (let i = start; i <= end; i++) {
+                        visibleNormal.push(normalList[i]);
+                    }
+                }
+            }
+        }
+
+        visibleTabIds = new Set([...visiblePinned, ...visibleNormal]);
+        overflowTabIds = new Set(tabOrder.filter(id => !visibleTabIds.has(id)));
+
+        // Apply classes to DOM
+        tabEls.forEach(el => {
+            const id = el.dataset.tabId;
+            if (visibleTabIds.has(id)) {
+                el.classList.remove('tab-overflow-hidden');
+            } else {
+                el.classList.add('tab-overflow-hidden');
+            }
+        });
+
+        if (window.AppEditor && typeof window.AppEditor.layout === 'function') {
+            window.AppEditor.layout();
+        }
+    }
+
+    function showTabOverflowMenu(btnEl) {
+        const existing = document.getElementById('ide-tab-overflow-menu');
+        if (existing) {
+            existing.remove();
+            btnEl?.classList.remove('active');
+            return;
+        }
+
+        const menu = document.createElement('div');
+        menu.id = 'ide-tab-overflow-menu';
+        btnEl?.classList.add('active');
+
+        // Phân loại: tab đang hiển thị trên màn hình (visible) vs tab bị khuất (overflow)
+        const visibleTabs = [];
+        const overflowTabs = [];
+
+        tabOrder.forEach(tabId => {
+            if (visibleTabIds.has(tabId)) {
+                visibleTabs.push(tabId);
+            } else {
+                overflowTabs.push(tabId);
+            }
+        });
+
+        const renderTabItem = (tabId) => {
+            const data = tabsData.get(tabId);
+            if (!data) return '';
+            const title = data.title || 'Untitled';
+            const isVisible = visibleTabIds.has(tabId);
+            const isActive = tabId === activeTabId;
+            const isPinned = pinnedTabs.has(tabId);
+            const isDirty = !!data.isDirty;
+
+            const iconClass = data.tabType === 'designer' 
+                ? 'fa-drafting-compass text-info' 
+                : data.tabType === 'diff' 
+                    ? 'fa-code-compare text-warning' 
+                    : 'fa-table-list text-primary';
+
+            return `
+                <button type="button" class="ide-overflow-item ${isVisible ? 'is-visible' : 'is-overflow'} ${isActive ? 'active' : ''}" data-tab-id="${tabId}" title="${title}">
+                    <div class="d-flex align-items-center gap-2 overflow-hidden flex-grow-1">
+                        ${isPinned ? '<i class="fa-solid fa-thumbtack text-warning flex-shrink-0" style="font-size: 10px;" title="Pinned"></i>' : ''}
+                        <i class="fa-solid ${iconClass} flex-shrink-0" style="font-size: 11px;"></i>
+                        <span class="tab-list-title text-truncate">${title}</span>
+                        ${isDirty ? '<span class="text-warning flex-shrink-0" style="font-size: 10px;">●</span>' : ''}
+                    </div>
+                    ${isActive ? '<i class="fa-solid fa-check text-primary flex-shrink-0 ms-2" style="font-size: 11px;"></i>' : ''}
+                </button>
+            `;
+        };
+
+        // Ưu tiên hiển thị các file đang mở trên màn hình lên trước (thứ tự từ trái sang phải)
+        let itemsHtml = visibleTabs.map(renderTabItem).join('');
+
+        // Tiếp theo là các file bị ẩn / overflow (nếu có)
+        if (overflowTabs.length > 0) {
+            itemsHtml += `
+                <div class="ide-ctx-separator my-1" style="height: 1px; background: var(--ide-border, #3c3f41);" title="Overflow Tabs"></div>
+                ${overflowTabs.map(renderTabItem).join('')}
+            `;
+        }
+
+        const isAllMode = tabDisplayMode === 'all';
+        const showAllHtml = `
+            <div class="ide-ctx-separator my-1" style="height: 1px; background: var(--ide-border, #3c3f41);"></div>
+            <button type="button" class="ide-overflow-toggle" id="ide-overflow-toggle-show-all">
+                <i class="fa-solid ${isAllMode ? 'fa-square-check text-primary' : 'fa-square text-muted'}" style="font-size: 13px;"></i>
+                <span>Show All Tabs</span>
+            </button>
+        `;
+
+        menu.innerHTML = itemsHtml + showAllHtml;
+        document.body.appendChild(menu);
+
+        if (btnEl) {
+            const btnRect = btnEl.getBoundingClientRect();
+            let top = btnRect.bottom + 4;
+            let left = btnRect.right - menu.offsetWidth;
+
+            if (left < 10) left = 10;
+            if (left + menu.offsetWidth > window.innerWidth - 10) {
+                left = window.innerWidth - menu.offsetWidth - 10;
+            }
+            if (top + menu.offsetHeight > window.innerHeight - 10) {
+                top = Math.max(10, btnRect.top - menu.offsetHeight - 4);
+            }
+
+            menu.style.top = `${top}px`;
+            menu.style.left = `${left}px`;
+        }
+
+        const closeOverflowMenu = () => {
+            menu.remove();
+            btnEl?.classList.remove('active');
+            document.removeEventListener('click', onDocClick);
+            document.removeEventListener('keydown', onKeyDown);
+        };
+
+        const onDocClick = (e) => {
+            if (!menu.contains(e.target) && (!btnEl || !btnEl.contains(e.target))) {
+                closeOverflowMenu();
+            }
+        };
+
+        const onKeyDown = (e) => {
+            if (e.key === 'Escape') {
+                closeOverflowMenu();
+            }
+        };
+
+        setTimeout(() => {
+            document.addEventListener('click', onDocClick);
+            document.addEventListener('keydown', onKeyDown);
+        }, 10);
+
+        menu.querySelectorAll('.ide-overflow-item[data-tab-id]').forEach(itemBtn => {
+            itemBtn.addEventListener('click', () => {
+                const targetId = itemBtn.dataset.tabId;
+                closeOverflowMenu();
+                if (targetId) {
+                    switchTab(targetId);
+                    if (tabDisplayMode === 'overflow' && !visibleTabIds.has(targetId)) {
+                        calculateTabLayout();
+                    }
+                }
+            });
+        });
+
+        menu.querySelector('#ide-overflow-toggle-show-all')?.addEventListener('click', () => {
+            closeOverflowMenu();
+            tabDisplayMode = tabDisplayMode === 'all' ? 'overflow' : 'all';
+            try {
+                localStorage.setItem('ide_tab_display_mode', tabDisplayMode);
+            } catch (_) {}
+            calculateTabLayout();
+        });
+    }
+
+    function getTabDisplayMode() {
+        return tabDisplayMode;
+    }
+
+    function setTabDisplayMode(mode) {
+        if (mode !== 'overflow' && mode !== 'all') return;
+        tabDisplayMode = mode;
+        try {
+            localStorage.setItem('ide_tab_display_mode', mode);
+        } catch (_) {}
+        calculateTabLayout();
+    }
+
+    function createNewQueryTab(opts = {}) {
+        const focusedCtx = window.LastFocusedTreeContext || {};
+        const hasFocusedConn = Boolean(focusedCtx.connectionName || focusedCtx.connectionId);
+
+        // Only inherit activeState connection if neither opts nor focused tree context specified one
+        if (!opts.connectionId && !opts.connectionName) {
+            if (hasFocusedConn) {
+                opts = {
+                    connectionId: focusedCtx.connectionId,
+                    connectionName: focusedCtx.connectionName,
+                    database: focusedCtx.database,
+                    schema: focusedCtx.schema,
+                    dbType: focusedCtx.dbType,
+                    ...opts
+                };
+            } else {
+                const activeState = getActiveTabState();
+                if (activeState) {
+                    opts = {
+                        connectionId: activeState.connectionId,
+                        connectionName: activeState.connectionName,
+                        database: activeState.database,
+                        schema: activeState.schema,
+                        dbType: activeState.dbType,
+                        ...opts
+                    };
+                }
+            }
+        }
+        return createTab(opts);
+    }
+
+    if (newTabBtn) newTabBtn.addEventListener('click', () => createNewQueryTab());
+    document.addEventListener('click', (e) => {
+        if (e.target.closest('#ide-empty-new-query-btn')) {
+            e.preventDefault();
+            createNewQueryTab();
+        }
+    });
+    if (overflowBtn) {
+        overflowBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            showTabOverflowMenu(overflowBtn);
+        });
+    }
+
+    const tabsContainerEl = document.querySelector('.ide-tabs-container');
+    if (tabsContainerEl && typeof ResizeObserver !== 'undefined') {
+        const ro = new ResizeObserver(() => {
+            calculateTabLayout();
+        });
+        ro.observe(tabsContainerEl);
+    }
+    window.addEventListener('resize', () => {
+        calculateTabLayout();
+    });
+    document.addEventListener('ide-sidebar-toggled', () => {
+        setTimeout(calculateTabLayout, 50);
+    });
+    document.addEventListener('ide-results-panel-resized', () => {
+        setTimeout(calculateTabLayout, 50);
+    });
 
     // Wire Action Bar Toolbar buttons for Split and Compare
     const btnCompareToolbar = document.getElementById('ide-btn-compare');
@@ -1180,6 +2460,8 @@ function initTabs() {
                 id: key,
                 title: val.title,
                 tabType: val.tabType,
+                docId: val.docId,
+                filePath: val.filePath,
                 content: (key === activeTabId && window.AppEditor) ? window.AppEditor.getValue() : val.content
             });
         });
@@ -1210,6 +2492,9 @@ function initTabs() {
         const t = tabsData.get(tabId);
         if (t && t.content !== val) {
             t.content = val;
+            if (t.monacoModel && !t.monacoModel.isDisposed() && t.monacoModel.getValue() !== val) {
+                t.monacoModel.setValue(val);
+            }
             setTabDirty(tabId, true);
         }
     }
@@ -1223,35 +2508,264 @@ function initTabs() {
         const t = tabsData.get(id);
         if (t) {
             t.content = content;
+            if (t.monacoModel && !t.monacoModel.isDisposed() && t.monacoModel.getValue() !== content) {
+                t.monacoModel.setValue(content);
+            }
             setTabDirty(id, true);
             syncDiffTabsWithSourceTab(id, content);
         }
     };
     window.closeActiveDiffTab = () => {
-        if (activeTabId) closeTab(activeTabId);
+        const state = activeTabId ? tabsData.get(activeTabId) : null;
+        if (state && state.tabType === 'diff') {
+            if (typeof window.closeDiffView === 'function') {
+                window.closeDiffView();
+            } else if (typeof window.hideDiffView === 'function') {
+                window.hideDiffView();
+            }
+            closeTab(activeTabId);
+        } else {
+            // When compare view was opened over a regular text editor tab (e.g. from File History Sidebar)
+            if (typeof window.closeDiffView === 'function') {
+                window.closeDiffView();
+            } else if (typeof window.hideDiffView === 'function') {
+                window.hideDiffView();
+            }
+            if (window.AppEditor) {
+                if (typeof window.AppEditor.focus === 'function') window.AppEditor.focus();
+                if (typeof window.AppEditor.layout === 'function') window.AppEditor.layout();
+            }
+            if (typeof showToast === 'function') {
+                showToast('Đã đóng màn hình so sánh (Diff View)', 'info');
+            }
+        }
     };
 
-    // Global keyboard shortcut: Ctrl+T (or Cmd+T) creates new query tab
-    // Global keyboard shortcut: Ctrl+S (or Cmd+S) saves active tab
-    document.addEventListener('keydown', (e) => {
-        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 't' && !e.altKey && !e.shiftKey) {
-            // Avoid intercepting if user is inside a modal dialog
-            if (document.activeElement && document.activeElement.closest('.modal.show')) return;
-            e.preventDefault();
-            createTab();
+    window.openHistoryQueryInNewTab = function (sql, title, server, database) {
+        try {
+            const tabTitle = title || getUniqueFileName('SQLQuery', '.sql');
+            createTab({
+                title: tabTitle,
+                content: sql || '',
+                connectionName: server || window.ActiveConnectionName,
+                database: database || window.ActiveDatabase
+            });
+            return true;
+        } catch (err) {
+            console.error('Error opening history query in new tab:', err);
+            return false;
         }
-        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's' && !e.altKey && !e.shiftKey) {
-            if (document.activeElement && document.activeElement.closest('.modal.show')) return;
+    };
+
+    // Global keyboard shortcut: Ctrl+N or Ctrl+T creates new query tab
+    // Global keyboard shortcut: Ctrl+W closes active tab, Ctrl+Shift+W closes all tabs
+    // Global keyboard shortcut: Ctrl+S saves active tab
+    document.addEventListener('keydown', (e) => {
+        const isCtrlOrCmd = e.ctrlKey || e.metaKey;
+        if (!isCtrlOrCmd) return;
+
+        // Avoid intercepting if user is inside a modal dialog
+        if (document.activeElement && document.activeElement.closest('.modal.show')) return;
+
+        const key = e.key.toLowerCase();
+
+        // Ctrl+N or Ctrl+T: New Query Tab (inheriting active tab context)
+        if ((key === 'n' || key === 't') && !e.altKey && !e.shiftKey) {
+            // Let TableDataEditor handle Ctrl+N if active inside table-data-editor container
+            if (key === 'n' && document.activeElement && document.activeElement.closest('#table-data-editor-container')) {
+                return;
+            }
+            e.preventDefault();
+            createNewQueryTab();
+            return;
+        }
+
+        // Ctrl+W: Close active tab, Ctrl+Shift+W: Close all tabs
+        if (key === 'w' && !e.altKey) {
+            e.preventDefault();
+            if (e.shiftKey) {
+                closeAllTabs();
+            } else {
+                if (activeTabId) {
+                    closeTab(activeTabId);
+                }
+            }
+            return;
+        }
+
+        // Ctrl+O: Open file(s)
+        if (key === 'o' && !e.altKey && !e.shiftKey) {
+            e.preventDefault();
+            openFilesFromDisk();
+            return;
+        }
+
+        // Ctrl+S: Save active tab
+        if (key === 's' && !e.altKey && !e.shiftKey) {
             e.preventDefault();
             saveActiveTab();
+            return;
         }
     });
 
-    // Start with one tab
-    createTab();
+    // Wire File menu items and Import button
+    document.getElementById('ide-menu-open-file')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        openFilesFromDisk();
+    });
+    document.getElementById('ide-btn-import-file')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        openFilesFromDisk();
+    });
+    document.getElementById('ide-menu-new-query')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        createNewQueryTab();
+    });
+    document.getElementById('ide-menu-save')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        saveActiveTab();
+    });
+    document.getElementById('ide-menu-close-tab')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        if (activeTabId) closeTab(activeTabId);
+    });
+
+    // Drag & drop external files (.sql, .txt, etc.) into IDE to open as tabs
+    window.addEventListener('dragover', (e) => {
+        if (e.dataTransfer && e.dataTransfer.types && Array.from(e.dataTransfer.types).includes('Files')) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'copy';
+        }
+    });
+    window.addEventListener('drop', (e) => {
+        if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+            if (e.dataTransfer.getData('text/plain') && !e.dataTransfer.files.length) return;
+            const files = Array.from(e.dataTransfer.files);
+            const textFiles = files.filter(f => {
+                const ext = f.name.includes('.') ? f.name.slice(f.name.lastIndexOf('.')).toLowerCase() : '';
+                return ['.sql', '.txt', '.json', '.xml', '.csv', '.prg', '.log'].includes(ext) || !ext;
+            });
+            if (textFiles.length > 0) {
+                e.preventDefault();
+                e.stopPropagation();
+                textFiles.forEach(async file => {
+                    const reader = new FileReader();
+                    reader.onload = async (ev) => {
+                        const pathCandidate = file.path || file.name;
+                        let existingDocId = null;
+                        try {
+                            const checkRes = await fetch(`/api/history/document_by_path?path=${encodeURIComponent(pathCandidate)}`);
+                            const checkData = await checkRes.json();
+                            if (checkData && checkData.success && checkData.document) {
+                                existingDocId = checkData.document.DocId;
+                            }
+                        } catch (_) {}
+
+                        createTab({
+                            title: file.name,
+                            filePath: pathCandidate,
+                            docId: existingDocId || undefined,
+                            content: ev.target.result || '',
+                            isDirty: false
+                        });
+                    };
+                    reader.readAsText(file);
+                });
+            }
+        }
+    });
+
+    // Start with one tab or restore tabs from session if available (preserving docId, draft, cursor, scroll, connection)
+    let restoredAny = false;
+    if (window.AppSession && typeof window.AppSession.getOpenTabs === 'function') {
+        const savedTabs = window.AppSession.getOpenTabs();
+        if (Array.isArray(savedTabs) && savedTabs.length > 0) {
+            savedTabs.forEach(st => {
+                if (st && st.title) {
+                    const savedContent = (window.AppSession.getTabDraft && st.id) ? window.AppSession.getTabDraft(st.id) : null;
+                    const tabObj = createTab({
+                        title: st.title,
+                        tabType: st.tabType || 'query',
+                        docId: st.docId,
+                        filePath: st.filePath,
+                        connectionId: st.connectionId,
+                        connectionName: st.connectionName,
+                        database: st.database,
+                        schema: st.schema,
+                        dbType: st.dbType,
+                        environment: st.environment || '',
+                        read_only: Boolean(st.read_only),
+                        savedCursorPosition: st.cursor || { lineNumber: 1, column: 1 },
+                        viewState: st.viewState || null,
+                        content: savedContent || undefined
+                    });
+                    if (tabObj && st.isPinned) {
+                        pinTab(tabObj.id);
+                    }
+                    if (tabObj && st.isDirty) {
+                        tabObj.isDirty = true;
+                        const closeBtn = document.querySelector(`.ide-tab[data-tab-id="${tabObj.id}"] .ide-tab-close`);
+                        if (closeBtn) closeBtn.classList.add('dirty');
+                    }
+                    restoredAny = true;
+                }
+            });
+            const lastActiveId = window.AppSession.getActiveTabId();
+            if (lastActiveId && tabsData.has(lastActiveId)) {
+                switchTab(lastActiveId);
+            }
+        }
+    }
+    if (!restoredAny) {
+        createTab();
+    }
+
+    // Tải và khôi phục sâu từ Backend session.json (nếu có nội dung hoặc cursor bổ sung)
+    if (window.AppSession && typeof window.AppSession.loadSession === 'function') {
+        window.AppSession.loadSession().then(session => {
+            if (session && Array.isArray(session.tabs) && session.tabs.length > 0) {
+                session.tabs.forEach(st => {
+                    if (st && st.id && tabsData.has(st.id)) {
+                        const tabState = tabsData.get(st.id);
+                        if (st.cursor) tabState.savedCursorPosition = st.cursor;
+                        if (st.viewState) tabState.viewState = st.viewState;
+                        if (st.scroll) tabState.scroll = st.scroll;
+                        if (st.connectionLost) {
+                            tabState.connectionId = null;
+                            tabState.connectionName = null;
+                        }
+                        if (st.content !== undefined && !tabState.content) {
+                            tabState.content = st.content;
+                        }
+                    }
+                });
+                if (session.activeTabId && tabsData.has(session.activeTabId)) {
+                    switchTab(session.activeTabId);
+                }
+            }
+        }).catch(err => {
+            console.warn('[Tabs] Async backend session restore error:', err);
+        });
+    }
+
+    // Export helpers on window for ease of access and automated testing
+    window.calculateTabLayout = calculateTabLayout;
+    window.showTabOverflowMenu = showTabOverflowMenu;
+    window.pinTab = pinTab;
+    window.unpinTab = unpinTab;
+    window.isTabPinned = isTabPinned;
+    window.getTabDisplayMode = getTabDisplayMode;
+    window.setTabDisplayMode = setTabDisplayMode;
+    window.getVisibleTabIds = () => Array.from(visibleTabIds);
+    window.getOverflowTabIds = () => Array.from(overflowTabIds);
+    window.getTabOrder = () => [...tabOrder];
 
     return { 
-        createTab, 
+        createTab,
+        addTab: createTab,
+        openFilesFromDisk,
+        openFile: openFilesFromDisk,
+        updateEmptyTabsState,
         switchTab, 
         closeTab, 
         closeOtherTabs,
@@ -1269,9 +2783,22 @@ function initTabs() {
         getAllTabs,
         getTabsList,
         updateActiveTabContext,
+        updateTabsConnectionId,
         setDefaultContext,
         getDefaultContext,
         syncDiffTabsWithSourceTab,
-        updateTabContentFromDiff
+        updateTabContentFromDiff,
+        // Tab Layout & Overflow APIs
+        calculateTabLayout,
+        showTabOverflowMenu,
+        pinTab,
+        unpinTab,
+        isTabPinned,
+        getTabDisplayMode,
+        setTabDisplayMode,
+        getVisibleTabIds: () => Array.from(visibleTabIds),
+        getOverflowTabIds: () => Array.from(overflowTabIds),
+        getTabOrder: () => [...tabOrder],
+        isTextEditorTab
     };
 }

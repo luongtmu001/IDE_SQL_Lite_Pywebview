@@ -2,12 +2,16 @@
  * Clipboard Bridge - Zero-Loss Windows Native Clipboard Integration
  * File: static/js/clipboard-bridge.js
  * 
- * Ensures any copy/cut action in Monaco Editor, Grid Results, or DOM elements
- * writes reliably to the Windows OS clipboard via Win32 ctypes pywebview bridge.
+ * Ensures any copy/cut action in Monaco Editor, Grid Results, Table Data Editor,
+ * Structured Data Viewer, or DOM elements writes reliably to the Windows OS clipboard
+ * via Win32 ctypes / pywebview bridge + synchronous DOM user-gesture execution.
  */
 
 (function (window) {
     'use strict';
+
+    let _isProgrammaticCopy = false;
+    let _programmaticText = '';
 
     // ── 1. Text Extractor for Monaco Editors ─────────────────────────────────
     function getMonacoSelectedOrLineText(editor) {
@@ -43,7 +47,38 @@
 
         let nativeSuccess = false;
 
-        // A. Ưu tiên hàng đầu: Ghi trực tiếp vào Windows OS Clipboard qua Python Win32 ctypes bridge
+        // A. Synchronous execCommand copy executed immediately within the active user gesture
+        _isProgrammaticCopy = true;
+        _programmaticText = text;
+        try {
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.position = 'fixed';
+            ta.style.left = '-9999px';
+            ta.style.top = '-9999px';
+            ta.style.opacity = '0';
+            ta.setAttribute('readonly', '');
+            document.body.appendChild(ta);
+            ta.focus();
+            ta.select();
+            const ok = document.execCommand('copy');
+            document.body.removeChild(ta);
+            if (ok) nativeSuccess = true;
+        } catch (_) {
+        } finally {
+            _isProgrammaticCopy = false;
+            _programmaticText = '';
+        }
+
+        // B. Đồng thời cập nhật Web Clipboard nếu có quyền
+        if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+            try {
+                await navigator.clipboard.writeText(text);
+                nativeSuccess = true;
+            } catch (_) {}
+        }
+
+        // C. Ghi trực tiếp vào Windows OS Clipboard qua Python Win32 ctypes bridge
         try {
             if (window.pywebview && window.pywebview.api && typeof window.pywebview.api.set_clipboard_text === 'function') {
                 const res = await window.pywebview.api.set_clipboard_text(text);
@@ -53,31 +88,6 @@
             }
         } catch (e) {
             console.warn('[Clipboard] Native clipboard bridge error:', e);
-        }
-
-        // B. Đồng thời cập nhật Web Clipboard nếu có quyền (phòng hờ môi trường browser tiêu chuẩn)
-        if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
-            try {
-                await navigator.clipboard.writeText(text);
-            } catch (_) {}
-        }
-
-        // C. Fallback textarea copy cho DOM context
-        if (!nativeSuccess) {
-            try {
-                const ta = document.createElement('textarea');
-                ta.value = text;
-                ta.style.position = 'fixed';
-                ta.style.left = '-9999px';
-                ta.style.top = '-9999px';
-                ta.setAttribute('readonly', '');
-                document.body.appendChild(ta);
-                ta.focus();
-                ta.select();
-                const ok = document.execCommand('copy');
-                document.body.removeChild(ta);
-                if (ok) nativeSuccess = true;
-            } catch (_) {}
         }
 
         return nativeSuccess;
@@ -109,9 +119,22 @@
 
     // ── 4. Global Capture-Phase Copy/Cut Listener ────────────────────────────
     function handleGlobalCopyCapture(e) {
+        // If copyToClipboard triggered this event programmatically, populate data directly
+        if (_isProgrammaticCopy) {
+            if (_programmaticText) {
+                e.preventDefault();
+                if (e.clipboardData) {
+                    try {
+                        e.clipboardData.setData('text/plain', _programmaticText);
+                    } catch (_) {}
+                }
+            }
+            return;
+        }
+
         let text = '';
 
-        // Check active Monaco Editor
+        // Check active Monaco Editor ONLY if editor actually has focus
         if (typeof monaco !== 'undefined' && monaco.editor && typeof monaco.editor.getEditors === 'function') {
             try {
                 const editors = monaco.editor.getEditors();
@@ -122,23 +145,20 @@
                         return dom && dom.contains(document.activeElement);
                     });
                 }
-                if (!targetEd) {
-                    targetEd = editors.find(ed => {
-                        const s = ed.getSelection && ed.getSelection();
-                        return s && !s.isEmpty();
-                    });
-                }
                 if (targetEd) {
                     text = getMonacoSelectedOrLineText(targetEd);
                 }
             } catch (_) {}
         }
 
-        // Check window.getSelection
-        if (!text && window.getSelection) {
-            const sel = window.getSelection();
-            if (sel && sel.rangeCount > 0) {
-                text = sel.toString();
+        // Check active Result Grid if active element is inside grid or results container
+        if (!text) {
+            const gridEl = document.activeElement ? document.activeElement.closest('.ide-ag-grid-instance, .ide-grid-table-scroll, .ide-grid-pane') : null;
+            if (gridEl && window.GridResultController && window.GridResultController.activeInstance) {
+                const activeGrid = window.GridResultController.activeInstance;
+                if (typeof activeGrid.getSelectionCopyText === 'function') {
+                    text = activeGrid.getSelectionCopyText(false);
+                }
             }
         }
 
@@ -154,22 +174,32 @@
             }
         }
 
-        if (text) {
-            // Lập tức ghi vào Windows OS clipboard
-            if (window.pywebview && window.pywebview.api && typeof window.pywebview.api.set_clipboard_text === 'function') {
-                try {
-                    window.pywebview.api.set_clipboard_text(text);
-                } catch (_) {}
+        // Check window.getSelection
+        if (!text && window.getSelection) {
+            const sel = window.getSelection();
+            if (sel && sel.rangeCount > 0) {
+                text = sel.toString();
             }
+        }
+
+        if (text) {
+            // Prevent default so browser accepts custom text in clipboardData
+            e.preventDefault();
             if (e.clipboardData) {
                 try {
                     e.clipboardData.setData('text/plain', text);
                 } catch (_) {}
             }
+            // Đồng thời ghi vào Windows OS clipboard qua Python Win32 ctypes bridge
+            if (window.pywebview && window.pywebview.api && typeof window.pywebview.api.set_clipboard_text === 'function') {
+                try {
+                    window.pywebview.api.set_clipboard_text(text);
+                } catch (_) {}
+            }
         }
     }
 
-    // Lắng nghe sự kiện copy và cut ở CAPTURING PHASE (true) để chặn trước khi Monaco kịp gọi e.preventDefault()
+    // Lắng nghe sự kiện copy và cut ở CAPTURING PHASE (true)
     window.addEventListener('copy', handleGlobalCopyCapture, true);
     window.addEventListener('cut', handleGlobalCopyCapture, true);
 
@@ -192,10 +222,17 @@
         });
     }
 
-    // Export to global window
+    // Export to global window for all modules
     window.copyToClipboard = copyToClipboard;
+    window.copyText = copyToClipboard;
     window.readFromClipboard = readFromClipboard;
     window.getMonacoSelectedOrLineText = getMonacoSelectedOrLineText;
     window.attachMonacoClipboardHook = attachMonacoClipboardHook;
+    window.ClipboardBridge = {
+        copyToClipboard,
+        readFromClipboard,
+        getMonacoSelectedOrLineText,
+        attachMonacoClipboardHook
+    };
 
 })(window);

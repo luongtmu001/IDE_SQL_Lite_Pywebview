@@ -1,0 +1,368 @@
+/**
+ * prototype.css
+ * Styling cho AG Grid Community SQL IDE Prototype.
+ * Tương thích theme Dark và Light, namespace an toàn, không ảnh hưởng style toàn cục của IDE.
+ */
+
+:root {
+    --ag-proto-bg: #1e1e1e;
+    --ag-proto-surface: #252526;
+    --ag-proto-surface-hover: #2a2d2e;
+    --ag-proto-border: #3c3c3c;
+    --ag-proto-text: #cccccc;
+    --ag-proto-text-muted: #858585;
+    --ag-proto-accent: #007acc;
+    --ag-proto-accent-hover: #1f8ad2;
+    --ag-proto-success: #4ec9b0;
+    --ag-proto-warning: #ce9178;
+    --ag-proto-danger: #f48771;
+    --ag-proto-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --ag-proto-font-mono: Consolas, "Courier New", monospace;
+}
+
+[data-theme="light"] {
+    --ag-proto-bg: #ffffff;
+    --ag-proto-surface: #f3f3f3;
+    --ag-proto-surface-hover: #e8e8e8;
+    --ag-proto-border: #d4d4d4;
+    --ag-proto-text: #333333;
+    --ag-proto-text-muted: #717171;
+    --ag-proto-accent: #0066b8;
+    --ag-proto-accent-hover: #005a9e;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body.ag-proto-body {
+    font-family: var(--ag-proto-font);
+    font-size: 13px;
+    color: var(--ag-proto-text);
+    background-color: var(--ag-proto-bg);
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+/* ── 1. Header Toolbar ──────────────────────────────────────────────────────── */
+.ag-proto-header {
+    background-color: var(--ag-proto-surface);
+    border-bottom: 1px solid var(--ag-proto-border);
+    padding: 8px 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+    gap: 12px;
+}
+
+.ag-proto-title {
+    font-size: 14px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--ag-proto-text);
+}
+
+.ag-proto-badge {
+    background-color: var(--ag-proto-accent);
+    color: #ffffff;
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-weight: 600;
+}
+
+.ag-proto-toolbar-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.ag-proto-control-label {
+    font-size: 12px;
+    color: var(--ag-proto-text-muted);
+}
+
+.ag-proto-select,
+.ag-proto-input {
+    background-color: var(--ag-proto-bg);
+    color: var(--ag-proto-text);
+    border: 1px solid var(--ag-proto-border);
+    padding: 4px 8px;
+    border-radius: 3px;
+    font-size: 12px;
+    outline: none;
+}
+
+.ag-proto-select:focus,
+.ag-proto-input:focus {
+    border-color: var(--ag-proto-accent);
+}
+
+.ag-proto-btn {
+    background-color: var(--ag-proto-surface);
+    color: var(--ag-proto-text);
+    border: 1px solid var(--ag-proto-border);
+    padding: 5px 12px;
+    border-radius: 3px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: background-color 0.15s, border-color 0.15s;
+    user-select: none;
+}
+
+.ag-proto-btn:hover {
+    background-color: var(--ag-proto-surface-hover);
+    border-color: var(--ag-proto-accent);
+}
+
+.ag-proto-btn-primary {
+    background-color: var(--ag-proto-accent);
+    color: #ffffff;
+    border-color: var(--ag-proto-accent);
+}
+
+.ag-proto-btn-primary:hover {
+    background-color: var(--ag-proto-accent-hover);
+    border-color: var(--ag-proto-accent-hover);
+}
+
+.ag-proto-btn-danger:hover {
+    border-color: var(--ag-proto-danger);
+    color: var(--ag-proto-danger);
+}
+
+/* ── 2. Result Sets Tab Bar ─────────────────────────────────────────────────── */
+.ag-proto-tabs-bar {
+    background-color: var(--ag-proto-surface);
+    border-bottom: 1px solid var(--ag-proto-border);
+    display: flex;
+    align-items: center;
+    padding: 0 10px;
+    flex-shrink: 0;
+    justify-content: space-between;
+}
+
+.ag-proto-tabs-list {
+    display: flex;
+    align-items: flex-end;
+    gap: 2px;
+}
+
+.ag-proto-tab {
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    padding: 7px 14px;
+    color: var(--ag-proto-text-muted);
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    user-select: none;
+    transition: color 0.15s, border-color 0.15s;
+}
+
+.ag-proto-tab:hover {
+    color: var(--ag-proto-text);
+}
+
+.ag-proto-tab.active {
+    color: var(--ag-proto-accent);
+    border-bottom-color: var(--ag-proto-accent);
+    font-weight: 600;
+}
+
+.ag-proto-tab-badge {
+    background-color: var(--ag-proto-border);
+    color: var(--ag-proto-text);
+    font-size: 10px;
+    padding: 1px 5px;
+    border-radius: 10px;
+}
+
+/* ── 3. Main Workspace & Splitter ───────────────────────────────────────────── */
+.ag-proto-main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    position: relative;
+    overflow: hidden;
+}
+
+.ag-proto-grid-stage {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+    min-height: 120px;
+}
+
+.ag-proto-pane {
+    width: 100%;
+    height: 100%;
+    position: absolute;
+    top: 0;
+    left: 0;
+    display: none;
+}
+
+.ag-proto-pane.active {
+    display: block;
+}
+
+.ag-proto-grid-instance {
+    width: 100%;
+    height: 100%;
+}
+
+/* Draggable Splitter Handle */
+.ag-proto-splitter {
+    height: 6px;
+    background-color: var(--ag-proto-border);
+    cursor: row-resize;
+    user-select: none;
+    position: relative;
+    transition: background-color 0.15s;
+    z-index: 10;
+}
+
+.ag-proto-splitter:hover,
+.ag-proto-splitter.dragging {
+    background-color: var(--ag-proto-accent);
+}
+
+/* ── 4. Bottom Metrics Panel ─────────────────────────────────────────────────── */
+.ag-proto-metrics-panel {
+    height: 150px;
+    background-color: var(--ag-proto-surface);
+    border-top: 1px solid var(--ag-proto-border);
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+}
+
+.ag-proto-metrics-header {
+    padding: 6px 12px;
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--ag-proto-text-muted);
+    border-bottom: 1px solid var(--ag-proto-border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.ag-proto-metrics-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 12px;
+}
+
+.ag-proto-metrics-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    font-family: var(--ag-proto-font-mono);
+}
+
+.ag-proto-metrics-table th,
+.ag-proto-metrics-table td {
+    padding: 4px 8px;
+    text-align: left;
+    border-bottom: 1px solid var(--ag-proto-border);
+}
+
+.ag-proto-metrics-table th {
+    color: var(--ag-proto-text-muted);
+    font-weight: 600;
+}
+
+/* ── 5. Footer Status Bar ───────────────────────────────────────────────────── */
+.ag-proto-footer {
+    background-color: var(--ag-proto-surface);
+    border-top: 1px solid var(--ag-proto-border);
+    padding: 4px 12px;
+    font-size: 11px;
+    color: var(--ag-proto-text-muted);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+    user-select: none;
+}
+
+.ag-proto-footer-left,
+.ag-proto-footer-right {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.ag-proto-footer-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.ag-proto-footer-val {
+    color: var(--ag-proto-text);
+    font-weight: 600;
+}
+
+/* ── 6. AG Grid Specific Styling ────────────────────────────────────────────── */
+.ag-cell-row-number {
+    text-align: center;
+    color: var(--ag-proto-text-muted) !important;
+    font-size: 11px;
+    font-family: var(--ag-proto-font-mono);
+}
+
+.ag-cell-numeric {
+    text-align: right;
+    font-family: var(--ag-proto-font-mono);
+}
+
+.ag-null-value {
+    color: #7f848e;
+    font-style: italic;
+    background-color: rgba(255, 255, 255, 0.05);
+    padding: 1px 4px;
+    border-radius: 2px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+}
+
+.badge-bool-true {
+    color: #4ec9b0;
+    font-weight: 600;
+    font-size: 10px;
+}
+
+.badge-bool-false {
+    color: #ce9178;
+    font-weight: 600;
+    font-size: 10px;
+}
+
+.ag-status-active { color: #4ec9b0; font-weight: 600; }
+.ag-status-pending { color: #dcdcaa; font-weight: 600; }
+.ag-status-suspended { color: #ce9178; font-weight: 600; }
+.ag-status-completed { color: #569cd6; font-weight: 600; }
+.ag-status-failed { color: #f48771; font-weight: 600; }
+.ag-status-archived { color: #808080; }
