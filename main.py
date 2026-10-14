@@ -3699,17 +3699,25 @@ class MainApi(BravoApi):
                 rows = result.get("rows", [])
                 plan_text = "\n".join(str(r[0]) for r in rows if r)
             else:
-                with adapter._lock:
-                    cursor = adapter.get_cursor(database=database)
-                    cursor.execute("SET SHOWPLAN_TEXT ON")
-                    cursor.execute(sql)
-                    rows = cursor.fetchall()
-                    plan_text = "\n".join(str(r[0]) for r in rows if r)
+                import contextlib
+                lock = getattr(conn, "lock", None) or getattr(adapter, "_lock", None)
+                lock_ctx = lock if lock is not None else contextlib.nullcontext()
+                with lock_ctx:
+                    cursor = adapter.get_cursor(database=database) if hasattr(adapter, "get_cursor") else adapter.connection.cursor()
                     try:
-                        cursor.execute("SET SHOWPLAN_TEXT OFF")
-                    except Exception:
-                        pass
-                    cursor.close()
+                        cursor.execute("SET SHOWPLAN_TEXT ON")
+                        cursor.execute(sql)
+                        rows = cursor.fetchall()
+                        plan_text = "\n".join(str(r[0]) for r in rows if r)
+                    finally:
+                        try:
+                            cursor.execute("SET SHOWPLAN_TEXT OFF")
+                        except Exception:
+                            pass
+                        try:
+                            cursor.close()
+                        except Exception:
+                            pass
 
             return {"success": True, "plan": plan_text}
         except Exception as exc:
