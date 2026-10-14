@@ -571,17 +571,17 @@ class TableDataEditorService:
             if not in_explicit_tx:
                 conn.autocommit = False
 
-            # 3. Check for explicit Identity Insert (MSSQL)
+            # 3. Check for explicit Identity Insert
             # Only enable if user explicitly provided non-empty value for an identity column
             has_identity_insert = False
-            if engine != "postgresql" and identity_columns:
+            if identity_columns:
                 for ins in inserts:
                     ins_data = ins.get("data", {})
                     if any(k.strip().lower() in identity_cols_lower and ins_data.get(k) not in (None, "", "<Auto>") for k in ins_data):
                         has_identity_insert = True
                         break
 
-            if has_identity_insert:
+            if has_identity_insert and engine != "postgresql":
                 cursor.execute(f"SET IDENTITY_INSERT {full_table} ON;")
 
             # 4. Execute INSERTS
@@ -610,17 +610,26 @@ class TableDataEditorService:
                     cursor.execute(sql, tuple(params))
                 inserted_count += 1
 
-            if has_identity_insert:
+            if has_identity_insert and engine != "postgresql":
                 cursor.execute(f"SET IDENTITY_INSERT {full_table} OFF;")
 
-            # PostgreSQL sequence synchronization if custom identity inserted
-            if engine == "postgresql" and identity_columns:
+            # PostgreSQL sequence synchronization if explicit identity inserted
+            if engine == "postgresql" and has_identity_insert and identity_columns:
                 for ident_col in identity_columns:
+                    seq_sql = (
+                        f"SELECT setval(seq, coalesce((SELECT max({_quote_ident(ident_col, engine)}) FROM {full_table}), 1)) "
+                        f"FROM pg_get_serial_sequence('{full_table}', '{ident_col}') AS seq "
+                        f"WHERE seq IS NOT NULL;"
+                    )
                     try:
-                        seq_sql = f"SELECT setval(pg_get_serial_sequence('{table}', '{ident_col}'), coalesce(max({_quote_ident(ident_col, engine)}), 1)) FROM {full_table};"
+                        cursor.execute("SAVEPOINT sp_setval;")
                         cursor.execute(seq_sql)
+                        cursor.execute("RELEASE SAVEPOINT sp_setval;")
                     except Exception:
-                        pass
+                        try:
+                            cursor.execute("ROLLBACK TO SAVEPOINT sp_setval;")
+                        except Exception:
+                            pass
 
             # 5. Execute UPDATES
             updated_count = 0
