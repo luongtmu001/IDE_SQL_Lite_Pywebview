@@ -868,107 +868,145 @@ class TableDataEditorService:
         database: str,
         schema: str,
         table: str,
-        rows: List[Dict[str, Any]]
+        rows: List[Dict[str, Any]],
+        trial_insert: bool = False,
+        lock=None,
     ) -> Dict[str, Any]:
         """
-        Validates multiple rows sequentially against database constraints (FK, PK, Check, Not Null, Data types).
-        For each row:
-          - Attempts INSERT inside an isolated transaction
-          - Catches any SQL exception and formats a clean error message
-          - ALWAYS rolls back so no database changes persist
-        Returns detailed per-row outcomes and summary counts.
+        Validates multiple rows sequentially against database constraints.
+        Default (trial_insert=False): Non-destructive validation using validate_row
+        (checks NOT NULL, UNIQUE, FK via SELECT without executing any INSERT).
+        If trial_insert=True: Executes trial INSERT inside transaction and rolls back.
         """
         if not rows:
             return {"success": True, "total": 0, "valid_count": 0, "error_count": 0, "results": []}
 
-        meta = cls.get_metadata(adapter, database, schema, table)
-        identity_columns = set(meta.get("identity_columns", []))
-        computed_columns = set(meta.get("computed_columns", []))
-        identity_cols_lower = {str(c).strip().lower() for c in identity_columns}
-        computed_cols_lower = {str(c).strip().lower() for c in computed_columns}
-        pk_cols_lower = {str(c).strip().lower() for c in meta.get("pk_columns", [])}
-        default_cols_lower = {str(c.get("name")).strip().lower() for c in meta.get("columns", []) if c.get("default_value")}
-        skip_cols_lower = identity_cols_lower | computed_cols_lower
-
-        engine = getattr(adapter, "db_type", "sqlserver").lower()
-        full_table = _format_table_name(schema, table, engine, database)
-        placeholder = _param_placeholder(engine)
-
-        conn = getattr(adapter, "connection", None)
-        if not conn and hasattr(adapter, "connect"):
-            adapter.connect()
-            conn = getattr(adapter, "connection", None)
-
-        if not conn:
-            raise RuntimeError("Không thể kết nối đến cơ sở dữ liệu để kiểm tra ràng buộc.")
-
-        cursor = conn.cursor()
-        old_autocommit = getattr(conn, "autocommit", True)
-
-        results = []
-        try:
-            if engine != "postgresql" and database:
-                clean_db = str(database).replace("]", "]]")
-                try:
-                    cursor.execute(f"USE [{clean_db}]")
-                except Exception as exc:
-                    raise RuntimeError(f"Không thể chuyển ngữ cảnh sang database [{database}]: {exc}") from exc
-
-            conn.autocommit = False
-
-            for idx, raw_row in enumerate(rows):
-                # Filter out identity and computed columns, and empty PKs or default columns to let auto-increment/defaults apply
-                insert_data = {
-                    k: v for k, v in raw_row.items()
-                    if k.strip().lower() not in skip_cols_lower
-                }
-                insert_data = {
-                    k: v for k, v in insert_data.items()
-                    if not (k.strip().lower() in pk_cols_lower and (v is None or v == "" or v == "<Auto>"))
-                    and not (k.strip().lower() in default_cols_lower and (v is None or v == ""))
-                }
-                try:
-                    if not insert_data:
-                        cursor.execute(f"INSERT INTO {full_table} DEFAULT VALUES;")
+        with (lock or nullcontext()):
+            if not trial_insert:
+                results = []
+                for idx, raw_row in enumerate(rows):
+                    row_res = cls.validate_row(
+                        adapter=adapter,
+                        database=database,
+                        schema=schema,
+                        table=table,
+                        values=raw_row,
+                        is_new=True,
+                        target_column=None,
+                        trial_insert=False,
+                        lock=None,
+                    )
+                    if not row_res.get("valid", True):
+                        results.append({
+                            "row_index": idx,
+                            "valid": False,
+                            "error": row_res.get("error", "Validation error"),
+                            "constraint_type": row_res.get("constraint_type"),
+                            "constraint_name": row_res.get("constraint_name"),
+                            "columns": row_res.get("columns", []),
+                            "data": raw_row
+                        })
                     else:
-                        cols = list(insert_data.keys())
-                        params = [insert_data[c] for c in cols]
-                        cols_str = ", ".join(_quote_ident(c, engine) for c in cols)
-                        placeholders_str = ", ".join(placeholder for _ in cols)
-                        sql = f"INSERT INTO {full_table} ({cols_str}) VALUES ({placeholders_str});"
-                        cursor.execute(sql, tuple(params))
+                        results.append({"row_index": idx, "valid": True, "data": raw_row})
 
-                    # Always rollback this test row immediately
-                    conn.rollback()
-                    results.append({"row_index": idx, "valid": True, "data": raw_row})
-                except Exception as ex:
+                valid_count = sum(1 for r in results if r["valid"])
+                error_count = len(results) - valid_count
+                return {
+                    "success": True,
+                    "total": len(rows),
+                    "valid_count": valid_count,
+                    "error_count": error_count,
+                    "results": results
+                }
+
+            meta = cls.get_metadata(adapter, database, schema, table, lock=None)
+            identity_columns = set(meta.get("identity_columns", []))
+            computed_columns = set(meta.get("computed_columns", []))
+            identity_cols_lower = {str(c).strip().lower() for c in identity_columns}
+            computed_cols_lower = {str(c).strip().lower() for c in computed_columns}
+            pk_cols_lower = {str(c).strip().lower() for c in meta.get("pk_columns", [])}
+            default_cols_lower = {str(c.get("name")).strip().lower() for c in meta.get("columns", []) if c.get("default_value")}
+            skip_cols_lower = identity_cols_lower | computed_cols_lower
+
+            engine = getattr(adapter, "db_type", "sqlserver").lower()
+            full_table = _format_table_name(schema, table, engine, database)
+            placeholder = _param_placeholder(engine)
+
+            conn = getattr(adapter, "connection", None)
+            if not conn and hasattr(adapter, "connect"):
+                adapter.connect()
+                conn = getattr(adapter, "connection", None)
+
+            if not conn:
+                raise RuntimeError("Không thể kết nối đến cơ sở dữ liệu để kiểm tra ràng buộc.")
+
+            cursor = conn.cursor()
+            old_autocommit = getattr(conn, "autocommit", True)
+
+            results = []
+            try:
+                if engine != "postgresql" and database:
+                    clean_db = str(database).replace("]", "]]")
                     try:
+                        cursor.execute(f"USE [{clean_db}]")
+                    except Exception as exc:
+                        raise RuntimeError(f"Không thể chuyển ngữ cảnh sang database [{database}]: {exc}") from exc
+
+                conn.autocommit = False
+
+                for idx, raw_row in enumerate(rows):
+                    # Filter out identity and computed columns, and empty PKs or default columns to let auto-increment/defaults apply
+                    insert_data = {
+                        k: v for k, v in raw_row.items()
+                        if k.strip().lower() not in skip_cols_lower
+                    }
+                    insert_data = {
+                        k: v for k, v in insert_data.items()
+                        if not (k.strip().lower() in pk_cols_lower and (v is None or v == "" or v == "<Auto>"))
+                        and not (k.strip().lower() in default_cols_lower and (v is None or v == ""))
+                    }
+                    try:
+                        if not insert_data:
+                            cursor.execute(f"INSERT INTO {full_table} DEFAULT VALUES;")
+                        else:
+                            cols = list(insert_data.keys())
+                            params = [insert_data[c] for c in cols]
+                            cols_str = ", ".join(_quote_ident(c, engine) for c in cols)
+                            placeholders_str = ", ".join(placeholder for _ in cols)
+                            sql = f"INSERT INTO {full_table} ({cols_str}) VALUES ({placeholders_str});"
+                            cursor.execute(sql, tuple(params))
+
+                        # Always rollback this test row immediately
                         conn.rollback()
-                    except Exception:
-                        pass
-                    err_msg = _clean_sql_error(ex)
-                    results.append({"row_index": idx, "valid": False, "error": err_msg, "data": raw_row})
+                        results.append({"row_index": idx, "valid": True, "data": raw_row})
+                    except Exception as ex:
+                        try:
+                            conn.rollback()
+                        except Exception:
+                            pass
+                        err_msg = _clean_sql_error(ex)
+                        results.append({"row_index": idx, "valid": False, "error": err_msg, "data": raw_row})
 
-            valid_count = sum(1 for r in results if r["valid"])
-            error_count = len(results) - valid_count
+                valid_count = sum(1 for r in results if r["valid"])
+                error_count = len(results) - valid_count
 
-            return {
-                "success": True,
-                "total": len(rows),
-                "valid_count": valid_count,
-                "error_count": error_count,
-                "results": results
-            }
+                return {
+                    "success": True,
+                    "total": len(rows),
+                    "valid_count": valid_count,
+                    "error_count": error_count,
+                    "results": results
+                }
 
-        finally:
-            try:
-                conn.rollback()
-            except Exception:
-                pass
-            try:
-                conn.autocommit = old_autocommit
-            except Exception:
-                pass
+            finally:
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
+                try:
+                    conn.autocommit = old_autocommit
+                except Exception:
+                    pass
 
     @classmethod
     def validate_row(
@@ -980,7 +1018,9 @@ class TableDataEditorService:
         values: Dict[str, Any],
         keys: Optional[Dict[str, Any]] = None,
         is_new: bool = True,
-        target_column: Optional[str] = None
+        target_column: Optional[str] = None,
+        trial_insert: bool = False,
+        lock=None,
     ) -> Dict[str, Any]:
         """
         Smart constraint checking for Table Data Editor:
@@ -990,9 +1030,10 @@ class TableDataEditorService:
            If duplicate found in DB -> returns valid=False, constraint_type, constraint_name, columns, values, error.
         3. Foreign Keys:
            If FK columns are filled, verifies existence in referenced table.
-        4. Transactional validation for CHECK constraints and other database triggers.
+        4. Transactional validation (opt-in with trial_insert=True) for CHECK constraints and triggers.
         """
-        meta = cls.get_metadata(adapter, database, schema, table)
+        with (lock or nullcontext()):
+            meta = cls.get_metadata(adapter, database, schema, table, lock=None)
         engine = getattr(adapter, "db_type", "sqlserver").lower()
         full_table = _format_table_name(schema, table, engine, database)
         placeholder = _param_placeholder(engine)
@@ -1197,9 +1238,9 @@ class TableDataEditorService:
             pk_cols_lower2 = {str(c).strip().lower() for c in meta.get("pk_columns", [])}
             seq_cols_lower2 = {str(c).strip().lower() for c in sequence_columns}
 
-            if is_new and target_column is None:
+            if trial_insert and is_new and target_column is None:
                 # Trial INSERT in isolated transaction (always rolled back)
-                # Only runs during full-row validation (not per-cell), to detect CHECK constraints
+                # Only runs during full-row validation when trial_insert=True, to detect CHECK constraints
                 # and trigger errors that SELECT-based checks cannot catch
                 trial_data = {}
                 for k, v in (values or {}).items():
@@ -1224,7 +1265,7 @@ class TableDataEditorService:
                     cursor.execute(trial_sql, tuple(t_params))
                     conn.rollback()
 
-            elif not is_new and keys and target_column is None:
+            elif trial_insert and not is_new and keys and target_column is None:
                 conn.autocommit = False
                 set_clauses = []
                 set_params = []
