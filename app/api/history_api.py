@@ -9,10 +9,26 @@ import logging
 import os
 import subprocess
 from app.desktop.windows import open_query_history_window as _desktop_open_query_history_window
-from app.services.history import get_history_service
+from app.services.history import get_history_service as _svc_get_history_service
 from app.services.settings_store import _load_settings_file
 
 logger = logging.getLogger("luobtool.api.history")
+
+
+def _get_settings_loader():
+    import sys
+    main_mod = sys.modules.get("main")
+    if main_mod and hasattr(main_mod, "_load_settings_file"):
+        return main_mod._load_settings_file
+    return _load_settings_file
+
+
+def get_history_service():
+    import sys
+    main_mod = sys.modules.get("main")
+    if main_mod and hasattr(main_mod, "get_history_service"):
+        return main_mod.get_history_service()
+    return _svc_get_history_service()
 
 
 class HistoryApiMixin:
@@ -28,7 +44,7 @@ class HistoryApiMixin:
             if not doc_id:
                 return {"success": False, "error": "doc_id is required"}
             # Kiểm tra thiết lập bật/tắt ghi lịch sử (history.enabled)
-            settings = _load_settings_file()
+            settings = _get_settings_loader()()
             history_cfg = settings.get("history", {})
             if not history_cfg.get("enabled", True):
                 return {"success": True, "entry_id": None, "disabled": True}
@@ -192,7 +208,7 @@ class HistoryApiMixin:
 
     def history_purge(self, max_age_days=None, max_entries_per_doc=None, max_db_size_mb=None):
         try:
-            settings = _load_settings_file()
+            settings = _get_settings_loader()()
             history_cfg = settings.get("history", {})
             if max_age_days is None:
                 max_age_days = int(history_cfg.get("maxAgeDays", 90))

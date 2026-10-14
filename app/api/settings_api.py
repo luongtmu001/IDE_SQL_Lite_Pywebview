@@ -30,6 +30,7 @@ from app.desktop.windows import (
 from app.utils.logging_setup import (
     open_log_folder as _open_log_folder,
     get_log_info as _get_log_info,
+    update_log_level,
 )
 
 logger = logging.getLogger("luobtool.api.settings")
@@ -216,7 +217,10 @@ class SettingsApiMixin:
 
 
     def save_settings(self, settings):
-        success = _save_settings_file(settings)
+        import sys
+        main_mod = sys.modules.get("main")
+        save_fn = getattr(main_mod, "_save_settings_file", _save_settings_file) if main_mod else _save_settings_file
+        success = save_fn(settings)
         if isinstance(settings, dict) and "logging" in settings:
             log_cfg = settings.get("logging") or {}
             lvl = log_cfg.get("level")

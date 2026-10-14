@@ -31,9 +31,11 @@ import webview
 from app.utils.dwm import apply_dwm_titlebar_theme
 from app.utils.logging_setup import setup_logging
 from app.services.connection_manager import ConnectionManager
+from app.services.history import get_history_service
 from app.services.settings_store import (
     DATA_DIR,
     _load_settings_file,
+    _save_settings_file,
 )
 from app.desktop.clipboard import (
     _native_set_clipboard,

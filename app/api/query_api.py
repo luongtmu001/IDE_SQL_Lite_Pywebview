@@ -14,16 +14,22 @@ logger = logging.getLogger("luobtool.api.query")
 
 
 class QueryApiMixin:
+    def _get_connection(self, connection_id):
+        """Resolved by ConnectionsApiMixin in BravoApi/MainApi MRO."""
+        raise NotImplementedError("ConnectionsApiMixin must be included in MRO")
+
     def execute_query(self, connection_id, sql, limit=1000, database=None, schema=None, query_id=None, mode="normal", debug_session_id=None, traces=None, confirmed=False, parameters=None, stop_on_error=True):
         try:
             conn = self._get_connection(connection_id)
 
+            adapter_db_type = getattr(getattr(conn, "adapter", None), "db_type", "tsql")
+            dialect_val = adapter_db_type if isinstance(adapter_db_type, str) else "tsql"
             safety = check_query_safety(
                 sql=sql,
                 read_only=getattr(conn, "read_only", False),
                 environment=getattr(conn, "environment", None),
                 confirmed=confirmed,
-                dialect=getattr(conn.adapter, "db_type", "tsql")
+                dialect=dialect_val
             )
             if not safety["allowed"]:
                 return {
