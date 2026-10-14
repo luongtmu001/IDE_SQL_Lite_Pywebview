@@ -387,9 +387,17 @@ class TableDataEditorService:
         if not res.get("success", True) and res.get("error"):
             raise RuntimeError(res["error"])
 
+        affected = res.get("total_affected")
+        if affected is None:
+            affected = res.get("row_count")
+        if affected is None:
+            affected = res.get("rows_affected")
+        if affected is None:
+            affected = 0
+
         return {
             "success": True,
-            "affected": res.get("row_count", 1),
+            "affected": affected,
             "sql": preview_sql
         }
 
@@ -433,9 +441,17 @@ class TableDataEditorService:
         if not res.get("success", True) and res.get("error"):
             raise RuntimeError(res["error"])
 
+        affected = res.get("total_affected")
+        if affected is None:
+            affected = res.get("row_count")
+        if affected is None:
+            affected = res.get("rows_affected")
+        if affected is None:
+            affected = 0
+
         return {
             "success": True,
-            "affected": res.get("row_count", 1),
+            "affected": affected,
             "sql": preview_sql
         }
 
@@ -687,10 +703,15 @@ class TableDataEditorService:
                 update_sql = f"UPDATE {full_table} SET " + ", ".join(set_clauses) + " WHERE " + " AND ".join(where_clauses) + ";"
                 cursor.execute(update_sql, tuple(set_params + where_params))
 
-                if concurrency_mode == "optimistic" and cursor.rowcount == 0:
-                    raise RuntimeError(
-                        f"Xung đột ghi đè (Optimistic Concurrency Conflict): Dòng dữ liệu với khóa {keys} đã bị thay đổi hoặc xóa bởi phiên làm việc khác trước đó."
-                    )
+                if cursor.rowcount == 0:
+                    if concurrency_mode == "optimistic":
+                        raise RuntimeError(
+                            f"Xung đột ghi đè (Optimistic Concurrency Conflict): Dòng dữ liệu với khóa {keys} đã bị thay đổi hoặc xóa bởi phiên làm việc khác trước đó."
+                        )
+                    else:
+                        raise RuntimeError(
+                            f"Không tìm thấy dòng dữ liệu với khóa {keys} để cập nhật (0 dòng bị ảnh hưởng)."
+                        )
                 updated_count += 1
 
             # 6. Execute DELETES
@@ -736,10 +757,15 @@ class TableDataEditorService:
                 delete_sql = f"DELETE FROM {full_table} WHERE " + " AND ".join(where_clauses) + ";"
                 cursor.execute(delete_sql, tuple(where_params))
 
-                if concurrency_mode == "optimistic" and cursor.rowcount == 0:
-                    raise RuntimeError(
-                        f"Xung đột xóa dữ liệu (Optimistic Concurrency Conflict): Dòng dữ liệu với khóa {keys} không còn tồn tại hoặc đã bị thay đổi bởi phiên khác trước đó."
-                    )
+                if cursor.rowcount == 0:
+                    if concurrency_mode == "optimistic":
+                        raise RuntimeError(
+                            f"Xung đột xóa dữ liệu (Optimistic Concurrency Conflict): Dòng dữ liệu với khóa {keys} không còn tồn tại hoặc đã bị thay đổi bởi phiên khác trước đó."
+                        )
+                    else:
+                        raise RuntimeError(
+                            f"Không tìm thấy dòng dữ liệu với khóa {keys} để xóa (0 dòng bị ảnh hưởng)."
+                        )
                 deleted_count += 1
 
             # 7. Commit Transaction (Only if not running within an explicit user transaction)
