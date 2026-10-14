@@ -582,6 +582,7 @@ def split_postgres_statements(sql: str) -> List[Dict[str, Any]]:
     in_line_comment = False
     block_comment_depth = 0
     dollar_tag = None
+    paren_depth = 0
 
     while i < length:
         ch = sql[i]
@@ -641,6 +642,18 @@ def split_postgres_statements(sql: str) -> List[Dict[str, Any]]:
 
         # --- Outside any quotes or comments ---
 
+        # Check for parentheses depth
+        if ch == "(":
+            paren_depth += 1
+            i += 1
+            continue
+
+        if ch == ")":
+            if paren_depth > 0:
+                paren_depth -= 1
+            i += 1
+            continue
+
         # Check for line comment start
         if ch == "-" and next_ch == "-":
             in_line_comment = True
@@ -675,6 +688,9 @@ def split_postgres_statements(sql: str) -> List[Dict[str, Any]]:
 
         # Check for top-level semicolon
         if ch == ";":
+            if paren_depth > 0:
+                i += 1
+                continue
             stmt_text = sql[stmt_start : i + 1]
             trimmed = stmt_text.strip()
             if trimmed:

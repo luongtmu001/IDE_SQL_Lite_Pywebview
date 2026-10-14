@@ -212,21 +212,20 @@ def test_table_data_editor_within_explicit_transaction():
     mock_session.in_transaction = True  # Active explicit transaction
     mock_adapter.session = mock_session
 
-    # Mock metadata retrieval
-    TableDataEditorService.get_metadata = MagicMock(return_value={
+    # Mock metadata retrieval safely within context manager
+    with patch.object(TableDataEditorService, "get_metadata", return_value={
         "columns": [{"name": "id", "type": "int"}, {"name": "name", "type": "varchar"}],
         "pk_columns": ["id"],
         "identity_columns": [],
         "computed_columns": []
-    })
-
-    result = TableDataEditorService.submit_changes(
-        adapter=mock_adapter,
-        database="testdb",
-        schema="dbo",
-        table="Users",
-        changes={"inserts": [{"data": {"id": 1, "name": "Alice"}}]}
-    )
+    }):
+        result = TableDataEditorService.submit_changes(
+            adapter=mock_adapter,
+            database="testdb",
+            schema="dbo",
+            table="Users",
+            changes={"inserts": [{"data": {"id": 1, "name": "Alice"}}]}
+        )
 
     assert result["success"] is True
     assert result["in_transaction"] is True
