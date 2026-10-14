@@ -125,8 +125,8 @@ class QueryHistorySubwindowApi:
     def history_get_tags(self):
         return self._main_api.history_get_tags()
 
-    def __getattr__(self, name):
-        return getattr(self._main_api, name)
+    def get_settings(self):
+        return self._main_api.get_settings()
 
 
 class SettingsSubwindowApi:
@@ -181,8 +181,38 @@ class SettingsSubwindowApi:
     def get_log_info(self):
         return self._main_api.get_log_info()
 
-    def __getattr__(self, name):
-        return getattr(self._main_api, name)
+    def history_get_stats(self):
+        return self._main_api.history_get_stats()
+
+    def history_compact(self):
+        return self._main_api.history_compact()
+
+    def history_purge(self, max_age_days=None, max_entries_per_doc=None, max_db_size_mb=None):
+        return self._main_api.history_purge(max_age_days, max_entries_per_doc, max_db_size_mb)
+
+    def history_clear_all(self, keep_favorites=False):
+        return self._main_api.history_clear_all(keep_favorites)
+
+    def get_snippets(self):
+        return self._main_api.get_snippets()
+
+    def save_snippets(self, snippets_data):
+        return self._main_api.save_snippets(snippets_data)
+
+    def reset_snippets(self):
+        return self._main_api.reset_snippets()
+
+    def get_code_styles(self):
+        return self._main_api.get_code_styles()
+
+    def save_code_styles(self, payload):
+        return self._main_api.save_code_styles(payload)
+
+    def reset_code_styles(self):
+        return self._main_api.reset_code_styles()
+
+    def open_settings_window(self):
+        return self._main_api.open_settings_window()
 
 
 class ProfilerSubwindowApi:
@@ -207,8 +237,20 @@ class ProfilerSubwindowApi:
     def apply_titlebar_theme(self, bg_hex=None, text_hex=None, border_hex=None, is_dark=None):
         return self._main_api.apply_titlebar_theme(bg_hex, text_hex, border_hex, is_dark)
 
-    def __getattr__(self, name):
-        return getattr(self._main_api, name)
+    def profiler_list_connections(self):
+        return self._main_api.profiler_list_connections()
+
+    def profiler_pause_trace(self, session_id):
+        return self._main_api.profiler_pause_trace(session_id)
+
+    def profiler_resume_trace(self, session_id):
+        return self._main_api.profiler_resume_trace(session_id)
+
+    def profiler_stop_trace(self, session_id):
+        return self._main_api.profiler_stop_trace(session_id)
+
+    def profiler_get_status(self, session_id):
+        return self._main_api.profiler_get_status(session_id)
 
 
 class EventListenerSubwindowApi:
@@ -331,8 +373,11 @@ class EventListenerSubwindowApi:
     def apply_titlebar_theme(self, bg_hex=None, text_hex=None, border_hex=None, is_dark=None):
         return self._main_api.apply_titlebar_theme(bg_hex, text_hex, border_hex, is_dark)
 
-    def __getattr__(self, name):
-        return getattr(self._main_api, name)
+    def set_clipboard_text(self, text):
+        return self._main_api.set_clipboard_text(text)
+
+    def get_clipboard_text(self):
+        return self._main_api.get_clipboard_text()
 
 
 # ── Titlebar Synchronization & IPC Broadcast ──────────────────────────
