@@ -1,17 +1,47 @@
+# Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
+*$py.class
+
+# Virtual Environments
 .venv/
 venv/
+ENV/
+
+# Environment Variables & IDE
 .env
-settings/settings.json
 .vscode/
+.idea/
+
+# Testing & Cache
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Build & Dist Artifacts
 build/
 dist/
-.pytest_cache/
-.backup_fixes/
-scratch/
-dump.json
+*.spec.bak
+run - Copy.spec
+
+# Scratch, Dumps, and Temporary Work
 OUTPUT/
+.backup_fixes/
+.backup_data*/
+.data_backup*/
+scratch/
+scratch_*.txt
+dump.json
+project-tree.txt
+
+# User Secrets & Sensitive Local Data
 data/.secret.key
 data/connections.json
+data/programlist.json
+data/session.json
+data/*.db
+data/*.db-shm
+data/*.db-wal
+data/logs/
 data/.webview_cache/
+settings/settings.json
