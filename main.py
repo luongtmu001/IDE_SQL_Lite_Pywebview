@@ -56,7 +56,9 @@ from app.services.history import get_history_service
 
 logger = logging.getLogger("luobtool.main")
 
-DATA_DIR = APP_DIR / "data"
+from app.utils.paths import get_user_data_dir, ensure_data_dir_migrated
+
+DATA_DIR = ensure_data_dir_migrated(APP_DIR)
 SETTINGS_FILE = DATA_DIR / "settings.json"
 SETTINGS_FILE_ALT = APP_DIR / "settings" / "settings.json"
 CONNECTIONS_FILE = DATA_DIR / "connections.json" 

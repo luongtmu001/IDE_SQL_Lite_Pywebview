@@ -17,8 +17,9 @@ logger = logging.getLogger("app.routes.session")
 
 session_bp = Blueprint("session", __name__)
 
-BASE_DIR = Path(__file__).resolve().parent.parent.parent
-DATA_DIR = BASE_DIR / "data"
+from app.utils.paths import get_user_data_dir
+
+DATA_DIR = get_user_data_dir()
 SESSION_FILE = DATA_DIR / "session.json"
 CONNECTIONS_FILE = DATA_DIR / "connections.json"
 SETTINGS_FILE = DATA_DIR / "settings.json"

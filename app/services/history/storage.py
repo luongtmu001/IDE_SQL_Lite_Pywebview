@@ -91,10 +91,8 @@ class HistoryStore:
 
     def __init__(self, db_path: Optional[str] = None):
         if db_path is None:
-            base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-            data_dir = os.path.join(base_dir, "data")
-            os.makedirs(data_dir, exist_ok=True)
-            db_path = os.path.join(data_dir, "history.db")
+            from app.utils.paths import get_user_data_dir
+            db_path = str(get_user_data_dir() / "history.db")
 
         self.db_path = os.path.abspath(db_path)
         os.makedirs(os.path.dirname(self.db_path), exist_ok=True)

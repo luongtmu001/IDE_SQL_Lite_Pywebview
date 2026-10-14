@@ -18,7 +18,9 @@ except ImportError:
     Response = None
     styles_bp = None
 
-DATA_DIR = Path(__file__).resolve().parent.parent.parent / "data"
+from app.utils.paths import get_user_data_dir
+
+DATA_DIR = get_user_data_dir()
 STYLES_FILE = DATA_DIR / "code_styles.json"
 
 
