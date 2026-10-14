@@ -42,31 +42,57 @@ class PostgreSqlAdapter(DatabaseAdapter):
 
     def _build_conn_params(self):
         c = self.config
+        raw_host = str(c.get("host") or c.get("server") or "localhost").strip()
+        raw_port = c.get("port")
+        if not raw_port:
+            if ":" in raw_host and not raw_host.startswith("["):
+                parts = raw_host.rsplit(":", 1)
+                raw_host = parts[0]
+                raw_port = parts[1]
+            elif "," in raw_host:
+                parts = raw_host.rsplit(",", 1)
+                raw_host = parts[0]
+                raw_port = parts[1]
+
         params = {
-            "host": c.get("host") or c.get("server") or "localhost",
-            "port": int(c.get("port") or 5432),
+            "host": raw_host,
+            "port": int(raw_port or 5432),
             "dbname": c.get("database") or c.get("dbname") or "postgres",
             "user": c.get("username") or c.get("user") or "postgres",
             "password": str(c.get("password") or ""),
             "connect_timeout": int(c.get("timeout") or c.get("connect_timeout") or 10),
             "application_name": c.get("application_name") or "luoBTool",
         }
-        sslmode = c.get("sslmode") or c.get("ssl_mode")
-        if sslmode:
-            params["sslmode"] = sslmode
+        raw_ssl = c.get("sslmode") or c.get("ssl_mode") or c.get("ssl")
+        if raw_ssl is not None:
+            if raw_ssl is True or str(raw_ssl).lower() in ("yes", "true", "1", "require"):
+                params["sslmode"] = "require"
+            elif raw_ssl is False or str(raw_ssl).lower() in ("no", "false", "0", "disable"):
+                params["sslmode"] = "disable"
+            elif isinstance(raw_ssl, str) and raw_ssl.strip():
+                params["sslmode"] = raw_ssl.strip()
         return params
 
     def _ensure_database(self, database):
         if not database:
             return
         target_db = database.strip()
-        cur_db = (self.config.get("database") or "postgres").strip()
+        cur_db = (self.config.get("database") or self.config.get("dbname") or "postgres").strip()
         if target_db.lower() != cur_db.lower():
+            old_db = self.config.get("database")
+            old_dbname = self.config.get("dbname")
+
             self.config["database"] = target_db
+            if "dbname" in self.config:
+                self.config["dbname"] = target_db
+
             # Synchronize session config if attached to avoid out-of-sync state
             session = getattr(self, "session", None) or getattr(self, "connection_session", None)
             if session and hasattr(session, "config") and isinstance(session.config, dict):
                 session.config["database"] = target_db
+                if "dbname" in session.config:
+                    session.config["dbname"] = target_db
+
             if self.connection:
                 try:
                     self.connection.close()
@@ -74,7 +100,24 @@ class PostgreSqlAdapter(DatabaseAdapter):
                     pass
                 self.connection = None
                 self._current_search_path = None
-            self.connect()
+
+            try:
+                self.connect()
+            except Exception:
+                # Rollback config on failure so self.config and session.config are not corrupted
+                self.config["database"] = old_db
+                if old_dbname is not None:
+                    self.config["dbname"] = old_dbname
+                elif "dbname" in self.config:
+                    self.config.pop("dbname", None)
+
+                if session and hasattr(session, "config") and isinstance(session.config, dict):
+                    session.config["database"] = old_db
+                    if old_dbname is not None:
+                        session.config["dbname"] = old_dbname
+                    elif "dbname" in session.config:
+                        session.config.pop("dbname", None)
+                raise
 
     def close(self):
         if self.connection:
@@ -134,7 +177,10 @@ class PostgreSqlAdapter(DatabaseAdapter):
                 # Set search_path strictly to target_schema so objects outside this schema are not resolved
                 target_schema = (schema or self.config.get("schema") or "").strip()
                 if target_schema:
-                    safe_schema = target_schema.replace('"', '""')
+                    clean_schema = target_schema
+                    if clean_schema.startswith('"') and clean_schema.endswith('"') and len(clean_schema) >= 2:
+                        clean_schema = clean_schema[1:-1].replace('""', '"')
+                    safe_schema = clean_schema.replace('"', '""')
                     schemas_to_set = [f'"{safe_schema}"']
                 else:
                     schemas_to_set = ['public']
