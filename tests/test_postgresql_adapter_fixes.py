@@ -32,7 +32,8 @@ def test_mainapi_syntax_check_calls_pipeline():
     api = MainApi()
     test_sql = "SELECT 1 AS val;"
 
-    with patch("app.database.syntax.coordinator.validate_sql_pipeline") as mock_pipeline:
+    with patch("app.services.settings_store.load_settings", return_value={"syntax": {"pipeline": True}}), \
+         patch("app.database.syntax.coordinator.validate_sql_pipeline") as mock_pipeline:
         mock_pipeline.return_value = [{"line": 1, "message": "test", "severity": "info"}]
 
         res = api.syntax_check(

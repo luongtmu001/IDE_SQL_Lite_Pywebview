@@ -372,7 +372,9 @@ class TestDebugQueryExecutionAPI:
                             progress_callback=mock_conn.query_service.execute.call_args.kwargs.get("progress_callback"),
                             mode="debug",
                             debug_session_id="DBG_MAIN_TEST",
-                            traces=[]
+                            traces=[],
+                            parameters=None,
+                            stop_on_error=True
                         )
                         break
 
@@ -498,7 +500,7 @@ $$;"""
         registry_js = Path("static/js/debug-extension-registry.js").read_text(encoding="utf-8")
 
         # 1. executeQuery signature must accept skipProtection and skipBsCheck
-        assert "async function executeQuery(skipProtection = false, skipBsCheck = false)" in query_js
+        assert "async function executeQuery(skipProtection = false, skipBsCheck = false" in query_js
 
         # 2. bs.* warning callback onCommentAndRun must re-invoke executeQuery(false, true) to trigger SqlProtection
         assert "executeQuery(false, true)" in query_js
