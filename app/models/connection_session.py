@@ -2,6 +2,7 @@
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Optional
+from contextlib import contextmanager
 import threading
 
 
@@ -37,6 +38,13 @@ class ConnectionSession:
 
     def touch(self):
         self.last_used_at = datetime.now(timezone.utc)
+
+    @contextmanager
+    def exclusive(self):
+        """Context manager to exclusively lock the session and connection, updating last_used_at."""
+        with self.lock:
+            self.touch()
+            yield self
 
     def set_read_only(self, read_only: bool) -> dict:
         with self.lock:
