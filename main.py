@@ -3560,31 +3560,7 @@ class MainApi(BravoApi):
             return {"success": False, "error": str(exc)}
 
     def get_table_designer_metadata(self, connection_id, database=None, schema=None, table_name=None):
-        try:
-            conn = self._get_connection(connection_id)
-            td_service = TableDesignerService(conn.adapter)
-            meta = td_service.get_metadata(database, schema, table_name)
-            return {"success": True, "metadata": meta}
-        except Exception as exc:
-            return {"success": False, "error": str(exc)}
-
-    def table_designer_script(self, connection_id, payload):
-        try:
-            conn = self._get_connection(connection_id)
-            td_service = TableDesignerService(conn.adapter)
-            script = td_service.generate_script(payload)
-            return {"success": True, "script": script}
-        except Exception as exc:
-            return {"success": False, "error": str(exc)}
-
-    def table_designer_save(self, connection_id, payload):
-        try:
-            conn = self._get_connection(connection_id)
-            td_service = TableDesignerService(conn.adapter)
-            result = td_service.apply_changes(payload)
-            return {"success": True, "result": result}
-        except Exception as exc:
-            return {"success": False, "error": str(exc)}
+        return self.get_table_design(connection_id, database, schema, table_name)
 
     # Query Execution API
     def execute_query(self, connection_id, sql, limit=1000, database=None, schema=None, query_id=None, mode="normal", debug_session_id=None, traces=None, confirmed=False, parameters=None, stop_on_error=True):

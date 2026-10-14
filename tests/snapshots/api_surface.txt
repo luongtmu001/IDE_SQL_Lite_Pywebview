@@ -98,7 +98,7 @@ CLASS BravoApi (93 public methods):
   - validate_table_row(self, connection_id, database=None, schema=None, table=None, values=None, keys=None, is_new=True, target_column=None)
   - validate_table_rows(self, connection_id, database=None, schema=None, table=None, rows=None)
 
-CLASS MainApi (145 public methods):
+CLASS MainApi (143 public methods):
   - analyze_query_flow(self, sql, dialect='tsql')
   - apply_table_design(self, connection_id, database=None, statements=None, migration_sql=None)
   - apply_titlebar_theme(self, bg_hex=None, text_hex=None, border_hex=None, is_dark=None)
@@ -234,8 +234,6 @@ CLASS MainApi (145 public methods):
   - sql_object_search(self, conn_id=None, keyword='', database=None, object_types=None, case_sensitive=False, whole_word=False, is_regex=False, schema=None)
   - submit_table_changes(self, connection_id, database=None, schema=None, table=None, changes=None, concurrency_mode='optimistic')
   - syntax_check(self, connection_id=None, sql='', dialect='sqlserver', database=None, schema=None, is_debug=False, cached_tables=None)
-  - table_designer_save(self, connection_id, payload)
-  - table_designer_script(self, connection_id, payload)
   - test_linked_server(self, connection_id, server)
   - tx_begin(self, connection_id)
   - tx_commit(self, connection_id)
