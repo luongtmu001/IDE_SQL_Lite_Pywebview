@@ -2,6 +2,8 @@
 
 Flask foundation for a single-page SQL Server/PostgreSQL database IDE.
 
+> **Build Runtime**: Python 3.14 (`cp314-win_amd64`). Distribution packages built with PyInstaller under Python 3.14.
+
 ## Run
 
 ```powershell

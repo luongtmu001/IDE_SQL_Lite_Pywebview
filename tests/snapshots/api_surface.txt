@@ -1,0 +1,417 @@
+# ====================================================================
+# Public API Surface Snapshot - Safety Net for Refactoring
+# Generated for IDE-SQL-Lite_New_Pyweb_Claude
+# ====================================================================
+
+CLASS BravoApi (93 public methods):
+  - apply_table_design(self, connection_id, database=None, statements=None, migration_sql=None)
+  - apply_titlebar_theme(self, bg_hex=None, text_hex=None, border_hex=None, is_dark=None)
+  - check_credential(self, config)
+  - clear_credential(self, config)
+  - create_connection(self, config)
+  - create_session(self, config=None, connection_id=None, window_id=None)
+  - delete_connection(self, connection_id)
+  - delete_saved_connection_profile(self, profile_id)
+  - delete_table_row(self, connection_id, database=None, schema=None, table=None, pk_conditions=None)
+  - destroy_session(self, bravo_session_id)
+  - diff_table_design(self, connection_id, original=None, modified=None)
+  - drop_linked_server(self, connection_id, server)
+  - fetch_connection_metadata(self, config)
+  - fetch_table_data(self, connection_id, database=None, schema=None, table=None, select_cols=None, criteria=None, top_n=200, custom_sql=None)
+  - get_clipboard_text(self)
+  - get_code_styles(self)
+  - get_config(self)
+  - get_connection_password(self, profile_id_or_name)
+  - get_databases(self, connection_id, search=None)
+  - get_definition(self, connection_id, database=None, schema=None, name=None, type=None)
+  - get_foreign_keys(self, connection_id, database=None, schema=None, table=None)
+  - get_foreign_servers(self, connection_id)
+  - get_foreign_tables(self, connection_id, schema=None)
+  - get_initial_context(self)
+  - get_intellisense_columns(self, connection_id, database=None, schema=None, table=None)
+  - get_intellisense_objects(self, connection_id, database=None, schema=None)
+  - get_intellisense_parameters(self, connection_id, database=None, schema=None, name=None)
+  - get_intellisense_types(self, connection_id, database=None)
+  - get_linked_server_script(self, connection_id, server, mode='create')
+  - get_linked_servers(self, connection_id)
+  - get_log_info(self)
+  - get_object_children(self, connection_id, database=None, schema=None, name=None, type=None, child_type=None)
+  - get_objects(self, connection_id, database=None, schema=None, type='tables', search=None)
+  - get_program_groups(self)
+  - get_program_list(self)
+  - get_remote_columns(self, connection_id, server, database=None, schema=None, table=None)
+  - get_remote_databases(self, connection_id, server)
+  - get_remote_objects(self, connection_id, server, database=None, schema=None)
+  - get_remote_schemas(self, connection_id, server, database=None)
+  - get_saved_connections(self)
+  - get_schemas(self, connection_id, database=None, search=None)
+  - get_session(self, bravo_session_id)
+  - get_settings(self)
+  - get_snippets(self)
+  - get_system_fonts(self)
+  - get_table_design(self, connection_id, database=None, schema=None, table=None)
+  - get_table_design_types(self, connection_id, database=None)
+  - get_table_editor_metadata(self, connection_id, database=None, schema=None, table=None)
+  - grid_open_in_excel(self, columns=None, rows=None)
+  - grid_save_results_as(self, columns=None, rows=None, default_filename=None)
+  - import_vsix_theme(self, target_win=None)
+  - insert_table_row(self, connection_id, database=None, schema=None, table=None, values=None, identity_columns=None, computed_columns=None)
+  - layout_editor_commit(self, connection_id, forms, database=None, platform='Win', version='Bravo 10')
+  - layout_editor_list(self, connection_id, database=None, platform='Win', version='Bravo 10', custom_where='')
+  - layout_editor_payload(self, connection_id, form_id, database=None, platform='Win', version='Bravo 10')
+  - layout_editor_search_xml(self, connection_id, keyword, form_ids=None, database=None, platform='Win', version='Bravo 10', is_regex=False)
+  - list_connections(self)
+  - list_features(self)
+  - open_event_listener_window(self, conn_id=None, db_type=None)
+  - open_log_folder(self)
+  - open_profiler_window(self, conn_id=None, db_type=None)
+  - open_settings_window(self)
+  - preview_table_design(self, connection_id, data=None)
+  - profiler_get_status(self, session_id)
+  - profiler_list_connections(self)
+  - profiler_pause_trace(self, session_id)
+  - profiler_resume_trace(self, session_id)
+  - profiler_start_trace(self, conn_id=None, conn_config=None, target_win=None)
+  - profiler_stop_trace(self, session_id)
+  - ready(self)
+  - reset_code_styles(self)
+  - reset_snippets(self)
+  - run_program(self, program_data)
+  - save_code_styles(self, payload)
+  - save_connection_profile(self, profile)
+  - save_program_groups(self, groups)
+  - save_program_list(self, programs)
+  - save_settings(self, settings)
+  - save_snippets(self, snippets)
+  - select_program_file(self)
+  - set_clipboard_text(self, text)
+  - set_connection_read_only(self, connection_id, read_only=False)
+  - set_window(self, win)
+  - set_window_title(self, title)
+  - submit_table_changes(self, connection_id, database=None, schema=None, table=None, changes=None, concurrency_mode='optimistic')
+  - test_linked_server(self, connection_id, server)
+  - tx_begin(self, connection_id)
+  - tx_commit(self, connection_id)
+  - tx_rollback(self, connection_id)
+  - tx_status(self, connection_id)
+  - update_table_row(self, connection_id, database=None, schema=None, table=None, pk_conditions=None, changes=None)
+  - validate_table_row(self, connection_id, database=None, schema=None, table=None, values=None, keys=None, is_new=True, target_column=None)
+  - validate_table_rows(self, connection_id, database=None, schema=None, table=None, rows=None)
+
+CLASS MainApi (145 public methods):
+  - analyze_query_flow(self, sql, dialect='tsql')
+  - apply_table_design(self, connection_id, database=None, statements=None, migration_sql=None)
+  - apply_titlebar_theme(self, bg_hex=None, text_hex=None, border_hex=None, is_dark=None)
+  - cancel_query(self, connection_id)
+  - check_credential(self, config)
+  - clear_credential(self, config)
+  - create_connection(self, config)
+  - create_session(self, config=None, connection_id=None, window_id=None)
+  - delete_connection(self, connection_id)
+  - delete_saved_connection_profile(self, profile_id)
+  - delete_table_row(self, connection_id, database=None, schema=None, table=None, pk_conditions=None)
+  - destroy_session(self, bravo_session_id)
+  - diff_table_design(self, connection_id, original=None, modified=None)
+  - drop_linked_server(self, connection_id, server)
+  - execute_query(self, connection_id, sql, limit=1000, database=None, schema=None, query_id=None, mode='normal', debug_session_id=None, traces=None, confirmed=False, parameters=None, stop_on_error=True)
+  - explain_query(self, connection_id, sql, database=None)
+  - fetch_connection_metadata(self, config)
+  - fetch_table_data(self, connection_id, database=None, schema=None, table=None, select_cols=None, criteria=None, top_n=200, custom_sql=None)
+  - get_clipboard_text(self)
+  - get_code_styles(self)
+  - get_config(self)
+  - get_connection_password(self, profile_id_or_name)
+  - get_databases(self, connection_id, search=None)
+  - get_definition(self, connection_id, database=None, schema=None, name=None, type=None)
+  - get_foreign_keys(self, connection_id, database=None, schema=None, table=None)
+  - get_foreign_servers(self, connection_id)
+  - get_foreign_tables(self, connection_id, schema=None)
+  - get_initial_context(self)
+  - get_intellisense_columns(self, connection_id, database=None, schema=None, table=None)
+  - get_intellisense_objects(self, connection_id, database=None, schema=None)
+  - get_intellisense_parameters(self, connection_id, database=None, schema=None, name=None)
+  - get_intellisense_types(self, connection_id, database=None)
+  - get_linked_server_script(self, connection_id, server, mode='create')
+  - get_linked_servers(self, connection_id)
+  - get_log_info(self)
+  - get_object_children(self, connection_id, database=None, schema=None, name=None, type=None, child_type=None)
+  - get_objects(self, connection_id, database=None, schema=None, type='tables', search=None)
+  - get_program_groups(self)
+  - get_program_list(self)
+  - get_query_plan(self, sql, conn_id=None, plan_type='estimated', database=None, schema=None, dialect=None)
+  - get_remote_columns(self, connection_id, server, database=None, schema=None, table=None)
+  - get_remote_databases(self, connection_id, server)
+  - get_remote_objects(self, connection_id, server, database=None, schema=None)
+  - get_remote_schemas(self, connection_id, server, database=None)
+  - get_saved_connections(self)
+  - get_schemas(self, connection_id, database=None, search=None)
+  - get_session(self, bravo_session_id)
+  - get_settings(self)
+  - get_snippets(self)
+  - get_system_fonts(self)
+  - get_table_columns(self, connection_id, database=None, schema=None, table_name=None)
+  - get_table_design(self, connection_id, database=None, schema=None, table=None)
+  - get_table_design_types(self, connection_id, database=None)
+  - get_table_designer_metadata(self, connection_id, database=None, schema=None, table_name=None)
+  - get_table_editor_metadata(self, connection_id, database=None, schema=None, table=None)
+  - get_tables(self, connection_id, database=None, schema=None, search=None)
+  - grid_open_in_excel(self, columns=None, rows=None)
+  - grid_save_results_as(self, columns=None, rows=None, default_filename=None)
+  - history_add_entry_tag(self, entry_id, tag_name, color=None)
+  - history_clear_all(self, keep_favorites=False)
+  - history_compact(self)
+  - history_delete_document(self, doc_id)
+  - history_delete_entry(self, entry_id)
+  - history_export(self, payload=None)
+  - history_get_active_editor_content(self)
+  - history_get_document(self, doc_id)
+  - history_get_document_by_path(self, file_path)
+  - history_get_documents(self, search=None, favorites_only=False, limit=200, server=None, database=None, from_timestamp=None, to_timestamp=None)
+  - history_get_entries(self, doc_id, status=None, limit=200, server=None, database=None, from_timestamp=None, to_timestamp=None, tag=None, entry_type=None, search=None)
+  - history_get_entry_detail(self, entry_id)
+  - history_get_entry_tags(self, entry_id)
+  - history_get_filters(self)
+  - history_get_stats(self)
+  - history_get_tags(self)
+  - history_import(self, payload)
+  - history_log_execution(self, payload)
+  - history_open_containing_folder(self, file_path)
+  - history_open_diff_in_editor(self, payload)
+  - history_open_in_editor(self, payload)
+  - history_purge(self, max_age_days=None, max_entries_per_doc=None, max_db_size_mb=None)
+  - history_remove_entry_tag(self, entry_id, tag_name)
+  - history_set_entry_favorite(self, entry_id, is_favorite=None)
+  - history_toggle_star(self, doc_id, is_starred=None)
+  - history_update_document(self, payload)
+  - history_update_entry_note(self, entry_id, note=None, tag=None)
+  - history_update_execution(self, payload)
+  - import_vsix_theme(self, target_win=None)
+  - insert_table_row(self, connection_id, database=None, schema=None, table=None, values=None, identity_columns=None, computed_columns=None)
+  - layout_editor_commit(self, connection_id, forms, database=None, platform='Win', version='Bravo 10')
+  - layout_editor_list(self, connection_id, database=None, platform='Win', version='Bravo 10', custom_where='')
+  - layout_editor_payload(self, connection_id, form_id, database=None, platform='Win', version='Bravo 10')
+  - layout_editor_search_xml(self, connection_id, keyword, form_ids=None, database=None, platform='Win', version='Bravo 10', is_regex=False)
+  - list_connections(self)
+  - list_features(self)
+  - notify_app_ready(self)
+  - open_bravo_window(self, conn_id=None, conn_name=None, database=None, db_type=None, schema=None)
+  - open_event_listener_window(self, conn_id=None, db_type=None)
+  - open_log_folder(self)
+  - open_profiler_window(self, conn_id=None, db_type=None)
+  - open_query_history_window(self)
+  - open_settings_window(self)
+  - parse_query_parameters(self, sql, dialect='sqlserver')
+  - pg_dependency_get_column(self, conn_id, schema, table, column, direction='dependents', depth=2, database=None, include_source=True)
+  - pg_dependency_get_definition(self, conn_id, obj_type, schema, name, oid=None, database=None)
+  - pg_dependency_get_object(self, conn_id, obj_type, schema, name, direction='dependents', depth=2, database=None)
+  - pg_dependency_get_suggested_steps(self, conn_id, schema, table, column, action='ALTER', database=None)
+  - preview_table_design(self, connection_id, data=None)
+  - profiler_get_status(self, session_id)
+  - profiler_list_connections(self)
+  - profiler_pause_trace(self, session_id)
+  - profiler_resume_trace(self, session_id)
+  - profiler_start_trace(self, conn_id=None, conn_config=None, target_win=None)
+  - profiler_stop_trace(self, session_id)
+  - ready(self)
+  - reset_code_styles(self)
+  - reset_snippets(self)
+  - run_program(self, program_data)
+  - save_code_styles(self, payload)
+  - save_connection_profile(self, profile)
+  - save_program_groups(self, groups)
+  - save_program_list(self, programs)
+  - save_settings(self, settings)
+  - save_snippets(self, snippets)
+  - select_program_file(self)
+  - session_clear(self)
+  - session_load(self)
+  - session_save(self, session_data)
+  - set_clipboard_text(self, text)
+  - set_connection_read_only(self, connection_id, read_only=False)
+  - set_window(self, win)
+  - set_window_title(self, title)
+  - sql_object_ddl(self, conn_id=None, schema='dbo', name='', object_type='VIEW', database=None, keyword=None, case_sensitive=False, whole_word=False, is_regex=False)
+  - sql_object_search(self, conn_id=None, keyword='', database=None, object_types=None, case_sensitive=False, whole_word=False, is_regex=False, schema=None)
+  - submit_table_changes(self, connection_id, database=None, schema=None, table=None, changes=None, concurrency_mode='optimistic')
+  - syntax_check(self, connection_id=None, sql='', dialect='sqlserver', database=None, schema=None, is_debug=False, cached_tables=None)
+  - table_designer_save(self, connection_id, payload)
+  - table_designer_script(self, connection_id, payload)
+  - test_linked_server(self, connection_id, server)
+  - tx_begin(self, connection_id)
+  - tx_commit(self, connection_id)
+  - tx_rollback(self, connection_id)
+  - tx_status(self, connection_id)
+  - update_table_row(self, connection_id, database=None, schema=None, table=None, pk_conditions=None, changes=None)
+  - validate_table_row(self, connection_id, database=None, schema=None, table=None, values=None, keys=None, is_new=True, target_column=None)
+  - validate_table_rows(self, connection_id, database=None, schema=None, table=None, rows=None)
+
+CLASS QueryHistorySubwindowApi (29 public methods):
+  - apply_titlebar_theme(self, bg_hex=None, text_hex=None, border_hex=None, is_dark=None)
+  - close_window(self)
+  - get_active_editor_content(self)
+  - get_editor_settings(self)
+  - history_add_entry_tag(self, entry_id, tag_name, color=None)
+  - history_clear_all(self, keep_favorites=False)
+  - history_compact(self)
+  - history_delete_document(self, doc_id)
+  - history_delete_entry(self, entry_id)
+  - history_export(self, payload=None)
+  - history_get_document(self, doc_id)
+  - history_get_document_by_path(self, file_path)
+  - history_get_documents(self, search=None, favorites_only=False, limit=200, server=None, database=None, from_timestamp=None, to_timestamp=None)
+  - history_get_entries(self, doc_id, status=None, limit=200, server=None, database=None, from_timestamp=None, to_timestamp=None, tag=None, entry_type=None, search=None)
+  - history_get_entry_detail(self, entry_id)
+  - history_get_entry_tags(self, entry_id)
+  - history_get_filters(self)
+  - history_get_stats(self)
+  - history_get_tags(self)
+  - history_import(self, payload)
+  - history_purge(self, max_age_days=None, max_entries_per_doc=None, max_db_size_mb=None)
+  - history_remove_entry_tag(self, entry_id, tag_name)
+  - history_set_entry_favorite(self, entry_id, is_favorite=None)
+  - history_toggle_star(self, doc_id, is_starred=None)
+  - history_update_entry_note(self, entry_id, note=None, tag=None)
+  - open_containing_folder(self, file_path)
+  - open_diff_in_editor(self, payload)
+  - open_in_editor(self, payload)
+  - set_window(self, win)
+
+CLASS SettingsSubwindowApi (14 public methods):
+  - apply_titlebar_theme(self, bg_hex=None, text_hex=None, border_hex=None, is_dark=None)
+  - close_window(self)
+  - delete_saved_connection_profile(self, profile_id)
+  - get_config(self)
+  - get_connection_password(self, id_or_name)
+  - get_log_info(self)
+  - get_saved_connections(self)
+  - get_settings(self)
+  - get_system_fonts(self)
+  - import_vsix_theme(self)
+  - open_log_folder(self)
+  - save_connection_profile(self, profile)
+  - save_settings(self, settings)
+  - set_window(self, win)
+
+CLASS ProfilerSubwindowApi (4 public methods):
+  - apply_titlebar_theme(self, bg_hex=None, text_hex=None, border_hex=None, is_dark=None)
+  - close_window(self)
+  - profiler_start_trace(self, conn_id=None, conn_config=None, target_win=None)
+  - set_window(self, win)
+
+CLASS EventListenerSubwindowApi (9 public methods):
+  - apply_titlebar_theme(self, bg_hex=None, text_hex=None, border_hex=None, is_dark=None)
+  - close_window(self)
+  - el_discover_local_backends(self)
+  - el_pause_listener(self, session_id=None)
+  - el_resume_listener(self, session_id=None)
+  - el_start_listener(self, config)
+  - el_stop_listener(self, session_id=None)
+  - el_test_connection(self, conn_type, config)
+  - set_window(self, win)
+
+FLASK ROUTES (105 endpoints):
+  - / [GET] -> main.index
+  - /api/bravo/config [GET] -> bravo.get_config
+  - /api/bravo/connections [GET] -> bravo.list_connections
+  - /api/bravo/features [GET] -> bravo.list_features
+  - /api/bravo/layout-editor/commit [POST] -> bravo.layout_editor_commit
+  - /api/bravo/layout-editor/list [POST] -> bravo.layout_editor_list
+  - /api/bravo/layout-editor/payload [POST] -> bravo.layout_editor_payload
+  - /api/bravo/layout-editor/search-xml [POST] -> bravo.layout_editor_search_xml
+  - /api/bravo/programs [GET] -> bravo.get_programs
+  - /api/bravo/programs [POST] -> bravo.save_programs
+  - /api/bravo/programs/groups [GET] -> bravo.get_program_groups
+  - /api/bravo/programs/groups [POST] -> bravo.save_program_groups
+  - /api/bravo/programs/run [POST] -> bravo.run_program_endpoint
+  - /api/bravo/session [POST] -> bravo.create_session
+  - /api/bravo/session/<bravo_session_id> [DELETE] -> bravo.destroy_session
+  - /api/bravo/session/<bravo_session_id> [GET] -> bravo.get_session
+  - /api/connections [GET] -> connections.list_connections
+  - /api/connections [POST] -> connections.create_connection
+  - /api/connections/<connection_id> [DELETE] -> connections.delete_connection
+  - /api/connections/<connection_id>/ping [POST] -> connections.check_connection_status
+  - /api/connections/<connection_id>/reconnect [POST] -> connections.reconnect_connection
+  - /api/connections/<connection_id>/status [GET] -> connections.check_connection_status
+  - /api/connections/check-credential [POST] -> connections.check_credential
+  - /api/connections/clear-credential [POST] -> connections.clear_credential
+  - /api/connections/fetch-metadata [POST] -> connections.fetch_metadata
+  - /api/connections/ping-all [POST] -> connections.ping_all_connections
+  - /api/history/active_editor_content [GET] -> history.active_editor_content
+  - /api/history/clear_all [POST] -> history.clear_all
+  - /api/history/compact [POST] -> history.compact
+  - /api/history/document/<doc_id> [DELETE] -> history.delete_document
+  - /api/history/document/<doc_id> [GET] -> history.get_document
+  - /api/history/document_by_path [GET] -> history.document_by_path
+  - /api/history/documents [GET] -> history.get_documents
+  - /api/history/editor_settings [GET] -> history.get_editor_settings
+  - /api/history/entries [GET] -> history.get_entries
+  - /api/history/entry/<int:entry_id> [DELETE] -> history.delete_entry
+  - /api/history/entry/<int:entry_id> [GET] -> history.get_entry_detail
+  - /api/history/entry/<int:entry_id>/favorite [POST] -> history.set_entry_favorite
+  - /api/history/entry/<int:entry_id>/note [POST] -> history.update_entry_note
+  - /api/history/entry/<int:entry_id>/tag [DELETE] -> history.remove_entry_tag
+  - /api/history/entry/<int:entry_id>/tag [POST] -> history.add_entry_tag
+  - /api/history/entry/<int:entry_id>/tags [GET] -> history.get_entry_tags
+  - /api/history/export [POST] -> history.export_history
+  - /api/history/filters [GET] -> history.get_filters
+  - /api/history/import [POST] -> history.import_history
+  - /api/history/log_execution [POST] -> history.log_execution
+  - /api/history/open-window [POST] -> history.open_window
+  - /api/history/open_containing_folder [POST] -> history.open_containing_folder
+  - /api/history/open_diff_in_editor [POST] -> history.open_diff_in_editor
+  - /api/history/open_in_editor [POST] -> history.open_in_editor
+  - /api/history/purge [POST] -> history.purge
+  - /api/history/stats [GET] -> history.stats
+  - /api/history/tags [GET] -> history.get_all_tags
+  - /api/history/toggle_star [POST] -> history.toggle_star
+  - /api/history/update_document [POST] -> history.update_document
+  - /api/history/update_execution [POST] -> history.update_execution
+  - /api/metadata/<connection_id>/databases [GET] -> metadata.databases
+  - /api/metadata/<connection_id>/definition [GET] -> metadata.definition
+  - /api/metadata/<connection_id>/foreign_keys [GET] -> metadata.foreign_keys
+  - /api/metadata/<connection_id>/foreign_servers [GET] -> metadata.foreign_servers
+  - /api/metadata/<connection_id>/foreign_tables [GET] -> metadata.foreign_tables
+  - /api/metadata/<connection_id>/intellisense/columns [GET] -> metadata.intellisense_columns
+  - /api/metadata/<connection_id>/intellisense/objects [GET] -> metadata.intellisense_objects
+  - /api/metadata/<connection_id>/intellisense/parameters [GET] -> metadata.intellisense_parameters
+  - /api/metadata/<connection_id>/intellisense/types [GET] -> metadata.intellisense_types
+  - /api/metadata/<connection_id>/linked_server/columns [GET] -> metadata.linked_server_columns
+  - /api/metadata/<connection_id>/linked_server/databases [GET] -> metadata.linked_server_databases
+  - /api/metadata/<connection_id>/linked_server/drop [POST] -> metadata.drop_linked_server_endpoint
+  - /api/metadata/<connection_id>/linked_server/objects [GET] -> metadata.linked_server_objects
+  - /api/metadata/<connection_id>/linked_server/schemas [GET] -> metadata.linked_server_schemas
+  - /api/metadata/<connection_id>/linked_server/script [GET] -> metadata.script_linked_server_endpoint
+  - /api/metadata/<connection_id>/linked_server/test [POST] -> metadata.test_linked_server_endpoint
+  - /api/metadata/<connection_id>/linked_servers [GET] -> metadata.linked_servers
+  - /api/metadata/<connection_id>/object_children [GET] -> metadata.object_children
+  - /api/metadata/<connection_id>/objects [GET] -> metadata.objects
+  - /api/metadata/<connection_id>/schemas [GET] -> metadata.schemas
+  - /api/metadata/<connection_id>/table-design [GET] -> metadata.table_design
+  - /api/metadata/<connection_id>/table-design/apply [POST] -> metadata.table_design_apply
+  - /api/metadata/<connection_id>/table-design/diff [POST] -> metadata.table_design_diff
+  - /api/metadata/<connection_id>/table-design/preview [POST] -> metadata.table_design_preview
+  - /api/metadata/<connection_id>/table-design/types [GET] -> metadata.table_design_types
+  - /api/metadata/query-flow [POST] -> metadata.analyze_query_flow_endpoint
+  - /api/metadata/query-plan [POST] -> metadata.get_query_plan_endpoint
+  - /api/postgresql/dependency/<connection_id>/column [GET] -> postgres_dependency.get_column_dependencies
+  - /api/postgresql/dependency/<connection_id>/definition [GET] -> postgres_dependency.get_object_definition
+  - /api/postgresql/dependency/<connection_id>/object [GET] -> postgres_dependency.get_object_dependencies
+  - /api/postgresql/dependency/<connection_id>/suggested-steps [GET] -> postgres_dependency.get_suggested_steps
+  - /api/query/cancel [POST] -> query.cancel
+  - /api/query/execute [POST] -> query.execute
+  - /api/query/explain [POST] -> query.explain
+  - /api/query/parse-parameters [POST] -> query.parse_parameters
+  - /api/query/syntax-check [POST] -> query.syntax_check
+  - /api/session/clear [POST] -> session.api_clear_session
+  - /api/session/load [GET] -> session.api_load_session
+  - /api/session/save [POST] -> session.api_save_session
+  - /api/sql/object-ddl [GET] -> object_search.object_ddl
+  - /api/sql/object-search [POST] -> object_search.object_search
+  - /api/styles [GET] -> styles.get_styles
+  - /api/styles [POST] -> styles.save_styles
+  - /api/styles/export/<style_id> [GET] -> styles.export_style
+  - /api/styles/import [POST] -> styles.import_style
+  - /api/styles/reset [POST] -> styles.reset_styles
+  - /api/system/fonts [GET] -> main.system_fonts
+  - /query-history-demo [GET] -> main.query_history_demo
+  - /static/<path:filename> [GET] -> static
