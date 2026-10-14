@@ -7,21 +7,19 @@ and safe parameterized INSERT, UPDATE, DELETE for table data editing.
 
 from typing import Any, Dict, List, Optional, Tuple
 
+from app.database.sql_utils import quote_ident, quote_qualified, escape_literal
+
 
 def _quote_ident(name: str, engine: str) -> str:
-    if not name:
-        return ""
-    if engine.lower() == "postgresql":
-        return f'"{name}"'
-    return f"[{name}]"
+    """Wrapper around centralized sql_utils.quote_ident for backward compatibility."""
+    return quote_ident(name, engine)
 
 
 def _format_table_name(schema: str, table: str, engine: str, database: str = None) -> str:
-    db_prefix = ""
-    if database and engine.lower() != "postgresql":
-        db_prefix = f"{_quote_ident(database, engine)}."
+    """Formats full table name using centralized quote_qualified."""
+    db_part = database if (database and engine.lower() != "postgresql") else None
     s = schema or ("public" if engine.lower() == "postgresql" else "dbo")
-    return f"{db_prefix}{_quote_ident(s, engine)}.{_quote_ident(table, engine)}"
+    return quote_qualified(db_part, s, table, engine=engine)
 
 
 def _param_placeholder(engine: str) -> str:
@@ -386,7 +384,7 @@ class TableDataEditorService:
         for col, new_val in changes.items():
             set_clauses.append(f"{_quote_ident(col, engine)} = {placeholder}")
             set_params.append(new_val)
-            val_repr = "NULL" if new_val is None else f"'{new_val}'" if isinstance(new_val, str) else str(new_val)
+            val_repr = escape_literal(new_val, engine)
             preview_sets.append(f"{_quote_ident(col, engine)} = {val_repr}")
 
         where_clauses = []
@@ -400,7 +398,7 @@ class TableDataEditorService:
             else:
                 where_clauses.append(f"{_quote_ident(col, engine)} = {placeholder}")
                 where_params.append(val)
-                val_repr = f"'{val}'" if isinstance(val, str) else str(val)
+                val_repr = escape_literal(val, engine)
                 preview_wheres.append(f"{_quote_ident(col, engine)} = {val_repr}")
 
         sql = f"UPDATE {full_table}\nSET " + ", ".join(set_clauses) + "\nWHERE " + " AND ".join(where_clauses) + ";"
@@ -456,7 +454,7 @@ class TableDataEditorService:
             else:
                 where_clauses.append(f"{_quote_ident(col, engine)} = {placeholder}")
                 where_params.append(val)
-                val_repr = f"'{val}'" if isinstance(val, str) else str(val)
+                val_repr = escape_literal(val, engine)
                 preview_wheres.append(f"{_quote_ident(col, engine)} = {val_repr}")
 
         sql = f"DELETE FROM {full_table}\nWHERE " + " AND ".join(where_clauses) + ";"
