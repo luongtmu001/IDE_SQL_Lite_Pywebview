@@ -243,11 +243,12 @@ CLASS MainApi (143 public methods):
   - validate_table_row(self, connection_id, database=None, schema=None, table=None, values=None, keys=None, is_new=True, target_column=None)
   - validate_table_rows(self, connection_id, database=None, schema=None, table=None, rows=None)
 
-CLASS QueryHistorySubwindowApi (29 public methods):
+CLASS QueryHistorySubwindowApi (30 public methods):
   - apply_titlebar_theme(self, bg_hex=None, text_hex=None, border_hex=None, is_dark=None)
   - close_window(self)
   - get_active_editor_content(self)
   - get_editor_settings(self)
+  - get_settings(self)
   - history_add_entry_tag(self, entry_id, tag_name, color=None)
   - history_clear_all(self, keep_favorites=False)
   - history_compact(self)
@@ -274,29 +275,45 @@ CLASS QueryHistorySubwindowApi (29 public methods):
   - open_in_editor(self, payload)
   - set_window(self, win)
 
-CLASS SettingsSubwindowApi (14 public methods):
+CLASS SettingsSubwindowApi (25 public methods):
   - apply_titlebar_theme(self, bg_hex=None, text_hex=None, border_hex=None, is_dark=None)
   - close_window(self)
   - delete_saved_connection_profile(self, profile_id)
+  - get_code_styles(self)
   - get_config(self)
   - get_connection_password(self, id_or_name)
   - get_log_info(self)
   - get_saved_connections(self)
   - get_settings(self)
+  - get_snippets(self)
   - get_system_fonts(self)
+  - history_clear_all(self, keep_favorites=False)
+  - history_compact(self)
+  - history_get_stats(self)
+  - history_purge(self, max_age_days=None, max_entries_per_doc=None, max_db_size_mb=None)
   - import_vsix_theme(self)
   - open_log_folder(self)
+  - open_settings_window(self)
+  - reset_code_styles(self)
+  - reset_snippets(self)
+  - save_code_styles(self, payload)
   - save_connection_profile(self, profile)
   - save_settings(self, settings)
+  - save_snippets(self, snippets_data)
   - set_window(self, win)
 
-CLASS ProfilerSubwindowApi (4 public methods):
+CLASS ProfilerSubwindowApi (9 public methods):
   - apply_titlebar_theme(self, bg_hex=None, text_hex=None, border_hex=None, is_dark=None)
   - close_window(self)
+  - profiler_get_status(self, session_id)
+  - profiler_list_connections(self)
+  - profiler_pause_trace(self, session_id)
+  - profiler_resume_trace(self, session_id)
   - profiler_start_trace(self, conn_id=None, conn_config=None, target_win=None)
+  - profiler_stop_trace(self, session_id)
   - set_window(self, win)
 
-CLASS EventListenerSubwindowApi (9 public methods):
+CLASS EventListenerSubwindowApi (11 public methods):
   - apply_titlebar_theme(self, bg_hex=None, text_hex=None, border_hex=None, is_dark=None)
   - close_window(self)
   - el_discover_local_backends(self)
@@ -305,6 +322,8 @@ CLASS EventListenerSubwindowApi (9 public methods):
   - el_start_listener(self, config)
   - el_stop_listener(self, session_id=None)
   - el_test_connection(self, conn_type, config)
+  - get_clipboard_text(self)
+  - set_clipboard_text(self, text)
   - set_window(self, win)
 
 FLASK ROUTES (105 endpoints):
