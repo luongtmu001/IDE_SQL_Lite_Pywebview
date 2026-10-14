@@ -24,13 +24,15 @@ scriptdom_dir = os.path.join(BASE_PATH, 'app', 'database', 'syntax', 'bin')
 if os.path.exists(scriptdom_dir):
     datas.append((scriptdom_dir, 'app/database/syntax/bin'))
 
-# Include default data files (snippets, program lists, settings) while avoiding cache
+# Include ONLY safe default data files (snippets, code_styles, default settings)
+# Exclude sensitive user credentials and DBs: connections.json, programlist.json, history.db, .secret.key
+ALLOWED_DEFAULT_DATA_FILES = {'snippets.json', 'code_styles.json', 'settings.json'}
 data_dir = os.path.join(BASE_PATH, 'data')
 if os.path.exists(data_dir):
     for f in os.listdir(data_dir):
-        full_path = os.path.join(data_dir, f)
-        if os.path.isfile(full_path):
-            if f.endswith('.json') or f == '.secret.key':
+        if f in ALLOWED_DEFAULT_DATA_FILES:
+            full_path = os.path.join(data_dir, f)
+            if os.path.isfile(full_path):
                 datas.append((full_path, 'data'))
 
 # Collect library data files (WebView2 JS files, pythonnet assemblies, etc.)
