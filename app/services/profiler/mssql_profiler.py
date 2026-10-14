@@ -15,6 +15,7 @@ import time
 import xml.etree.ElementTree as ET
 from typing import Any, Dict, Optional
 
+from app.database.sql_utils import quote_ident, escape_literal
 from .base import BaseProfilerSession
 
 logger = logging.getLogger("luobtool.profiler.mssql")
@@ -51,11 +52,14 @@ class MssqlProfilerSession(BaseProfilerSession):
         self._raw_conn = self._create_connection()
         cursor = self._raw_conn.cursor()
 
+        q_xe_name = quote_ident(self.xe_session_name, "sqlserver")
+        lit_xe_name = escape_literal(self.xe_session_name, "sqlserver")
+
         # 1. Clean up old orphaned session with the same name if exists
         check_and_drop_sql = f"""
-        IF EXISTS (SELECT 1 FROM sys.server_event_sessions WHERE name = N'{self.xe_session_name}')
+        IF EXISTS (SELECT 1 FROM sys.server_event_sessions WHERE name = {lit_xe_name})
         BEGIN
-            DROP EVENT SESSION [{self.xe_session_name}] ON SERVER;
+            DROP EVENT SESSION {q_xe_name} ON SERVER;
         END;
         """
         try:
@@ -65,7 +69,7 @@ class MssqlProfilerSession(BaseProfilerSession):
 
         # 2. Create the Extended Events session with ring_buffer target
         create_xe_sql = f"""
-        CREATE EVENT SESSION [{self.xe_session_name}] ON SERVER
+        CREATE EVENT SESSION {q_xe_name} ON SERVER
         ADD EVENT sqlserver.sql_statement_completed(
             ACTION(sqlserver.session_id, sqlserver.database_name, sqlserver.client_app_name)
             WHERE ([sqlserver].[client_app_name] <> N'luoBTool_Profiler')
@@ -88,18 +92,19 @@ class MssqlProfilerSession(BaseProfilerSession):
         cursor.execute(create_xe_sql)
 
         # 3. Start the session
-        start_xe_sql = f"ALTER EVENT SESSION [{self.xe_session_name}] ON SERVER STATE = START;"
+        start_xe_sql = f"ALTER EVENT SESSION {q_xe_name} ON SERVER STATE = START;"
         cursor.execute(start_xe_sql)
         cursor.close()
         logger.info("SQL Server Extended Events session '%s' started", self.xe_session_name)
 
     def _collector_loop(self):
         """Reads ring buffer XML periodically, parses events, and pushes to queue."""
+        lit_xe_name = escape_literal(self.xe_session_name, "sqlserver")
         query_ring_buffer_sql = f"""
         SELECT CAST(xst.target_data AS NVARCHAR(MAX)) AS target_data
         FROM sys.dm_xe_session_targets xst
         JOIN sys.dm_xe_sessions xs ON xs.address = xst.event_session_address
-        WHERE xs.name = N'{self.xe_session_name}' AND xst.target_name = 'ring_buffer';
+        WHERE xs.name = {lit_xe_name} AND xst.target_name = 'ring_buffer';
         """
 
         while self.is_running:
@@ -207,11 +212,13 @@ class MssqlProfilerSession(BaseProfilerSession):
 
         try:
             cursor = self._raw_conn.cursor()
+            q_xe_name = quote_ident(self.xe_session_name, "sqlserver")
+            lit_xe_name = escape_literal(self.xe_session_name, "sqlserver")
             drop_sql = f"""
-            IF EXISTS (SELECT 1 FROM sys.server_event_sessions WHERE name = N'{self.xe_session_name}')
+            IF EXISTS (SELECT 1 FROM sys.server_event_sessions WHERE name = {lit_xe_name})
             BEGIN
-                ALTER EVENT SESSION [{self.xe_session_name}] ON SERVER STATE = STOP;
-                DROP EVENT SESSION [{self.xe_session_name}] ON SERVER;
+                ALTER EVENT SESSION {q_xe_name} ON SERVER STATE = STOP;
+                DROP EVENT SESSION {q_xe_name} ON SERVER;
             END;
             """
             cursor.execute(drop_sql)
