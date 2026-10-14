@@ -1406,23 +1406,26 @@ class PostgreSqlAdapter(DatabaseAdapter):
                 c.column_default,
                 c.collation_name,
                 CASE WHEN pk_cols.attname IS NOT NULL THEN 1 ELSE 0 END AS is_pk,
-                col_description(c_tbl.oid, c.ordinal_position) AS description
+                col_description(c_tbl.oid, c.ordinal_position) AS description,
+                pk_cols.pk_name
             FROM information_schema.columns c
             JOIN pg_class c_tbl ON c_tbl.relname = c.table_name
             JOIN pg_namespace n_tbl ON n_tbl.oid = c_tbl.relnamespace AND n_tbl.nspname = c.table_schema
             LEFT JOIN (
-                SELECT a.attname
+                SELECT a.attname, c_con.conname AS pk_name
                 FROM pg_index i
                 JOIN pg_class c_pk ON c_pk.oid = i.indrelid
                 JOIN pg_namespace n_pk ON n_pk.oid = c_pk.relnamespace
                 JOIN pg_attribute a ON a.attrelid = c_pk.oid AND a.attnum = ANY(i.indkey)
+                LEFT JOIN pg_constraint c_con ON c_con.conindid = i.indexrelid AND c_con.contype = 'p'
                 WHERE n_pk.nspname = %s AND c_pk.relname = %s AND i.indisprimary
             ) pk_cols ON pk_cols.attname = c.column_name
             WHERE c.table_schema = %s AND c.table_name = %s
             ORDER BY c.ordinal_position
         """
-        col_res = self.execute(col_sql, (schema_name, table, schema_name, table), limit=0, database=database)
+        col_res = self.execute(col_sql, (schema_name, table, schema_name, table), database=database)
         columns = []
+        table_pk_name = ""
         for r in col_res.get("rows", []):
             raw_type = (r[2] or "").lower()
             udt_name = (r[3] or "").lower()
@@ -1474,6 +1477,10 @@ class PostgreSqlAdapter(DatabaseAdapter):
                     while (default_val.startswith("'") and default_val.endswith("'")) or (default_val.startswith('"') and default_val.endswith('"')):
                         default_val = default_val[1:-1].strip()
 
+            col_pk_name = r[13] if len(r) > 13 and r[13] else ""
+            if col_pk_name and not table_pk_name:
+                table_pk_name = col_pk_name
+
             columns.append({
                 "name": r[1],
                 "type": norm_type,
@@ -1481,6 +1488,7 @@ class PostgreSqlAdapter(DatabaseAdapter):
                 "scale": scale_str,
                 "nullable": (r[7] == "YES"),
                 "is_pk": bool(r[11]),
+                "pk_name": col_pk_name,
                 "is_identity": is_identity,
                 "identity_seed": 1,
                 "identity_increment": 1,
@@ -1513,7 +1521,7 @@ class PostgreSqlAdapter(DatabaseAdapter):
               )
             ORDER BY i.relname
         """
-        idx_res = self.execute(idx_sql, (schema_name, table), limit=0, database=database)
+        idx_res = self.execute(idx_sql, (schema_name, table), database=database)
         indexes = []
         for r in idx_res.get("rows", []):
             raw_cols = r[3]
@@ -1554,7 +1562,7 @@ class PostgreSqlAdapter(DatabaseAdapter):
                 AND tc.table_schema = %s AND tc.table_name = %s
             ORDER BY tc.constraint_name, kcu.ordinal_position
         """
-        fk_res = self.execute(fk_sql, (schema_name, table), limit=0, database=database)
+        fk_res = self.execute(fk_sql, (schema_name, table), database=database)
         fk_map = {}
         for r in fk_res.get("rows", []):
             fk_name = r[0]
@@ -1587,7 +1595,7 @@ class PostgreSqlAdapter(DatabaseAdapter):
                 AND tc.table_schema = %s AND tc.table_name = %s
             ORDER BY tc.constraint_name, kcu.ordinal_position
         """
-        uq_res = self.execute(uq_sql, (schema_name, table), limit=0, database=database)
+        uq_res = self.execute(uq_sql, (schema_name, table), database=database)
         uq_map = {}
         for r in uq_res.get("rows", []):
             uq_name = r[0]
@@ -1614,7 +1622,7 @@ class PostgreSqlAdapter(DatabaseAdapter):
                 AND tc.constraint_name NOT LIKE '%%_not_null'
             ORDER BY tc.constraint_name
         """
-        chk_res = self.execute(chk_sql, (schema_name, table), limit=0, database=database)
+        chk_res = self.execute(chk_sql, (schema_name, table), database=database)
         checks = []
         for r in chk_res.get("rows", []):
             clause = r[1] or ""
@@ -1640,7 +1648,7 @@ class PostgreSqlAdapter(DatabaseAdapter):
             WHERE tr.event_object_schema = %s AND tr.event_object_table = %s
             ORDER BY tr.trigger_name
         """
-        trig_res = self.execute(trig_sql, (schema_name, table), limit=0, database=database)
+        trig_res = self.execute(trig_sql, (schema_name, table), database=database)
         trig_map = {}
         for r in trig_res.get("rows", []):
             t_name = r[0]
@@ -1670,6 +1678,7 @@ class PostgreSqlAdapter(DatabaseAdapter):
             "schema": schema_name,
             "table": table,
             "engine": "postgresql",
+            "pk_name": table_pk_name,
             "columns": columns,
             "indexes": indexes,
             "foreign_keys": foreign_keys,
