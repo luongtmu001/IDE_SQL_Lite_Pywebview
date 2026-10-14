@@ -3,26 +3,21 @@ Supports SQL Server and PostgreSQL.
 """
 from typing import Any, Dict, List
 
+from app.database.sql_utils import quote_ident, quote_qualified, escape_literal
+
 
 class TableDesignerService:
 
     @staticmethod
     def _quote_ident(name: str, engine: str) -> str:
-        clean = (name or "").strip()
-        if engine == "postgresql":
-            if clean.startswith('"') and clean.endswith('"'):
-                return clean
-            return f'"{clean}"'
-        else:
-            if clean.startswith('[') and clean.endswith(']'):
-                return clean
-            return f'[{clean}]'
+        """Wrapper around centralized sql_utils.quote_ident for backward compatibility."""
+        return quote_ident(name, engine)
 
     @staticmethod
     def _format_table_name(schema: str, table: str, engine: str) -> str:
-        q_schema = TableDesignerService._quote_ident(schema or ("public" if engine == "postgresql" else "dbo"), engine)
-        q_table = TableDesignerService._quote_ident(table, engine)
-        return f"{q_schema}.{q_table}"
+        """Formats schema.table using centralized quote_qualified."""
+        s = schema or ("public" if engine == "postgresql" else "dbo")
+        return quote_qualified(s, table, engine=engine)
 
     @classmethod
     def format_column_type(cls, col: Dict[str, Any], engine: str) -> str:
