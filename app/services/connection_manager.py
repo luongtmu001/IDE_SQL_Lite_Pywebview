@@ -130,8 +130,10 @@ class ConnectionManager:
                 if (
                     str(cfg.get("type", "")).lower() == str(config.get("type", "")).lower()
                     and str(cfg.get("server") or cfg.get("host") or "").lower() == str(config.get("server") or config.get("host") or "").lower()
+                    and str(cfg.get("port") or "").strip() == str(config.get("port") or "").strip()
                     and str(cfg.get("database") or "").lower() == str(config.get("database") or "").lower()
                     and str(cfg.get("username") or "").lower() == str(config.get("username") or "").lower()
+                    and bool(cfg.get("trusted_connection", False)) == bool(config.get("trusted_connection", False))
                 ):
                     if "environment" in config:
                         conn.environment = config.get("environment")
