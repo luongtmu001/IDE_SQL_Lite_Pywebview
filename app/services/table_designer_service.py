@@ -244,6 +244,53 @@ class TableDesignerService:
         return "\n\n".join(stmts) + "\n"
 
     @classmethod
+    def is_type_narrowed(cls, ocol: Dict[str, Any], mcol: Dict[str, Any], engine: str) -> bool:
+        """Determines if a column data type change represents narrowing (loss of precision/capacity)."""
+        otype = (ocol.get("type") or "").strip().lower()
+        mtype = (mcol.get("type") or "").strip().lower()
+        osize = str(ocol.get("size") or "").strip().lower()
+        msize = str(mcol.get("size") or "").strip().lower()
+        oscale = str(ocol.get("scale") or "").strip()
+        mscale = str(mcol.get("scale") or "").strip()
+
+        # 1. String/binary size narrowing
+        string_types = ("varchar", "nvarchar", "char", "nchar", "varbinary", "binary", "text", "ntext")
+        if otype in string_types and mtype in string_types:
+            if osize == "max" and msize.isdigit():
+                return True
+            if osize.isdigit() and msize.isdigit() and int(msize) < int(osize):
+                return True
+            if (otype in ("nvarchar", "nchar") and mtype in ("varchar", "char")) and (osize == msize or (osize.isdigit() and msize.isdigit() and int(msize) <= int(osize))):
+                return True
+            if otype in ("text", "ntext") and mtype in ("varchar", "nvarchar", "char", "nchar") and msize.isdigit():
+                return True
+
+        # 2. Integer hierarchy
+        int_hierarchy = {
+            "bigint": 4, "int8": 4,
+            "int": 3, "integer": 3, "int4": 3,
+            "smallint": 2, "int2": 2,
+            "tinyint": 1
+        }
+        if otype in int_hierarchy and mtype in int_hierarchy:
+            if int_hierarchy[mtype] < int_hierarchy[otype]:
+                return True
+
+        # 3. Decimal/numeric precision/scale narrowing
+        if otype in ("decimal", "numeric") and mtype in ("decimal", "numeric"):
+            if osize.isdigit() and msize.isdigit() and int(msize) < int(osize):
+                return True
+            if oscale.isdigit() and mscale.isdigit() and int(mscale) < int(oscale):
+                return True
+
+        # 4. Floating point narrowing
+        if otype in ("float", "double precision") and mtype in ("real", "float"):
+            if mtype == "real" or (msize.isdigit() and int(msize) <= 24 and (not osize.isdigit() or int(osize) > 24)):
+                return True
+
+        return False
+
+    @classmethod
     def generate_diff(cls, original: Dict[str, Any], modified: Dict[str, Any]) -> Dict[str, Any]:
         """Calculates differences between original schema and modified schema.
         Returns statements, full migration SQL, and warnings for destructive changes.
@@ -358,7 +405,7 @@ class TableDesignerService:
                 q_fk = cls._quote_ident(f_name, engine)
                 stmts_drop_fk.append({
                     "sql": f"alter table {alt_tbl_name}\n    drop constraint {q_fk};",
-                    "destructive": True,
+                    "destructive": False,
                     "description": f"Drop foreign key constraint {q_fk}",
                     "type": "constraints"
                 })
@@ -407,7 +454,7 @@ class TableDesignerService:
                     sql = f"DROP INDEX {cls._quote_ident(schema, engine)}.{q_idx};"
                 stmts_drop_idx.append({
                     "sql": sql,
-                    "destructive": True,
+                    "destructive": False,
                     "description": f"Drop index {q_idx}",
                     "type": "indexes"
                 })
@@ -458,7 +505,7 @@ class TableDesignerService:
                 q_uq = cls._quote_ident(u_name, engine)
                 stmts_drop_uq.append({
                     "sql": f"alter table {alt_tbl_name}\n    drop constraint {q_uq};",
-                    "destructive": True,
+                    "destructive": False,
                     "description": f"Drop unique constraint {q_uq}",
                     "type": "constraints"
                 })
@@ -492,7 +539,7 @@ class TableDesignerService:
                 q_chk = cls._quote_ident(c_name, engine)
                 stmts_drop_chk.append({
                     "sql": f"alter table {alt_tbl_name}\n    drop constraint {q_chk};",
-                    "destructive": True,
+                    "destructive": False,
                     "description": f"Drop check constraint {q_chk}",
                     "type": "constraints"
                 })
@@ -585,10 +632,14 @@ class TableDesignerService:
                 if mcol.get("is_pk") or not mcol.get("nullable", True):
                     parts.append("not null")
 
+                is_not_null_no_def = (not mcol.get("nullable", True) and not mcol.get("is_pk") and not default_val and not mcol.get("is_identity"))
+                if is_not_null_no_def:
+                    warnings.append(f"Adding NOT NULL column {col_name} without default value may fail on non-empty tables.")
+
                 sql = f"alter table {alt_tbl_name}\n{' '.join(parts)};"
                 stmts_add_col.append({
                     "sql": sql,
-                    "destructive": False,
+                    "destructive": is_not_null_no_def,
                     "description": f"Add column {col_name}",
                     "type": "tables"
                 })
@@ -597,19 +648,27 @@ class TableDesignerService:
         for col_name, mcol in mod_cols.items():
             if col_name in orig_cols:
                 ocol = orig_cols[col_name]
+                ocol_null = ocol.get("nullable", True)
+                mcol_null = mcol.get("nullable", True)
                 type_changed = (mcol.get("type") != ocol.get("type")) or (str(mcol.get("size")) != str(ocol.get("size"))) or (str(mcol.get("scale")) != str(ocol.get("scale")))
-                null_changed = (bool(mcol.get("nullable")) != bool(ocol.get("nullable")))
+                null_changed = (bool(mcol_null) != bool(ocol_null))
                 def_changed = (str(mcol.get("default_value")).strip() != str(ocol.get("default_value")).strip())
+
+                is_narrowed = cls.is_type_narrowed(ocol, mcol, engine)
+                if is_narrowed:
+                    warnings.append(f"Column {col_name} data type narrowed from {cls.format_column_type(ocol, engine)} to {cls.format_column_type(mcol, engine)}; data truncation may occur.")
+                if null_changed and not mcol_null:
+                    warnings.append(f"Column {col_name} changed to NOT NULL; existing NULL rows will cause migration failure.")
 
                 q_col = cls._quote_ident(col_name, engine)
                 if type_changed or null_changed:
                     if engine == "sqlserver":
                         type_str = cls.format_column_type(mcol, engine).lower()
-                        null_str = "null" if mcol.get("nullable", True) else "not null"
+                        null_str = "null" if mcol_null else "not null"
                         sql = f"alter table {alt_tbl_name}\n    alter column {q_col} {type_str} {null_str};"
                         stmts_alter_col.append({
                             "sql": sql,
-                            "destructive": False,
+                            "destructive": is_narrowed,
                             "description": f"Alter column {col_name} type/nullability",
                             "type": "tables"
                         })
@@ -619,12 +678,12 @@ class TableDesignerService:
                             sql = f"alter table {alt_tbl_name}\n    alter column {q_col} type {type_str} using {q_col}::{type_str};"
                             stmts_alter_col.append({
                                 "sql": sql,
-                                "destructive": False,
+                                "destructive": is_narrowed,
                                 "description": f"Alter column {col_name} data type to {type_str}",
                                 "type": "tables"
                             })
                         if null_changed:
-                            null_action = "drop not null" if mcol.get("nullable", True) else "set not null"
+                            null_action = "drop not null" if mcol_null else "set not null"
                             sql = f"alter table {alt_tbl_name}\n    alter column {q_col} {null_action};"
                             stmts_alter_col.append({
                                 "sql": sql,
