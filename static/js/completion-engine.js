@@ -780,7 +780,7 @@
 
             const isFromClause = (context.clause === 'FROM' || context.clause === 'JOIN');
             const isDmlTableClause = (context.clause === 'INSERT INTO' || context.clause === 'UPDATE' || context.contextType === 'table');
-            const isSelectClause = (context.clause === 'SELECT');
+            const isSelectClause = (context.clause === 'SELECT' || context.clause === 'RETURNING' || context.clause === 'OUTPUT');
             const isWhereClause = (context.clause === 'WHERE' || context.clause === 'ON' || context.clause === 'HAVING');
             const isOrderClause = (context.clause === 'ORDER BY' || context.clause === 'GROUP BY');
             const isExecClause = (context.clause === 'EXEC' || context.clause === 'EXECUTE');
@@ -1199,7 +1199,7 @@
          * - Dialect quoting for reserved keywords or special characters
          */
         async expandStarColumns(context, tabCtx, qualifier = null) {
-            const isExprClause = (context.clause === 'SELECT' || !context.clause || ['WHERE', 'ON', 'GROUP BY', 'ORDER BY', 'HAVING', 'SET'].includes(context.clause) || context.isInRoutineBody);
+            const isExprClause = (context.clause === 'SELECT' || context.clause === 'RETURNING' || context.clause === 'OUTPUT' || !context.clause || ['WHERE', 'ON', 'GROUP BY', 'ORDER BY', 'HAVING', 'SET'].includes(context.clause) || context.isInRoutineBody);
             if (!isExprClause) return null;
 
             // Helper to get columns for a table object
@@ -1609,7 +1609,7 @@
 
                 // D. Scalar variables & Parameters (@var in SQL Server, var_name in PostgreSQL)
                 const isVarTrigger = (context.currentWord && context.currentWord.startsWith('@')) || context.triggerChar === '@';
-                const isExprClause = (context.clause === 'SELECT' || isInsertCols || isUpdateSet || !context.clause || ['WHERE', 'ON', 'GROUP BY', 'ORDER BY', 'HAVING', 'SET', 'VALUES', 'EXEC', 'EXECUTE'].includes(context.clause) || context.isInRoutineBody);
+                const isExprClause = (context.clause === 'SELECT' || context.clause === 'RETURNING' || context.clause === 'OUTPUT' || isInsertCols || isUpdateSet || !context.clause || ['WHERE', 'ON', 'GROUP BY', 'ORDER BY', 'HAVING', 'SET', 'VALUES', 'EXEC', 'EXECUTE'].includes(context.clause) || context.isInRoutineBody);
 
                 if (isVarTrigger || isExprClause) {
                     const scopeVars = (context.activeScope && typeof context.activeScope.getSymbolsByType === 'function')

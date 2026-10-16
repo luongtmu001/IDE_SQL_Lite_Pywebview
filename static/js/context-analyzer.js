@@ -1541,9 +1541,7 @@
                     result.insertColumns = colTokens;
                     result.alreadyListed = colTokens.map(c => c.toLowerCase());
                 } else if (valuesIdx !== -1 && cursorIndex >= stmtTokens[valuesIdx].end) {
-                    // Cursor is in VALUES clause: VALUES ( ... | ... )
-                    result.isValues = true;
-                    // Count commas at current paren depth
+                    // Cursor is in VALUES clause: only if strictly inside parentheses (Issue I4a)
                     let commaCount = 0;
                     let valParenDepth = 0;
                     for (let k = valuesIdx; k < priorTokens.length; k++) {
@@ -1556,7 +1554,10 @@
                             commaCount++;
                         }
                     }
-                    result.valueColumnIndex = commaCount;
+                    if (valParenDepth > 0) {
+                        result.isValues = true;
+                        result.valueColumnIndex = commaCount;
+                    }
                 }
             }
         }
@@ -2075,6 +2076,8 @@
         } else if (dmlContext.isUpdateTarget) {
             clause = 'UPDATE';
             contextType = IntelliSenseContextType.TABLE;
+        } else if (clause === 'SELECT' || clause === 'OUTPUT' || clause === 'RETURNING') {
+            contextType = IntelliSenseContextType.COLUMN;
         } else if (dmlContext.isValues) {
             clause = 'VALUES';
             contextType = IntelliSenseContextType.COLUMN;
@@ -2086,8 +2089,6 @@
             contextType = IntelliSenseContextType.ORDER_COLUMN;
         } else if (clause === 'GROUP BY') {
             contextType = IntelliSenseContextType.GROUP_COLUMN;
-        } else if (clause === 'SELECT' || clause === 'OUTPUT' || clause === 'RETURNING') {
-            contextType = IntelliSenseContextType.COLUMN;
         } else if (clause === 'EXEC' || clause === 'EXECUTE') {
             contextType = IntelliSenseContextType.PROCEDURE;
         }
