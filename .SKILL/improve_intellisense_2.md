@@ -187,12 +187,12 @@ Mỗi giai đoạn: một nhánh git; mỗi thay đổi hành vi một commit k�
 
 ### Giai đoạn 6 – Cấu trúc và bảo trì (4–5 ngày, sau khi 0–5 xanh)
 
-- [ ] Tách `generate` (dòng 1400–2358) thành các nguồn gợi ý nhỏ; snapshot phải khớp từng ca.
-- [ ] `ScopeResolver` là nguồn phạm vi duy nhất; regex cũ chỉ dự phòng sau cờ `intellisense.v2.legacyScope`.
-- [ ] Chia `completion-engine.js` theo class bằng thẻ `<script>` riêng, giữ nguyên tên export; không dùng bundler.
-- [ ] Chia `validator.py` theo dialect, giữ `validate_sql` làm mặt tiền.
+- [x] Tách `generate` (dòng 1400–2358) thành các nguồn gợi ý nhỏ; snapshot phải khớp từng ca.
+- [x] `ScopeResolver` là nguồn phạm vi duy nhất; regex cũ chỉ dự phòng sau cờ `intellisense.v2.legacyScope`.
+- [x] Chia `completion-engine.js` theo class bằng thẻ `<script>` riêng, giữ nguyên tên export; không dùng bundler.
+- [x] Chia `validator.py` theo dialect, giữ `validate_sql` làm mặt tiền.
 
-**Cổng**: toàn bộ lớp xanh, snapshot không đổi, không còn `expectedFailure` thuộc các mã đã xử lý.
+**Cổng**: toàn bộ lớp xanh, snapshot không đổi, không còn `expectedFailure` thuộc các mã đã xử lý. [ĐÃ ĐẠT]
 
 **Báo cáo cuối mỗi giai đoạn**: file đã sửa, ca đã thêm, kết quả trước và sau của từng lớp, số đo hiệu năng, rủi ro còn lại, mục [QUYẾT ĐỊNH] đang chờ.
 
@@ -206,7 +206,7 @@ Mỗi giai đoạn: một nhánh git; mỗi thay đổi hành vi một commit k�
 | 3 – IntelliSense hiệu năng, lỗi cục bộ | 5–6 ngày | L1, L2, L9 | Đã hoàn thành |
 | 4 – IntelliSense ngữ cảnh mới | 6–8 ngày | L2, L13 | Đã hoàn thành |
 | 5 – Nâng cao và nối pipeline | 6–7 ngày | L1, L2, L12 | Đã hoàn thành |
-| 6 – Cấu trúc | 4–5 ngày | Toàn bộ lớp, snapshot | Đang thực hiện |
+| 6 – Cấu trúc | 4–5 ngày | Toàn bộ lớp, snapshot | Đã hoàn thành |
 
 Tổng giai đoạn 0–6 khoảng 32–40 ngày công của một người.
 
