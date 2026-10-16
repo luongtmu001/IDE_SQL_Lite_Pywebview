@@ -19,7 +19,7 @@
   { "id": "L2-FORBID-STR", "dialect": "mssql", "sql": "SELECT 'hello ‸' FROM dbo.Orders", "expect": { "count": 0 } },
   { "id": "L2-FORBID-COMM", "dialect": "mssql", "sql": "-- test comment ‸\nSELECT * FROM dbo.Orders", "expect": { "count": 0 } },
 
-  { "id": "INS-1", "dialect": "mssql", "sql": "INSERT INTO dbo.Orders (‸)", "expect": { "contains": ["OrderID", "Total"] }, "status": "expectedFailure", "issue": "I2" },
+  { "id": "INS-1", "dialect": "mssql", "sql": "INSERT INTO dbo.Orders (‸)", "expect": { "contains": ["OrderID", "Total"] } },
   { "id": "INS-2", "dialect": "mssql", "sql": "SELECT CONVERT(‸, OrderID) FROM dbo.Orders", "expect": { "first": ["varchar", "int", "datetime"] }, "status": "expectedFailure", "issue": "I2, I3" },
   { "id": "CAST-1", "dialect": "mssql", "sql": "SELECT CAST(OrderID AS ‸) FROM dbo.Orders", "expect": { "first": ["int", "varchar"] }, "status": "expectedFailure", "issue": "I3" },
   { "id": "DECL-1", "dialect": "mssql", "sql": "DECLARE @x ‸", "expect": { "first": ["int", "varchar", "bigint"] }, "status": "expectedFailure", "issue": "I3" },

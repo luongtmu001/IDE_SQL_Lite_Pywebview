@@ -1860,6 +1860,10 @@
                     currentWord = "";
                     tokenStartOffset = cursorIndex;
                     tokenEndOffset = cursorIndex;
+                } else if (lastTok.type === 'PUNCTUATION' || lastTok.type === 'OPERATOR') {
+                    currentWord = "";
+                    tokenStartOffset = cursorIndex;
+                    tokenEndOffset = cursorIndex;
                 } else {
                     currentWord = cleanIdentifier(lastTok.value);
                     tokenStartOffset = lastTok.start;
