@@ -30,5 +30,5 @@
   { "id": "ON-1", "dialect": "mssql", "sql": "SELECT * FROM dbo.Orders o JOIN dbo.OrderItems i ON i.OrderID = ‸", "expect": { "not": ["o.OrderID = i.OrderID"] } },
   { "id": "EXEC-1", "dialect": "mssql", "sql": "EXEC dbo.‸", "expect": { "contains": ["usp_GetOrders"], "not": ["Orders", "Customers"] } },
   { "id": "WIDE-1", "dialect": "mssql", "sql": "SELECT t.‸ FROM dbo.Tbl1 t", "expect": { "contains": ["Col_550"] }, "status": "expectedFailure", "issue": "I8" },
-  { "id": "ALIAS-1", "dialect": "mssql", "sql": "SELECT b.‸ FROM dbo.Orders a JOIN dbo.Customers b ON a.CustomerID = b.CustomerID", "expect": { "contains": ["CustomerName"], "not": ["Total"] }, "status": "expectedFailure", "issue": "I9" }
+  { "id": "ALIAS-1", "dialect": "mssql", "sql": "SELECT b.‸ FROM dbo.Orders a JOIN dbo.Customers b ON a.CustomerID = b.CustomerID", "expect": { "contains": ["CustomerName"], "not": ["Total"] } }
 ]

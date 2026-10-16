@@ -462,13 +462,12 @@
     // ─────────────────────────────────────────────────────────────────────────────
     // 5. ALTER / CREATE CONTEXT DETECTION
     // ─────────────────────────────────────────────────────────────────────────────
-    function detectAlterContext(textBeforeCursor) {
-        if (!textBeforeCursor) return { isAlter: false, action: "", alterType: "" };
+    function detectAlterContext(textBeforeCursor, optionalCodeTokens = null) {
+        if (!textBeforeCursor && !optionalCodeTokens) return { isAlter: false, action: "", alterType: "" };
 
         const tokenizer = getTokenizer();
-        if (tokenizer) {
-            const allTokens = tokenizer.tokenize(textBeforeCursor);
-            const codeTokens = tokenizer.filterCodeTokens(allTokens);
+        if (optionalCodeTokens || tokenizer) {
+            const codeTokens = optionalCodeTokens || tokenizer.filterCodeTokens(tokenizer.tokenize(textBeforeCursor));
 
             // Find current statement boundary (scan backwards to last ';' or 'GO')
             let stmtStartIdx = 0;
@@ -2008,7 +2007,7 @@
             clause = detectClauseFromTokens(codeTokens, cursorIndex, statementRange.start);
 
             // 6. ALTER, EXEC & ROUTINE Context Detection
-            alterContext = detectAlterContext(textBeforeCursor);
+            alterContext = detectAlterContext(textBeforeCursor, codeTokens);
             execContext = detectExecContext(codeTokens);
             routineContext = detectRoutineContext(codeTokens, textBeforeCursor, fullCodeTokens);
 

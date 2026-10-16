@@ -87,3 +87,18 @@ test('L9: Performance Benchmarking (10KB, 54KB, 218KB, 600 cols, 20k objs)', asy
     assert.ok(metrics.completions_600_columns_ms > 0, '600 cols metric valid');
     assert.ok(metrics.completions_20k_objects_ms > 0, '20k objs metric valid');
 });
+
+test('PERF-1: analyze under 50ms on 100 KB document', () => {
+    const ide = createIdeContext();
+    const sql100k = generateSqlOfSize(100 * 1024);
+    // Warmup
+    ide.analyze(sql100k);
+    const start = performance.now();
+    for (let i = 0; i < 5; i++) {
+        ide.analyze(sql100k);
+    }
+    const elapsedAvg = (performance.now() - start) / 5;
+    console.log(`[PERF-1] analyze 100KB average: ${elapsedAvg.toFixed(2)}ms`);
+    assert.ok(elapsedAvg < 50, `Expected analyze on 100KB to be under 50ms, got ${elapsedAvg}ms`);
+});
+

@@ -2877,6 +2877,27 @@
             return CompletionEngine.getHover(fullSql, cursorOffset, tabCtx);
         }
 
+        static hashString(str) {
+            if (!str) return '0';
+            let hash = 5381;
+            for (let i = 0; i < str.length; i++) {
+                hash = ((hash << 5) + hash) + str.charCodeAt(i);
+                hash |= 0;
+            }
+            return (hash >>> 0).toString(36);
+        }
+
+        static computeAliasSignature(aliasMap) {
+            if (!aliasMap || typeof aliasMap !== 'object') return '';
+            const keys = Object.keys(aliasMap).sort();
+            return keys.map(k => {
+                const val = aliasMap[k];
+                const tbl = (val && (val.table || val.targetObject || val.name)) || '';
+                const sch = (val && val.schema) || '';
+                return `${k}:${sch}.${tbl}`;
+            }).join(';');
+        }
+
         async getCompletions(documentText, cursor, context, tabCtx) {
             if (context && !context.fullSql) {
                 context.fullSql = documentText || '';
@@ -2886,14 +2907,25 @@
             const alterPart = context.isAlterContext ? `ALTER_${context.alterObjectType || ''}` : '';
             const execPart = (context.execContext && context.execContext.isExec) ? 'EXEC' : '';
             const tablesKey = (context.queryTables || []).map(t => (t.table || '').toLowerCase()).sort().join(',');
-            const stmtKey = context.statementRange ? `${context.statementRange.start}-${context.statementRange.end}` : '';
-            const scopeKey = `${context.clause || 'DEFAULT'}::${tablesKey}::${stmtKey}::${context.qualifier || ''}::${alterPart}::${execPart}::${context.resolvedObject ? context.resolvedObject.name : ''}`;
 
-            // Level 3 Completion Memoization lookup
+            // Issue I9: Statement text hash and aliasMap signature
+            const stmtText = (context.fullSql && context.statementRange)
+                ? context.fullSql.substring(context.statementRange.start, context.statementRange.end)
+                : (context.fullSql || '');
+            const stmtHash = CompletionEngine.hashString(stmtText);
+            const aliasSig = CompletionEngine.computeAliasSignature(context.aliasMap);
+
+            const scopeKey = `${context.clause || 'DEFAULT'}::${tablesKey}::${stmtHash}::${aliasSig}::${context.qualifier || ''}::${alterPart}::${execPart}::${context.resolvedObject ? context.resolvedObject.name : ''}`;
+
+            // Level 3 Completion Memoization lookup (Issue I9: attach replacementRange per call, never reuse stale offsets from cache)
             if (this.metadataCache && typeof this.metadataCache.getCompletions === 'function') {
                 const cached = this.metadataCache.getCompletions(tabCtx.connectionId, tabCtx.database, tabCtx.schema, scopeKey, wordLower);
                 if (cached && Array.isArray(cached) && cached.length > 0) {
-                    return cached;
+                    const result = [...cached];
+                    result.rawCandidates = cached.rawCandidates || cached;
+                    result.replacementRange = context.replacementRange || null;
+                    result.prefixRange = context.prefixRange || null;
+                    return result;
                 }
             }
 
