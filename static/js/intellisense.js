@@ -731,8 +731,17 @@
                 this.listEl.appendChild(row);
             });
 
+            // Issue I8: Hiển thị thông báo khi danh sách bị cắt
+            if (candidates && (candidates.isTruncated || (candidates.meta && candidates.meta.truncated))) {
+                const notice = document.createElement('div');
+                notice.className = 'ide-intellisense-truncated p-1 text-center text-muted small fst-italic border-top';
+                notice.textContent = 'Còn nhiều mục, gõ tiếp để lọc';
+                this.listEl.appendChild(notice);
+            }
+
             if (this.countBadge) {
-                this.countBadge.textContent = this.candidates.length;
+                const isTruncated = candidates && (candidates.isTruncated || (candidates.meta && candidates.meta.truncated));
+                this.countBadge.textContent = isTruncated ? `${this.candidates.length}+` : this.candidates.length;
             }
 
             // Neutral initial state: no item is auto-selected until user explicitly navigates or clicks

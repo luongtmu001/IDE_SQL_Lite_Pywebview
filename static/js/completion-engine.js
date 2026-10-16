@@ -1016,7 +1016,28 @@
                 return (a.name || '').localeCompare(b.name || '');
             });
 
-            return unique.slice(0, 150);
+            // Issue I8: Ceiling limit for candidate list
+            // If qualifier resolves to a specific object/alias (e.g. column list of a table), raise limit to 1000 (wide tables)
+            // Keep 150 for general unqualified lists or schema object lists
+            const isSingleObjectQualified = Boolean(
+                context.qualifier && (
+                    (context.resolvedObject && ['table', 'view', 'temp_table', 'table_variable', 'cte', 'subquery'].includes(context.resolvedObject.type)) ||
+                    (context.queryTables && context.queryTables.some(t => 
+                        (t.alias && t.alias.toLowerCase() === context.qualifier.toLowerCase()) ||
+                        (t.table && t.table.toLowerCase() === context.qualifier.toLowerCase())
+                    ))
+                )
+            );
+            const maxLimit = isSingleObjectQualified ? 1000 : 150;
+            const sliced = unique.slice(0, maxLimit);
+            const isTruncated = unique.length > maxLimit;
+            sliced.isTruncated = isTruncated;
+            sliced.meta = {
+                truncated: isTruncated,
+                totalCount: unique.length,
+                limit: maxLimit
+            };
+            return sliced;
         }
     }
 
@@ -3099,6 +3120,8 @@
                     result.rawCandidates = cached.rawCandidates || cached;
                     result.replacementRange = context.replacementRange || null;
                     result.prefixRange = context.prefixRange || null;
+                    result.isTruncated = Boolean(cached.isTruncated);
+                    result.meta = cached.meta || null;
                     return result;
                 }
             }
@@ -3121,6 +3144,9 @@
                 ranked.rawCandidates = rawCandidates;
                 ranked.replacementRange = context.replacementRange || null;
                 ranked.prefixRange = context.prefixRange || null;
+                if (ranked.meta) {
+                    ranked.isTruncated = Boolean(ranked.meta.truncated);
+                }
             }
 
             // Step 4: Level 3 Memoization Store
