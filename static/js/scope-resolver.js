@@ -1502,27 +1502,31 @@
             const rootScope = new SymbolTable(null, { start: 0, end: fullLength });
             if (!tokens || tokens.length === 0) return rootScope;
 
+            // Filter out non-code tokens (whitespace, comments) for symbol extraction
+            const codeTokens = tokens.filter(t => t && t.type !== 'WHITESPACE' && t.type !== 'COMMENT_LINE' && t.type !== 'COMMENT_BLOCK');
+            if (codeTokens.length === 0) return rootScope;
+
             // 1. Extract Temp Tables & Variable declarations (#temp, @tbl, @var, routine params) into batch scope
-            this.aliasResolver.extractTempTablesAndVariables(tokens, rootScope);
+            this.aliasResolver.extractTempTablesAndVariables(codeTokens, rootScope);
 
             // 2. Identify statement tokens for statement isolation
-            let stmtTokens = tokens;
+            let stmtTokens = codeTokens;
             let stmtRange = { start: 0, end: fullLength };
 
             if (statementRange && typeof statementRange.start === 'number' && typeof statementRange.end === 'number' && (statementRange.start > 0 || statementRange.end < fullLength)) {
-                stmtTokens = tokens.filter(t => t.end >= statementRange.start && t.start <= statementRange.end);
+                stmtTokens = codeTokens.filter(t => t.end >= statementRange.start && t.start <= statementRange.end);
                 stmtRange = { start: statementRange.start, end: statementRange.end };
             }
 
             // Target scope for current statement (isolated child of batch rootScope)
-            const targetScope = (stmtTokens !== tokens && stmtTokens.length > 0)
+            const targetScope = (stmtTokens !== codeTokens && stmtTokens.length > 0)
                 ? new SymbolTable(rootScope, stmtRange)
                 : rootScope;
 
             // 3. Extract CTE definitions (WITH cte AS (SELECT ...))
             this.aliasResolver.extractCtes(stmtTokens, targetScope);
             if (targetScope !== rootScope) {
-                this.aliasResolver.extractCtes(tokens, rootScope);
+                this.aliasResolver.extractCtes(codeTokens, rootScope);
             }
 
             // 4. Find subquery parenthesis spans within stmtTokens: (SELECT ...
