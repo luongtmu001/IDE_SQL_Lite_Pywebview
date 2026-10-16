@@ -1,0 +1,73 @@
+{
+  "version": 1,
+  "savedAt": 1791972627708,
+  "activeTabId": "tab-1",
+  "sidebarWidth": 260,
+  "sidebarCollapsed": false,
+  "resultsHeight": 280,
+  "defaultContext": {
+    "connectionName": "Local",
+    "connectionId": "conn_23b7233a",
+    "dbType": "sqlserver",
+    "database": "Bravo10Setup",
+    "schema": "dbo"
+  },
+  "tabs": [
+    {
+      "id": "tab-1",
+      "title": "Query 1",
+      "tabType": "query",
+      "docId": "c7c9fd64-22f7-4950-a458-4f77ecf7e420",
+      "filePath": null,
+      "connectionId": "conn_23b7233a",
+      "connectionName": "Local",
+      "database": "Bravo10Setup",
+      "schema": "dbo",
+      "dbType": "sqlserver",
+      "environment": "",
+      "read_only": false,
+      "isDirty": false,
+      "isPinned": false,
+      "content": "-- Write your SQL query here\nSELECT * FROM ",
+      "cursor": {
+        "lineNumber": 1,
+        "column": 1
+      },
+      "scroll": {
+        "scrollTop": 0,
+        "scrollLeft": 0
+      },
+      "viewState": {
+        "cursorState": [
+          {
+            "inSelectionMode": false,
+            "selectionStart": {
+              "lineNumber": 1,
+              "column": 1
+            },
+            "position": {
+              "lineNumber": 1,
+              "column": 1
+            }
+          }
+        ],
+        "viewState": {
+          "scrollLeft": 0,
+          "firstPosition": {
+            "lineNumber": 1,
+            "column": 1
+          },
+          "firstPositionDeltaTop": 0
+        },
+        "contributionsState": {
+          "editor.contrib.folding": {
+            "lineCount": 2,
+            "provider": "indent",
+            "foldedImports": false
+          },
+          "editor.contrib.wordHighlighter": false
+        }
+      }
+    }
+  ]
+}

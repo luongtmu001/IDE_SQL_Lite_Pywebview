@@ -1,0 +1,56 @@
+{
+    "editor": {
+        "fontFamily": "JetBrains Mono",
+        "fontSize": 12,
+        "tabSize": 4,
+        "minimap": false,
+        "insertSpaces": false,
+        "lineHeight": 1.5,
+        "letterSpacing": 0,
+        "syntaxCheck": true
+    },
+    "appearance": {
+        "theme": "light-jetbrains-color-theme",
+        "uiFontFamily": "Inter",
+        "uiFontSize": 14
+    },
+    "addons": {
+        "bravo_tool": {
+            "enabled": true
+        }
+    },
+    "grid": {
+        "fontFamily": "JetBrains Mono",
+        "fontSize": 15
+    },
+    "messages": {
+        "fontFamily": "Source Code Pro",
+        "fontSize": 13
+    },
+    "theme": "light-jetbrains-color-theme",
+    "sql": {
+        "maxRows": 0,
+        "timeoutSeconds": 30,
+        "sqlprotection": 1,
+        "stopOnError": true
+    },
+    "history": {
+        "enabled": true,
+        "maxEntriesPerDoc": 200,
+        "maxAgeDays": 90,
+        "maxDbSizeMb": 500,
+        "maxEntrySizeKb": 1024
+    },
+    "logging": {
+        "enabled": true,
+        "level": "INFO",
+        "maxFiles": 5,
+        "maxFileSizeMb": 2
+    },
+    "session": {
+        "restoreOnStartup": true,
+        "saveSqlContent": true,
+        "maxTabSizeBytes": 1048576,
+        "autoSaveIntervalSeconds": 3
+    }
+}

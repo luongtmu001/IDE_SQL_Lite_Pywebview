@@ -1,0 +1,19 @@
+[
+  { "id": "PGO-PASS-01", "sql": "SELECT 1;", "expect": { "errorCount": 0 } },
+  { "id": "PGO-PASS-02", "sql": "DO $$ BEGIN PERFORM 1; END; $$;", "expect": { "errorCount": 0 } },
+  { "id": "PGO-PASS-03", "sql": "CREATE FUNCTION foo() RETURNS void AS $BODY$ BEGIN PERFORM 1; END; $BODY$ LANGUAGE plpgsql;", "expect": { "errorCount": 0 } },
+  { "id": "PGO-PASS-04", "sql": "DO $$ BEGIN NULL; END; $$; DO $$ BEGIN NULL; END; $$;", "expect": { "errorCount": 0 } },
+  { "id": "PGO-PASS-05", "sql": "DO $$ BEGIN -- comment\n PERFORM 1; END; $$;", "expect": { "errorCount": 0 } },
+  { "id": "PGO-PASS-06", "sql": "DO $$ BEGIN PERFORM 'hello'; END; $$;", "expect": { "errorCount": 0 } },
+  { "id": "PGO-PASS-07", "sql": "SELECT 1; -- normal query", "expect": { "errorCount": 0 } },
+  { "id": "PGO-PASS-08", "sql": "DO $$ BEGIN RAISE NOTICE 'test'; END; $$;", "expect": { "errorCount": 0 } },
+  { "id": "PGO-PASS-09", "sql": "DO $$ BEGIN IF true THEN PERFORM 1; END IF; END; $$;", "expect": { "errorCount": 0 } },
+
+  { "id": "PGO-1a", "sql": "DO $$ BEGIN IF true THEN PERFORM 1; END IF; $$;", "expect": { "errorCount": 1, "token": "BEGIN" }, "status": "expectedFailure", "issue": "S7" },
+  { "id": "PGO-1b", "sql": "DO $$ BEGIN FOR r IN SELECT 1 LOOP PERFORM 1; END LOOP; $$;", "expect": { "errorCount": 1, "token": "BEGIN" }, "status": "expectedFailure", "issue": "S7" },
+  { "id": "PGO-1c", "sql": "DO $$ BEGIN CASE WHEN true THEN PERFORM 1; END CASE; $$;", "expect": { "errorCount": 1, "token": "BEGIN" }, "status": "expectedFailure", "issue": "S7" },
+  { "id": "PGO-2a", "sql": "SELECT '$$ không phải quote' AS x;", "expect": { "errorCount": 0 }, "status": "expectedFailure", "issue": "S7" },
+  { "id": "PGO-2b", "sql": "SELECT 1; -- giá $$ 5", "expect": { "errorCount": 0 }, "status": "expectedFailure", "issue": "S7" },
+  { "id": "PGO-3", "sql": "CREATE FUNCTION outer_fn() RETURNS void AS $outer$ BEGIN EXECUTE $inner$ SELECT 1; $inner$; END; $outer$ LANGUAGE plpgsql;", "expect": { "errorCount": 0 }, "status": "expectedFailure", "issue": "S7" },
+  { "id": "PGO-4", "sql": "SELECT $a$ text $b$;", "expect": { "errorCount": 1 }, "status": "expectedFailure", "issue": "S7" }
+]

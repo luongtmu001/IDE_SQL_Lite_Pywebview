@@ -130,14 +130,30 @@ def check_for_updates(
                 else:
                     result["error"] = f"HTTP error {resp.status}"
 
+        except urllib.error.HTTPError as http_err:
+            if http_err.code == 404:
+                # 404 indicates remote version file/release is not yet published on server.
+                # Current local build is up-to-date.
+                result["success"] = True
+                result["hasUpdate"] = False
+                result["isUpToDate"] = True
+                result["latestVersion"] = current_ver
+                result["message"] = f"Bạn đang sử dụng phiên bản mới nhất (v{current_ver}). Máy chủ phát hành chưa có bản cập nhật mới."
+                logger.info(
+                    "[UpdateChecker] Remote version.json returned 404. Current version %s is latest.",
+                    current_ver,
+                )
+            else:
+                result["error"] = f"HTTP {http_err.code}: {http_err.reason}"
+                logger.debug("[UpdateChecker] HTTP error %s checking updates: %s", http_err.code, http_err)
         except urllib.error.URLError as url_err:
-            result["error"] = f"Network error: {url_err.reason}"
+            result["error"] = f"Lỗi kết nối mạng: Không thể kết nối tới máy chủ cập nhật ({url_err.reason})"
             logger.debug("[UpdateChecker] Network check failed: %s", url_err)
         except TimeoutError:
-            result["error"] = f"Connection timed out after {timeout}s"
+            result["error"] = f"Hết thời gian chờ kết nối (Timeout sau {timeout}s)"
             logger.debug("[UpdateChecker] Check timed out")
         except json.JSONDecodeError as json_err:
-            result["error"] = f"Invalid JSON response: {json_err}"
+            result["error"] = f"Phản hồi không hợp lệ từ máy chủ: {json_err}"
             logger.debug("[UpdateChecker] JSON parse error: %s", json_err)
         except Exception as exc:
             result["error"] = str(exc)

@@ -58,6 +58,8 @@ def generate_api_surface_content():
         ProfilerSubwindowApi,
         QueryHistorySubwindowApi,
         SettingsSubwindowApi,
+        AboutSubwindowApi,
+        UpdateSubwindowApi,
     )
 
     lines = []
@@ -72,6 +74,8 @@ def generate_api_surface_content():
         ("MainApi", MainApi),
         ("QueryHistorySubwindowApi", QueryHistorySubwindowApi),
         ("SettingsSubwindowApi", SettingsSubwindowApi),
+        ("AboutSubwindowApi", AboutSubwindowApi),
+        ("UpdateSubwindowApi", UpdateSubwindowApi),
         ("ProfilerSubwindowApi", ProfilerSubwindowApi),
         ("EventListenerSubwindowApi", EventListenerSubwindowApi),
     ]

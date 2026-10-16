@@ -1,0 +1,23 @@
+[
+  { "id": "INV-001", "dialect": "sqlserver", "sql": "SELECT non_existing_col FROM dbo.Orders;", "expect": { "token": "non_existing_col", "hasError": true } },
+  { "id": "INV-002", "dialect": "sqlserver", "sql": "SELECT o.fake_column FROM dbo.Orders o;", "expect": { "token": "fake_column", "hasError": true } },
+  { "id": "INV-003", "dialect": "sqlserver", "sql": "DECLARE @tbl TABLE (id INT); SELECT bad_col FROM @tbl;", "expect": { "token": "bad_col", "hasError": true } },
+  { "id": "INV-004", "dialect": "sqlserver", "sql": "CREATE TABLE #tmp (id INT); SELECT bad_temp_col FROM #tmp;", "expect": { "token": "bad_temp_col", "hasError": true } },
+  { "id": "INV-005", "dialect": "sqlserver", "sql": "WITH MyCTE AS (SELECT OrderID FROM dbo.Orders) SELECT wrong_cte_col FROM MyCTE;", "expect": { "token": "wrong_cte_col", "hasError": true } },
+  { "id": "INV-006", "dialect": "sqlserver", "sql": "SELECT OrderID FROM dbo.Orders WHERE invalid_where_col = 1;", "expect": { "token": "invalid_where_col", "hasError": true } },
+  { "id": "INV-007", "dialect": "sqlserver", "sql": "SELECT o.OrderID FROM dbo.Orders o JOIN dbo.Customers c ON o.invalid_join_col = c.CustomerID;", "expect": { "token": "invalid_join_col", "hasError": true } },
+  { "id": "INV-008", "dialect": "sqlserver", "sql": "SELECT o.OrderID FROM dbo.Orders o JOIN dbo.Customers c ON o.CustomerID = c.invalid_cust_col;", "expect": { "token": "invalid_cust_col", "hasError": true } },
+  { "id": "INV-009", "dialect": "sqlserver", "sql": "SELECT OrderID, missing_col FROM (SELECT OrderID, Total FROM dbo.Orders) sub;", "expect": { "token": "missing_col", "hasError": true }, "status": "expectedFailure", "issue": "S5" },
+  { "id": "INV-010", "dialect": "postgresql", "sql": "SELECT bad_pg_col FROM public.orders;", "expect": { "token": "bad_pg_col", "hasError": true } },
+  { "id": "INV-011", "dialect": "postgresql", "sql": "SELECT o.fake_pg_col FROM public.orders o;", "expect": { "token": "fake_pg_col", "hasError": true } },
+  { "id": "INV-012", "dialect": "postgresql", "sql": "CREATE TEMP TABLE t_temp (id INT); SELECT bogus_col FROM t_temp;", "expect": { "token": "bogus_col", "hasError": true } },
+  { "id": "INV-013", "dialect": "postgresql", "sql": "WITH cte AS (SELECT id FROM public.orders) SELECT invalid_col FROM cte;", "expect": { "token": "invalid_col", "hasError": true } },
+
+  { "id": "SEM-FN-1", "dialect": "sqlserver", "sql": "SELECT x.Foo FROM (SELECT OrderID FROM dbo.Orders) x;", "expect": { "token": "Foo", "hasError": true }, "status": "expectedFailure", "issue": "S5" },
+  { "id": "SEM-FN-2", "dialect": "sqlserver", "sql": "SELECT OrderID FROM dbo.Orders ORDER BY Zzz;", "expect": { "token": "Zzz", "hasError": true }, "status": "expectedFailure", "issue": "S5" },
+  { "id": "SEM-FN-3", "dialect": "sqlserver", "sql": "SELECT zz.OrderID FROM dbo.Orders o;", "expect": { "token": "zz", "hasError": true }, "status": "expectedFailure", "issue": "S5" },
+  { "id": "SEM-FN-4", "dialect": "sqlserver", "sql": "UPDATE dbo.Orders SET Foo = 1 WHERE OrderID = 1;", "expect": { "token": "Foo", "hasError": true }, "status": "expectedFailure", "issue": "S5" },
+  { "id": "SEM-FN-5", "dialect": "sqlserver", "sql": "INSERT INTO dbo.Orders (Foo) VALUES (1);", "expect": { "token": "Foo", "hasError": true }, "status": "expectedFailure", "issue": "S5" },
+  { "id": "SEM-FN-6", "dialect": "sqlserver", "sql": "SELECT OrderID FROM dbo.Orders GROUP BY Qqq;", "expect": { "token": "Qqq", "hasError": true }, "status": "expectedFailure", "issue": "S5" },
+  { "id": "SEM-FN-7", "dialect": "sqlserver", "sql": "SELECT RegionName FROM hr.Region;", "expect": { "token": "RegionName", "hasError": true }, "status": "expectedFailure", "issue": "S6" }
+]

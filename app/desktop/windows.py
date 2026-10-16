@@ -229,6 +229,70 @@ class SettingsSubwindowApi:
     def open_external_url(self, url):
         return self._main_api.open_external_url(url)
 
+    def open_about_window(self):
+        return self._main_api.open_about_window()
+
+    def open_update_window(self):
+        return self._main_api.open_update_window()
+
+
+class AboutSubwindowApi:
+    def __init__(self, main_api):
+        self._main_api = main_api
+        self._window = None
+
+    def set_window(self, win):
+        self._window = win
+
+    def close_window(self):
+        if self._window:
+            try:
+                self._window.destroy()
+            except Exception:
+                pass
+        return {"success": True}
+
+    def apply_titlebar_theme(self, bg_hex=None, text_hex=None, border_hex=None, is_dark=None):
+        return self._main_api.apply_titlebar_theme(bg_hex, text_hex, border_hex, is_dark)
+
+    def get_app_version(self):
+        return self._main_api.get_app_version()
+
+    def open_external_url(self, url):
+        return self._main_api.open_external_url(url)
+
+    def open_update_window(self):
+        return self._main_api.open_update_window()
+
+
+class UpdateSubwindowApi:
+    def __init__(self, main_api):
+        self._main_api = main_api
+        self._window = None
+
+    def set_window(self, win):
+        self._window = win
+
+    def close_window(self):
+        if self._window:
+            try:
+                self._window.destroy()
+            except Exception:
+                pass
+        return {"success": True}
+
+    def apply_titlebar_theme(self, bg_hex=None, text_hex=None, border_hex=None, is_dark=None):
+        return self._main_api.apply_titlebar_theme(bg_hex, text_hex, border_hex, is_dark)
+
+    def get_app_version(self):
+        return self._main_api.get_app_version()
+
+    def check_for_updates(self, force=True, custom_url=None):
+        return self._main_api.check_for_updates(force=force, custom_url=custom_url)
+
+    def open_external_url(self, url):
+        return self._main_api.open_external_url(url)
+
 
 class ProfilerSubwindowApi:
     def __init__(self, main_api):
@@ -760,6 +824,140 @@ def open_settings_window(api: Any, base_dir: Optional[Path] = None) -> Dict[str,
         settings_win.events.closed += on_closed
         return {"success": True}
     except Exception as exc:
+        return {"success": False, "error": str(exc)}
+
+
+def open_about_window(api: Any, base_dir: Optional[Path] = None) -> Dict[str, Any]:
+    """Open or focus the About subwindow."""
+    if base_dir is None:
+        base_dir = get_bundle_dir()
+
+    try:
+        candidate_paths = [
+            base_dir / "templates" / "about_window.html",
+            base_dir / "_internal" / "templates" / "about_window.html",
+            Path(__file__).resolve().parent.parent.parent / "templates" / "about_window.html",
+        ]
+        chosen_path = None
+        for cand in candidate_paths:
+            if cand.exists():
+                chosen_path = cand
+                break
+        if not chosen_path:
+            chosen_path = candidate_paths[0]
+
+        about_html = chosen_path.resolve().as_uri()
+        settings = _load_settings_file()
+        cur_theme = settings.get("theme") or settings.get("appearance", {}).get("theme", "dark")
+
+        if hasattr(api, "_about_window") and api._about_window:
+            try:
+                api._about_window.show()
+                api._about_window.focus()
+                return {"success": True}
+            except Exception:
+                api._about_window = None
+
+        win_title = "Thông tin phần mềm — luoBTool IDE"
+        about_api = AboutSubwindowApi(api)
+        about_win = webview.create_window(
+            title=win_title,
+            url=about_html,
+            js_api=about_api,
+            width=580,
+            height=460,
+            min_size=(480, 380),
+            text_select=True,
+            resizable=True,
+        )
+        about_api.set_window(about_win)
+        api._about_window = about_win
+
+        if getattr(api, "_current_titlebar_theme", None):
+            t = api._current_titlebar_theme
+            apply_dwm_titlebar_theme(about_win, bg=t.get("bg"), text=t.get("text"), border=t.get("border"), is_dark=t.get("is_dark"), title=win_title)
+        else:
+            apply_dwm_titlebar_theme(about_win, bg=cur_theme, title=win_title)
+
+        def on_closed():
+            api._about_window = None
+            try:
+                if about_win in webview.windows:
+                    webview.windows.remove(about_win)
+            except Exception:
+                pass
+
+        about_win.events.closed += on_closed
+        return {"success": True}
+    except Exception as exc:
+        logger.exception("Error opening about window: %s", exc)
+        return {"success": False, "error": str(exc)}
+
+
+def open_update_window(api: Any, base_dir: Optional[Path] = None) -> Dict[str, Any]:
+    """Open or focus the Check for Updates subwindow."""
+    if base_dir is None:
+        base_dir = get_bundle_dir()
+
+    try:
+        candidate_paths = [
+            base_dir / "templates" / "update_window.html",
+            base_dir / "_internal" / "templates" / "update_window.html",
+            Path(__file__).resolve().parent.parent.parent / "templates" / "update_window.html",
+        ]
+        chosen_path = None
+        for cand in candidate_paths:
+            if cand.exists():
+                chosen_path = cand
+                break
+        if not chosen_path:
+            chosen_path = candidate_paths[0]
+
+        update_html = chosen_path.resolve().as_uri()
+        settings = _load_settings_file()
+        cur_theme = settings.get("theme") or settings.get("appearance", {}).get("theme", "dark")
+
+        if hasattr(api, "_update_window") and api._update_window:
+            try:
+                api._update_window.show()
+                api._update_window.focus()
+                return {"success": True}
+            except Exception:
+                api._update_window = None
+
+        win_title = "Kiểm tra Cập nhật — luoBTool IDE"
+        update_api = UpdateSubwindowApi(api)
+        update_win = webview.create_window(
+            title=win_title,
+            url=update_html,
+            js_api=update_api,
+            width=620,
+            height=500,
+            min_size=(500, 420),
+            text_select=True,
+            resizable=True,
+        )
+        update_api.set_window(update_win)
+        api._update_window = update_win
+
+        if getattr(api, "_current_titlebar_theme", None):
+            t = api._current_titlebar_theme
+            apply_dwm_titlebar_theme(update_win, bg=t.get("bg"), text=t.get("text"), border=t.get("border"), is_dark=t.get("is_dark"), title=win_title)
+        else:
+            apply_dwm_titlebar_theme(update_win, bg=cur_theme, title=win_title)
+
+        def on_closed():
+            api._update_window = None
+            try:
+                if update_win in webview.windows:
+                    webview.windows.remove(update_win)
+            except Exception:
+                pass
+
+        update_win.events.closed += on_closed
+        return {"success": True}
+    except Exception as exc:
+        logger.exception("Error opening update window: %s", exc)
         return {"success": False, "error": str(exc)}
 
 

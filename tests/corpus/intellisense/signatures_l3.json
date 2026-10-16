@@ -1,0 +1,9 @@
+[
+  { "id": "L3-SIG-001", "dialect": "mssql", "sql": "SELECT DATEADD(‸", "expect": { "function": "DATEADD", "activeParameter": 0 } },
+  { "id": "L3-SIG-002", "dialect": "mssql", "sql": "SELECT DATEADD(year, ‸", "expect": { "function": "DATEADD", "activeParameter": 1 } },
+  { "id": "L3-SIG-003", "dialect": "mssql", "sql": "SELECT DATEADD(year, 1, ‸", "expect": { "function": "DATEADD", "activeParameter": 2 } },
+  { "id": "L3-SIG-004", "dialect": "mssql", "sql": "SELECT DATEDIFF(day, OrderDate, ‸) FROM dbo.Orders", "expect": { "function": "DATEDIFF", "activeParameter": 2 } },
+  { "id": "L3-SIG-005", "dialect": "mssql", "sql": "SELECT SUBSTRING(CustomerName, ‸) FROM dbo.Customers", "expect": { "function": "SUBSTRING", "activeParameter": 1 } },
+  { "id": "L3-SIG-006", "dialect": "mssql", "sql": "SELECT CONCAT(FirstName, ' ', ‸) FROM hr.Employees", "expect": { "function": "CONCAT" } },
+  { "id": "L3-SIG-007", "dialect": "mssql", "sql": "SELECT COALESCE(ContactEmail, ‸) FROM dbo.Customers", "expect": { "function": "COALESCE" } }
+]

@@ -44,6 +44,8 @@ from app.desktop.clipboard import (
 from app.desktop.windows import (
     QueryHistorySubwindowApi,
     SettingsSubwindowApi,
+    AboutSubwindowApi,
+    UpdateSubwindowApi,
     ProfilerSubwindowApi,
     EventListenerSubwindowApi,
     open_bravo_window as _desktop_open_bravo_window,

@@ -1,0 +1,25 @@
+2026-10-14 14:10:17 [INFO] [luobtool] [MainThread] Logging initialized. Directory: D:\Luong\NB_Personal\Python\IDE-SQL-Lite_New_Pyweb_Claude\data\logs, Level: INFO
+2026-10-14 14:10:22 [INFO] [luobtool] [Thread-25 (_call)] Log level updated to INFO
+2026-10-14 14:10:23 [INFO] [app.database.syntax.adapters.sqlserver_scriptdom] [Thread-29 (_call)] [ScriptDOM] Successfully loaded assembly from D:\Luong\NB_Personal\Python\IDE-SQL-Lite_New_Pyweb_Claude\app\database\syntax\bin\Microsoft.SqlServer.TransactSql.ScriptDom.dll
+2026-10-14 14:10:23 [INFO] [app.database.syntax.adapters.sqlserver_scriptdom] [Thread-28 (_call)] [ScriptDOM] Successfully loaded assembly from D:\Luong\NB_Personal\Python\IDE-SQL-Lite_New_Pyweb_Claude\app\database\syntax\bin\Microsoft.SqlServer.TransactSql.ScriptDom.dll
+2026-10-14 14:11:03 [INFO] [HistoryService] [Thread-43] [HistoryService] Background retention completed: {'purged_entries': 0}
+2026-10-14 14:44:42 [INFO] [luobtool] [MainThread] Logging initialized. Directory: D:\Luong\NB_Personal\Python\IDE-SQL-Lite_New_Pyweb_Claude\data\logs, Level: INFO
+2026-10-14 14:44:48 [INFO] [luobtool] [Thread-28 (_call)] Log level updated to INFO
+2026-10-14 14:44:49 [INFO] [app.database.syntax.adapters.sqlserver_scriptdom] [Thread-32 (_call)] [ScriptDOM] Successfully loaded assembly from D:\Luong\NB_Personal\Python\IDE-SQL-Lite_New_Pyweb_Claude\app\database\syntax\bin\Microsoft.SqlServer.TransactSql.ScriptDom.dll
+2026-10-14 14:44:49 [INFO] [app.database.syntax.adapters.sqlserver_scriptdom] [Thread-31 (_call)] [ScriptDOM] Successfully loaded assembly from D:\Luong\NB_Personal\Python\IDE-SQL-Lite_New_Pyweb_Claude\app\database\syntax\bin\Microsoft.SqlServer.TransactSql.ScriptDom.dll
+2026-10-14 14:46:07 [INFO] [HistoryService] [Thread-158] [HistoryService] Background retention completed: {'purged_entries': 0}
+2026-10-14 15:37:06 [INFO] [luobtool] [MainThread] Logging initialized. Directory: D:\Luong\NB_Personal\Python\IDE-SQL-Lite_New_Pyweb_Claude\data\logs, Level: INFO
+2026-10-14 15:37:12 [INFO] [luobtool] [Thread-28 (_call)] Log level updated to INFO
+2026-10-14 15:37:12 [INFO] [app.database.syntax.adapters.sqlserver_scriptdom] [Thread-32 (_call)] [ScriptDOM] Successfully loaded assembly from D:\Luong\NB_Personal\Python\IDE-SQL-Lite_New_Pyweb_Claude\app\database\syntax\bin\Microsoft.SqlServer.TransactSql.ScriptDom.dll
+2026-10-14 15:37:12 [INFO] [app.database.syntax.adapters.sqlserver_scriptdom] [Thread-31 (_call)] [ScriptDOM] Successfully loaded assembly from D:\Luong\NB_Personal\Python\IDE-SQL-Lite_New_Pyweb_Claude\app\database\syntax\bin\Microsoft.SqlServer.TransactSql.ScriptDom.dll
+2026-10-14 15:38:22 [INFO] [HistoryService] [Thread-80] [HistoryService] Background retention completed: {'purged_entries': 0}
+2026-10-14 16:23:35 [INFO] [luobtool] [MainThread] Logging initialized. Directory: D:\Luong\NB_Personal\Python\IDE-SQL-Lite_New_Pyweb_Claude\data\logs, Level: INFO
+2026-10-14 16:23:40 [INFO] [luobtool] [Thread-25 (_call)] Log level updated to INFO
+2026-10-14 16:23:40 [INFO] [app.database.syntax.adapters.sqlserver_scriptdom] [Thread-31 (_call)] [ScriptDOM] Successfully loaded assembly from D:\Luong\NB_Personal\Python\IDE-SQL-Lite_New_Pyweb_Claude\app\database\syntax\bin\Microsoft.SqlServer.TransactSql.ScriptDom.dll
+2026-10-14 16:23:40 [INFO] [app.database.syntax.adapters.sqlserver_scriptdom] [Thread-32 (_call)] [ScriptDOM] Successfully loaded assembly from D:\Luong\NB_Personal\Python\IDE-SQL-Lite_New_Pyweb_Claude\app\database\syntax\bin\Microsoft.SqlServer.TransactSql.ScriptDom.dll
+2026-10-14 16:24:30 [INFO] [HistoryService] [Thread-89] [HistoryService] Background retention completed: {'purged_entries': 0}
+2026-10-14 17:10:18 [INFO] [luobtool] [MainThread] Logging initialized. Directory: D:\Luong\NB_Personal\Python\IDE-SQL-Lite_New_Pyweb_Claude\data\logs, Level: INFO
+2026-10-14 17:10:24 [INFO] [luobtool] [Thread-28 (_call)] Log level updated to INFO
+2026-10-14 17:10:24 [INFO] [app.database.syntax.adapters.sqlserver_scriptdom] [Thread-32 (_call)] [ScriptDOM] Successfully loaded assembly from D:\Luong\NB_Personal\Python\IDE-SQL-Lite_New_Pyweb_Claude\app\database\syntax\bin\Microsoft.SqlServer.TransactSql.ScriptDom.dll
+2026-10-14 17:10:24 [INFO] [app.database.syntax.adapters.sqlserver_scriptdom] [Thread-31 (_call)] [ScriptDOM] Successfully loaded assembly from D:\Luong\NB_Personal\Python\IDE-SQL-Lite_New_Pyweb_Claude\app\database\syntax\bin\Microsoft.SqlServer.TransactSql.ScriptDom.dll
+2026-10-14 17:11:05 [INFO] [HistoryService] [Thread-62] [HistoryService] Background retention completed: {'purged_entries': 0}

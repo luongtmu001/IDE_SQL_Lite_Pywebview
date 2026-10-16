@@ -1,0 +1,251 @@
+{
+    "schemaVersion": 1,
+    "activeStyleId": "test-ipc-custom-style",
+    "styles": [
+        {
+            "id": "default",
+            "name": "Default (Standard)",
+            "isSystem": true,
+            "database": "all",
+            "description": "Cấu hình chuẩn hóa cú pháp SQL mặc định của IDE.",
+            "settings": {
+                "casing": {
+                    "keywords": "upper",
+                    "functions": "upper",
+                    "datatypes": "upper"
+                },
+                "whitespace": {
+                    "indentSize": 4,
+                    "useTabs": false,
+                    "maxEmptyLines": 1,
+                    "trimTrailingWhitespace": true
+                },
+                "lists": {
+                    "commaPosition": "after",
+                    "itemsOnNewLine": true
+                },
+                "parentheses": {
+                    "spacesInside": false,
+                    "multiLineBlockNewLine": true
+                },
+                "statements": {
+                    "majorClausesNewLine": true,
+                    "indentClauseBody": true
+                },
+                "clauses": {
+                    "joinOnNewLine": true,
+                    "indentJoinOn": true
+                },
+                "operators": {
+                    "andOrPlaceOnNewLine": "always",
+                    "andOrAlignment": "rightToStatement",
+                    "andOrKeywordBeforeCondition": true,
+                    "betweenPlaceOnNewLine": false,
+                    "spacesAroundOperators": true,
+                    "alignComparisonOperators": false
+                },
+                "caseExpression": {
+                    "whenOnNewLine": true,
+                    "thenOnSameLine": true,
+                    "indentWhen": true
+                }
+            }
+        },
+        {
+            "id": "sqlserver-standard",
+            "name": "SQL Server Standard",
+            "isSystem": true,
+            "database": "sqlserver",
+            "description": "Cấu hình chuẩn T-SQL cho Microsoft SQL Server (GO, TOP, bracket identifiers).",
+            "settings": {
+                "casing": {
+                    "keywords": "upper",
+                    "functions": "upper",
+                    "datatypes": "upper"
+                },
+                "whitespace": {
+                    "indentSize": 4,
+                    "useTabs": false,
+                    "maxEmptyLines": 1,
+                    "trimTrailingWhitespace": true
+                },
+                "lists": {
+                    "commaPosition": "after",
+                    "itemsOnNewLine": true
+                },
+                "parentheses": {
+                    "spacesInside": false,
+                    "multiLineBlockNewLine": true
+                },
+                "statements": {
+                    "majorClausesNewLine": true,
+                    "indentClauseBody": true
+                },
+                "clauses": {
+                    "joinOnNewLine": true,
+                    "indentJoinOn": true
+                },
+                "operators": {
+                    "andOrPlaceOnNewLine": "always",
+                    "andOrAlignment": "rightToStatement",
+                    "andOrKeywordBeforeCondition": true,
+                    "betweenPlaceOnNewLine": false,
+                    "spacesAroundOperators": true,
+                    "alignComparisonOperators": false
+                },
+                "caseExpression": {
+                    "whenOnNewLine": true,
+                    "thenOnSameLine": true,
+                    "indentWhen": true
+                }
+            }
+        },
+        {
+            "id": "postgres-standard",
+            "name": "PostgreSQL Standard",
+            "isSystem": true,
+            "database": "postgresql",
+            "description": "Cấu hình chuẩn PL/pgSQL cho PostgreSQL (LIMIT, OFFSET, quoted identifiers).",
+            "settings": {
+                "casing": {
+                    "keywords": "upper",
+                    "functions": "upper",
+                    "datatypes": "upper"
+                },
+                "whitespace": {
+                    "indentSize": 4,
+                    "useTabs": false,
+                    "maxEmptyLines": 1,
+                    "trimTrailingWhitespace": true
+                },
+                "lists": {
+                    "commaPosition": "after",
+                    "itemsOnNewLine": true
+                },
+                "parentheses": {
+                    "spacesInside": false,
+                    "multiLineBlockNewLine": true
+                },
+                "statements": {
+                    "majorClausesNewLine": true,
+                    "indentClauseBody": true
+                },
+                "clauses": {
+                    "joinOnNewLine": true,
+                    "indentJoinOn": true
+                },
+                "operators": {
+                    "andOrPlaceOnNewLine": "always",
+                    "andOrAlignment": "rightToStatement",
+                    "andOrKeywordBeforeCondition": true,
+                    "betweenPlaceOnNewLine": false,
+                    "spacesAroundOperators": true,
+                    "alignComparisonOperators": false
+                },
+                "caseExpression": {
+                    "whenOnNewLine": true,
+                    "thenOnSameLine": true,
+                    "indentWhen": true
+                }
+            }
+        },
+        {
+            "id": "compact",
+            "name": "Compact SQL",
+            "isSystem": true,
+            "database": "all",
+            "description": "Định dạng thu gọn dòng, giữ câu truy vấn gọn gàng trên ít dòng.",
+            "settings": {
+                "casing": {
+                    "keywords": "upper",
+                    "functions": "upper",
+                    "datatypes": "upper"
+                },
+                "whitespace": {
+                    "indentSize": 2,
+                    "useTabs": false,
+                    "maxEmptyLines": 1,
+                    "trimTrailingWhitespace": true
+                },
+                "lists": {
+                    "commaPosition": "after",
+                    "itemsOnNewLine": false
+                },
+                "parentheses": {
+                    "spacesInside": false,
+                    "multiLineBlockNewLine": false
+                },
+                "statements": {
+                    "majorClausesNewLine": true,
+                    "indentClauseBody": false
+                },
+                "clauses": {
+                    "joinOnNewLine": true,
+                    "indentJoinOn": false
+                },
+                "operators": {
+                    "andOrPlaceOnNewLine": "never",
+                    "andOrAlignment": "left",
+                    "andOrKeywordBeforeCondition": true,
+                    "betweenPlaceOnNewLine": false,
+                    "spacesAroundOperators": true,
+                    "alignComparisonOperators": false
+                },
+                "caseExpression": {
+                    "whenOnNewLine": false,
+                    "thenOnSameLine": true,
+                    "indentWhen": false
+                }
+            }
+        },
+        {
+            "id": "test-ipc-custom-style",
+            "name": "IPC Test Custom Style",
+            "isSystem": false,
+            "database": "all",
+            "description": "Created during IPC test",
+            "settings": {
+                "casing": {
+                    "keywords": "upper",
+                    "functions": "upper",
+                    "datatypes": "upper"
+                },
+                "whitespace": {
+                    "indentSize": 2,
+                    "useTabs": false,
+                    "maxEmptyLines": 1,
+                    "trimTrailingWhitespace": true
+                },
+                "lists": {
+                    "commaPosition": "after",
+                    "itemsOnNewLine": true
+                },
+                "parentheses": {
+                    "spacesInside": false,
+                    "multiLineBlockNewLine": true
+                },
+                "statements": {
+                    "majorClausesNewLine": true,
+                    "indentClauseBody": true
+                },
+                "clauses": {
+                    "joinOnNewLine": true,
+                    "indentJoinOn": true
+                },
+                "operators": {
+                    "andOrPlaceOnNewLine": "always",
+                    "andOrAlignment": "rightToStatement",
+                    "andOrKeywordBeforeCondition": true,
+                    "betweenPlaceOnNewLine": false,
+                    "spacesAroundOperators": true,
+                    "alignComparisonOperators": false
+                },
+                "caseExpression": {
+                    "whenOnNewLine": true,
+                    "thenOnSameLine": true,
+                    "indentWhen": true
+                }
+            }
+        }
+    ]
+}

@@ -1,0 +1,11 @@
+[
+  { "id": "POS-PASS-01", "text": "SELECT abc FROM t", "line": 1, "column": 8, "token": "abc", "expect": { "startColumn": 8, "endColumn": 11 } },
+  { "id": "POS-PASS-02", "text": "SELECT 1\nSELECT my_col FROM t", "line": 2, "column": 8, "token": "my_col", "expect": { "startColumn": 8, "endColumn": 14 } },
+  { "id": "POS-PASS-03", "text": "SELECT 1\r\nSELECT my_col FROM t", "line": 2, "column": 8, "token": "my_col", "expect": { "startColumn": 8, "endColumn": 14 } },
+  { "id": "POS-PASS-04", "text": "    SELECT my_col FROM t", "line": 1, "column": 12, "token": "my_col", "expect": { "startColumn": 12, "endColumn": 18 } },
+  { "id": "POS-PASS-05", "text": "SELECT col_a, col_b FROM t", "line": 1, "column": 15, "token": "", "expect": { "startColumn": 15, "endColumn": 20 } },
+  { "id": "POS-PASS-06", "text": "SELECT [Order ID] FROM t", "line": 1, "column": 8, "token": "Order ID", "expect": { "startColumn": 9, "endColumn": 17 } },
+
+  { "id": "POS-1", "text": "SELECT Khách_hàng FROM t", "line": 1, "column": 8, "token": "", "expect": { "startColumn": 8, "endColumn": 18 }, "status": "expectedFailure", "issue": "S8" },
+  { "id": "POS-2", "text": "SELECT 😀 AS x, y FROM t", "line": 1, "column": 16, "token": "y", "expect": { "startColumn": 16, "endColumn": 17 }, "status": "expectedFailure", "issue": "S8" }
+]

@@ -22,6 +22,8 @@ from app.desktop.themes import _process_import_vsix_theme
 from app.desktop.clipboard import _native_set_clipboard, _native_get_clipboard
 from app.desktop.windows import (
     open_settings_window as _desktop_open_settings_window,
+    open_about_window as _desktop_open_about_window,
+    open_update_window as _desktop_open_update_window,
     open_profiler_window as _desktop_open_profiler_window,
     open_event_listener_window as _desktop_open_event_listener_window,
     apply_titlebar_theme_to_windows as _desktop_apply_titlebar_theme,
@@ -136,6 +138,14 @@ class SettingsApiMixin:
 
     def open_settings_window(self):
         return _desktop_open_settings_window(self)
+
+
+    def open_about_window(self):
+        return _desktop_open_about_window(self)
+
+
+    def open_update_window(self):
+        return _desktop_open_update_window(self)
 
 
     def get_settings(self):
