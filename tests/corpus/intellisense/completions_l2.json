@@ -30,5 +30,6 @@
   { "id": "ON-1", "dialect": "mssql", "sql": "SELECT * FROM dbo.Orders o JOIN dbo.OrderItems i ON i.OrderID = ‸", "expect": { "not": ["o.OrderID = i.OrderID"] } },
   { "id": "EXEC-1", "dialect": "mssql", "sql": "EXEC dbo.‸", "expect": { "contains": ["usp_GetOrders"], "not": ["Orders", "Customers"] } },
   { "id": "WIDE-1", "dialect": "mssql", "sql": "SELECT t.‸ FROM dbo.Tbl1 t", "expect": { "contains": ["Col_550"] } },
-  { "id": "ALIAS-1", "dialect": "mssql", "sql": "SELECT b.‸ FROM dbo.Orders a JOIN dbo.Customers b ON a.CustomerID = b.CustomerID", "expect": { "contains": ["CustomerName"], "not": ["Total"] } }
+  { "id": "ALIAS-1", "dialect": "mssql", "sql": "SELECT b.‸ FROM dbo.Orders a JOIN dbo.Customers b ON a.CustomerID = b.CustomerID", "expect": { "contains": ["CustomerName"], "not": ["Total"] } },
+  { "id": "PG-EXCLUDED", "dialect": "postgresql", "sql": "INSERT INTO public.orders (customer_id, total) VALUES (1, 100) ON CONFLICT (customer_id) DO UPDATE SET total = EXCLUDED.‸", "expect": { "contains": ["id", "customer_id", "order_date", "total"] } }
 ]

@@ -170,7 +170,7 @@
                 "WHERE", "ON", "JOIN", "INNER", "LEFT", "RIGHT", "FULL", "CROSS", "OUTER",
                 "GROUP", "ORDER", "HAVING", "LIMIT", "UNION", "APPLY", "LATERAL", "NATURAL", "WITH",
                 "SELECT", "FROM", "INTO", "SET", "VALUES", "IN", "AND", "OR",
-                "MERGE", "USING", "WHEN", "MATCHED", "THEN"
+                "MERGE", "USING", "WHEN", "MATCHED", "THEN", "CONFLICT", "DO"
             ]);
         }
 
@@ -1191,7 +1191,7 @@
 
             for (let i = 0; i < codeTokens.length; i++) {
                 const upper = (codeTokens[i].upper || codeTokens[i].value).toUpperCase();
-                if (upper === 'FROM' || upper === 'JOIN' || upper === 'APPLY' || upper === 'LATERAL' || upper === 'USING' || upper === 'MERGE') {
+                if (upper === 'FROM' || upper === 'JOIN' || upper === 'APPLY' || upper === 'LATERAL' || upper === 'USING' || upper === 'MERGE' || upper === 'INSERT' || upper === 'UPDATE') {
                     if (i + 1 >= codeTokens.length) continue;
 
                     let j = i + 1;
@@ -1216,6 +1216,25 @@
                         }
                         if (j < codeTokens.length && (codeTokens[j].upper || codeTokens[j].value).toUpperCase() === 'INTO') {
                             j++;
+                        }
+                    } else if (upper === 'INSERT') {
+                        if (j < codeTokens.length && (codeTokens[j].upper || codeTokens[j].value).toUpperCase() === 'INTO') {
+                            j++;
+                        }
+                    } else if (upper === 'UPDATE') {
+                        if (j < codeTokens.length && (codeTokens[j].upper || codeTokens[j].value).toUpperCase() === 'TOP') {
+                            j++;
+                            if (j < codeTokens.length && codeTokens[j].value === '(') {
+                                let depth = 1;
+                                j++;
+                                while (j < codeTokens.length && depth > 0) {
+                                    if (codeTokens[j].value === '(') depth++;
+                                    else if (codeTokens[j].value === ')') depth--;
+                                    j++;
+                                }
+                            } else if (j < codeTokens.length && codeTokens[j].type === 'NUMBER') {
+                                j++;
+                            }
                         }
                     }
                     if (j < codeTokens.length && (codeTokens[j].upper || codeTokens[j].value).toUpperCase() === 'ONLY') {
@@ -1283,7 +1302,7 @@
 
                     // Check if followed by function call arguments: func(...)
                     let isFunctionCall = false;
-                    if (j < codeTokens.length && codeTokens[j].value === '(') {
+                    if (upper !== 'INSERT' && upper !== 'MERGE' && j < codeTokens.length && codeTokens[j].value === '(') {
                         isFunctionCall = true;
                         let depth = 1;
                         j++;
@@ -1386,6 +1405,62 @@
                     });
 
                     symbolTable.addSymbol(sym);
+
+                    // If INSERT statement has ON CONFLICT, add EXCLUDED pseudo_table pointing to insert target
+                    if (upper === 'INSERT') {
+                        let hasConflict = false;
+                        for (let c = i + 1; c < codeTokens.length; c++) {
+                            const cUp = (codeTokens[c].upper || codeTokens[c].value).toUpperCase();
+                            if (cUp === 'CONFLICT') {
+                                hasConflict = true;
+                                break;
+                            }
+                            if (codeTokens[c].value === ';') break;
+                        }
+                        if (hasConflict) {
+                            symbolTable.addSymbol(new SqlSymbol({
+                                name: 'EXCLUDED',
+                                alias: 'EXCLUDED',
+                                type: 'pseudo_table',
+                                targetObject: targetObj,
+                                schema: schemaName,
+                                displayType: 'Pseudo Table'
+                            }));
+                        }
+                    }
+
+                    // If statement has OUTPUT clause, add inserted / deleted pseudo_tables
+                    let hasOutput = false;
+                    for (let c = i + 1; c < codeTokens.length; c++) {
+                        const cUp = (codeTokens[c].upper || codeTokens[c].value).toUpperCase();
+                        if (cUp === 'OUTPUT') {
+                            hasOutput = true;
+                            break;
+                        }
+                        if (codeTokens[c].value === ';') break;
+                    }
+                    if (hasOutput) {
+                        if (upper === 'INSERT' || upper === 'UPDATE' || upper === 'MERGE') {
+                            symbolTable.addSymbol(new SqlSymbol({
+                                name: 'inserted',
+                                alias: 'inserted',
+                                type: 'pseudo_table',
+                                targetObject: targetObj,
+                                schema: schemaName,
+                                displayType: 'Pseudo Table'
+                            }));
+                        }
+                        if (upper === 'UPDATE' || upper === 'MERGE') {
+                            symbolTable.addSymbol(new SqlSymbol({
+                                name: 'deleted',
+                                alias: 'deleted',
+                                type: 'pseudo_table',
+                                targetObject: targetObj,
+                                schema: schemaName,
+                                displayType: 'Pseudo Table'
+                            }));
+                        }
+                    }
                 }
             }
 

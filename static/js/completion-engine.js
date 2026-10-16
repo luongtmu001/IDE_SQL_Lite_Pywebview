@@ -2057,7 +2057,7 @@
 
                 // A2. Pseudo-table columns (NEW / OLD in PostgreSQL, inserted / deleted in SQL Server)
                 if (context.resolvedObject && context.resolvedObject.type === 'pseudo_table') {
-                    const isPseudoName = (name) => ['new', 'old', 'inserted', 'deleted'].includes(String(name || '').toLowerCase());
+                    const isPseudoName = (name) => ['new', 'old', 'inserted', 'deleted', 'excluded'].includes(String(name || '').toLowerCase());
                     let trgTable = (context.resolvedObject.targetObject && !isPseudoName(context.resolvedObject.targetObject)) ? context.resolvedObject.targetObject : '';
                     let trgSchema = context.resolvedObject.schema || tabCtx.schema;
 
