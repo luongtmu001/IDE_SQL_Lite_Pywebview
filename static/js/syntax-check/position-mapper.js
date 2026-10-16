@@ -80,7 +80,8 @@
         }
 
         const lineText = lines[lineIdx];
-        const lineLen = lineText.length;
+        const chars = Array.from(lineText);
+        const lineLen = chars.length;
         if (lineLen === 0) {
             return {
                 startLine: line,
@@ -95,35 +96,52 @@
         if (token) {
             const cleanToken = token.trim();
             if (cleanToken) {
-                // Search for token near colIdx
-                let foundIdx = lineText.indexOf(cleanToken, Math.max(0, colIdx - cleanToken.length));
+                const tokenChars = Array.from(cleanToken);
+                const tLen = tokenChars.length;
+                const findInChars = (fromIdx) => {
+                    for (let i = fromIdx; i <= lineLen - tLen; i++) {
+                        let match = true;
+                        for (let k = 0; k < tLen; k++) {
+                            if (chars[i + k] !== tokenChars[k]) {
+                                match = false;
+                                break;
+                            }
+                        }
+                        if (match) return i;
+                    }
+                    return -1;
+                };
+
+                let foundIdx = findInChars(Math.max(0, colIdx - tLen));
                 if (foundIdx === -1) {
-                    foundIdx = lineText.indexOf(cleanToken);
+                    foundIdx = findInChars(0);
                 }
                 if (foundIdx !== -1) {
                     return {
                         startLine: line,
                         startColumn: foundIdx + 1,
                         endLine: line,
-                        endColumn: foundIdx + 1 + cleanToken.length
+                        endColumn: foundIdx + 1 + tLen
                     };
                 }
             }
         }
 
-        // Expand word boundary around colIdx
+        // Expand word boundary around colIdx using Unicode character class properties
+        const isWordChar = (ch) => typeof ch === 'string' && /[\p{L}\p{N}_@#$]/u.test(ch);
+
         let start = colIdx;
-        while (start > 0 && /[a-zA-Z0-9_@#$]/.test(lineText[start - 1])) {
+        while (start > 0 && isWordChar(chars[start - 1])) {
             start--;
         }
 
         let end = colIdx;
-        while (end < lineText.length && /[a-zA-Z0-9_@#$]/.test(lineText[end])) {
+        while (end < chars.length && isWordChar(chars[end])) {
             end++;
         }
 
         if (end <= start) {
-            end = Math.min(lineText.length, start + 1);
+            end = Math.min(chars.length, start + 1);
         }
 
         return {
