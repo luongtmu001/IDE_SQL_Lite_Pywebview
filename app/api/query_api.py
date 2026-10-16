@@ -112,6 +112,12 @@ class QueryApiMixin:
                 parameters=parameters,
                 stop_on_error=stop_on_error,
             )
+            if isinstance(result, dict) and result.get("success", True):
+                try:
+                    from app.database.syntax.semantic_analyzer import invalidate_on_ddl
+                    invalidate_on_ddl(sql, connection_id=connection_id, database=database)
+                except Exception as ddl_err:
+                    logger.debug("[QueryApi] invalidate_on_ddl failed: %s", ddl_err)
             return {"success": True, **result}
         except Exception as exc:
             return {"success": False, "error": str(exc)}
@@ -271,6 +277,14 @@ class QueryApiMixin:
                 dialect=dialect,
             )
             return {"success": True, "plan": plan.to_dict()}
+        except Exception as exc:
+            return {"success": False, "error": str(exc)}
+
+    def invalidate_metadata_cache(self, connection_id=None, database=None, schema=None, table_name=None):
+        try:
+            from app.database.syntax.semantic_analyzer import invalidate_physical_table_columns_cache
+            count = invalidate_physical_table_columns_cache(connection_id, database, schema, table_name)
+            return {"success": True, "invalidated": count}
         except Exception as exc:
             return {"success": False, "error": str(exc)}
 

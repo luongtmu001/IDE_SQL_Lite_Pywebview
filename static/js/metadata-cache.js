@@ -774,6 +774,9 @@
                     if (objType === 'TYPE') {
                         this.typesTier.delete(this._buildKey(connectionId, targetDb));
                     }
+                    if (window.pywebview && window.pywebview.api && typeof window.pywebview.api.invalidate_metadata_cache === 'function') {
+                        window.pywebview.api.invalidate_metadata_cache(connectionId, targetDb, schema, name).catch(() => {});
+                    }
                     console.log(`[MetadataCache] DDL Invalidation: Handled ${action} ${objType} [${targetDb || ''}].[${schema || ''}].[${name}]`);
                     return { action, objType, schema, name, targetDb };
                 }
@@ -782,6 +785,9 @@
             // Fallback for general DDL statements (e.g. TRUNCATE, ALTER DATABASE, etc.)
             if (/\b(?:CREATE|ALTER|DROP|TRUNCATE)\b/i.test(sql)) {
                 this.invalidateDatabase(connectionId, database);
+                if (window.pywebview && window.pywebview.api && typeof window.pywebview.api.invalidate_metadata_cache === 'function') {
+                    window.pywebview.api.invalidate_metadata_cache(connectionId, database, null, null).catch(() => {});
+                }
                 console.log(`[MetadataCache] DDL Invalidation: General DDL detected, refreshed database ${database}`);
                 return { action: 'GENERAL_DDL' };
             }

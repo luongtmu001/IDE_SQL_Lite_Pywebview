@@ -15,13 +15,119 @@ from __future__ import annotations
 
 import logging
 import re
+import time
 from typing import Any
 
 logger = logging.getLogger(__name__)
 
 # Global in-memory cache for physical table columns
-# Key: (dialect, server_lower, database_lower, schema_lower, table_lower) -> set of lowercase column names
-_PHYSICAL_TABLE_COLUMNS_CACHE: dict[tuple[str, str, str, str, str], set[str]] = {}
+# Key: (connection_id, dialect, server_lower, database_lower, schema_lower, table_lower) -> (timestamp, set of lowercase column names)
+_PHYSICAL_TABLE_COLUMNS_CACHE: dict[tuple[str, str, str, str, str, str], tuple[float, set[str]]] = {}
+DEFAULT_COLUMN_CACHE_TTL = 60.0  # seconds
+
+
+def _get_cached_columns(cache_key: tuple) -> set[str] | None:
+    entry = _PHYSICAL_TABLE_COLUMNS_CACHE.get(cache_key)
+    if entry is None:
+        return None
+    if isinstance(entry, tuple) and len(entry) == 2 and isinstance(entry[0], (int, float)):
+        ts, cols = entry
+        if time.time() - ts < DEFAULT_COLUMN_CACHE_TTL:
+            return cols
+        _PHYSICAL_TABLE_COLUMNS_CACHE.pop(cache_key, None)
+        return None
+    elif isinstance(entry, set):
+        return entry
+    return None
+
+
+def _set_cached_columns(cache_key: tuple, cols: set[str]) -> None:
+    _PHYSICAL_TABLE_COLUMNS_CACHE[cache_key] = (time.time(), cols)
+
+
+def invalidate_physical_table_columns_cache(
+    connection_id: str | None = None,
+    database: str | None = None,
+    schema: str | None = None,
+    table_name: str | None = None,
+) -> int:
+    """
+    Invalidate entries in _PHYSICAL_TABLE_COLUMNS_CACHE matching criteria.
+    If no arguments provided, clears all entries.
+    """
+    if connection_id is None and database is None and schema is None and table_name is None:
+        count = len(_PHYSICAL_TABLE_COLUMNS_CACHE)
+        _PHYSICAL_TABLE_COLUMNS_CACHE.clear()
+        return count
+
+    clean_conn = str(connection_id).strip().lower() if connection_id else None
+    clean_db = str(database).strip().lower() if database else None
+    clean_schema = str(schema).strip().lower() if schema else None
+    clean_tbl = clean_identifier(table_name).lower() if table_name else None
+
+    keys_to_remove = []
+    for key in list(_PHYSICAL_TABLE_COLUMNS_CACHE.keys()):
+        if len(key) == 6:
+            k_conn, _k_dia, _k_srv, k_db, k_sch, k_tbl = key
+        elif len(key) == 5:
+            _k_dia, _k_srv, k_db, k_sch, k_tbl = key
+            k_conn = ""
+        else:
+            continue
+
+        if clean_conn is not None and k_conn and k_conn != clean_conn:
+            continue
+        if clean_db is not None and k_db and k_db != clean_db:
+            continue
+        if clean_schema is not None and k_sch and k_sch != clean_schema:
+            continue
+        if clean_tbl is not None and k_tbl != clean_tbl:
+            continue
+        keys_to_remove.append(key)
+
+    for k in keys_to_remove:
+        _PHYSICAL_TABLE_COLUMNS_CACHE.pop(k, None)
+    return len(keys_to_remove)
+
+
+def clear_physical_table_columns_cache() -> None:
+    """Clear all in-memory physical table column caches."""
+    _PHYSICAL_TABLE_COLUMNS_CACHE.clear()
+
+
+_DDL_TABLE_REGEX = re.compile(
+    r"\b(CREATE(?:\s+OR\s+(?:ALTER|REPLACE))?|ALTER|DROP)\s+(TABLE|VIEW)\s+(?:IF\s+(?:NOT\s+)?EXISTS\s+)?([^\s;(]+)",
+    re.IGNORECASE,
+)
+
+
+def invalidate_on_ddl(sql: str, connection_id: str | None = None, database: str | None = None) -> int:
+    """
+    Detect DDL statements (CREATE/ALTER/DROP TABLE or VIEW) in SQL and invalidate matching cache entries.
+    """
+    if not sql or not isinstance(sql, str):
+        return 0
+    total = 0
+    for match in _DDL_TABLE_REGEX.finditer(sql):
+        raw_target = match.group(3).strip()
+        parts = [clean_identifier(p) for p in raw_target.split(".") if p.strip()]
+        tbl_name = None
+        sch_name = None
+        db_name = database
+        if len(parts) >= 3:
+            db_name, sch_name, tbl_name = parts[-3], parts[-2], parts[-1]
+        elif len(parts) == 2:
+            sch_name, tbl_name = parts[0], parts[1]
+        elif len(parts) == 1:
+            tbl_name = parts[0]
+        if tbl_name:
+            total += invalidate_physical_table_columns_cache(
+                connection_id=connection_id,
+                database=db_name,
+                schema=sch_name,
+                table_name=tbl_name,
+            )
+    return total
 
 # SQL Keywords and Built-in Function names that should never be treated as column names
 _SQL_RESERVED_IDENTIFIERS = {
@@ -482,11 +588,13 @@ def get_temp_table_columns_from_db(
 
     clean_tbl = clean_identifier(table_name).lower()
     norm_dialect = "postgres" if ("postgres" in dialect.lower() or "pgsql" in dialect.lower() or dialect.lower() == "pg") else "sqlserver"
+    conn_id = str(getattr(connection_session, "connection_id", "") or "").lower()
 
     # Check cache first
-    cache_key = (norm_dialect, "", "tempdb", "dbo", clean_tbl)
-    if cache_key in _PHYSICAL_TABLE_COLUMNS_CACHE:
-        return _PHYSICAL_TABLE_COLUMNS_CACHE[cache_key]
+    cache_key = (conn_id, norm_dialect, "", "tempdb", "dbo", clean_tbl)
+    cached = _get_cached_columns(cache_key)
+    if cached is not None:
+        return cached
 
     session_lock = getattr(connection_session, "lock", None)
     lock_acquired = False
@@ -523,7 +631,7 @@ def get_temp_table_columns_from_db(
                     rows = cursor.fetchall()
                 if rows:
                     cols = {clean_identifier(r[0]).lower() for r in rows if r and r[0]}
-                    _PHYSICAL_TABLE_COLUMNS_CACHE[cache_key] = cols
+                    _set_cached_columns(cache_key, cols)
                     return cols
             else:
                 # PostgreSQL temporary tables live in pg_temp or pg_temp_%
@@ -540,7 +648,7 @@ def get_temp_table_columns_from_db(
                 rows = cursor.fetchall()
                 if rows:
                     cols = {clean_identifier(r[0]).lower() for r in rows if r and r[0]}
-                    _PHYSICAL_TABLE_COLUMNS_CACHE[cache_key] = cols
+                    _set_cached_columns(cache_key, cols)
                     return cols
         finally:
             try:
@@ -604,14 +712,24 @@ def get_physical_table_columns(
                 if cols:
                     return cols
 
+    conn_id = str(getattr(connection_session, "connection_id", "") or "").lower()
+
     # Check process in-memory cache
-    cache_key = (norm_dialect, clean_server, clean_db, clean_schema, clean_tbl)
-    if cache_key in _PHYSICAL_TABLE_COLUMNS_CACHE:
-        return _PHYSICAL_TABLE_COLUMNS_CACHE[cache_key]
+    cache_key = (conn_id, norm_dialect, clean_server, clean_db, clean_schema, clean_tbl)
+    cached = _get_cached_columns(cache_key)
+    if cached is not None:
+        return cached
+    simple_key = (conn_id, norm_dialect, clean_server, "", "", clean_tbl)
     if not clean_schema:
-        simple_key = (norm_dialect, clean_server, "", "", clean_tbl)
-        if simple_key in _PHYSICAL_TABLE_COLUMNS_CACHE:
-            return _PHYSICAL_TABLE_COLUMNS_CACHE[simple_key]
+        cached_simple = _get_cached_columns(simple_key)
+        if cached_simple is not None:
+            return cached_simple
+
+    def _save_to_cache(cols_set: set[str]) -> set[str]:
+        _set_cached_columns(cache_key, cols_set)
+        if not clean_schema:
+            _set_cached_columns(simple_key, cols_set)
+        return cols_set
 
     # Check connection_session.metadata_cache before attempting connection lock
     if connection_session:
@@ -622,9 +740,7 @@ def get_physical_table_columns(
                     if isinstance(v, list) and v:
                         cols = {clean_identifier(c.get("name", str(c))).lower() for c in v if (isinstance(c, dict) and c.get("name")) or isinstance(c, str)}
                         if cols:
-                            _PHYSICAL_TABLE_COLUMNS_CACHE[cache_key] = cols
-                            _PHYSICAL_TABLE_COLUMNS_CACHE[simple_key] = cols
-                            return cols
+                            return _save_to_cache(cols)
 
     # Without connection session, cannot query live DB
     if not connection_session or not getattr(connection_session, "adapter", None):
@@ -639,17 +755,13 @@ def get_physical_table_columns(
                 if items:
                     cols = {clean_identifier(c.get("name", "")).lower() for c in items if c and c.get("name")}
                     if cols:
-                        _PHYSICAL_TABLE_COLUMNS_CACHE[cache_key] = cols
-                        _PHYSICAL_TABLE_COLUMNS_CACHE[simple_key] = cols
-                        return cols
+                        return _save_to_cache(cols)
             if hasattr(meta_service, "get_intellisense_columns"):
                 items = meta_service.get_intellisense_columns(clean_db or database or None, clean_schema or schema or None, clean_tbl)
                 if items:
                     cols = {clean_identifier(c.get("name", "")).lower() for c in items if c and c.get("name")}
                     if cols:
-                        _PHYSICAL_TABLE_COLUMNS_CACHE[cache_key] = cols
-                        _PHYSICAL_TABLE_COLUMNS_CACHE[simple_key] = cols
-                        return cols
+                        return _save_to_cache(cols)
         except Exception as e:
             logger.debug(f"[SemanticCheck] metadata_service lookup error: {e}")
 
@@ -679,9 +791,7 @@ def get_physical_table_columns(
                 if rows:
                     cols = {clean_identifier(r[3]).lower() for r in rows if len(r) > 3 and r[3]}
                     if cols:
-                        _PHYSICAL_TABLE_COLUMNS_CACHE[cache_key] = cols
-                        _PHYSICAL_TABLE_COLUMNS_CACHE[simple_key] = cols
-                        return cols
+                        return _save_to_cache(cols)
             except Exception as e:
                 logger.debug(f"[SemanticCheck] sp_columns_ex failed for linked server {clean_server}: {e}")
             finally:
@@ -722,9 +832,7 @@ def get_physical_table_columns(
                 if children:
                     cols = {clean_identifier(c.get("name", "")).lower() for c in children if c.get("name")}
                     if cols:
-                        _PHYSICAL_TABLE_COLUMNS_CACHE[cache_key] = cols
-                        _PHYSICAL_TABLE_COLUMNS_CACHE[simple_key] = cols
-                        return cols
+                        return _save_to_cache(cols)
             except Exception as e:
                 logger.debug(f"[SemanticCheck] list_object_children query failed: {e}")
 
@@ -753,9 +861,7 @@ def get_physical_table_columns(
                         rows = cursor.fetchall()
                     if rows:
                         cols = {clean_identifier(r[0]).lower() for r in rows if r and r[0]}
-                        _PHYSICAL_TABLE_COLUMNS_CACHE[cache_key] = cols
-                        _PHYSICAL_TABLE_COLUMNS_CACHE[simple_key] = cols
-                        return cols
+                        return _save_to_cache(cols)
                     # Fallback to INFORMATION_SCHEMA
                     info_query = f"""
                         SELECT COLUMN_NAME
@@ -766,9 +872,7 @@ def get_physical_table_columns(
                     info_rows = cursor.fetchall()
                     if info_rows:
                         cols = {clean_identifier(r[0]).lower() for r in info_rows if r and r[0]}
-                        _PHYSICAL_TABLE_COLUMNS_CACHE[cache_key] = cols
-                        _PHYSICAL_TABLE_COLUMNS_CACHE[simple_key] = cols
-                        return cols
+                        return _save_to_cache(cols)
                 else:
                     # PostgreSQL
                     query = """
@@ -785,8 +889,7 @@ def get_physical_table_columns(
                     rows = cursor.fetchall()
                     if rows:
                         cols = {clean_identifier(r[0]).lower() for r in rows if r and r[0]}
-                        _PHYSICAL_TABLE_COLUMNS_CACHE[cache_key] = cols
-                        return cols
+                        return _save_to_cache(cols)
                     # Fallback to information_schema
                     info_query = """
                         SELECT column_name
@@ -798,8 +901,7 @@ def get_physical_table_columns(
                     info_rows = cursor.fetchall()
                     if info_rows:
                         cols = {clean_identifier(r[0]).lower() for r in info_rows if r and r[0]}
-                        _PHYSICAL_TABLE_COLUMNS_CACHE[cache_key] = cols
-                        return cols
+                        return _save_to_cache(cols)
             except Exception as e:
                 logger.debug(f"[SemanticCheck] direct column catalog query failed: {e}")
             finally:
