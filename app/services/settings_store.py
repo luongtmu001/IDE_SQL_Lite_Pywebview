@@ -163,6 +163,16 @@ def load_settings_file() -> Dict[str, Any]:
             settings["updates"]["checkOnStartup"] = True
         if "updateUrl" not in settings["updates"]:
             settings["updates"]["updateUrl"] = ""
+    if "syntax" not in settings or not isinstance(settings["syntax"], dict):
+        settings["syntax"] = {
+            "pipeline": True,
+            "shadow": False,
+        }
+    else:
+        if "pipeline" not in settings["syntax"]:
+            settings["syntax"]["pipeline"] = True
+        if "shadow" not in settings["syntax"]:
+            settings["syntax"]["shadow"] = False
     return settings
 
 

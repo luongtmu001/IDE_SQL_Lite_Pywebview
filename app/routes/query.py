@@ -252,16 +252,17 @@ def syntax_check():
 
     cached_tables = data.get("cached_tables")
 
-    use_pipeline = False
-    shadow_mode = True
+    # Phase 1: Check syntax.pipeline and shadow mode toggles (default: True for pipeline, False for shadow)
+    use_pipeline = True
+    shadow_mode = False
     try:
         from app.services.settings_store import load_settings
         settings = load_settings()
         if isinstance(settings, dict):
             syntax_cfg = settings.get("syntax", {})
             if isinstance(syntax_cfg, dict):
-                use_pipeline = bool(syntax_cfg.get("pipeline", False))
-                shadow_mode = bool(syntax_cfg.get("shadow", True))
+                use_pipeline = bool(syntax_cfg.get("pipeline", True))
+                shadow_mode = bool(syntax_cfg.get("shadow", False))
     except Exception:
         pass
 
