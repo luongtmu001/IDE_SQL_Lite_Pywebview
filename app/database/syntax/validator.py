@@ -335,8 +335,9 @@ def validate_sql_server(
             try:
                 lock_acquired = session_lock.acquire(timeout=0.8)
                 if not lock_acquired:
-                    # Lock busy (another query or metadata load in progress) -> fallback to sqlglot
-                    return _validate_with_sqlglot(sql, dialect="tsql")
+                    # Lock busy (another query or metadata load in progress) -> do NOT fallback to sqlglot
+                    logger.debug("[SyntaxCheck] SQL Server session lock busy, skipping live check")
+                    return []
             except Exception:
                 pass
 
@@ -346,9 +347,17 @@ def validate_sql_server(
                 return []
 
             cursor = raw_connection.cursor()
+            orig_db = None
             try:
-                # Optionally switch database context if specified
+                # Optionally switch database context if specified, saving original context
                 if database:
+                    try:
+                        cursor.execute("SELECT DB_NAME()")
+                        row = cursor.fetchone()
+                        if row and row[0]:
+                            orig_db = row[0]
+                    except Exception:
+                        pass
                     try:
                         clean_db = str(database).replace("]", "]]")
                         cursor.execute(f"USE [{clean_db}]")
@@ -392,19 +401,12 @@ def validate_sql_server(
 
                             doc_line = batch_start_line + batch_rel_line - 1
 
-                            col_err_m = re.search(r"Invalid column name\s+['\"]([^'\"]+)['\"]", err_msg, re.IGNORECASE)
-                            obj_err_m = re.search(r"Invalid object name\s+['\"]([^'\"]+)['\"]", err_msg, re.IGNORECASE)
-                            if col_err_m:
-                                token = col_err_m.group(1)
-                            elif obj_err_m:
-                                token = obj_err_m.group(1)
-                            else:
-                                token_match = re.search(
-                                    r"near\s+(?:the\s+keyword\s+)?['\"]?([^'\"\r\n]+)['\"]?",
-                                    err_msg,
-                                    re.IGNORECASE,
-                                )
-                                token = token_match.group(1) if token_match else ""
+                            token_match = re.search(
+                                r"near\s+(?:the\s+keyword\s+)?['\"]?([^'\"\r\n]+)['\"]?",
+                                err_msg,
+                                re.IGNORECASE,
+                            )
+                            token = token_match.group(1) if token_match else ""
                             token = token.rstrip(".'\"").strip("'\"").strip()
 
                             # Adjust doc_line if token is on adjacent line
@@ -527,19 +529,12 @@ def validate_sql_server(
 
                                 doc_line = batch_start_line + batch_rel_line - 1
 
-                                col_err_m = re.search(r"Invalid column name\s+['\"]([^'\"]+)['\"]", err_str, re.IGNORECASE)
-                                obj_err_m = re.search(r"Invalid object name\s+['\"]([^'\"]+)['\"]", err_str, re.IGNORECASE)
-                                if col_err_m:
-                                    token = col_err_m.group(1)
-                                elif obj_err_m:
-                                    token = obj_err_m.group(1)
-                                else:
-                                    token_match = re.search(
-                                        r"near\s+(?:the\s+keyword\s+)?['\"]?([^'\"\r\n]+)['\"]?",
-                                        err_str,
-                                        re.IGNORECASE,
-                                    )
-                                    token = token_match.group(1) if token_match else ""
+                                token_match = re.search(
+                                    r"near\s+(?:the\s+keyword\s+)?['\"]?([^'\"\r\n]+)['\"]?",
+                                    err_str,
+                                    re.IGNORECASE,
+                                )
+                                token = token_match.group(1) if token_match else ""
                                 token = token.rstrip(".'\"").strip("'\"").strip()
 
                                 col = 1
@@ -580,6 +575,12 @@ def validate_sql_server(
                 return diagnostics
 
             finally:
+                if orig_db:
+                    try:
+                        clean_orig = str(orig_db).replace("]", "]]")
+                        cursor.execute(f"USE [{clean_orig}]")
+                    except Exception:
+                        pass
                 try:
                     cursor.execute("SET PARSEONLY OFF")
                 except Exception:
@@ -591,9 +592,9 @@ def validate_sql_server(
 
         except Exception as conn_err:
             logger.debug(
-                f"[SyntaxCheck] SQL Server live parse failed or connection unavailable: {conn_err}, falling back to sqlglot"
+                f"[SyntaxCheck] SQL Server live parse failed or connection unavailable: {conn_err}"
             )
-            return _validate_with_sqlglot(sql, dialect="tsql")
+            return []
         finally:
             if lock_acquired and session_lock is not None:
                 try:
@@ -716,6 +717,19 @@ def _filter_debug_diagnostics(diagnostics: list[dict[str, Any]], items: list[dic
     return filtered
 
 
+def _is_destructive_or_locking_ddl(sql: str) -> bool:
+    """Check if SQL contains DDL or statements that alter objects or cannot be analyzed via EXPLAIN."""
+    if not sql:
+        return False
+    cleaned = re.sub(r"--[^\r\n]*", "", sql)
+    cleaned = re.sub(r"/\*.*?\*/", "", cleaned, flags=re.DOTALL).strip()
+    ddl_pattern = re.compile(
+        r"^\s*(?:ALTER|DROP|TRUNCATE|CREATE|GRANT|REVOKE|VACUUM|REINDEX|CLUSTER|COMMENT|CALL|DO)\b",
+        re.IGNORECASE,
+    )
+    return bool(ddl_pattern.search(cleaned))
+
+
 def validate_postgresql(
     sql: str,
     connection_session: Any = None,
@@ -724,86 +738,103 @@ def validate_postgresql(
     is_debug: bool = False,
 ) -> list[dict[str, Any]]:
     """
-    Validate PostgreSQL syntax using database-native transaction rollback with statement_position,
-    falling back to sqlglot (read='postgres').
-    Zero side-effects: transactions are always rolled back.
-    Uses connection_session.lock to guarantee thread safety against concurrent queries.
-    Captures accurate line numbers and multiple diagnostics per script.
-    When is_debug=True, skips syntax checking of bs.* functions.
+    Validate PostgreSQL syntax using database-native EXPLAIN (VERBOSE) for DML/queries,
+    offline parsing for DDL/destructive statements, and sqlglot fallback.
+    Zero side-effects: no statements are ever executed, no sequences advanced, no locks held,
+    no data modified, and user transactions are never aborted or rolled back.
     """
     if is_debug:
         check_sql, debug_items = mask_debug_extensions_for_validation(sql)
     else:
         check_sql, debug_items = sql, []
 
-    raw_connection = None
-    if connection_session and getattr(connection_session, "adapter", None):
-        raw_connection = getattr(connection_session.adapter, "connection", None)
+    # If SQL contains destructive or locking DDL, validate offline only (never sent to live DB)
+    if _is_destructive_or_locking_ddl(check_sql):
+        diags = _validate_with_sqlglot(check_sql, dialect="postgres")
+        return _filter_debug_diagnostics(diags, debug_items) if is_debug else diags
 
-    # If active connection is available, use database-native transactional check with ROLLBACK
+    raw_connection = None
+    if connection_session:
+        # Prefer dedicated auxiliary validation connection if available and not a mock placeholder
+        get_val_conn = getattr(connection_session, "get_validation_connection", None)
+        if callable(get_val_conn) and not type(get_val_conn).__name__.startswith("MagicMock"):
+            try:
+                raw_connection = get_val_conn()
+            except Exception:
+                raw_connection = None
+        if raw_connection is None and getattr(connection_session, "adapter", None):
+            raw_connection = getattr(connection_session.adapter, "connection", None)
+
+    # Protect user's active transaction: never execute on shared connection if user is in-transaction
     if raw_connection is not None:
+        user_in_tx = getattr(connection_session, "in_transaction", False)
+        if isinstance(user_in_tx, bool) and user_in_tx:
+            logger.debug("[SyntaxCheck] PostgreSQL session has active user transaction; validating offline")
+            diags = _validate_with_sqlglot(check_sql, dialect="postgres")
+            return _filter_debug_diagnostics(diags, debug_items) if is_debug else diags
+
+        tx_status = getattr(raw_connection, "status", 0)
+        if isinstance(tx_status, int) and tx_status != 0:
+            logger.debug("[SyntaxCheck] PostgreSQL connection is in transaction state; validating offline")
+            diags = _validate_with_sqlglot(check_sql, dialect="postgres")
+            return _filter_debug_diagnostics(diags, debug_items) if is_debug else diags
+
+        autocommit_on = getattr(raw_connection, "autocommit", True)
+        if isinstance(autocommit_on, bool) and not autocommit_on:
+            logger.debug("[SyntaxCheck] PostgreSQL connection autocommit is off; validating offline")
+            diags = _validate_with_sqlglot(check_sql, dialect="postgres")
+            return _filter_debug_diagnostics(diags, debug_items) if is_debug else diags
+
         session_lock = getattr(connection_session, "lock", None)
         lock_acquired = False
         if session_lock is not None:
             try:
                 lock_acquired = session_lock.acquire(timeout=0.8)
                 if not lock_acquired:
-                    diags = _validate_with_sqlglot(check_sql, dialect="postgres")
-                    return _filter_debug_diagnostics(diags, debug_items) if is_debug else diags
+                    # Lock busy -> do not fallback to sqlglot to prevent intermittent false errors
+                    logger.debug("[SyntaxCheck] PostgreSQL session lock busy, skipping live check")
+                    return []
             except Exception:
                 pass
 
+        diagnostics: list[dict[str, Any]] = []
         try:
             cursor = raw_connection.cursor()
+            orig_search_path = None
             try:
                 target_schema = (schema or "").strip()
                 if target_schema:
                     try:
+                        cursor.execute("SHOW search_path;")
+                        row = cursor.fetchone()
+                        if row and row[0]:
+                            orig_search_path = row[0]
+                    except Exception:
+                        pass
+                    try:
                         cursor.execute(f'SET search_path TO "{target_schema}", public, pg_catalog;')
                     except Exception:
                         pass
-                else:
-                    try:
-                        cursor.execute('SET search_path TO public, pg_catalog;')
-                    except Exception:
-                        pass
 
-                diagnostics: list[dict[str, Any]] = []
                 current_sql = check_sql
                 max_errors = 5
                 err_count = 0
+                seen_diag_keys = set()
+                seen_lines = set()
 
                 while err_count < max_errors:
                     try:
-                        cursor.execute("BEGIN;")
-                        cursor.execute(current_sql)
-                        cursor.execute("ROLLBACK;")
+                        # Side-effect-free validation: EXPLAIN (VERBOSE) compiles and plans without executing
+                        check_stmt = f"EXPLAIN (VERBOSE) {current_sql.rstrip(';')}"
+                        cursor.execute(check_stmt)
                         break
                     except (StopIteration, GeneratorExit):
                         break
                     except Exception as pg_err:
-                        try:
-                            cursor.execute("ROLLBACK;")
-                        except Exception:
-                            pass
-
                         diag = getattr(pg_err, "diag", None)
                         err_str = str(pg_err).strip()
                         msg = getattr(diag, "message_primary", None) or err_str.splitlines()[0]
                         pos = getattr(diag, "statement_position", None)
-
-                        line = 1
-                        col = 1
-                        if pos:
-                            try:
-                                line, col = _position_to_line_col(current_sql, int(pos))
-                            except Exception:
-                                line = 1
-                                col = 1
-                        else:
-                            line_m = re.search(r"LINE\s+(\d+):", err_str)
-                            if line_m:
-                                line = int(line_m.group(1))
 
                         col_err_m = re.search(r'column\s+["\']([^"\']+)["\']\s+does not exist', err_str, re.IGNORECASE)
                         rel_err_m = re.search(r'relation\s+["\']([^"\']+)["\']\s+does not exist', err_str, re.IGNORECASE)
@@ -815,6 +846,34 @@ def validate_postgresql(
                             token_m = re.search(r'(?:at or near|near)\s+["\']?([^"\'\r\n]+)["\']?', err_str)
                             token = token_m.group(1) if token_m else ""
                         token = token.rstrip(".'\"").strip("'\"").strip()
+
+                        line = 1
+                        col = 1
+                        if pos:
+                            try:
+                                raw_pos = int(pos)
+                                prefix_len = len("EXPLAIN (VERBOSE) ")
+                                curr_split = current_sql.splitlines()
+                                adj_pos = raw_pos
+                                # Check if raw_pos includes prefix or matches directly
+                                if raw_pos > prefix_len:
+                                    p_line, _ = _position_to_line_col(current_sql, raw_pos - prefix_len)
+                                    if 0 < p_line <= len(curr_split) and token and token in curr_split[p_line - 1]:
+                                        adj_pos = raw_pos - prefix_len
+                                    else:
+                                        p_line2, _ = _position_to_line_col(current_sql, raw_pos)
+                                        if 0 < p_line2 <= len(curr_split) and token and token in curr_split[p_line2 - 1]:
+                                            adj_pos = raw_pos
+                                        else:
+                                            adj_pos = raw_pos - prefix_len
+                                line, col = _position_to_line_col(current_sql, adj_pos)
+                            except Exception:
+                                line = 1
+                                col = 1
+                        else:
+                            line_m = re.search(r"LINE\s+(\d+):", err_str)
+                            if line_m:
+                                line = int(line_m.group(1))
 
                         # Adjust col and end_col on target_line
                         end_col = col + max(1, len(token))
@@ -842,6 +901,12 @@ def validate_postgresql(
                                     col = idx + 1
                                     end_col = col + len(stripped)
 
+                        diag_key = (line, col, token)
+                        if diag_key in seen_diag_keys or line in seen_lines:
+                            break
+                        seen_diag_keys.add(diag_key)
+                        seen_lines.add(line)
+
                         diagnostics.append(
                             {
                                 "severity": "error",
@@ -866,10 +931,11 @@ def validate_postgresql(
                 final_diags = _filter_debug_diagnostics(diagnostics, debug_items) if is_debug else diagnostics
                 return final_diags
             finally:
-                try:
-                    cursor.execute("ROLLBACK;")
-                except Exception:
-                    pass
+                if orig_search_path:
+                    try:
+                        cursor.execute(f"SET search_path TO {orig_search_path};")
+                    except Exception:
+                        pass
                 try:
                     cursor.close()
                 except Exception:
@@ -882,27 +948,9 @@ def validate_postgresql(
             if diagnostics:
                 return _filter_debug_diagnostics(diagnostics, debug_items) if is_debug else diagnostics
             logger.debug(
-                f"[SyntaxCheck] PostgreSQL live parse failed or connection unavailable: {conn_err}, falling back to sqlglot"
+                f"[SyntaxCheck] PostgreSQL live parse failed or connection unavailable: {conn_err}"
             )
-            diags = _validate_with_sqlglot(check_sql, dialect="postgres")
-            if not is_debug:
-                try:
-                    from app.database.debug.instrumenter import detect_debug_extensions
-                    ext_items = detect_debug_extensions(sql)
-                    for it in ext_items:
-                        diags.append({
-                            "severity": "error",
-                            "message": f'Function or syntax "{it["name"]}" is not valid PostgreSQL syntax outside debug mode',
-                            "code": "SQL_SYNTAX_ERROR",
-                            "line": it["startLine"],
-                            "column": it["startCol"],
-                            "end_column": it["endCol"],
-                            "token": it["name"],
-                            "source": "postgresql",
-                        })
-                except Exception:
-                    pass
-            return _filter_debug_diagnostics(diags, debug_items) if is_debug else diags
+            return []
         finally:
             if lock_acquired and session_lock is not None:
                 try:

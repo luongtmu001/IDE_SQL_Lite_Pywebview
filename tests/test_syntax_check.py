@@ -314,22 +314,20 @@ class TestPostgresqlValidation:
         assert d["line"] == 2
 
     def test_mock_live_postgres_statement_position(self):
-        """Verify PostgreSQL statement_position is converted accurately to 1-based line and column."""
+        """Verify PostgreSQL statement_position with EXPLAIN (VERBOSE) is converted accurately to 1-based line and column."""
         sql = "SELECT 1 AS A;\nSELECT * FORM users;"
-        # Character offset of 'FORM' is 25 (1-based), line 2, col 10
+        # Character offset of 'FORM' in sql is 25 (1-based), line 2, col 10
+        # In EXPLAIN (VERBOSE), statement_position includes 18 chars of prefix: 18 + 25 = 43
+        prefix_len = len("EXPLAIN (VERBOSE) ")
+        pos = prefix_len + sql.find("FORM") + 1
+
         mock_cursor = MagicMock()
         mock_err = Exception('syntax error at or near "FORM"')
         mock_diag = MagicMock()
-        mock_diag.statement_position = "25"
+        mock_diag.statement_position = str(pos)
         mock_diag.message_primary = 'syntax error at or near "FORM"'
         mock_err.diag = mock_diag
-
-        mock_cursor.execute.side_effect = [
-            None,  # BEGIN
-            mock_err,  # execute query
-            None,  # ROLLBACK
-            None,  # outer finally ROLLBACK
-        ]
+        mock_cursor.execute.side_effect = mock_err
 
         mock_conn = MagicMock()
         mock_conn.cursor.return_value = mock_cursor
@@ -347,7 +345,7 @@ class TestPostgresqlValidation:
         assert d["source"] == "postgresql"
 
     def test_mock_live_postgres_procedure_validation(self):
-        """Verify PostgreSQL procedure with error inside body has accurate line/col and zero side-effects."""
+        """Verify PostgreSQL procedure (DDL) is validated offline without sending DDL to live DB (S1)."""
         sql = (
             "CREATE OR REPLACE PROCEDURE usp_test()\n"
             "LANGUAGE plpgsql\n"
@@ -358,22 +356,7 @@ class TestPostgresqlValidation:
             "END;\n"
             "$$;"
         )
-        # Position of 'FORM' inside line 6:
-        pos = sql.find("FORM") + 1
         mock_cursor = MagicMock()
-        mock_err = Exception('syntax error at or near "FORM"')
-        mock_diag = MagicMock()
-        mock_diag.statement_position = str(pos)
-        mock_diag.message_primary = 'syntax error at or near "FORM"'
-        mock_err.diag = mock_diag
-
-        mock_cursor.execute.side_effect = [
-            None,  # BEGIN
-            mock_err,
-            None,  # ROLLBACK
-            None,  # outer finally ROLLBACK
-        ]
-
         mock_conn = MagicMock()
         mock_conn.cursor.return_value = mock_cursor
 
@@ -381,12 +364,8 @@ class TestPostgresqlValidation:
         mock_session.adapter.connection = mock_conn
 
         diags = validate_postgresql(sql, connection_session=mock_session)
-        assert len(diags) == 1
-        d = diags[0]
-        assert d["line"] == 6
-        assert d["token"] == "FORM"
-        assert d["column"] == 14
-        assert d["end_column"] == 18
+        # DDL must NEVER be sent to live DB (S1)
+        assert mock_cursor.execute.call_count == 0
 
 
 class TestValidateSqlDispatcher:

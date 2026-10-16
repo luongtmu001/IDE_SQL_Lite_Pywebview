@@ -32,6 +32,7 @@ class ConnectionSession:
         default_factory=threading.RLock,
         repr=False,
     )
+    _validation_adapter: Any = field(default=None, repr=False)
 
     def __post_init__(self):
         if not self.environment and self.config:
@@ -131,6 +132,44 @@ class ConnectionSession:
             self.touch()
             return {"success": True, "in_transaction": False}
 
+    def get_validation_connection(self) -> Optional[Any]:
+        """
+        Get or lazily create an isolated auxiliary connection for background syntax validation.
+        Prevents concurrency contention and guarantees user query session invariance.
+        """
+        with self.lock:
+            if self._validation_adapter is not None:
+                conn = getattr(self._validation_adapter, "connection", None)
+                if conn is not None:
+                    try:
+                        if hasattr(self._validation_adapter, "ping") and not self._validation_adapter.ping():
+                            self._validation_adapter = None
+                        else:
+                            return conn
+                    except Exception:
+                        self._validation_adapter = None
+
+            if not self.config:
+                return None
+
+            try:
+                from app.database.factory import create_adapter
+                cfg = dict(self.config)
+                app_name = cfg.get("application_name", "luoBTool")
+                cfg["application_name"] = f"{app_name}_syntax"
+                adapter = create_adapter(cfg)
+                adapter.connect()
+                val_conn = getattr(adapter, "connection", None)
+                if val_conn:
+                    if hasattr(val_conn, "autocommit"):
+                        val_conn.autocommit = True
+                    self._validation_adapter = adapter
+                    return val_conn
+            except Exception as ex:
+                logger.debug("Could not create auxiliary validation connection: %s", ex)
+                return None
+            return None
+
     def close(self):
         with self.lock:
             if self.in_transaction:
@@ -138,6 +177,13 @@ class ConnectionSession:
                     self.rollback_transaction()
                 except Exception as ex:
                     logger.warning("Error rolling back uncommitted transaction during session %s close: %s", self.connection_id, ex)
+            if hasattr(self, "_validation_adapter") and self._validation_adapter is not None:
+                if hasattr(self._validation_adapter, "close"):
+                    try:
+                        self._validation_adapter.close()
+                    except Exception as ex:
+                        logger.debug("Error closing auxiliary validation connection: %s", ex)
+                self._validation_adapter = None
             if hasattr(self.adapter, "close"):
                 try:
                     self.adapter.close()
