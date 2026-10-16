@@ -402,11 +402,20 @@ class SqlServerScriptDomAdapter(BaseSyntaxAdapter):
                 logger.warning(f"[ScriptDOM] Parse exception, falling back to legacy validator: {exc}")
 
         # Graceful fallback to legacy validator
+        if not self.is_available:
+            logger.warning(
+                "[ScriptDOM] ScriptDOM assembly is not available (%s). Falling back to legacy database/sqlglot parser.",
+                self._init_error or "not initialized",
+            )
         from app.database.syntax.validator import validate_sql_server
 
-        return validate_sql_server(
+        diags = validate_sql_server(
             sql=sql,
             connection_session=connection_session,
             database=database,
             schema=schema,
         )
+        for d in diags:
+            if not d.get("source"):
+                d["source"] = "sqlserver-legacy"
+        return diags

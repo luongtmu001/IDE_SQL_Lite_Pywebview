@@ -62,8 +62,8 @@ def test_main_api_syntax_check_honors_setting_toggle():
     api = MainApi(MagicMock())
     test_sql = "SELECT CustomerId, CustomerName FROM dbo.Customers;"
 
-    # 1. With syntax.pipeline = False (default)
-    with patch("app.services.settings_store.load_settings", return_value={"syntax": {"pipeline": False}}):
+    # 1. With syntax.pipeline = False and shadow = False (shadow disabled)
+    with patch("app.services.settings_store.load_settings", return_value={"syntax": {"pipeline": False, "shadow": False}}):
         with patch("app.database.syntax.validator.validate_sql", return_value=[{"msg": "legacy"}]) as mock_legacy:
             with patch("app.database.syntax.coordinator.validate_sql_pipeline") as mock_pipeline:
                 res = api.syntax_check(sql=test_sql, dialect="sqlserver")
@@ -72,7 +72,21 @@ def test_main_api_syntax_check_honors_setting_toggle():
                 mock_legacy.assert_called_once()
                 mock_pipeline.assert_not_called()
 
-    # 2. With syntax.pipeline = True
+    # 2. With syntax.pipeline = False and shadow = True (Shadow mode runs pipeline in background)
+    with patch("app.services.settings_store.load_settings", return_value={"syntax": {"pipeline": False, "shadow": True}}):
+        with patch("app.database.syntax.validator.validate_sql", return_value=[{"msg": "legacy"}]) as mock_legacy:
+            with patch("app.database.syntax.coordinator.validate_sql_pipeline", return_value=[{"msg": "shadow"}]) as mock_pipeline:
+                with patch("app.api.query_api.logger.info") as mock_log:
+                    res = api.syntax_check(sql=test_sql, dialect="sqlserver")
+                    assert res["success"] is True
+                    assert res["diagnostics"] == [{"msg": "legacy"}]  # Returns legacy diagnostics
+                    mock_legacy.assert_called_once()
+                    mock_pipeline.assert_called_once()
+                    # Divergence between legacy and shadow should be logged
+                    mock_log.assert_called_once()
+                    assert "[SyntaxCheck Shadow] Divergence detected" in mock_log.call_args[0][0]
+
+    # 3. With syntax.pipeline = True
     with patch("app.services.settings_store.load_settings", return_value={"syntax": {"pipeline": True}}):
         with patch("app.database.syntax.validator.validate_sql") as mock_legacy:
             with patch("app.database.syntax.coordinator.validate_sql_pipeline", return_value=[{"msg": "pipeline"}]) as mock_pipeline:
@@ -95,3 +109,36 @@ def test_main_api_syntax_check_fallback_on_pipeline_error():
                 assert res["success"] is True
                 assert res["diagnostics"] == [{"msg": "fallback"}]
                 mock_legacy.assert_called_once()
+
+
+def test_l12_valid_corpus_zero_divergence():
+    """
+    L12: Verify 0 divergence between legacy validate_sql and new pipeline across the
+    entire 40-case valid SQL corpus (tests/corpus/syntax/valid.json).
+    Both validators must agree that valid queries produce 0 error diagnostics.
+    """
+    import json
+    from tests.test_corpus_syntax_semantic_l4 import VALID_CASES, get_cached_schema
+
+    divergences = []
+    for case in VALID_CASES:
+        sql = case["sql"]
+        dialect = case.get("dialect", "sqlserver")
+        cached = get_cached_schema(dialect)
+
+        legacy_diags = legacy_validate_sql(sql=sql, dialect=dialect, cached_tables_dict=cached)
+        pipe_diags = validate_sql_pipeline(sql=sql, dialect=dialect, cached_tables_dict=cached)
+
+        l_errs = [d for d in legacy_diags if d.get("severity") in (1, "error", "ERROR")]
+        p_errs = [d for d in pipe_diags if d.get("severity") in (1, "error", "ERROR")]
+
+        if len(l_errs) != len(p_errs):
+            divergences.append({
+                "id": case["id"],
+                "dialect": dialect,
+                "legacy_errors": len(l_errs),
+                "pipe_errors": len(p_errs),
+            })
+
+    assert len(divergences) == 0, f"L12 Gate Failed: Found divergences on valid corpus: {divergences}"
+

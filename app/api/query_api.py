@@ -197,8 +197,9 @@ class QueryApiMixin:
             except Exception:
                 conn_session = None
 
-            # Phase 7: Check syntax.pipeline setting toggle (default: False)
+            # Phase 5 / Phase 7: Check syntax.pipeline and shadow mode toggles (default: False for pipeline, True for shadow)
             use_pipeline = False
+            shadow_mode = True
             try:
                 from app.services.settings_store import load_settings
                 settings = load_settings()
@@ -206,6 +207,7 @@ class QueryApiMixin:
                     syntax_cfg = settings.get("syntax", {})
                     if isinstance(syntax_cfg, dict):
                         use_pipeline = bool(syntax_cfg.get("pipeline", False))
+                        shadow_mode = bool(syntax_cfg.get("shadow", True))
             except Exception:
                 pass
 
@@ -244,6 +246,30 @@ class QueryApiMixin:
                     is_debug=bool(is_debug),
                     cached_tables_dict=cached_tables,
                 )
+                if shadow_mode:
+                    try:
+                        from app.database.syntax.coordinator import validate_sql_pipeline
+                        shadow_diags = validate_sql_pipeline(
+                            sql=sql,
+                            dialect=dialect,
+                            connection_session=conn_session,
+                            database=database,
+                            schema=schema,
+                            is_debug=bool(is_debug),
+                            cached_tables_dict=cached_tables,
+                        )
+                        legacy_keys = {(d.get("line"), d.get("column"), str(d.get("message") or d.get("msg") or "").strip()) for d in (diagnostics or [])}
+                        shadow_keys = {(d.get("line"), d.get("column"), str(d.get("message") or d.get("msg") or "").strip()) for d in (shadow_diags or [])}
+                        if legacy_keys != shadow_keys:
+                            logger.info(
+                                "[SyntaxCheck Shadow] Divergence detected (legacy=%d, shadow=%d). Legacy: %s | Shadow: %s",
+                                len(diagnostics or []),
+                                len(shadow_diags or []),
+                                diagnostics,
+                                shadow_diags,
+                            )
+                    except Exception as shadow_err:
+                        logger.debug("[SyntaxCheck Shadow] Error executing shadow pipeline: %s", shadow_err)
             return {"success": True, "diagnostics": diagnostics}
         except Exception as exc:
             return {"success": False, "error": str(exc), "diagnostics": []}

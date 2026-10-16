@@ -1,9 +1,11 @@
+import logging
 from flask import Blueprint, jsonify, request
 from app.routes._common import get_connection_manager, get_owner_session_id
 from app.utils.db_message import clean_db_message, parse_error_details
 from app.utils.sql_safety import check_query_safety, detect_fatal_actions
 from app.services.settings_store import _load_settings_file
 
+logger = logging.getLogger(__name__)
 query_bp = Blueprint("query", __name__)
 
 @query_bp.post("/execute")
@@ -251,6 +253,7 @@ def syntax_check():
     cached_tables = data.get("cached_tables")
 
     use_pipeline = False
+    shadow_mode = True
     try:
         from app.services.settings_store import load_settings
         settings = load_settings()
@@ -258,6 +261,7 @@ def syntax_check():
             syntax_cfg = settings.get("syntax", {})
             if isinstance(syntax_cfg, dict):
                 use_pipeline = bool(syntax_cfg.get("pipeline", False))
+                shadow_mode = bool(syntax_cfg.get("shadow", True))
     except Exception:
         pass
 
@@ -284,6 +288,30 @@ def syntax_check():
                 is_debug=is_debug,
                 cached_tables_dict=cached_tables,
             )
+            if shadow_mode:
+                try:
+                    from app.database.syntax.coordinator import validate_sql_pipeline
+                    shadow_diags = validate_sql_pipeline(
+                        sql=sql,
+                        dialect=dialect,
+                        connection_session=conn_session,
+                        database=database,
+                        schema=schema,
+                        is_debug=is_debug,
+                        cached_tables_dict=cached_tables,
+                    )
+                    legacy_keys = {(d.get("line"), d.get("column"), str(d.get("message") or d.get("msg") or "").strip()) for d in (diagnostics or [])}
+                    shadow_keys = {(d.get("line"), d.get("column"), str(d.get("message") or d.get("msg") or "").strip()) for d in (shadow_diags or [])}
+                    if legacy_keys != shadow_keys:
+                        logger.info(
+                            "[SyntaxCheck Shadow] Divergence detected (legacy=%d, shadow=%d). Legacy: %s | Shadow: %s",
+                            len(diagnostics or []),
+                            len(shadow_diags or []),
+                            diagnostics,
+                            shadow_diags,
+                        )
+                except Exception as shadow_err:
+                    logger.debug("[SyntaxCheck Shadow] Error executing shadow pipeline: %s", shadow_err)
         return jsonify(success=True, diagnostics=diagnostics)
     except Exception as exc:
         return jsonify(success=False, error=str(exc), diagnostics=[]), 400
