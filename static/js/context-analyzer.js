@@ -1696,12 +1696,17 @@
         }
 
         let parts = [];
+        let hasTrailingDot = false;
         while (j < codeTokens.length) {
             const tk = codeTokens[j];
             if (tk.value === '.' || tk.type === 'IDENTIFIER' || tk.type === 'KEYWORD') {
-                if (tk.value !== '.') parts.push(cleanIdentifier(tk.value));
+                if (tk.value !== '.') {
+                    parts.push(cleanIdentifier(tk.value));
+                    hasTrailingDot = false;
+                }
                 j++;
                 if (j < codeTokens.length && codeTokens[j].value === '.') {
+                    hasTrailingDot = true;
                     j++;
                 } else {
                     break;
@@ -1713,14 +1718,17 @@
 
         let procName = "";
         let procSchema = "";
-        if (parts.length === 1) {
+        if (hasTrailingDot) {
+            procSchema = parts.length > 0 ? parts[parts.length - 1] : "";
+            procName = "";
+        } else if (parts.length === 1) {
             procName = parts[0];
         } else if (parts.length >= 2) {
             procSchema = parts[parts.length - 2];
             procName = parts[parts.length - 1];
         }
 
-        const isParameterPosition = Boolean(procName && j <= codeTokens.length);
+        const isParameterPosition = Boolean(procName && !hasTrailingDot && j < codeTokens.length);
 
         return {
             isExec: true,

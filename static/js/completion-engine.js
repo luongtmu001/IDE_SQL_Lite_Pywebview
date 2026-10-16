@@ -2236,14 +2236,21 @@
 
                 // C. If qualifier is schema (e.g. dbo.), fetch objects in that schema
                 if (tabCtx.connectionId && !isKnownAlias && !isLocalSymbol && this.dataProvider && typeof this.dataProvider.fetchObjects === 'function') {
+                    const isExecContext = Boolean(isStrictExec || context.clause === 'EXEC' || context.clause === 'EXECUTE' || (context.execContext && context.execContext.isExec));
                     const dbObjects = await this.dataProvider.fetchObjects(tabCtx.connectionId, tabCtx.database, context.qualifier);
                     (dbObjects || []).forEach(obj => {
+                        if (isExecContext) {
+                            // Apply procedure filter in EXEC context (Issue I7)
+                            if (obj.type !== 'procedure') {
+                                return;
+                            }
+                        }
                         allCandidates.push({
                             name: obj.name,
                             label: obj.name,
                             type: obj.type,
                             kind: obj.type,
-                            level: 2,
+                            level: isExecContext ? 1.0 : 2,
                             displayType: this._formatDisplayType(obj.type),
                             schema: obj.schema,
                             targetObject: obj.target_object,
