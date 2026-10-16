@@ -1451,6 +1451,14 @@
                 if (allParts.length === 0) return null;
 
                 const formattedList = allParts.join(', ');
+                let repRange = context.replacementRange;
+                if (context.precedingOperator === '*' || (context.fullSql && context.cursorIndex !== undefined && context.fullSql.substring(0, context.cursorIndex).trimEnd().endsWith('*'))) {
+                    const starIdx = context.fullSql ? context.fullSql.lastIndexOf('*', context.cursorIndex) : -1;
+                    if (starIdx !== -1 && starIdx >= context.cursorIndex - 5) {
+                        repRange = { start: starIdx, end: repRange ? Math.max(repRange.end, starIdx + 1) : context.cursorIndex };
+                    }
+                }
+
                 return {
                     name: '*',
                     label: '* (Expand columns)',
@@ -1461,7 +1469,7 @@
                     detail: 'Expand * to column list',
                     documentation: `Inserts explicit column list:\n${formattedList}`,
                     insertText: formattedList,
-                    replacementRange: context.replacementRange,
+                    replacementRange: repRange,
                     isStarExpansion: true
                 };
             }
@@ -2984,9 +2992,12 @@
         constructor(dataProvider, metadataCache) {
             this.dataProvider = dataProvider || (window.AppIntelliSense ? window.AppIntelliSense.getDataProvider() : null);
             this.metadataCache = metadataCache || window.AppMetadataCache || null;
-            this.generator = new CandidateGenerator(this.dataProvider, this.metadataCache);
-            this.filter = new CandidateFilter();
-            this.ranker = new CompletionRanker();
+            const GeneratorClass = (typeof window !== 'undefined' && window.CandidateGenerator) || CandidateGenerator;
+            const FilterClass = (typeof window !== 'undefined' && window.CandidateFilter) || CandidateFilter;
+            const RankerClass = (typeof window !== 'undefined' && window.CompletionRanker) || CompletionRanker;
+            this.generator = new GeneratorClass(this.dataProvider, this.metadataCache);
+            this.filter = new FilterClass();
+            this.ranker = new RankerClass();
             this._currentRequestId = 0;
         }
 
@@ -4185,8 +4196,10 @@
 
     // Export singleton instance, signatures, and classes
     const defaultEngine = new CompletionEngine();
-    const signatureResolver = new SqlSignatureHelpResolver();
-    const hoverResolver = new SqlHoverResolver();
+    const SigResolverClass = (typeof window !== 'undefined' && window.SqlSignatureHelpResolverClass) || SqlSignatureHelpResolver;
+    const HoverResolverClass = (typeof window !== 'undefined' && window.SqlHoverResolverClass) || SqlHoverResolver;
+    const signatureResolver = (typeof window !== 'undefined' && window.SqlSignatureHelpResolver) || new SigResolverClass();
+    const hoverResolver = (typeof window !== 'undefined' && window.SqlHoverResolver) || new HoverResolverClass();
     defaultEngine.signatureResolver = signatureResolver;
     defaultEngine.hoverResolver = hoverResolver;
 
@@ -4198,6 +4211,8 @@
     window.DefaultCompletionEngine = defaultEngine;
     window.SqlSignatureHelpResolver = signatureResolver;
     window.SqlHoverResolver = hoverResolver;
+    window.SqlSignatureHelpResolverClass = SigResolverClass;
+    window.SqlHoverResolverClass = HoverResolverClass;
 
 })(typeof window !== 'undefined' ? window : globalThis);
 

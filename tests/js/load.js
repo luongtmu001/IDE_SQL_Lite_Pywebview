@@ -22,6 +22,12 @@ const SCRIPTS_TO_LOAD = [
     'static/js/context-analyzer.js',
     'static/js/metadata-provider.js',
     'static/js/metadata-cache.js',
+    'static/js/sql-function-signatures.js',
+    'static/js/candidate-filter.js',
+    'static/js/completion-ranker.js',
+    'static/js/candidate-generator.js',
+    'static/js/signature-help-resolver.js',
+    'static/js/hover-resolver.js',
     'static/js/completion-engine.js',
     'static/js/syntax-check/diagnostic-model.js',
     'static/js/syntax-check/position-mapper.js'
