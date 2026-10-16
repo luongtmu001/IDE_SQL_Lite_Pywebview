@@ -2374,33 +2374,51 @@
             }
         }
 
-        // Phase 3: Forward-Looking FROM scan when in SELECT / UPDATE SET clause
-        // Guarantees that tables and aliases appearing after cursor in the same statement are bound
-        if ((clause === 'SELECT' && statementRange) || ((clause === 'SET' || dmlContext.isUpdateSet || dmlContext.isUpdateSetValue) && statementRange)) {
-            const stmtText = fullSql.substring(statementRange.start, statementRange.end);
-            const forwardTables = extractAllTablesInQuery(stmtText);
-            const forwardAliases = extractAliases(stmtText);
-
-            forwardTables.forEach(ft => {
-                const key = `${(ft.schema || '').toLowerCase()}::${ft.table.toLowerCase()}`;
-                if (!queryTables.some(qt => `${(qt.schema || '').toLowerCase()}::${qt.table.toLowerCase()}` === key)) {
-                    queryTables.push(ft);
-                }
-            });
-
-            Object.keys(forwardAliases).forEach(ak => {
-                if (!aliasMap[ak]) {
-                    aliasMap[ak] = forwardAliases[ak];
-                }
-            });
+        function isLegacyScopeEnabled() {
+            try {
+                if (typeof window !== 'undefined' && window.__USE_LEGACY_SCOPE__) return true;
+                if (typeof localStorage !== 'undefined' && localStorage.getItem('intellisense.v2.legacyScope') === 'true') return true;
+            } catch (_) {}
+            return false;
         }
 
-        // Fallbacks if activeScope did not populate tables/aliases:
-        if (queryTables.length === 0) {
-            queryTables = extractAllTablesInQuery(stmtInfo.text || fullSql);
-        }
-        if (Object.keys(aliasMap).length === 0) {
-            aliasMap = extractAliases(stmtInfo.text || fullSql);
+        // Phase 3 & Phase 6: ScopeResolver is the primary scope provider.
+        // Legacy regex functions only run if activeScope is absent or when intellisense.v2.legacyScope flag is enabled.
+        if (isLegacyScopeEnabled() || !activeScope) {
+            if ((clause === 'SELECT' && statementRange) || ((clause === 'SET' || dmlContext.isUpdateSet || dmlContext.isUpdateSetValue) && statementRange)) {
+                const stmtText = fullSql.substring(statementRange.start, statementRange.end);
+                const forwardTables = extractAllTablesInQuery(stmtText);
+                const forwardAliases = extractAliases(stmtText);
+
+                forwardTables.forEach(ft => {
+                    const key = `${(ft.schema || '').toLowerCase()}::${ft.table.toLowerCase()}`;
+                    if (!queryTables.some(qt => `${(qt.schema || '').toLowerCase()}::${qt.table.toLowerCase()}` === key)) {
+                        queryTables.push(ft);
+                    }
+                });
+
+                Object.keys(forwardAliases).forEach(ak => {
+                    if (!aliasMap[ak]) {
+                        aliasMap[ak] = forwardAliases[ak];
+                    }
+                });
+            }
+
+            // Fallbacks if activeScope did not populate tables/aliases:
+            if (queryTables.length === 0) {
+                queryTables = extractAllTablesInQuery(stmtInfo.text || fullSql);
+            }
+            if (Object.keys(aliasMap).length === 0) {
+                aliasMap = extractAliases(stmtInfo.text || fullSql);
+            }
+        } else {
+            // Safety fallback only if activeScope produced 0 tables
+            if (queryTables.length === 0) {
+                queryTables = extractAllTablesInQuery(stmtInfo.text || fullSql);
+            }
+            if (Object.keys(aliasMap).length === 0) {
+                aliasMap = extractAliases(stmtInfo.text || fullSql);
+            }
         }
 
         // Phase 4: Bind DML target table into queryTables if present

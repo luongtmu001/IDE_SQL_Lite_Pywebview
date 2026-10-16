@@ -2708,7 +2708,12 @@
             }
 
             let precedingTables = context.queryTables || [];
-            if (precedingTables.length === 0 && (context.fullSql || context.statementRange)) {
+            if (precedingTables.length === 0 && context.activeScope && typeof context.activeScope.getAllVisibleTables === 'function') {
+                precedingTables = context.activeScope.getAllVisibleTables();
+            }
+            const useLegacyScope = (typeof window !== 'undefined' && window.__USE_LEGACY_SCOPE__) ||
+                (typeof localStorage !== 'undefined' && localStorage.getItem('intellisense.v2.legacyScope') === 'true');
+            if (useLegacyScope && precedingTables.length === 0 && (context.fullSql || context.statementRange)) {
                 const fullSql = context.fullSql || '';
                 const textToScan = context.statementRange && fullSql ? fullSql.substring(context.statementRange.start, context.statementRange.end) : fullSql;
                 if (window.SqlContextAnalyzer && typeof window.SqlContextAnalyzer.extractAllTablesInQuery === 'function') {
@@ -2802,7 +2807,15 @@
             }
 
             let queryTables = context.queryTables || [];
-            if (queryTables.length < 2 && (context.fullSql || context.statementRange)) {
+            if (queryTables.length < 2 && context.activeScope && typeof context.activeScope.getAllVisibleTables === 'function') {
+                const scopeTables = context.activeScope.getAllVisibleTables();
+                if (scopeTables && scopeTables.length > queryTables.length) {
+                    queryTables = scopeTables;
+                }
+            }
+            const useLegacyScope = (typeof window !== 'undefined' && window.__USE_LEGACY_SCOPE__) ||
+                (typeof localStorage !== 'undefined' && localStorage.getItem('intellisense.v2.legacyScope') === 'true');
+            if (useLegacyScope && queryTables.length < 2 && (context.fullSql || context.statementRange)) {
                 const fullSql = context.fullSql || '';
                 const textToScan = context.statementRange && fullSql ? fullSql.substring(context.statementRange.start, context.statementRange.end) : fullSql;
                 if (window.SqlContextAnalyzer && typeof window.SqlContextAnalyzer.extractAllTablesInQuery === 'function') {
