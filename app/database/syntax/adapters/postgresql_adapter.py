@@ -25,54 +25,300 @@ import re
 def check_offline_postgres_structural_blocks(sql: str) -> list[dict[str, Any]]:
     """Check structural block balance for PostgreSQL when offline."""
     diags: list[dict[str, Any]] = []
-    if not sql:
+    if not sql or not sql.strip():
         return diags
 
-    # 1. Check unclosed dollar-quoted blocks
-    dollar_matches = list(re.finditer(r"\$[a-zA-Z0-9_]*\$", sql))
-    if len(dollar_matches) % 2 == 1:
-        last = dollar_matches[-1]
-        line_no = sql[: last.start()].count("\n") + 1
-        last_nl = sql[: last.start()].rfind("\n")
-        col = (last.start() + 1) if last_nl == -1 else (last.start() - last_nl)
-        tag = last.group(0)
-        diags.append({
-            "severity": "error",
-            "message": f"Unclosed dollar-quoted block '{tag}'",
-            "code": "SQL_SYNTAX_ERROR",
-            "line": line_no,
-            "column": col,
-            "end_column": col + len(tag),
-            "token": tag,
-            "source": "postgresql",
-        })
-        return diags
+    n = len(sql)
+    i = 0
+    blocks: list[tuple[str, int, int, int, int, int]] = []
 
-    # 2. Check BEGIN / END pairs inside procedural dollar-quote blocks
-    for i in range(0, len(dollar_matches), 2):
-        start_m = dollar_matches[i]
-        end_m = dollar_matches[i + 1]
-        block = sql[start_m.end() : end_m.start()]
+    # First pass: find top-level dollar-quoted blocks
+    # while correctly skipping comments and strings.
+    while i < n:
+        # 1. Single-line comment
+        if sql[i:i + 2] == "--":
+            i += 2
+            while i < n and sql[i] != "\n":
+                i += 1
+            continue
 
-        # Clean single-line comments and single-quoted strings
-        cleaned = re.sub(r"--[^\r\n]*", "", block)
-        cleaned = re.sub(r"'(?:''|[^'])*'", "", cleaned)
+        # 2. Multi-line comment (supporting nesting)
+        if sql[i:i + 2] == "/*":
+            i += 2
+            depth = 1
+            while i < n and depth > 0:
+                if sql[i:i + 2] == "/*":
+                    depth += 1
+                    i += 2
+                elif sql[i:i + 2] == "*/":
+                    depth -= 1
+                    i += 2
+                else:
+                    i += 1
+            continue
 
-        begins = list(re.finditer(r"\bBEGIN\b", cleaned, re.IGNORECASE))
-        ends = list(re.finditer(r"\bEND\b", cleaned, re.IGNORECASE))
-        if len(begins) > len(ends):
-            unmatched = begins[len(ends)]
-            abs_pos = start_m.end() + unmatched.start()
-            line_no = sql[:abs_pos].count("\n") + 1
-            last_nl = sql[:abs_pos].rfind("\n")
-            col = (abs_pos + 1) if last_nl == -1 else (abs_pos - last_nl)
+        # 3. Escape string E'...' or e'...'
+        if sql[i] in ("E", "e") and i + 1 < n and sql[i + 1] == "'":
+            i += 2
+            while i < n:
+                if sql[i] == "\\":
+                    i += 2
+                elif sql[i] == "'":
+                    if i + 1 < n and sql[i + 1] == "'":
+                        i += 2
+                    else:
+                        i += 1
+                        break
+                else:
+                    i += 1
+            continue
+
+        # 4. Single-quoted string '...'
+        if sql[i] == "'":
+            i += 1
+            while i < n:
+                if sql[i] == "'":
+                    if i + 1 < n and sql[i + 1] == "'":
+                        i += 2
+                    else:
+                        i += 1
+                        break
+                else:
+                    i += 1
+            continue
+
+        # 5. Double-quoted identifier "..."
+        if sql[i] == '"':
+            i += 1
+            while i < n:
+                if sql[i] == '"':
+                    if i + 1 < n and sql[i + 1] == '"':
+                        i += 2
+                    else:
+                        i += 1
+                        break
+                else:
+                    i += 1
+            continue
+
+        # 6. Dollar quote $[a-zA-Z0-9_]*\$
+        if sql[i] == "$":
+            tag_match = re.match(r"\$[a-zA-Z0-9_]*\$", sql[i:])
+            if tag_match:
+                tag = tag_match.group(0)
+                tag_start = i
+                content_start = i + len(tag)
+
+                tag_line = sql[:tag_start].count("\n") + 1
+                last_nl = sql[:tag_start].rfind("\n")
+                tag_col = (tag_start + 1) if last_nl == -1 else (tag_start - last_nl)
+
+                closing_pos = sql.find(tag, content_start)
+                if closing_pos == -1:
+                    diags.append({
+                        "severity": "error",
+                        "message": f"Unclosed dollar-quoted block '{tag}'",
+                        "code": "SQL_SYNTAX_ERROR",
+                        "line": tag_line,
+                        "column": tag_col,
+                        "end_column": tag_col + len(tag),
+                        "token": tag,
+                        "source": "postgresql",
+                    })
+                    return diags
+
+                content_end = closing_pos
+                blocks.append((tag, content_start, content_end, tag_start, tag_line, tag_col))
+                i = closing_pos + len(tag)
+                continue
+
+        i += 1
+
+    # Second pass: check procedural blocks inside each dollar-quoted block
+    for tag, c_start, c_end, t_start, t_line, t_col in blocks:
+        block_text = sql[c_start:c_end]
+        m = len(block_text)
+        j = 0
+        tokens: list[tuple[str, int, int, int]] = []  # (text, abs_pos, line, col)
+
+        while j < m:
+            # Skip single-line comment
+            if block_text[j:j + 2] == "--":
+                j += 2
+                while j < m and block_text[j] != "\n":
+                    j += 1
+                continue
+
+            # Skip multi-line comment
+            if block_text[j:j + 2] == "/*":
+                j += 2
+                depth = 1
+                while j < m and depth > 0:
+                    if block_text[j:j + 2] == "/*":
+                        depth += 1
+                        j += 2
+                    elif block_text[j:j + 2] == "*/":
+                        depth -= 1
+                        j += 2
+                    else:
+                        j += 1
+                continue
+
+            # Skip escape string
+            if block_text[j] in ("E", "e") and j + 1 < m and block_text[j + 1] == "'":
+                j += 2
+                while j < m:
+                    if block_text[j] == "\\":
+                        j += 2
+                    elif block_text[j] == "'":
+                        if j + 1 < m and block_text[j + 1] == "'":
+                            j += 2
+                        else:
+                            j += 1
+                            break
+                    else:
+                        j += 1
+                continue
+
+            # Skip string literal
+            if block_text[j] == "'":
+                j += 1
+                while j < m:
+                    if block_text[j] == "'":
+                        if j + 1 < m and block_text[j + 1] == "'":
+                            j += 2
+                        else:
+                            j += 1
+                            break
+                    else:
+                        j += 1
+                continue
+
+            # Skip double-quoted identifier
+            if block_text[j] == '"':
+                j += 1
+                while j < m:
+                    if block_text[j] == '"':
+                        if j + 1 < m and block_text[j + 1] == '"':
+                            j += 2
+                        else:
+                            j += 1
+                            break
+                    else:
+                        j += 1
+                continue
+
+            # Skip inner dollar-quoted string
+            if block_text[j] == "$":
+                inner_match = re.match(r"\$[a-zA-Z0-9_]*\$", block_text[j:])
+                if inner_match:
+                    inner_tag = inner_match.group(0)
+                    inner_close = block_text.find(inner_tag, j + len(inner_tag))
+                    if inner_close != -1:
+                        j = inner_close + len(inner_tag)
+                        continue
+                    else:
+                        abs_pos = c_start + j
+                        line_no = sql[:abs_pos].count("\n") + 1
+                        last_nl = sql[:abs_pos].rfind("\n")
+                        col_no = (abs_pos + 1) if last_nl == -1 else (abs_pos - last_nl)
+                        diags.append({
+                            "severity": "error",
+                            "message": f"Unclosed inner dollar-quoted block '{inner_tag}'",
+                            "code": "SQL_SYNTAX_ERROR",
+                            "line": line_no,
+                            "column": col_no,
+                            "end_column": col_no + len(inner_tag),
+                            "token": inner_tag,
+                            "source": "postgresql",
+                        })
+                        return diags
+
+            # Match words or symbols
+            word_match = re.match(r"[a-zA-Z_][a-zA-Z0-9_]*|[;(),]", block_text[j:])
+            if word_match:
+                tok_str = word_match.group(0)
+                abs_pos = c_start + j
+                line_no = sql[:abs_pos].count("\n") + 1
+                last_nl = sql[:abs_pos].rfind("\n")
+                col_no = (abs_pos + 1) if last_nl == -1 else (abs_pos - last_nl)
+                tokens.append((tok_str, abs_pos, line_no, col_no))
+                j += len(tok_str)
+                continue
+
+            j += 1
+
+        # Process tokens
+        begin_stack: list[tuple[str, int, int, int]] = []
+        case_stack_count = 0
+        k = 0
+        num_toks = len(tokens)
+
+        while k < num_toks:
+            tok_text, tok_pos, tok_line, tok_col = tokens[k]
+            upper = tok_text.upper()
+
+            if upper == "BEGIN":
+                begin_stack.append((tok_text, tok_pos, tok_line, tok_col))
+                k += 1
+                continue
+
+            if upper == "CASE":
+                case_stack_count += 1
+                k += 1
+                continue
+
+            if upper == "END":
+                next_tok = tokens[k + 1][0].upper() if k + 1 < num_toks else ""
+                if next_tok in ("IF", "LOOP"):
+                    k += 2
+                    continue
+                elif next_tok == "CASE":
+                    if case_stack_count > 0:
+                        case_stack_count -= 1
+                    k += 2
+                    continue
+                else:
+                    if case_stack_count > 0:
+                        case_stack_count -= 1
+                        k += 1
+                        continue
+                    elif begin_stack:
+                        begin_stack.pop()
+                        # Skip optional block label after END, e.g. END lbl;
+                        if (
+                            k + 1 < num_toks
+                            and tokens[k + 1][0] not in (";", ",", "(", ")")
+                            and tokens[k + 1][0].upper() not in ("BEGIN", "END", "IF", "CASE", "LOOP")
+                        ):
+                            k += 2
+                        else:
+                            k += 1
+                        continue
+                    else:
+                        diags.append({
+                            "severity": "error",
+                            "message": "Unmatched END: no corresponding BEGIN block",
+                            "code": "SQL_SYNTAX_ERROR",
+                            "line": tok_line,
+                            "column": tok_col,
+                            "end_column": tok_col + 3,
+                            "token": "END",
+                            "source": "postgresql",
+                        })
+                        k += 1
+                        continue
+
+            k += 1
+
+        for b_tok, b_pos, b_line, b_col in begin_stack:
             diags.append({
                 "severity": "error",
                 "message": "Unmatched BEGIN block: missing corresponding END in procedural code",
                 "code": "SQL_SYNTAX_ERROR",
-                "line": line_no,
-                "column": col,
-                "end_column": col + 5,
+                "line": b_line,
+                "column": b_col,
+                "end_column": b_col + 5,
                 "token": "BEGIN",
                 "source": "postgresql",
             })
