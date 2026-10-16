@@ -169,7 +169,8 @@
             this.nonAliases = new Set([
                 "WHERE", "ON", "JOIN", "INNER", "LEFT", "RIGHT", "FULL", "CROSS", "OUTER",
                 "GROUP", "ORDER", "HAVING", "LIMIT", "UNION", "APPLY", "LATERAL", "NATURAL", "WITH",
-                "SELECT", "FROM", "INTO", "SET", "VALUES", "IN", "AND", "OR"
+                "SELECT", "FROM", "INTO", "SET", "VALUES", "IN", "AND", "OR",
+                "MERGE", "USING", "WHEN", "MATCHED", "THEN"
             ]);
         }
 
@@ -1095,7 +1096,7 @@
                 if (startIdx > 0) {
                     const prevTok = codeTokens[startIdx - 1];
                     const prevUpper = (prevTok.upper || prevTok.value).toUpperCase();
-                    if (prevUpper === 'FROM' || prevUpper === 'JOIN' || prevUpper === 'APPLY' || prevUpper === 'LATERAL') {
+                    if (prevUpper === 'FROM' || prevUpper === 'JOIN' || prevUpper === 'APPLY' || prevUpper === 'LATERAL' || prevUpper === 'USING') {
                         const endIdx = span.endIndex;
                         let aliasName = "";
                         let nextIdx = endIdx + 1;
@@ -1190,10 +1191,37 @@
 
             for (let i = 0; i < codeTokens.length; i++) {
                 const upper = (codeTokens[i].upper || codeTokens[i].value).toUpperCase();
-                if (upper === 'FROM' || upper === 'JOIN' || upper === 'APPLY' || upper === 'LATERAL') {
+                if (upper === 'FROM' || upper === 'JOIN' || upper === 'APPLY' || upper === 'LATERAL' || upper === 'USING' || upper === 'MERGE') {
                     if (i + 1 >= codeTokens.length) continue;
 
                     let j = i + 1;
+                    if (upper === 'MERGE') {
+                        // Skip TOP (...) or TOP n [PERCENT]
+                        if (j < codeTokens.length && (codeTokens[j].upper || codeTokens[j].value).toUpperCase() === 'TOP') {
+                            j++;
+                            if (j < codeTokens.length && codeTokens[j].value === '(') {
+                                let depth = 1;
+                                j++;
+                                while (j < codeTokens.length && depth > 0) {
+                                    if (codeTokens[j].value === '(') depth++;
+                                    else if (codeTokens[j].value === ')') depth--;
+                                    j++;
+                                }
+                            } else if (j < codeTokens.length && codeTokens[j].type === 'NUMBER') {
+                                j++;
+                            }
+                            if (j < codeTokens.length && (codeTokens[j].upper || codeTokens[j].value).toUpperCase() === 'PERCENT') {
+                                j++;
+                            }
+                        }
+                        if (j < codeTokens.length && (codeTokens[j].upper || codeTokens[j].value).toUpperCase() === 'INTO') {
+                            j++;
+                        }
+                    }
+                    if (j < codeTokens.length && (codeTokens[j].upper || codeTokens[j].value).toUpperCase() === 'ONLY') {
+                        j++;
+                    }
+
                     let tableParts = [];
 
                     // Collect table reference tokens: [server.][db.][schema.]table

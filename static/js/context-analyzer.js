@@ -381,23 +381,32 @@
                 }
 
                 if (upper === 'ON') {
-                    // ON is only a join condition clause if preceded by JOIN in the same statement
-                    let hasJoin = false;
+                    // ON is a join/merge condition clause if preceded by JOIN, MERGE, or USING in the same statement
+                    let hasJoinOrMerge = false;
                     for (let j = 0; j < i; j++) {
                         const jUp = (priorTokens[j].upper || priorTokens[j].value).toUpperCase();
-                        if (jUp === 'JOIN') {
-                            hasJoin = true;
+                        if (jUp === 'JOIN' || jUp === 'MERGE' || jUp === 'USING') {
+                            hasJoinOrMerge = true;
                             break;
                         }
                     }
-                    if (hasJoin) {
+                    if (hasJoinOrMerge) {
                         return 'ON';
                     }
+                }
+
+                if (upper === 'USING') {
+                    return 'USING';
+                }
+
+                if (upper === 'MERGE') {
+                    return 'MERGE INTO';
                 }
 
                 if (upper === 'INTO' && i > 0) {
                     const prevUpper = (priorTokens[i - 1].upper || priorTokens[i - 1].value).toUpperCase();
                     if (prevUpper === 'INSERT') return 'INSERT INTO';
+                    if (prevUpper === 'MERGE') return 'MERGE INTO';
                 }
 
                 if (upper === 'INSERT') {
@@ -2288,7 +2297,7 @@
         } else if (dmlContext.isValues) {
             clause = 'VALUES';
             contextType = IntelliSenseContextType.COLUMN;
-        } else if (clause === 'FROM' || clause === 'JOIN') {
+        } else if (clause === 'FROM' || clause === 'JOIN' || clause === 'USING' || clause === 'MERGE' || clause === 'MERGE INTO') {
             contextType = IntelliSenseContextType.TABLE;
         } else if (clause === 'WHERE' || clause === 'ON' || clause === 'HAVING') {
             contextType = IntelliSenseContextType.COLUMN;
