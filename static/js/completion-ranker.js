@@ -187,6 +187,25 @@
                     }
                 }
 
+                // Phase 4: T-SQL CATCH Block Priority (Section 4.1 of .SKILL/quy_tac_va_thu_tu_thuc_hien_intellisense_syntax_check.md)
+                if (context.isInCatchBlock) {
+                    const itemName = (item.name || item.label || '').toUpperCase();
+                    const CATCH_ERROR_FUNCTIONS = [
+                        'ERROR_MESSAGE', 'ERROR_MESSAGE()',
+                        'ERROR_NUMBER', 'ERROR_NUMBER()',
+                        'ERROR_LINE', 'ERROR_LINE()',
+                        'ERROR_SEVERITY', 'ERROR_SEVERITY()',
+                        'ERROR_STATE', 'ERROR_STATE()',
+                        'ERROR_PROCEDURE', 'ERROR_PROCEDURE()',
+                        'XACT_STATE', 'XACT_STATE()'
+                    ];
+                    if (CATCH_ERROR_FUNCTIONS.includes(itemName) || CATCH_ERROR_FUNCTIONS.some(fn => itemName.startsWith(fn))) {
+                        contextScore += 160; // High priority for error functions in CATCH block
+                    } else if (itemName === 'THROW') {
+                        contextScore += 150; // High priority statement in CATCH block
+                    }
+                }
+
                 // Phase 4: Data Type Context Priorities (Issue I3)
                 if (context.isDataTypePosition || context.contextType === 'data_type') {
                     if (type === 'data_type') {

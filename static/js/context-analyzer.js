@@ -833,6 +833,59 @@
         };
     }
 
+    /**
+     * Detect whether the cursor is inside a T-SQL BEGIN CATCH ... END CATCH block.
+     * Complies with Section 4.1 of .SKILL/quy_tac_va_thu_tu_thuc_hien_intellisense_syntax_check.md.
+     */
+    function detectCatchBlock(tokens, cursorIndex, textBeforeCursor = '') {
+        if (tokens && Array.isArray(tokens) && tokens.length > 0) {
+            let catchDepth = 0;
+            for (let i = 0; i < tokens.length; i++) {
+                const tok = tokens[i];
+                if (tok.start >= cursorIndex) break;
+                const upper = (tok.text || tok.value || '').toUpperCase();
+
+                if (upper === 'BEGIN') {
+                    let nextIdx = i + 1;
+                    while (nextIdx < tokens.length && (tokens[nextIdx].type === 'WHITESPACE' || tokens[nextIdx].type === 'COMMENT')) {
+                        nextIdx++;
+                    }
+                    if (nextIdx < tokens.length) {
+                        const nextUpper = (tokens[nextIdx].text || tokens[nextIdx].value || '').toUpperCase();
+                        if (nextUpper === 'CATCH') {
+                            catchDepth++;
+                            i = nextIdx;
+                            continue;
+                        }
+                    }
+                } else if (upper === 'END') {
+                    let nextIdx = i + 1;
+                    while (nextIdx < tokens.length && (tokens[nextIdx].type === 'WHITESPACE' || tokens[nextIdx].type === 'COMMENT')) {
+                        nextIdx++;
+                    }
+                    if (nextIdx < tokens.length) {
+                        const nextUpper = (tokens[nextIdx].text || tokens[nextIdx].value || '').toUpperCase();
+                        if (nextUpper === 'CATCH') {
+                            if (catchDepth > 0) catchDepth--;
+                            i = nextIdx;
+                            continue;
+                        }
+                    }
+                }
+            }
+            if (catchDepth > 0) return true;
+        }
+
+        // Fallback using textBeforeCursor if tokens unavailable
+        if (textBeforeCursor) {
+            const beginCatchMatches = (textBeforeCursor.match(/\bBEGIN\s+CATCH\b/gi) || []).length;
+            const endCatchMatches = (textBeforeCursor.match(/\bEND\s+CATCH\b/gi) || []).length;
+            return beginCatchMatches > endCatchMatches;
+        }
+
+        return false;
+    }
+
     // ─────────────────────────────────────────────────────────────────────────────
     // 6. SCOPE, TEMP TABLES & TABLE VARIABLES EXTRACTION
     // ─────────────────────────────────────────────────────────────────────────────
@@ -2513,7 +2566,8 @@
             isUpdateSetValue: dmlContext.isUpdateSetValue,
             targetTable: dmlContext.targetTable,
             alreadyListed: dmlContext.alreadyListed || [],
-            insertColumns: dmlContext.insertColumns || []
+            insertColumns: dmlContext.insertColumns || [],
+            isInCatchBlock: detectCatchBlock(fullCodeTokens, cursorIndex, textBeforeCursor)
         };
     }
 
@@ -2542,6 +2596,7 @@
         detectClause,
         detectAlterContext,
         detectRoutineContext,
+        detectCatchBlock,
         detectStatementBoundary,
         analyze
     };
