@@ -529,9 +529,15 @@ class SqlServerAdapter(DatabaseAdapter):
     def list_objects(self, database, schema, object_type, search=None, limit=0):
         type_map = {
             "tables": "U",
+            "table": "U",
             "views": "V",
+            "view": "V",
             "procedures": "P",
+            "procedure": "P",
             "triggers": "TR",
+            "trigger": "TR",
+            "functions": "FN",
+            "function": "FN",
             "sequences": "SO",
             "sequence": "SO",
             "synonyms": "SN",
@@ -737,20 +743,71 @@ class SqlServerAdapter(DatabaseAdapter):
                 for row in rows
             ]
 
+        clean_schema = (schema or "dbo").strip("[] \t\r\n")
+
+        if object_type in ("triggers", "trigger"):
+            trig_sql = f"""
+                SELECT s.name, tr.name, tr.object_id
+                FROM {db_prefix}sys.triggers AS tr
+                JOIN {db_prefix}sys.tables AS t ON t.object_id = tr.parent_id
+                JOIN {db_prefix}sys.schemas AS s ON s.schema_id = t.schema_id
+                WHERE (s.name = ? OR LOWER(s.name) = LOWER(?))
+            """
+            trig_params = [clean_schema, clean_schema]
+            if search:
+                trig_sql += "  AND tr.name LIKE ?"
+                trig_params.append(f"%{search}%")
+            trig_sql += "\n            ORDER BY tr.name"
+
+            rows = []
+            try:
+                result = self.execute(trig_sql, tuple(trig_params), limit=limit, database=database)
+                rows = result.get("rows", [])
+            except Exception:
+                rows = []
+
+            if not rows and database:
+                fallback_trig = """
+                    SELECT s.name, tr.name, tr.object_id
+                    FROM sys.triggers AS tr
+                    JOIN sys.tables AS t ON t.object_id = tr.parent_id
+                    JOIN sys.schemas AS s ON s.schema_id = t.schema_id
+                    WHERE (s.name = ? OR LOWER(s.name) = LOWER(?))
+                """
+                fb_params = [clean_schema, clean_schema]
+                if search:
+                    fallback_trig += "  AND tr.name LIKE ?"
+                    fb_params.append(f"%{search}%")
+                fallback_trig += "\n            ORDER BY tr.name"
+                try:
+                    result = self.execute(fallback_trig, tuple(fb_params), limit=limit, database=database)
+                    rows = result.get("rows", [])
+                except Exception:
+                    pass
+
+            return [
+                {
+                    "schema": row[0],
+                    "name": row[1],
+                    "id": row[2],
+                }
+                for row in rows
+            ]
+
         sql = f"""
             SELECT s.name, o.name, o.object_id
             FROM {db_prefix}sys.objects AS o
             JOIN {db_prefix}sys.schemas AS s
               ON s.schema_id = o.schema_id
-            WHERE s.name = ?
+            WHERE (s.name = ? OR LOWER(s.name) = LOWER(?))
         """
         
-        if object_type == "functions":
+        if object_type in ("functions", "function"):
             sql += "  AND o.type IN ('FN', 'IF', 'TF', 'FS', 'FT')"
-            params = (schema,)
+            params = [clean_schema, clean_schema]
         else:
             sql += "  AND o.type = ?"
-            params = [schema, type_map.get(object_type, "U")]
+            params = [clean_schema, clean_schema, type_map.get(object_type, "U")]
             
         if search:
             sql += "  AND o.name LIKE ?"
@@ -758,7 +815,36 @@ class SqlServerAdapter(DatabaseAdapter):
             
         sql += "\n            ORDER BY o.name"
 
-        result = self.execute(sql, tuple(params), limit=limit, database=database)
+        rows = []
+        try:
+            result = self.execute(sql, tuple(params), limit=limit, database=database)
+            rows = result.get("rows", [])
+        except Exception:
+            rows = []
+
+        if not rows and database:
+            fallback_sql = """
+                SELECT s.name, o.name, o.object_id
+                FROM sys.objects AS o
+                JOIN sys.schemas AS s
+                  ON s.schema_id = o.schema_id
+                WHERE (s.name = ? OR LOWER(s.name) = LOWER(?))
+            """
+            if object_type in ("functions", "function"):
+                fallback_sql += "  AND o.type IN ('FN', 'IF', 'TF', 'FS', 'FT')"
+                fb_params = [clean_schema, clean_schema]
+            else:
+                fallback_sql += "  AND o.type = ?"
+                fb_params = [clean_schema, clean_schema, type_map.get(object_type, "U")]
+            if search:
+                fallback_sql += "  AND o.name LIKE ?"
+                fb_params.append(f"%{search}%")
+            fallback_sql += "\n            ORDER BY o.name"
+            try:
+                result = self.execute(fallback_sql, tuple(fb_params), limit=limit, database=database)
+                rows = result.get("rows", [])
+            except Exception:
+                pass
 
         return [
             {
@@ -766,7 +852,7 @@ class SqlServerAdapter(DatabaseAdapter):
                 "name": row[1],
                 "id": row[2],
             }
-            for row in result["rows"]
+            for row in rows
         ]
 
     def get_intellisense_objects(self, database=None, schema=None):
@@ -1335,13 +1421,16 @@ class SqlServerAdapter(DatabaseAdapter):
 
     def get_table_design_metadata(self, database, schema, table):
         db_prefix = f"{quote_ident(database, 'sqlserver')}." if database else ""
+        clean_schema = (schema or "dbo").strip("[] \t\r\n")
+        clean_table = (table or "").strip("[] \t\r\n")
         obj_sql = f"""
             SELECT o.object_id 
             FROM {db_prefix}sys.tables o
             JOIN {db_prefix}sys.schemas s ON s.schema_id = o.schema_id
-            WHERE s.name = ? AND o.name = ?
+            WHERE (s.name = ? OR LOWER(s.name) = LOWER(?))
+              AND (o.name = ? OR LOWER(o.name) = LOWER(?))
         """
-        obj_res = self.execute(obj_sql, (schema, table), database=database)
+        obj_res = self.execute(obj_sql, (clean_schema, clean_schema, clean_table, clean_table), database=database)
         if not obj_res.get("rows"):
             return None
         object_id = obj_res["rows"][0][0]
@@ -1634,6 +1723,423 @@ class SqlServerAdapter(DatabaseAdapter):
             "checks": checks,
             "triggers": triggers
         }
+
+    def get_all_tables_design_metadata(self, database: str, schema: str, table_names: list = None) -> dict:
+        """
+        High-performance bulk metadata retrieval for all tables in a SQL Server schema.
+        Adheres strictly to .SKILL/bulk-catalog.md:
+        - 5 grouped catalog queries replace thousands of individual round trips.
+        - Strict read-only on system catalog views (sys.*).
+        - Preserves 100% metadata fidelity with get_table_design_metadata.
+        - Deterministic ordering of columns, constraints, indexes.
+        """
+        clean_schema = (schema or "dbo").strip("[] \t\r\n")
+        db_prefix = f"{quote_ident(database, 'sqlserver')}." if database else ""
+
+        target_table_set = {t.lower() for t in table_names} if table_names else None
+
+        tables_meta: dict = {}
+
+        def _get_or_init(t_name: str) -> dict:
+            if t_name not in tables_meta:
+                tables_meta[t_name] = {
+                    "database": database,
+                    "schema": schema,
+                    "table": t_name,
+                    "engine": "sqlserver",
+                    "pk_name": "",
+                    "columns": [],
+                    "indexes": [],
+                    "foreign_keys": [],
+                    "uniques": [],
+                    "checks": [],
+                    "triggers": []
+                }
+            return tables_meta[t_name]
+
+        # 1. Bulk Columns Query
+        col_sql = f"""
+            SELECT 
+                o.name AS table_name,
+                c.column_id,
+                c.name AS column_name,
+                TYPE_NAME(c.user_type_id) AS type_name,
+                c.max_length,
+                c.precision,
+                c.scale,
+                c.is_nullable,
+                c.is_identity,
+                CAST(ISNULL(ic.seed_value, 1) AS NUMERIC(38, 0)) AS seed_val,
+                CAST(ISNULL(ic.increment_value, 1) AS NUMERIC(38, 0)) AS inc_val,
+                CAST(dc.definition AS NVARCHAR(MAX)) AS default_val,
+                c.collation_name,
+                CASE WHEN pk_cols.column_id IS NOT NULL THEN 1 ELSE 0 END AS is_pk,
+                CAST(ep.value AS NVARCHAR(MAX)) AS description,
+                t.is_user_defined,
+                st.name AS type_schema,
+                t.name AS type_raw_name,
+                c.is_computed,
+                pk_cols.pk_name,
+                dc.name AS default_constraint_name
+            FROM {db_prefix}sys.tables o
+            JOIN {db_prefix}sys.schemas s ON s.schema_id = o.schema_id
+            JOIN {db_prefix}sys.columns c ON c.object_id = o.object_id
+            JOIN {db_prefix}sys.types t ON t.user_type_id = c.user_type_id
+            JOIN {db_prefix}sys.schemas st ON st.schema_id = t.schema_id
+            LEFT JOIN {db_prefix}sys.default_constraints dc 
+                ON dc.object_id = c.default_object_id
+            LEFT JOIN {db_prefix}sys.identity_columns ic 
+                ON ic.object_id = c.object_id AND ic.column_id = c.column_id
+            LEFT JOIN (
+                SELECT kc.parent_object_id, ic.column_id, kc.name AS pk_name
+                FROM {db_prefix}sys.key_constraints kc
+                JOIN {db_prefix}sys.index_columns ic 
+                    ON ic.object_id = kc.parent_object_id AND ic.index_id = kc.unique_index_id
+                WHERE kc.type = 'PK'
+            ) pk_cols ON pk_cols.parent_object_id = o.object_id AND pk_cols.column_id = c.column_id
+            LEFT JOIN {db_prefix}sys.extended_properties ep 
+                ON ep.class = 1 AND ep.major_id = c.object_id AND ep.minor_id = c.column_id AND ep.name = 'MS_Description'
+            WHERE (s.name = ? OR LOWER(s.name) = LOWER(?))
+            ORDER BY o.name, c.column_id
+        """
+        col_res = self.execute(col_sql, (clean_schema, clean_schema), database=database, limit=0)
+        for r in col_res.get("rows", []):
+            t_name = r[0]
+            if target_table_set and t_name.lower() not in target_table_set:
+                continue
+
+            t_obj = _get_or_init(t_name)
+
+            is_udt = bool(r[15]) if len(r) > 15 else False
+            type_schema = r[16] if len(r) > 16 else ""
+            type_raw_name = r[17] if len(r) > 17 else ""
+
+            if is_udt and type_raw_name:
+                type_name = quote_qualified(type_schema, type_raw_name, engine='sqlserver')
+            else:
+                type_name = (r[3] or "").lower()
+
+            raw_len = r[4]
+            prec = r[5]
+            scale = r[6]
+
+            size_str = ""
+            if not is_udt:
+                if type_name in ("nvarchar", "nchar"):
+                    size_str = "max" if raw_len == -1 else str(raw_len // 2)
+                elif type_name in ("varchar", "char", "varbinary", "binary"):
+                    size_str = "max" if raw_len == -1 else str(raw_len)
+                elif type_name in ("decimal", "numeric"):
+                    size_str = str(prec) if prec is not None else ""
+
+            raw_default = r[11] or ""
+            def_val = raw_default.strip()
+            while def_val.startswith("(") and def_val.endswith(")"):
+                def_val = def_val[1:-1].strip()
+
+            is_numeric = type_name in ("int", "bigint", "smallint", "tinyint", "decimal", "numeric", "float", "real", "bit", "money", "smallmoney", "integer")
+            if is_numeric:
+                while (def_val.startswith("'") and def_val.endswith("'")) or (def_val.startswith('"') and def_val.endswith('"')):
+                    def_val = def_val[1:-1].strip()
+
+            seq_match = re.search(r'NEXT\s+VALUE\s+FOR\s+([^\s\)]+)', raw_default, flags=re.IGNORECASE)
+            seq_name = seq_match.group(1).strip("[]") if seq_match else ""
+
+            col_pk_name = r[19] if len(r) > 19 and r[19] else ""
+            col_def_name = r[20] if len(r) > 20 and r[20] else ""
+            if col_pk_name and not t_obj["pk_name"]:
+                t_obj["pk_name"] = col_pk_name
+
+            t_obj["columns"].append({
+                "name": r[2],
+                "type": type_name,
+                "size": size_str,
+                "scale": str(scale) if scale is not None and type_name in ("decimal", "numeric", "datetime2", "time") else "",
+                "nullable": bool(r[7]),
+                "is_pk": bool(r[13]),
+                "pk_name": col_pk_name,
+                "is_identity": bool(r[8]),
+                "is_computed": bool(r[18]) if len(r) > 18 else False,
+                "identity_seed": int(r[9]) if r[9] is not None else 1,
+                "identity_increment": int(r[10]) if r[10] is not None else 1,
+                "sequence_name": seq_name,
+                "default_value": def_val,
+                "default_constraint_name": col_def_name,
+                "collation": r[12] or "",
+                "comment": r[14] or ""
+            })
+
+        # 2. Bulk Indexes Query
+        idx_sql = f"""
+            SELECT 
+                o.name AS table_name,
+                i.index_id,
+                i.name,
+                i.type_desc,
+                i.is_unique,
+                c.name AS col_name,
+                ic.is_descending_key
+            FROM {db_prefix}sys.tables o
+            JOIN {db_prefix}sys.schemas s ON s.schema_id = o.schema_id
+            JOIN {db_prefix}sys.indexes i ON i.object_id = o.object_id
+            JOIN {db_prefix}sys.index_columns ic 
+                ON ic.object_id = i.object_id AND ic.index_id = i.index_id
+            JOIN {db_prefix}sys.columns c 
+                ON c.object_id = ic.object_id AND c.column_id = ic.column_id
+            WHERE (s.name = ? OR LOWER(s.name) = LOWER(?))
+              AND i.type > 0 AND i.is_primary_key = 0 AND i.is_unique_constraint = 0
+            ORDER BY o.name, i.index_id, ic.key_ordinal
+        """
+        idx_res = self.execute(idx_sql, (clean_schema, clean_schema), database=database, limit=0)
+        table_idx_maps: dict = {}
+        for r in idx_res.get("rows", []):
+            t_name = r[0]
+            if target_table_set and t_name.lower() not in target_table_set:
+                continue
+            iname = r[2]
+            if not iname:
+                continue
+            if t_name not in table_idx_maps:
+                table_idx_maps[t_name] = {}
+            t_idx_map = table_idx_maps[t_name]
+            if iname not in t_idx_map:
+                t_idx_map[iname] = {
+                    "name": iname,
+                    "fields": [],
+                    "index_type": r[3],
+                    "is_unique": bool(r[4]),
+                    "comment": ""
+                }
+            t_idx_map[iname]["fields"].append({
+                "column": r[5],
+                "desc": bool(r[6])
+            })
+        for t_name, idx_map in table_idx_maps.items():
+            t_obj = _get_or_init(t_name)
+            t_obj["indexes"] = list(idx_map.values())
+
+        # 3. Bulk Foreign Keys Query
+        fk_sql = f"""
+            SELECT 
+                po.name AS table_name,
+                fk.name AS fk_name,
+                lc.name AS local_col,
+                rs.name AS ref_schema,
+                rt.name AS ref_table,
+                rc.name AS ref_col,
+                fk.delete_referential_action_desc AS on_delete,
+                fk.update_referential_action_desc AS on_update,
+                fk.is_disabled,
+                fk.is_not_for_replication
+            FROM {db_prefix}sys.tables po
+            JOIN {db_prefix}sys.schemas s ON s.schema_id = po.schema_id
+            JOIN {db_prefix}sys.foreign_keys fk ON fk.parent_object_id = po.object_id
+            JOIN {db_prefix}sys.foreign_key_columns fkc 
+                ON fkc.constraint_object_id = fk.object_id
+            JOIN {db_prefix}sys.columns lc 
+                ON lc.object_id = fkc.parent_object_id AND lc.column_id = fkc.parent_column_id
+            JOIN {db_prefix}sys.tables rt 
+                ON rt.object_id = fkc.referenced_object_id
+            JOIN {db_prefix}sys.schemas rs 
+                ON rs.schema_id = rt.schema_id
+            JOIN {db_prefix}sys.columns rc 
+                ON rc.object_id = fkc.referenced_object_id AND rc.column_id = fkc.referenced_column_id
+            WHERE (s.name = ? OR LOWER(s.name) = LOWER(?))
+            ORDER BY po.name, fk.name, fkc.constraint_column_id
+        """
+        fk_res = self.execute(fk_sql, (clean_schema, clean_schema), database=database, limit=0)
+        table_fk_maps: dict = {}
+        for r in fk_res.get("rows", []):
+            t_name = r[0]
+            if target_table_set and t_name.lower() not in target_table_set:
+                continue
+            fk_name = r[1]
+            if t_name not in table_fk_maps:
+                table_fk_maps[t_name] = {}
+            t_fk_map = table_fk_maps[t_name]
+            if fk_name not in t_fk_map:
+                t_fk_map[fk_name] = {
+                    "name": fk_name,
+                    "fields": [],
+                    "ref_schema": r[3],
+                    "ref_table": r[4],
+                    "ref_fields": [],
+                    "on_delete": (r[6] or "NO_ACTION").replace("_", " "),
+                    "on_update": (r[7] or "NO_ACTION").replace("_", " "),
+                    "is_enabled": not bool(r[8]),
+                    "not_for_replication": bool(r[9]),
+                    "comment": ""
+                }
+            t_fk_map[fk_name]["fields"].append(r[2])
+            t_fk_map[fk_name]["ref_fields"].append(r[5])
+        for t_name, fk_map in table_fk_maps.items():
+            t_obj = _get_or_init(t_name)
+            t_obj["foreign_keys"] = list(fk_map.values())
+
+        # 4. Bulk Uniques Query
+        uq_sql = f"""
+            SELECT 
+                o.name AS table_name,
+                kc.name AS constraint_name,
+                i.type_desc AS index_type,
+                c.name AS column_name
+            FROM {db_prefix}sys.tables o
+            JOIN {db_prefix}sys.schemas s ON s.schema_id = o.schema_id
+            JOIN {db_prefix}sys.key_constraints kc ON kc.parent_object_id = o.object_id
+            JOIN {db_prefix}sys.indexes i 
+                ON i.object_id = kc.parent_object_id AND i.index_id = kc.unique_index_id
+            JOIN {db_prefix}sys.index_columns ic 
+                ON ic.object_id = i.object_id AND ic.index_id = i.index_id
+            JOIN {db_prefix}sys.columns c 
+                ON c.object_id = ic.object_id AND c.column_id = ic.column_id
+            WHERE (s.name = ? OR LOWER(s.name) = LOWER(?)) AND kc.type = 'UQ'
+            ORDER BY o.name, kc.name, ic.key_ordinal
+        """
+        uq_res = self.execute(uq_sql, (clean_schema, clean_schema), database=database, limit=0)
+        table_uq_maps: dict = {}
+        for r in uq_res.get("rows", []):
+            t_name = r[0]
+            if target_table_set and t_name.lower() not in target_table_set:
+                continue
+            uq_name = r[1]
+            if t_name not in table_uq_maps:
+                table_uq_maps[t_name] = {}
+            t_uq_map = table_uq_maps[t_name]
+            if uq_name not in t_uq_map:
+                t_uq_map[uq_name] = {
+                    "name": uq_name,
+                    "fields": [],
+                    "is_clustered": (r[2] == "CLUSTERED"),
+                    "comment": ""
+                }
+            t_uq_map[uq_name]["fields"].append(r[3])
+        for t_name, uq_map in table_uq_maps.items():
+            t_obj = _get_or_init(t_name)
+            t_obj["uniques"] = list(uq_map.values())
+
+        # 5. Bulk Checks Query
+        chk_sql = f"""
+            SELECT 
+                o.name AS table_name,
+                cc.name,
+                CAST(cc.definition AS NVARCHAR(MAX)) AS definition,
+                cc.is_disabled,
+                cc.is_not_for_replication
+            FROM {db_prefix}sys.tables o
+            JOIN {db_prefix}sys.schemas s ON s.schema_id = o.schema_id
+            JOIN {db_prefix}sys.check_constraints cc ON cc.parent_object_id = o.object_id
+            WHERE (s.name = ? OR LOWER(s.name) = LOWER(?))
+            ORDER BY o.name, cc.name
+        """
+        chk_res = self.execute(chk_sql, (clean_schema, clean_schema), database=database, limit=0)
+        for r in chk_res.get("rows", []):
+            t_name = r[0]
+            if target_table_set and t_name.lower() not in target_table_set:
+                continue
+            chk_def = (r[2] or "").strip()
+            while chk_def.startswith("(") and chk_def.endswith(")"):
+                chk_def = chk_def[1:-1].strip()
+            t_obj = _get_or_init(t_name)
+            t_obj["checks"].append({
+                "name": r[1],
+                "check_clause": chk_def,
+                "is_enabled": not bool(r[3]),
+                "not_for_replication": bool(r[4]),
+                "comment": ""
+            })
+
+        # 6. Bulk Triggers Query
+        trig_sql = f"""
+            SELECT 
+                o.name AS table_name,
+                tr.name,
+                tr.is_disabled,
+                tr.is_instead_of_trigger,
+                OBJECTPROPERTY(tr.object_id, 'ExecIsInsertTrigger') AS is_insert,
+                OBJECTPROPERTY(tr.object_id, 'ExecIsUpdateTrigger') AS is_update,
+                OBJECTPROPERTY(tr.object_id, 'ExecIsDeleteTrigger') AS is_delete,
+                CAST(sm.definition AS NVARCHAR(MAX)) AS definition
+            FROM {db_prefix}sys.tables o
+            JOIN {db_prefix}sys.schemas s ON s.schema_id = o.schema_id
+            JOIN {db_prefix}sys.triggers tr ON tr.parent_id = o.object_id
+            LEFT JOIN {db_prefix}sys.sql_modules sm ON sm.object_id = tr.object_id
+            WHERE (s.name = ? OR LOWER(s.name) = LOWER(?))
+            ORDER BY o.name, tr.name
+        """
+        trig_res = self.execute(trig_sql, (clean_schema, clean_schema), database=database, limit=0)
+        for r in trig_res.get("rows", []):
+            t_name = r[0]
+            if target_table_set and t_name.lower() not in target_table_set:
+                continue
+            t_obj = _get_or_init(t_name)
+            t_obj["triggers"].append({
+                "name": r[1],
+                "fires": "Instead Of" if bool(r[3]) else "After",
+                "is_insert": bool(r[4]),
+                "is_update": bool(r[5]),
+                "is_delete": bool(r[6]),
+                "is_enabled": not bool(r[2]),
+                "definition": r[7] or "",
+                "comment": ""
+            })
+
+        return tables_meta
+
+    def get_all_code_objects_metadata(self, database: str, schema: str, object_type: str, names: list = None) -> dict:
+        """
+        High-performance bulk metadata retrieval for programmability objects
+        (views, procedures, functions, triggers) in a SQL Server schema.
+        Adheres strictly to .SKILL/bulk-catalog.md:
+        - 1 catalog query replaces thousands of individual round trips.
+        - Strict read-only on system catalog views (sys.*).
+        - Preserves 100% metadata fidelity with get_object_definition.
+        """
+        clean_schema = (schema or "dbo").strip("[] \t\r\n")
+        db_prefix = f"{quote_ident(database, 'sqlserver')}." if database else ""
+        target_names_set = {n.lower() for n in names} if names else None
+
+        res = {}
+        if object_type in ("trigger", "triggers"):
+            sql = f"""
+                SELECT tr.name, sm.definition
+                FROM {db_prefix}sys.triggers tr
+                JOIN {db_prefix}sys.tables t ON t.object_id = tr.parent_id
+                JOIN {db_prefix}sys.schemas s ON s.schema_id = t.schema_id
+                LEFT JOIN {db_prefix}sys.sql_modules sm ON sm.object_id = tr.object_id
+                WHERE (s.name = ? OR LOWER(s.name) = LOWER(?))
+                ORDER BY tr.name
+            """
+            rows = self.execute(sql, (clean_schema, clean_schema), database=database, limit=0).get("rows", [])
+            for r in rows:
+                name, definition = r[0], r[1] or ""
+                if target_names_set is None or name.lower() in target_names_set:
+                    res[name] = {"name": name, "definition": definition, "type": object_type}
+        else:
+            if object_type in ("view", "views"):
+                type_filter = "o.type = 'V'"
+            elif object_type in ("procedure", "procedures", "proc", "procs"):
+                type_filter = "o.type IN ('P', 'PC')"
+            elif object_type in ("function", "functions", "func", "funcs"):
+                type_filter = "o.type IN ('FN', 'IF', 'TF', 'FS', 'FT')"
+            else:
+                return {}
+
+            sql = f"""
+                SELECT o.name, sm.definition
+                FROM {db_prefix}sys.objects o
+                JOIN {db_prefix}sys.schemas s ON s.schema_id = o.schema_id
+                LEFT JOIN {db_prefix}sys.sql_modules sm ON sm.object_id = o.object_id
+                WHERE (s.name = ? OR LOWER(s.name) = LOWER(?))
+                  AND {type_filter}
+                ORDER BY o.name
+            """
+            rows = self.execute(sql, (clean_schema, clean_schema), database=database, limit=0).get("rows", [])
+            for r in rows:
+                name, definition = r[0], r[1] or ""
+                if target_names_set is None or name.lower() in target_names_set:
+                    res[name] = {"name": name, "definition": definition, "type": object_type}
+
+        return res
 
     def execute_migration_transaction(self, batches: list[str], database: str = None):
         """Executes a list of SQL batches within a single atomic transaction.

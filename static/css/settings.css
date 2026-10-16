@@ -968,3 +968,138 @@ html[data-bs-theme="win-xp"] .settings-window .btn-storage-action {
     border-color: #cccccc;
     color: #222222;
 }
+
+/* ── 9. About & Updates Box ─────────────────────────────────────────────────── */
+.settings-window .about-info-box {
+    margin: 10px 0 20px 0;
+    padding: 18px 20px;
+    background: var(--ide-bg-sidebar, #17181c);
+    border: 1px solid var(--ide-border, #2d3038);
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.settings-window .about-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--ide-border, #2d3038);
+}
+
+.settings-window .about-title-wrap {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.settings-window .about-logo {
+    width: 38px;
+    height: 38px;
+    border-radius: 8px;
+    object-fit: contain;
+}
+
+.settings-window .about-app-name {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--ide-text-active, #ffffff);
+}
+
+.settings-window .about-app-desc {
+    font-size: 12px;
+    color: var(--ide-text-muted, #858585);
+}
+
+.settings-window .about-badge-pill {
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 11.5px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.settings-window .about-badge-portable {
+    background: rgba(230, 180, 80, 0.15);
+    color: #e5b342;
+    border: 1px solid rgba(230, 180, 80, 0.35);
+}
+
+.settings-window .about-badge-installed {
+    background: rgba(78, 201, 176, 0.15);
+    color: #4ec9b0;
+    border: 1px solid rgba(78, 201, 176, 0.35);
+}
+
+.settings-window .about-path-box {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 10px 12px;
+    background: var(--ide-bg-input, #13141a);
+    border: 1px solid var(--ide-border, #2d3038);
+    border-radius: 6px;
+}
+
+.settings-window .about-path-label {
+    font-size: 11px;
+    color: var(--ide-text-muted, #858585);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.settings-window .about-path-value {
+    font-size: 12px;
+    font-family: var(--ide-font-mono, 'JetBrains Mono', Consolas, monospace);
+    color: var(--ide-text-main, #d4d4d4);
+    word-break: break-all;
+}
+
+.settings-window .update-status-card {
+    padding: 14px 16px;
+    border-radius: 6px;
+    border: 1px solid var(--ide-border, #2d3038);
+    background: var(--ide-bg-input, #13141a);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.settings-window .update-status-card.has-update {
+    border-color: rgba(78, 201, 176, 0.5);
+    background: rgba(78, 201, 176, 0.08);
+}
+
+.settings-window .update-status-card.up-to-date {
+    border-color: rgba(86, 156, 214, 0.4);
+}
+
+.settings-window .update-changelog-list {
+    margin: 8px 0 0 0;
+    padding-left: 20px;
+    font-size: 12px;
+    line-height: 1.6;
+    color: var(--ide-text-main, #c7cfcf);
+}
+
+html[data-bs-theme="light"] .settings-window .about-info-box,
+html[data-bs-theme="win-nt"] .settings-window .about-info-box,
+html[data-bs-theme="win-xp"] .settings-window .about-info-box {
+    background: #f7f7f7;
+    border-color: #d0d0d0;
+}
+
+html[data-bs-theme="light"] .settings-window .about-path-box,
+html[data-bs-theme="win-nt"] .settings-window .about-path-box,
+html[data-bs-theme="win-xp"] .settings-window .about-path-box {
+    background: #ffffff;
+    border-color: #e0e0e0;
+}
+

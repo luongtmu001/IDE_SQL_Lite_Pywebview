@@ -261,6 +261,22 @@
             }
         }
 
+        invalidateConnection(connectionId) {
+            const prefix = connectionId ? `${connectionId}::` : null;
+            const clearMap = (m) => {
+                if (!prefix) { m.clear(); return; }
+                for (const k of Array.from(m.keys())) {
+                    if (k.startsWith(prefix)) m.delete(k);
+                }
+            };
+            clearMap(this.objectsCache);
+            clearMap(this.columnsCache);
+            clearMap(this.parametersCache);
+            clearMap(this.foreignKeysCache);
+            clearMap(this.definitionsCache);
+            clearMap(this.dataTypesCache);
+        }
+
         async fetchForeignKeys(connectionId, database, schema, table, dbType) {
             if (!connectionId) return [];
             const cacheKey = `${connectionId}::${database || ''}::${schema || ''}::${table || ''}`;
@@ -2019,6 +2035,8 @@
         getTriggerController: () => controller.triggerController,
         get triggerController() { return controller.triggerController; },
         get dataProvider() { return dataProvider; },
+        invalidateConnection: (connId) => dataProvider.invalidateConnection(connId),
+        invalidateAll: () => dataProvider.invalidateConnection(null),
         // Phase 6 Signature Help API
         getSignatureHelp: (sql, offset, tabCtx) => {
             if (window.SqlSignatureHelpResolver) {

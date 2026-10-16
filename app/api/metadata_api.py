@@ -52,6 +52,23 @@ class MetadataApiMixin:
             return {"success": False, "error": str(exc)}
 
 
+    def script_object(self, connection_id, database=None, schema=None, name=None, type="table", action="CREATE"):
+        """Generates DDL/DML script for an object (CREATE, ALTER, DROP, SELECT, INSERT, UPDATE, DELETE)."""
+        try:
+            conn = self._get_connection(connection_id)
+            script = conn.metadata_service.script_object(
+                database=database,
+                schema=schema,
+                name=name,
+                object_type=type,
+                action=action,
+            )
+            return {"success": True, "script": script}
+        except Exception as exc:
+            logger.exception("Error scripting object %s.%s: %s", schema, name, exc)
+            return {"success": False, "error": str(exc)}
+
+
     def get_object_children(self, connection_id, database=None, schema=None, name=None, type=None, child_type=None):
         try:
             conn = self._get_connection(connection_id)

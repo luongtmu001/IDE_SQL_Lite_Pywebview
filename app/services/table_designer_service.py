@@ -16,8 +16,14 @@ class TableDesignerService:
     @staticmethod
     def _format_table_name(schema: str, table: str, engine: str) -> str:
         """Formats schema.table using centralized quote_qualified."""
-        s = schema or ("public" if engine == "postgresql" else "dbo")
+        eng = (engine or "").lower()
+        if eng in ("sqlite", "sqlite3"):
+            if schema and schema.lower() != "main":
+                return quote_qualified(schema, table, engine=engine)
+            return quote_ident(table, engine=engine)
+        s = schema or ("public" if eng == "postgresql" else "dbo")
         return quote_qualified(s, table, engine=engine)
+
 
     @classmethod
     def format_column_type(cls, col: Dict[str, Any], engine: str) -> str:

@@ -11,8 +11,11 @@ from app.api.query_api import QueryApiMixin
 from app.api.session_api import SessionApiMixin
 from app.api.settings_api import SettingsApiMixin
 from app.api.table_editor_api import TableEditorApiMixin
+from app.api.activity_api import ActivityApiMixin
+from app.api.schema_compare_api import SchemaCompareApiMixin
 
 __all__ = [
+    "ActivityApiMixin",
     "ConnectionsApiMixin",
     "DesignerApiMixin",
     "HistoryApiMixin",
@@ -20,6 +23,7 @@ __all__ = [
     "MainMetadataApiMixin",
     "ProfilerApiMixin",
     "QueryApiMixin",
+    "SchemaCompareApiMixin",
     "SessionApiMixin",
     "SettingsApiMixin",
     "TableEditorApiMixin",

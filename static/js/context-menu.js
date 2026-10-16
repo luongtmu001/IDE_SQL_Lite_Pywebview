@@ -3,6 +3,126 @@
 
 (function () {
 
+    // ── SSMS Script As Submenu Builder ──────────────────────────────────────
+    function makeScriptAsSubmenu(label, type) {
+        const isTable = (type === 'table');
+        const isView = (type === 'view' || type === 'materialized_view');
+        const isRoutine = (type === 'procedure' || type === 'function');
+        const isTrigger = (type === 'trigger');
+
+        const actions = [];
+        // CREATE
+        actions.push({
+            id: 'create-sub',
+            label: 'CREATE To',
+            icon: 'fa-file-circle-plus',
+            submenu: [
+                { id: 'script-as:CREATE:tab', label: 'New Query Editor Window', icon: 'fa-file-lines' },
+                { id: 'script-as:CREATE:clip', label: 'Clipboard', icon: 'fa-copy' }
+            ]
+        });
+
+        // ALTER (for view, routine, trigger, table)
+        actions.push({
+            id: 'alter-sub',
+            label: 'ALTER To',
+            icon: 'fa-pen-to-square',
+            submenu: [
+                { id: 'script-as:ALTER:tab', label: 'New Query Editor Window', icon: 'fa-file-lines' },
+                { id: 'script-as:ALTER:clip', label: 'Clipboard', icon: 'fa-copy' }
+            ]
+        });
+
+        // DROP
+        actions.push({
+            id: 'drop-sub',
+            label: 'DROP To',
+            icon: 'fa-trash',
+            danger: true,
+            submenu: [
+                { id: 'script-as:DROP:tab', label: 'New Query Editor Window', icon: 'fa-file-lines', danger: true },
+                { id: 'script-as:DROP:clip', label: 'Clipboard', icon: 'fa-copy', danger: true }
+            ]
+        });
+
+        // DROP and CREATE
+        actions.push({
+            id: 'dropcreate-sub',
+            label: 'DROP And CREATE To',
+            icon: 'fa-rotate-left',
+            submenu: [
+                { id: 'script-as:DROP_AND_CREATE:tab', label: 'New Query Editor Window', icon: 'fa-file-lines' },
+                { id: 'script-as:DROP_AND_CREATE:clip', label: 'Clipboard', icon: 'fa-copy' }
+            ]
+        });
+
+        // SELECT (for table, view)
+        if (isTable || isView) {
+            actions.push({ separator: true });
+            actions.push({
+                id: 'select-sub',
+                label: 'SELECT To',
+                icon: 'fa-table-list',
+                submenu: [
+                    { id: 'script-as:SELECT:tab', label: 'New Query Editor Window', icon: 'fa-file-lines' },
+                    { id: 'script-as:SELECT:clip', label: 'Clipboard', icon: 'fa-copy' }
+                ]
+            });
+        }
+
+        // INSERT, UPDATE, DELETE (for table)
+        if (isTable) {
+            actions.push({
+                id: 'insert-sub',
+                label: 'INSERT To',
+                icon: 'fa-circle-plus',
+                submenu: [
+                    { id: 'script-as:INSERT:tab', label: 'New Query Editor Window', icon: 'fa-file-lines' },
+                    { id: 'script-as:INSERT:clip', label: 'Clipboard', icon: 'fa-copy' }
+                ]
+            });
+            actions.push({
+                id: 'update-sub',
+                label: 'UPDATE To',
+                icon: 'fa-pen-nib',
+                submenu: [
+                    { id: 'script-as:UPDATE:tab', label: 'New Query Editor Window', icon: 'fa-file-lines' },
+                    { id: 'script-as:UPDATE:clip', label: 'Clipboard', icon: 'fa-copy' }
+                ]
+            });
+            actions.push({
+                id: 'delete-sub',
+                label: 'DELETE To',
+                icon: 'fa-eraser',
+                submenu: [
+                    { id: 'script-as:DELETE:tab', label: 'New Query Editor Window', icon: 'fa-file-lines' },
+                    { id: 'script-as:DELETE:clip', label: 'Clipboard', icon: 'fa-copy' }
+                ]
+            });
+        }
+
+        // EXECUTE (for routine)
+        if (isRoutine) {
+            actions.push({ separator: true });
+            actions.push({
+                id: 'exec-sub',
+                label: 'EXECUTE To',
+                icon: 'fa-play',
+                submenu: [
+                    { id: 'script-as:EXECUTE:tab', label: 'New Query Editor Window', icon: 'fa-file-lines' },
+                    { id: 'script-as:EXECUTE:clip', label: 'Clipboard', icon: 'fa-copy' }
+                ]
+            });
+        }
+
+        return {
+            id: `script-${type}-as`,
+            label: label || `Script ${type} as`,
+            icon: 'fa-code',
+            submenu: actions
+        };
+    }
+
     // ── Command Registry ──────────────────────────────────────────────────────
     const registry = {
         table: [
@@ -16,9 +136,7 @@
             { id: 'copy-table', label: 'Copy Table', icon: 'fa-clone' },
             { id: 'design', label: 'Design Table', icon: 'fa-drafting-compass' },
             { separator: true },
-            { id: 'script-create', label: 'Script as CREATE', icon: 'fa-code' },
-            { id: 'script-alter', label: 'Script as ALTER', icon: 'fa-pen-to-square' },
-            { id: 'script-drop', label: 'Script as DROP', icon: 'fa-trash', danger: true },
+            makeScriptAsSubmenu('Script Table as', 'table'),
             { separator: true },
             { id: 'indexes', label: 'Indexes', icon: 'fa-arrow-down-a-z', disabled: true },
             { id: 'dependencies', label: 'Dependencies (Phụ thuộc)', icon: 'fa-diagram-project' },
@@ -41,8 +159,7 @@
             { separator: true },
             { id: 'design-view', label: 'Design View (Trực quan hóa SQL)', icon: 'fa-diagram-project' },
             { separator: true },
-            { id: 'script-create', label: 'Script as CREATE', icon: 'fa-code' },
-            { id: 'script-alter', label: 'Script as ALTER', icon: 'fa-pen-to-square' },
+            makeScriptAsSubmenu('Script View as', 'view'),
             { id: 'view-definition', label: 'View Definition', icon: 'fa-eye' },
             { separator: true },
             { id: 'dependencies', label: 'Dependencies (Phụ thuộc)', icon: 'fa-diagram-project' },
@@ -63,8 +180,7 @@
             { separator: true },
             { id: 'design-view', label: 'Design View (Trực quan hóa SQL)', icon: 'fa-diagram-project' },
             { separator: true },
-            { id: 'script-create', label: 'Script as CREATE', icon: 'fa-code' },
-            { id: 'script-alter', label: 'Script as ALTER', icon: 'fa-pen-to-square' },
+            makeScriptAsSubmenu('Script Materialized View as', 'materialized_view'),
             { id: 'view-definition', label: 'View Definition', icon: 'fa-eye' },
             { id: 'refresh-matview', label: 'Refresh Data', icon: 'fa-arrows-rotate' },
             { separator: true },
@@ -84,8 +200,7 @@
             { separator: true },
             { id: 'execute', label: 'Execute', icon: 'fa-play' },
             { separator: true },
-            { id: 'script-create', label: 'Script as CREATE', icon: 'fa-code' },
-            { id: 'script-alter', label: 'Script as ALTER', icon: 'fa-pen-to-square' },
+            makeScriptAsSubmenu('Script Stored Procedure as', 'procedure'),
             { id: 'view-definition', label: 'View Definition', icon: 'fa-eye' },
             { separator: true },
             { id: 'dependencies', label: 'Dependencies (Phụ thuộc)', icon: 'fa-diagram-project' },
@@ -101,8 +216,7 @@
         function: [
             { id: 'new-query', label: 'New Query', icon: 'fa-plus' },
             { separator: true },
-            { id: 'script-create', label: 'Script as CREATE', icon: 'fa-code' },
-            { id: 'script-alter', label: 'Script as ALTER', icon: 'fa-pen-to-square' },
+            makeScriptAsSubmenu('Script Function as', 'function'),
             { id: 'view-definition', label: 'View Definition', icon: 'fa-eye' },
             { separator: true },
             { id: 'dependencies', label: 'Dependencies (Phụ thuộc)', icon: 'fa-diagram-project' },
@@ -140,8 +254,7 @@
         trigger: [
             { id: 'new-query', label: 'New Query', icon: 'fa-plus' },
             { separator: true },
-            { id: 'script-create', label: 'Script as CREATE', icon: 'fa-code' },
-            { id: 'script-alter', label: 'Script as ALTER', icon: 'fa-pen-to-square' },
+            makeScriptAsSubmenu('Script Trigger as', 'trigger'),
             { id: 'view-definition', label: 'View Definition', icon: 'fa-eye' },
             { separator: true },
             { id: 'refresh', label: 'Refresh', icon: 'fa-rotate-right' },
@@ -157,8 +270,7 @@
             { id: 'new-query', label: 'New Query', icon: 'fa-plus' },
             { separator: true },
             { id: 'view-definition', label: 'View Definition', icon: 'fa-eye' },
-            { id: 'script-create', label: 'Script as CREATE', icon: 'fa-code' },
-            { id: 'script-drop', label: 'Script as DROP', icon: 'fa-trash', danger: true },
+            makeScriptAsSubmenu('Script Sequence as', 'sequence'),
             { separator: true },
             { id: 'refresh', label: 'Refresh', icon: 'fa-rotate-right' },
             { separator: true },
@@ -172,9 +284,8 @@
         synonym: [
             { id: 'new-query', label: 'New Query', icon: 'fa-plus' },
             { separator: true },
-            { id: 'script-create', label: 'Generate DDL Script', icon: 'fa-code' },
+            makeScriptAsSubmenu('Script Synonym as', 'synonym'), // script-create, script-drop
             { id: 'view-definition', label: 'View Definition', icon: 'fa-eye' },
-            { id: 'script-drop', label: 'Script as DROP', icon: 'fa-trash', danger: true },
             { separator: true },
             { id: 'refresh', label: 'Refresh', icon: 'fa-rotate-right' },
             { separator: true },
@@ -189,8 +300,7 @@
             { id: 'new-query', label: 'New Query', icon: 'fa-plus' },
             { separator: true },
             { id: 'view-definition', label: 'View Definition', icon: 'fa-eye' },
-            { id: 'script-create', label: 'Script as CREATE', icon: 'fa-code' },
-            { id: 'script-drop', label: 'Script as DROP', icon: 'fa-trash', danger: true },
+            makeScriptAsSubmenu('Script Type as', 'user_type'),
             { separator: true },
             { id: 'refresh', label: 'Refresh', icon: 'fa-rotate-right' },
             { separator: true },
@@ -203,6 +313,7 @@
         ],
         database: [
             { id: 'new-query', label: 'New Query', icon: 'fa-plus' },
+            { id: 'open-schema-compare', label: 'So sánh Schema...', icon: 'fa-code-compare text-success' },
             { id: 'object-search', label: 'Search Object Content...', icon: 'fa-magnifying-glass' },
             { separator: true },
             { id: 'refresh', label: 'Refresh', icon: 'fa-rotate-right' },
@@ -210,6 +321,7 @@
         ],
         schema: [
             { id: 'new-query', label: 'New Query', icon: 'fa-plus' },
+            { id: 'open-schema-compare', label: 'So sánh Schema...', icon: 'fa-code-compare text-success' },
             { separator: true },
             { id: 'new-table', label: 'New Table...', icon: 'fa-plus' },
             { separator: true },
@@ -259,10 +371,85 @@
         ],
     };
 
+    // ── Unified Script As Handler ─────────────────────────────────────────────
+    async function handleScriptAs(nodeData, action, dest = 'tab') {
+        const connId   = nodeData?.connId   || nodeData?.connectionId || window.ActiveConnectionId;
+        const connName = nodeData?.connName || nodeData?.connectionName || window.ActiveConnectionName;
+        const database = nodeData?.database || window.ActiveDatabase;
+        const schema   = nodeData?.schema   || window.ActiveSchema || 'dbo';
+        const name     = nodeData?.name;
+        const type     = nodeData?.type     || 'table';
+        const dbType   = nodeData?.dbType   || window.ActiveDbType;
+
+        if (!connId || !name) return;
+
+        if (window.AppLoader) window.AppLoader.show(`Đang tạo script ${action} [${name}]...`);
+        try {
+            let data = null;
+            if (window.pywebview && window.pywebview.api && typeof window.pywebview.api.script_object === 'function') {
+                data = await window.pywebview.api.script_object(connId, database, schema, name, type, action);
+            } else {
+                const url = `/api/metadata/${connId}/script?database=${encodeURIComponent(database || '')}&schema=${encodeURIComponent(schema || '')}&name=${encodeURIComponent(name || '')}&type=${encodeURIComponent(type || '')}&action=${encodeURIComponent(action || 'CREATE')}&_t=${Date.now()}`;
+                const res = await fetch(url, { cache: 'no-store' });
+                data = await res.json();
+            }
+            if (window.AppLoader) window.AppLoader.hide();
+
+            if (data && data.success && data.script) {
+                const sql = data.script;
+                if (dest === 'clip') {
+                    if (typeof window.copyText === 'function') {
+                        window.copyText(sql);
+                    } else if (typeof copyText === 'function') {
+                        copyText(sql);
+                    } else if (navigator.clipboard && navigator.clipboard.writeText) {
+                        navigator.clipboard.writeText(sql);
+                    }
+                    if (typeof showToast === 'function') {
+                        showToast(`✓ Đã sao chép script ${action} [${name}] vào Clipboard`, 'success');
+                    } else {
+                        alert(`Đã sao chép script vào Clipboard.`);
+                    }
+                } else {
+                    const resolvedNodeData = {
+                        ...nodeData,
+                        connId,
+                        connectionId: connId,
+                        connName,
+                        connectionName: connName,
+                        database,
+                        schema,
+                        dbType
+                    };
+                    const tabTitle = `${action}_${name}`;
+                    openScriptInNewTab(sql, tabTitle, resolvedNodeData, false);
+                }
+            } else {
+                const err = (data && data.error) ? data.error : 'Không thể sinh script cho đối tượng này.';
+                if (typeof showToast === 'function') showToast(`✗ Lỗi: ${err}`, 'danger');
+                else alert(`Lỗi sinh script: ${err}`);
+            }
+        } catch (err) {
+            if (window.AppLoader) window.AppLoader.hide();
+            const errMsg = err ? (err.message || String(err)) : 'Unknown error';
+            if (typeof showToast === 'function') showToast(`✗ Lỗi kết nối: ${errMsg}`, 'danger');
+            else alert(`Lỗi: ${errMsg}`);
+        }
+    }
+
     // ── Action handlers ────────────────────────────────────────────────────────
     function handleAction(actionId, nodeData) {
         const { type, name, schema, database, connId, dbType } = nodeData || {};
         const safeSchema = schema || 'dbo';
+
+        // Check for parameterized Script As actions: script-as:<action>:<dest>
+        if (actionId && actionId.startsWith('script-as:')) {
+            const parts = actionId.split(':');
+            const act = parts[1] || 'CREATE';
+            const dest = parts[2] || 'tab';
+            handleScriptAs(nodeData, act, dest);
+            return;
+        }
 
         switch (actionId) {
             case 'select-top':
@@ -389,41 +576,19 @@
                 }
                 break;
             case 'script-create':
+                handleScriptAs(nodeData, 'CREATE', 'tab');
+                break;
             case 'script-alter':
+                handleScriptAs(nodeData, 'ALTER', 'tab');
+                break;
+            case 'script-drop':
+                handleScriptAs(nodeData, 'DROP', 'tab');
+                break;
             case 'view-definition':
                 fetchDefinition(nodeData, actionId);
                 break;
-            case 'script-drop':
-                {
-                    const dropKeyword = (type === 'user_type' || type === 'user_types') ? 'TYPE' : (type || 'TABLE').toUpperCase();
-                    let sql;
-                    if (dbType === 'postgresql') {
-                        if (type === 'function' || type === 'procedure') {
-                            const base = nodeData.baseName || (name.includes('(') ? name.slice(0, name.indexOf('(')).trim() : name);
-                            const args = nodeData.identityArgs !== undefined ? nodeData.identityArgs : (name.includes('(') ? name.slice(name.indexOf('(') + 1, -1).trim() : '');
-                            sql = `DROP ${dropKeyword} "${schema || 'public'}"."${base}"(${args});`;
-                        } else {
-                            sql = `DROP ${dropKeyword} "${schema || 'public'}"."${name}";`;
-                        }
-                    } else {
-                        sql = `DROP ${dropKeyword} [${safeSchema}].[${name}];`;
-                    }
-                    openScriptInNewTab(sql, `DROP_${name}`, nodeData, false);
-                }
-                break;
             case 'execute':
-                {
-                    let sql;
-                    if (dbType === 'postgresql') {
-                        const base = nodeData.baseName || (name.includes('(') ? name.slice(0, name.indexOf('(')).trim() : name);
-                        sql = (type === 'function')
-                            ? `SELECT "${schema || 'public'}"."${base}"();`
-                            : `CALL "${schema || 'public'}"."${base}"();`;
-                    } else {
-                        sql = `EXEC [${safeSchema}].[${name}];`;
-                    }
-                    openScriptInNewTab(sql, `EXEC_${name}`, nodeData, false);
-                }
+                handleScriptAs(nodeData, 'EXECUTE', 'tab');
                 break;
             case 'reconnect':
             case 'connect':
@@ -445,6 +610,41 @@
                     if (window.AppLoader) window.AppLoader.show('Đang mở SQL Trace Profiler...');
                     window.pywebview.api.open_profiler_window(profilerTargetConn, profilerTargetType);
                     setTimeout(() => { if (window.AppLoader) window.AppLoader.hide(); }, 700);
+                }
+                break;
+            case 'open-activity-monitor':
+                const actTargetConn = nodeData.connId || nodeData.name || window.LastFocusedTreeContext?.connectionId;
+                const actTargetType = nodeData.dbType || window.LastFocusedTreeContext?.dbType;
+                if (window.openActivityMonitorTab) {
+                    window.openActivityMonitorTab({
+                        connectionId: actTargetConn,
+                        connectionName: nodeData.name || nodeData.connName,
+                        dbType: actTargetType
+                    });
+                }
+                break;
+            case 'open-schema-compare':
+                let scTargetConn = nodeData.connId || nodeData.connectionId || nodeData.id || nodeData.name || window.LastFocusedTreeContext?.connectionId;
+                const scTargetType = nodeData.dbType || window.LastFocusedTreeContext?.dbType;
+                if (scTargetConn && typeof scTargetConn === 'string') {
+                    scTargetConn = scTargetConn.replace(/\s*\([^)]*\)\s*$/, '').trim();
+                }
+                const scDatabase = nodeData.database || (nodeData.type === 'database' ? nodeData.name : undefined);
+                const scSchema = nodeData.schema || (nodeData.type === 'schema' ? nodeData.name : undefined);
+
+                // Requirement: Object explorer context menu opens schema compare in a new TAB
+                if (window.openSchemaCompareTab) {
+                    window.openSchemaCompareTab({
+                        connectionId: scTargetConn,
+                        connectionName: nodeData.name || nodeData.connName,
+                        dbType: scTargetType,
+                        database: scDatabase,
+                        schema: scSchema
+                    });
+                } else if (window.pywebview && window.pywebview.api && typeof window.pywebview.api.open_schema_compare_window === 'function') {
+                    if (window.AppLoader) window.AppLoader.show('Đang mở cửa sổ So sánh Schema...');
+                    window.pywebview.api.open_schema_compare_window(scTargetConn, scDatabase, scSchema, null, null, null);
+                    setTimeout(() => { if (window.AppLoader) window.AppLoader.hide(); }, 600);
                 }
                 break;
             case 'refresh-matview':
@@ -615,6 +815,11 @@
                         schema: nodeData?.schema || (nodeData?.type === 'schema' ? nodeData?.name : null),
                         dbType: nodeData?.dbType || window.ActiveDbType
                     });
+                }
+                break;
+            case 'refresh':
+                if (window.AppExplorer && typeof window.AppExplorer.refreshNode === 'function') {
+                    window.AppExplorer.refreshNode(nodeData);
                 }
                 break;
             default:
@@ -808,6 +1013,8 @@
                     { id: 'refresh', label: 'Refresh', icon: 'fa-arrows-rotate' },
                     { id: 'new-query', label: 'New Query', icon: 'fa-plus' },
                     { id: 'open-profiler', label: 'SQL Trace Profiler...', icon: 'fa-bolt text-warning' },
+                    { id: 'open-activity-monitor', label: 'Activity Monitor (Phiên & Khóa)...', icon: 'fa-heart-pulse text-danger' },
+                    { id: 'open-schema-compare', label: 'So sánh Schema...', icon: 'fa-code-compare text-success' },
                     { separator: true },
                     { id: 'new-group', label: 'New Group...', icon: 'fa-folder-plus' },
                     { separator: true },
@@ -818,6 +1025,8 @@
                 items = [
                     { id: 'reconnect', label: 'Connect / Reconnect', icon: 'fa-plug' },
                     { id: 'open-profiler', label: 'SQL Trace Profiler...', icon: 'fa-bolt text-warning' },
+                    { id: 'open-activity-monitor', label: 'Activity Monitor (Phiên & Khóa)...', icon: 'fa-heart-pulse text-danger' },
+                    { id: 'open-schema-compare', label: 'So sánh Schema...', icon: 'fa-code-compare text-success' },
                     { separator: true },
                     { id: 'new-group', label: 'New Group...', icon: 'fa-folder-plus' },
                     { separator: true },
@@ -848,83 +1057,67 @@
         focusedIdx = -1;
         const buttons = [];
 
-        items.forEach(item => {
-            if (item.separator) {
+        function renderMenuItem(it, container) {
+            if (it.separator) {
                 const sep = document.createElement('div');
                 sep.className = 'ide-ctx-separator';
-                menuEl.appendChild(sep);
+                container.appendChild(sep);
                 return;
             }
 
-            if (item.submenu && Array.isArray(item.submenu)) {
+            if (it.submenu && Array.isArray(it.submenu)) {
                 const parentItem = document.createElement('div');
-                parentItem.className = 'ide-ctx-item has-submenu' + (item.danger ? ' danger' : '') + (item.disabled ? ' disabled' : '');
+                parentItem.className = 'ide-ctx-item has-submenu' + (it.danger ? ' danger' : '') + (it.disabled ? ' disabled' : '');
                 parentItem.setAttribute('role', 'menuitem');
                 parentItem.setAttribute('tabindex', '0');
                 parentItem.innerHTML = `
-                    <i class="fa-solid ${item.icon || 'fa-circle'} ide-ctx-icon"></i>
-                    <span class="ide-ctx-label">${item.label}</span>
+                    <i class="fa-solid ${it.icon || 'fa-circle'} ide-ctx-icon"></i>
+                    <span class="ide-ctx-label">${it.label}</span>
                     <i class="fa-solid fa-chevron-right ide-ctx-arrow"></i>
                 `;
                 const submenuEl = document.createElement('div');
                 submenuEl.className = 'ide-ctx-submenu';
                 submenuEl.setAttribute('role', 'menu');
 
-                item.submenu.forEach(subItem => {
-                    if (subItem.separator) {
-                        const subSep = document.createElement('div');
-                        subSep.className = 'ide-ctx-separator';
-                        submenuEl.appendChild(subSep);
-                        return;
-                    }
-                    const subBtn = document.createElement('button');
-                    subBtn.className = 'ide-ctx-item' + (subItem.danger ? ' danger' : '') + (subItem.disabled ? ' disabled' : '');
-                    subBtn.setAttribute('role', 'menuitem');
-                    if (subItem.disabled) subBtn.disabled = true;
-                    subBtn.innerHTML = `
-                        <i class="fa-solid ${subItem.icon || 'fa-circle'} ide-ctx-icon"></i>
-                        <span class="ide-ctx-label">${subItem.label}</span>
-                    `;
-                    subBtn.addEventListener('click', (ev) => {
-                        ev.stopPropagation();
-                        hide();
-                        handleAction(subItem.id, nodeData);
-                    });
-                    submenuEl.appendChild(subBtn);
+                it.submenu.forEach(subIt => {
+                    renderMenuItem(subIt, submenuEl);
                 });
 
                 parentItem.appendChild(submenuEl);
 
                 parentItem.addEventListener('mouseenter', () => {
                     const rect = parentItem.getBoundingClientRect();
-                    if (rect.right + 180 > window.innerWidth) {
+                    if (rect.right + 200 > window.innerWidth) {
                         submenuEl.classList.add('open-left');
                     } else {
                         submenuEl.classList.remove('open-left');
                     }
                 });
 
-                menuEl.appendChild(parentItem);
+                container.appendChild(parentItem);
                 buttons.push(parentItem);
                 return;
             }
 
             const btn = document.createElement('button');
-            btn.className = 'ide-ctx-item' + (item.danger ? ' danger' : '') + (item.disabled ? ' disabled' : '');
+            btn.className = 'ide-ctx-item' + (it.danger ? ' danger' : '') + (it.disabled ? ' disabled' : '');
             btn.setAttribute('role', 'menuitem');
-            if (item.disabled) btn.disabled = true;
+            if (it.disabled) btn.disabled = true;
             btn.innerHTML = `
-                <i class="fa-solid ${item.icon || 'fa-circle'} ide-ctx-icon"></i>
-                <span class="ide-ctx-label">${item.label}</span>
-                ${item.shortcut ? `<span class="ide-ctx-shortcut">${item.shortcut}</span>` : ''}
+                <i class="fa-solid ${it.icon || 'fa-circle'} ide-ctx-icon"></i>
+                <span class="ide-ctx-label">${it.label}</span>
+                ${it.shortcut ? `<span class="ide-ctx-shortcut">${it.shortcut}</span>` : ''}
             `;
-            btn.addEventListener('click', () => {
+            btn.addEventListener('click', (ev) => {
+                ev.stopPropagation();
                 hide();
-                handleAction(item.id, nodeData);
+                handleAction(it.id, nodeData);
             });
-            menuEl.appendChild(btn);
+            container.appendChild(btn);
             buttons.push(btn);
-        });
+        }
+
+        items.forEach(item => renderMenuItem(item, menuEl));
 
         // Position calculation (viewport-aware)
         document.body.appendChild(menuEl);

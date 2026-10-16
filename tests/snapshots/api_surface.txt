@@ -3,10 +3,11 @@
 # Generated for IDE-SQL-Lite_New_Pyweb_Claude
 # ====================================================================
 
-CLASS BravoApi (93 public methods):
+CLASS BravoApi (100 public methods):
   - apply_table_design(self, connection_id, database=None, statements=None, migration_sql=None)
   - apply_titlebar_theme(self, bg_hex=None, text_hex=None, border_hex=None, is_dark=None)
   - check_credential(self, config)
+  - check_for_updates(self, force=True, custom_url=None)
   - clear_credential(self, config)
   - create_connection(self, config)
   - create_session(self, config=None, connection_id=None, window_id=None)
@@ -18,6 +19,7 @@ CLASS BravoApi (93 public methods):
   - drop_linked_server(self, connection_id, server)
   - fetch_connection_metadata(self, config)
   - fetch_table_data(self, connection_id, database=None, schema=None, table=None, select_cols=None, criteria=None, top_n=200, custom_sql=None)
+  - get_app_version(self)
   - get_clipboard_text(self)
   - get_code_styles(self)
   - get_config(self)
@@ -62,7 +64,9 @@ CLASS BravoApi (93 public methods):
   - layout_editor_search_xml(self, connection_id, keyword, form_ids=None, database=None, platform='Win', version='Bravo 10', is_regex=False)
   - list_connections(self)
   - list_features(self)
+  - open_data_folder(self)
   - open_event_listener_window(self, conn_id=None, db_type=None)
+  - open_external_url(self, url)
   - open_log_folder(self)
   - open_profiler_window(self, conn_id=None, db_type=None)
   - open_settings_window(self)
@@ -83,9 +87,12 @@ CLASS BravoApi (93 public methods):
   - save_program_list(self, programs)
   - save_settings(self, settings)
   - save_snippets(self, snippets)
+  - script_object(self, connection_id, database=None, schema=None, name=None, type='table', action='CREATE')
   - select_program_file(self)
+  - select_sqlite_file(self)
   - set_clipboard_text(self, text)
   - set_connection_read_only(self, connection_id, read_only=False)
+  - set_portable_mode(self, enabled=True)
   - set_window(self, win)
   - set_window_title(self, title)
   - submit_table_changes(self, connection_id, database=None, schema=None, table=None, changes=None, concurrency_mode='optimistic')
@@ -98,12 +105,17 @@ CLASS BravoApi (93 public methods):
   - validate_table_row(self, connection_id, database=None, schema=None, table=None, values=None, keys=None, is_new=True, target_column=None)
   - validate_table_rows(self, connection_id, database=None, schema=None, table=None, rows=None)
 
-CLASS MainApi (143 public methods):
+CLASS MainApi (162 public methods):
+  - activity_cancel_session(self, connection_id: str, session_id: int) -> Dict[str, Any]
+  - activity_get_current_spid(self, connection_id: str) -> Dict[str, Any]
+  - activity_get_sessions(self, connection_id: str, database: str | None = None, active_only: bool = False) -> Dict[str, Any]
+  - activity_kill_session(self, connection_id: str, session_id: int) -> Dict[str, Any]
   - analyze_query_flow(self, sql, dialect='tsql')
   - apply_table_design(self, connection_id, database=None, statements=None, migration_sql=None)
   - apply_titlebar_theme(self, bg_hex=None, text_hex=None, border_hex=None, is_dark=None)
   - cancel_query(self, connection_id)
   - check_credential(self, config)
+  - check_for_updates(self, force=True, custom_url=None)
   - clear_credential(self, config)
   - create_connection(self, config)
   - create_session(self, config=None, connection_id=None, window_id=None)
@@ -117,6 +129,7 @@ CLASS MainApi (143 public methods):
   - explain_query(self, connection_id, sql, database=None)
   - fetch_connection_metadata(self, config)
   - fetch_table_data(self, connection_id, database=None, schema=None, table=None, select_cols=None, criteria=None, top_n=200, custom_sql=None)
+  - get_app_version(self)
   - get_clipboard_text(self)
   - get_code_styles(self)
   - get_config(self)
@@ -194,11 +207,15 @@ CLASS MainApi (143 public methods):
   - list_connections(self)
   - list_features(self)
   - notify_app_ready(self)
+  - open_activity_monitor_window(self, connection_id: str | None = None, db_type: str | None = None) -> Dict[str, Any]
   - open_bravo_window(self, conn_id=None, conn_name=None, database=None, db_type=None, schema=None)
+  - open_data_folder(self)
   - open_event_listener_window(self, conn_id=None, db_type=None)
+  - open_external_url(self, url)
   - open_log_folder(self)
   - open_profiler_window(self, conn_id=None, db_type=None)
   - open_query_history_window(self)
+  - open_schema_compare_window(self, source_conn_id: str | None = None, source_db: str | None = None, source_schema: str | None = None, target_conn_id: str | None = None, target_db: str | None = None, target_schema: str | None = None) -> Dict[str, Any]
   - open_settings_window(self)
   - parse_query_parameters(self, sql, dialect='sqlserver')
   - pg_dependency_get_column(self, conn_id, schema, table, column, direction='dependents', depth=2, database=None, include_source=True)
@@ -222,12 +239,21 @@ CLASS MainApi (143 public methods):
   - save_program_list(self, programs)
   - save_settings(self, settings)
   - save_snippets(self, snippets)
+  - schema_compare_cancel(self) -> Dict[str, Any]
+  - schema_compare_connect_direct(self, config: Dict[str, Any]) -> Dict[str, Any]
+  - schema_compare_generate_script(self, diff_data: Dict[str, Any], selected_tables: List[str] | None = None, options: Dict[str, Any] | None = None) -> Dict[str, Any]
+  - schema_compare_get_connections(self) -> Dict[str, Any]
+  - schema_compare_get_schemas(self, connection_id: str, database: str | None = None) -> Dict[str, Any]
+  - schema_compare_run(self, source_conn_id: str, source_db: str, source_schema: str, target_conn_id: str, target_db: str, target_schema: str, object_types: List[str] | None = None) -> Dict[str, Any]
+  - script_object(self, connection_id, database=None, schema=None, name=None, type='table', action='CREATE')
   - select_program_file(self)
+  - select_sqlite_file(self)
   - session_clear(self)
   - session_load(self)
   - session_save(self, session_data)
   - set_clipboard_text(self, text)
   - set_connection_read_only(self, connection_id, read_only=False)
+  - set_portable_mode(self, enabled=True)
   - set_window(self, win)
   - set_window_title(self, title)
   - sql_object_ddl(self, conn_id=None, schema='dbo', name='', object_type='VIEW', database=None, keyword=None, case_sensitive=False, whole_word=False, is_regex=False)
@@ -275,10 +301,12 @@ CLASS QueryHistorySubwindowApi (30 public methods):
   - open_in_editor(self, payload)
   - set_window(self, win)
 
-CLASS SettingsSubwindowApi (25 public methods):
+CLASS SettingsSubwindowApi (30 public methods):
   - apply_titlebar_theme(self, bg_hex=None, text_hex=None, border_hex=None, is_dark=None)
+  - check_for_updates(self, force=True, custom_url=None)
   - close_window(self)
   - delete_saved_connection_profile(self, profile_id)
+  - get_app_version(self)
   - get_code_styles(self)
   - get_config(self)
   - get_connection_password(self, id_or_name)
@@ -292,6 +320,8 @@ CLASS SettingsSubwindowApi (25 public methods):
   - history_get_stats(self)
   - history_purge(self, max_age_days=None, max_entries_per_doc=None, max_db_size_mb=None)
   - import_vsix_theme(self)
+  - open_data_folder(self)
+  - open_external_url(self, url)
   - open_log_folder(self)
   - open_settings_window(self)
   - reset_code_styles(self)
@@ -300,6 +330,7 @@ CLASS SettingsSubwindowApi (25 public methods):
   - save_connection_profile(self, profile)
   - save_settings(self, settings)
   - save_snippets(self, snippets_data)
+  - set_portable_mode(self, enabled=True)
   - set_window(self, win)
 
 CLASS ProfilerSubwindowApi (9 public methods):
@@ -326,7 +357,7 @@ CLASS EventListenerSubwindowApi (11 public methods):
   - set_clipboard_text(self, text)
   - set_window(self, win)
 
-FLASK ROUTES (105 endpoints):
+FLASK ROUTES (107 endpoints):
   - / [GET] -> main.index
   - /api/bravo/config [GET] -> bravo.get_config
   - /api/bravo/connections [GET] -> bravo.list_connections
@@ -402,7 +433,9 @@ FLASK ROUTES (105 endpoints):
   - /api/metadata/<connection_id>/linked_servers [GET] -> metadata.linked_servers
   - /api/metadata/<connection_id>/object_children [GET] -> metadata.object_children
   - /api/metadata/<connection_id>/objects [GET] -> metadata.objects
+  - /api/metadata/<connection_id>/refresh [POST] -> metadata.refresh_metadata
   - /api/metadata/<connection_id>/schemas [GET] -> metadata.schemas
+  - /api/metadata/<connection_id>/script [GET,POST] -> metadata.script
   - /api/metadata/<connection_id>/table-design [GET] -> metadata.table_design
   - /api/metadata/<connection_id>/table-design/apply [POST] -> metadata.table_design_apply
   - /api/metadata/<connection_id>/table-design/diff [POST] -> metadata.table_design_diff

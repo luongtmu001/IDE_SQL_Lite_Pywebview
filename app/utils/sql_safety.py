@@ -82,8 +82,11 @@ def classify_statement(sql: str, dialect: str = "tsql") -> Dict[str, Any]:
             "raw_count": 1
         }
 
-    norm_dialect = "tsql" if "sqlserver" in dialect.lower() or "mssql" in dialect.lower() else (
-        "postgres" if "postgre" in dialect.lower() else dialect
+    d_lower = dialect.lower()
+    norm_dialect = "tsql" if "sqlserver" in d_lower or "mssql" in d_lower else (
+        "postgres" if "postgre" in d_lower else (
+            "sqlite" if "sqlite" in d_lower else dialect
+        )
     )
 
     detected_actions: List[str] = []
@@ -240,8 +243,11 @@ def detect_fatal_actions(sql: str, dialect: str = "tsql") -> List[Dict[str, Any]
     if not sql or not sql.strip():
         return []
 
-    norm_dialect = "tsql" if "sqlserver" in dialect.lower() or "mssql" in dialect.lower() else (
-        "postgres" if "postgre" in dialect.lower() else dialect
+    d_lower = dialect.lower()
+    norm_dialect = "tsql" if "sqlserver" in d_lower or "mssql" in d_lower else (
+        "postgres" if "postgre" in d_lower else (
+            "sqlite" if "sqlite" in d_lower else dialect
+        )
     )
 
     fatal_actions: List[Dict[str, Any]] = []

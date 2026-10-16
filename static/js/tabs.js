@@ -106,20 +106,23 @@ function initTabs() {
         if (activeTabId && tabsData.has(activeTabId)) {
             const activeTab = tabsData.get(activeTabId);
             if (activeTab && isTextEditorTab(activeTab) && window.AppEditor) {
-                activeTab.content = window.AppEditor.getValue();
                 const rawEd = window.AppEditor.rawEditor || (typeof window.resolveMonacoEditor === 'function' ? window.resolveMonacoEditor(window.AppEditor) : null);
-                if (rawEd) {
-                    if (typeof rawEd.getPosition === 'function') {
-                        activeTab.savedCursorPosition = rawEd.getPosition();
-                    }
-                    if (typeof rawEd.saveViewState === 'function') {
-                        activeTab.viewState = rawEd.saveViewState();
-                    }
-                    if (typeof rawEd.getScrollTop === 'function') {
-                        activeTab.scroll = {
-                            scrollTop: rawEd.getScrollTop(),
-                            scrollLeft: typeof rawEd.getScrollLeft === 'function' ? rawEd.getScrollLeft() : 0
-                        };
+                const isModelMounted = !rawEd || !activeTab.monacoModel || (typeof rawEd.getModel === 'function' && rawEd.getModel() === activeTab.monacoModel);
+                if (isModelMounted) {
+                    activeTab.content = window.AppEditor.getValue();
+                    if (rawEd) {
+                        if (typeof rawEd.getPosition === 'function') {
+                            activeTab.savedCursorPosition = rawEd.getPosition();
+                        }
+                        if (typeof rawEd.saveViewState === 'function') {
+                            activeTab.viewState = rawEd.saveViewState();
+                        }
+                        if (typeof rawEd.getScrollTop === 'function') {
+                            activeTab.scroll = {
+                                scrollTop: rawEd.getScrollTop(),
+                                scrollLeft: typeof rawEd.getScrollLeft === 'function' ? rawEd.getScrollLeft() : 0
+                            };
+                        }
                     }
                 }
             }
@@ -180,7 +183,7 @@ function initTabs() {
     function isTextEditorTab(tabState) {
         if (!tabState) return false;
         if (tabState.isTextEditor !== undefined) return Boolean(tabState.isTextEditor);
-        const nonTextEditorTypes = ['object-search', 'designer', 'data-editor', 'dependency-graph', 'query-designer'];
+        const nonTextEditorTypes = ['object-search', 'designer', 'data-editor', 'dependency-graph', 'query-designer', 'activity-monitor', 'schema-compare'];
         return !nonTextEditorTypes.includes(tabState.tabType);
     }
     window.isTextEditorTab = isTextEditorTab;
@@ -195,7 +198,7 @@ function initTabs() {
         }
         let tabTitle = opts.title || `Query ${tabCounter}`;
         tabTitle = getUniqueFileName(tabTitle, existingTabTitles);
-        const icon = opts.icon || (tabType === 'designer' ? 'fa-drafting-compass' : (tabType === 'dependency-graph' ? 'fa-diagram-project' : (tabType === 'object-search' ? 'fa-magnifying-glass' : (tabType === 'query-designer' ? 'fa-diagram-project' : 'fa-table-list'))));
+        const icon = opts.icon || (tabType === 'designer' ? 'fa-drafting-compass' : (tabType === 'dependency-graph' ? 'fa-diagram-project' : (tabType === 'object-search' ? 'fa-magnifying-glass' : (tabType === 'query-designer' ? 'fa-diagram-project' : (tabType === 'activity-monitor' ? 'fa-heart-pulse' : 'fa-table-list')))));
 
         // Prefer explicit options, then last focused tree node context, then current global context, then saved defaultContext
         const focusedCtx = window.LastFocusedTreeContext || {};
@@ -465,7 +468,6 @@ function initTabs() {
         if (window.AppSession) {
             window.AppSession.setActiveTabId(tabId);
         }
-        syncTabsSession();
         const state = tabsData.get(tabId);
         updateEmptyTabsState();
 
@@ -484,16 +486,19 @@ function initTabs() {
             window.FileHistorySidebar.onTabChanged(tabId, state);
         }
 
-        // Toggle workspace views: Query View vs Table Designer View vs Table Data Editor View vs Diff View vs Dependency Graph View vs SQL Visualizer View
+        // Toggle workspace views: Query View vs Table Designer View vs Table Data Editor View vs Diff View vs Dependency Graph View vs SQL Visualizer View vs Activity Monitor View
         const designerContainer = document.getElementById('table-designer-container');
         const dataEditorContainer = document.getElementById('table-data-editor-container');
         const depContainer = document.getElementById('dependency-graph-container');
         const ocsContainer = document.getElementById('object-content-search-container');
         const visualizerContainer = document.getElementById('sql-visualizer-container');
+        const actContainer = document.getElementById('activity-monitor-container');
+        const scContainer = document.getElementById('schema-compare-container');
         const editorWrap = document.querySelector('.ide-editor-wrap');
         const resizer = document.querySelector('.ide-resizer-horizontal');
         const resultsPane = document.getElementById('ide-result-panel') || document.getElementById('ide-results-pane') || (resizer ? resizer.nextElementSibling : null);
         const queryControls = document.querySelector('.ide-action-bar .d-flex.align-items-center.gap-1.flex-shrink-0');
+        const ideStatusbar = document.querySelector('.ide-statusbar');
 
         if (state && state.tabType === 'designer') {
             if (typeof window.hideDiffView === 'function') window.hideDiffView();
@@ -504,6 +509,7 @@ function initTabs() {
             if (depContainer) depContainer.classList.add('d-none');
             if (ocsContainer) ocsContainer.classList.add('d-none');
             if (visualizerContainer) visualizerContainer.classList.add('d-none');
+            if (actContainer) actContainer.classList.add('d-none');
             if (queryControls) queryControls.classList.add('opacity-50', 'pe-none');
             if (designerContainer) designerContainer.classList.remove('d-none');
 
@@ -519,6 +525,7 @@ function initTabs() {
             if (dataEditorContainer) dataEditorContainer.classList.add('d-none');
             if (depContainer) depContainer.classList.add('d-none');
             if (ocsContainer) ocsContainer.classList.add('d-none');
+            if (actContainer) actContainer.classList.add('d-none');
             if (queryControls) queryControls.classList.add('opacity-50', 'pe-none');
             if (visualizerContainer) visualizerContainer.classList.remove('d-none');
 
@@ -534,6 +541,7 @@ function initTabs() {
             if (depContainer) depContainer.classList.add('d-none');
             if (ocsContainer) ocsContainer.classList.add('d-none');
             if (visualizerContainer) visualizerContainer.classList.add('d-none');
+            if (actContainer) actContainer.classList.add('d-none');
             if (queryControls) queryControls.classList.add('opacity-50', 'pe-none');
             if (dataEditorContainer) dataEditorContainer.classList.remove('d-none');
 
@@ -549,6 +557,7 @@ function initTabs() {
             if (dataEditorContainer) dataEditorContainer.classList.add('d-none');
             if (ocsContainer) ocsContainer.classList.add('d-none');
             if (visualizerContainer) visualizerContainer.classList.add('d-none');
+            if (actContainer) actContainer.classList.add('d-none');
             if (queryControls) queryControls.classList.add('opacity-50', 'pe-none');
             if (depContainer) depContainer.classList.remove('d-none');
 
@@ -564,6 +573,7 @@ function initTabs() {
             if (dataEditorContainer) dataEditorContainer.classList.add('d-none');
             if (depContainer) depContainer.classList.add('d-none');
             if (visualizerContainer) visualizerContainer.classList.add('d-none');
+            if (actContainer) actContainer.classList.add('d-none');
             if (queryControls) queryControls.classList.add('opacity-50', 'pe-none');
             if (ocsContainer) ocsContainer.classList.remove('d-none');
 
@@ -580,16 +590,69 @@ function initTabs() {
                 }, state.context || {});
                 window.ObjectContentSearch.activateTab(tabId, ocsCtx);
             }
-        } else if (state && state.tabType === 'diff') {
+        } else if (state && state.tabType === 'activity-monitor') {
+            if (typeof window.hideDiffView === 'function') window.hideDiffView();
+            if (editorWrap) editorWrap.classList.add('d-none');
+            if (resizer) resizer.classList.add('d-none');
+            if (resultsPane) resultsPane.classList.add('d-none');
             if (designerContainer) designerContainer.classList.add('d-none');
             if (dataEditorContainer) dataEditorContainer.classList.add('d-none');
             if (depContainer) depContainer.classList.add('d-none');
             if (ocsContainer) ocsContainer.classList.add('d-none');
             if (visualizerContainer) visualizerContainer.classList.add('d-none');
+            if (queryControls) queryControls.classList.add('opacity-50', 'pe-none');
+            if (actContainer) actContainer.classList.remove('d-none');
+
+            if (window.ActivityMonitor) {
+                if (!window.ActivityMonitor.container) {
+                    window.ActivityMonitor.init({
+                        containerId: 'activity-monitor-container',
+                        connectionId: state.connectionId
+                    });
+                }
+                window.ActivityMonitor.activateTab(tabId);
+            }
+        } else if (state && state.tabType === 'schema-compare') {
+            if (typeof window.hideDiffView === 'function') window.hideDiffView();
+            if (editorWrap) editorWrap.classList.add('d-none');
+            if (resizer) resizer.classList.add('d-none');
+            if (resultsPane) resultsPane.classList.add('d-none');
+            if (designerContainer) designerContainer.classList.add('d-none');
+            if (dataEditorContainer) dataEditorContainer.classList.add('d-none');
+            if (depContainer) depContainer.classList.add('d-none');
+            if (ocsContainer) ocsContainer.classList.add('d-none');
+            if (visualizerContainer) visualizerContainer.classList.add('d-none');
+            if (actContainer) actContainer.classList.add('d-none');
+            if (queryControls) queryControls.classList.add('opacity-50', 'pe-none');
+            if (scContainer) scContainer.classList.remove('d-none');
+            if (ideStatusbar) ideStatusbar.classList.add('d-none');
+
+            if (window.SchemaCompare) {
+                if (!window.SchemaCompare.container) {
+                    window.SchemaCompare.init({
+                        containerId: 'schema-compare-container',
+                        sourceConnId: state.connectionId,
+                        sourceDb: state.database,
+                        sourceSchema: state.schema
+                    });
+                } else if (state && state.connectionId && typeof window.SchemaCompare.setSourceContext === 'function') {
+                    window.SchemaCompare.setSourceContext(state.connectionId, state.database, state.schema, state.dbType);
+                }
+                window.SchemaCompare.activateTab(tabId);
+            }
+        } else if (state && state.tabType === 'diff') {
+            if (scContainer) scContainer.classList.add('d-none');
+            if (designerContainer) designerContainer.classList.add('d-none');
+            if (dataEditorContainer) dataEditorContainer.classList.add('d-none');
+            if (depContainer) depContainer.classList.add('d-none');
+            if (ocsContainer) ocsContainer.classList.add('d-none');
+            if (visualizerContainer) visualizerContainer.classList.add('d-none');
+            if (actContainer) actContainer.classList.add('d-none');
             if (editorWrap) editorWrap.classList.remove('d-none');
             if (resizer) resizer.classList.add('d-none');
             if (resultsPane) resultsPane.classList.add('d-none');
             if (queryControls) queryControls.classList.add('opacity-50', 'pe-none');
+            if (ideStatusbar) ideStatusbar.classList.remove('d-none');
 
             // Refresh latest content and titles from source tabs if they still exist
             if (state.originalTabId && tabsData.has(state.originalTabId)) {
@@ -616,12 +679,15 @@ function initTabs() {
             }
         } else {
             if (typeof window.hideDiffView === 'function') window.hideDiffView();
+            if (scContainer) scContainer.classList.add('d-none');
             if (designerContainer) designerContainer.classList.add('d-none');
             if (dataEditorContainer) dataEditorContainer.classList.add('d-none');
             if (depContainer) depContainer.classList.add('d-none');
             if (ocsContainer) ocsContainer.classList.add('d-none');
             if (visualizerContainer) visualizerContainer.classList.add('d-none');
+            if (actContainer) actContainer.classList.add('d-none');
             if (editorWrap) editorWrap.classList.remove('d-none');
+            if (ideStatusbar) ideStatusbar.classList.remove('d-none');
 
             // Restore editor content immediately before UI panels/getters trigger to prevent stale content overwrites
             if (state && window.AppEditor) {
@@ -741,6 +807,7 @@ function initTabs() {
         if (tabDisplayMode === 'overflow' && (overflowTabIds.has(tabId) || !visibleTabIds.has(tabId))) {
             calculateTabLayout();
         }
+        syncTabsSession();
     }
 
     function updateEmptyTabsState() {
@@ -760,6 +827,8 @@ function initTabs() {
             document.getElementById('dependency-graph-container')?.classList.add('d-none');
             document.getElementById('object-content-search-container')?.classList.add('d-none');
             document.getElementById('sql-visualizer-container')?.classList.add('d-none');
+            document.getElementById('activity-monitor-container')?.classList.add('d-none');
+            document.getElementById('schema-compare-container')?.classList.add('d-none');
             document.getElementById('ide-editor-status-bar')?.classList.add('d-none');
             if (emptyPlaceholder) emptyPlaceholder.classList.remove('d-none');
             if (editorWrap) editorWrap.classList.remove('d-none');
@@ -854,6 +923,8 @@ function initTabs() {
             window.ObjectContentSearch.closeTab(tabId);
         } else if (state && state.tabType === 'query-designer' && window.SqlVisualizer) {
             window.SqlVisualizer.closeTab(tabId);
+        } else if (state && state.tabType === 'activity-monitor' && window.ActivityMonitor) {
+            window.ActivityMonitor.stopAutoRefresh();
         } else if (state && state.tabType === 'diff') {
             if (typeof window.closeDiffView === 'function') {
                 window.closeDiffView();
@@ -2455,14 +2526,17 @@ function initTabs() {
 
     function getTabsList() {
         const list = [];
+        const rawEd = window.AppEditor ? (window.AppEditor.rawEditor || (typeof window.resolveMonacoEditor === 'function' ? window.resolveMonacoEditor(window.AppEditor) : null)) : null;
         tabsData.forEach((val, key) => {
+            const isEdMounted = !rawEd || !val.monacoModel || (typeof rawEd.getModel === 'function' && rawEd.getModel() === val.monacoModel);
+            const content = (key === activeTabId && window.AppEditor && isEdMounted) ? window.AppEditor.getValue() : val.content;
             list.push({
                 id: key,
                 title: val.title,
                 tabType: val.tabType,
                 docId: val.docId,
                 filePath: val.filePath,
-                content: (key === activeTabId && window.AppEditor) ? window.AppEditor.getValue() : val.content
+                content: content
             });
         });
         return list;
@@ -2748,6 +2822,64 @@ function initTabs() {
         });
     }
 
+    function openActivityMonitorTab(opts = {}) {
+        const title = opts.title || 'Activity Monitor';
+        // Reuse existing tab if already opened
+        for (const [id, tab] of tabsData.entries()) {
+            if (tab && tab.tabType === 'activity-monitor') {
+                switchTab(id);
+                return id;
+            }
+        }
+        const created = createTab({
+            title: title,
+            tabType: 'activity-monitor',
+            icon: 'fa-heart-pulse',
+            connectionId: opts.connectionId,
+            connectionName: opts.connectionName,
+            dbType: opts.dbType,
+            database: opts.database,
+            schema: opts.schema
+        });
+        return created ? (typeof created === 'string' ? created : created.id) : null;
+    }
+    window.openActivityMonitorTab = openActivityMonitorTab;
+
+    function openSchemaCompareTab(opts = {}) {
+        const title = opts.title || 'So sánh';
+        for (const [id, tab] of tabsData.entries()) {
+            if (tab && tab.tabType === 'schema-compare') {
+                switchTab(id);
+                const tabEl = tabsBar?.querySelector(`.ide-tab[data-tab-id="${id}"]`);
+                if (tabEl) {
+                    tabEl.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+                }
+                if (window.SchemaCompare) {
+                    window.SchemaCompare.activateTab(id);
+                    if (opts.connectionId && typeof window.SchemaCompare.setSourceContext === 'function') {
+                        window.SchemaCompare.setSourceContext(opts.connectionId, opts.database, opts.schema, opts.dbType);
+                    }
+                }
+                if (typeof showToast === 'function') {
+                    showToast('Đang hiển thị tab So sánh Schema', 'info', 1500);
+                }
+                return id;
+            }
+        }
+        const created = createTab({
+            title: title,
+            tabType: 'schema-compare',
+            icon: 'fa-code-compare',
+            connectionId: opts.connectionId,
+            connectionName: opts.connectionName,
+            dbType: opts.dbType,
+            database: opts.database,
+            schema: opts.schema
+        });
+        return created ? (typeof created === 'string' ? created : created.id) : null;
+    }
+    window.openSchemaCompareTab = openSchemaCompareTab;
+
     // Export helpers on window for ease of access and automated testing
     window.calculateTabLayout = calculateTabLayout;
     window.showTabOverflowMenu = showTabOverflowMenu;
@@ -2763,6 +2895,8 @@ function initTabs() {
     return { 
         createTab,
         addTab: createTab,
+        openActivityMonitorTab,
+        openSchemaCompareTab,
         openFilesFromDisk,
         openFile: openFilesFromDisk,
         updateEmptyTabsState,

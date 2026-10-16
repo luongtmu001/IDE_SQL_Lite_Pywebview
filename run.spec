@@ -8,6 +8,14 @@ from pathlib import Path
 from PyInstaller.utils.hooks import collect_data_files, collect_dynamic_libs, collect_submodules
 
 BASE_PATH = os.path.abspath(SPECPATH)
+import sys
+if BASE_PATH not in sys.path:
+    sys.path.insert(0, BASE_PATH)
+try:
+    from app.version import __version__, __app_name__
+except Exception:
+    __version__ = "1.0.0"
+    __app_name__ = "luoBTool IDE"
 
 # -------------------------------------------------------------
 # 1. Datas Collection (Templates, Static assets, Configs, Data)
@@ -18,6 +26,10 @@ datas = [
     (os.path.join(BASE_PATH, 'settings'), 'settings'),
     (os.path.join(BASE_PATH, 'logo.ico'), '.'),
 ]
+
+version_json_path = os.path.join(BASE_PATH, 'version.json')
+if os.path.exists(version_json_path):
+    datas.append((version_json_path, '.'))
 
 # Bundle Microsoft ScriptDOM DLL for offline syntax checking on client machines
 scriptdom_dir = os.path.join(BASE_PATH, 'app', 'database', 'syntax', 'bin')
@@ -101,12 +113,15 @@ hiddenimports = [
     'app.database.factory',
     'app.database.sqlserver',
     'app.database.postgresql',
+    'app.database.sqlite',
     'app.database.syntax',
     'app.database.syntax.validator',
     'app.services',
     'app.services.connection_manager',
     'app.services.table_designer_service',
     'app.services.table_data_editor_service',
+    'app.services.schema_compare_service',
+    'app.api.schema_compare_api',
     'app.utils',
     'app.utils.crypto',
     'app.utils.dwm',

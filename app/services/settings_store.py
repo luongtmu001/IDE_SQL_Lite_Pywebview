@@ -153,6 +153,16 @@ def load_settings_file() -> Dict[str, Any]:
             settings["session"]["maxTabSizeBytes"] = 1048576
         if "autoSaveIntervalSeconds" not in settings["session"]:
             settings["session"]["autoSaveIntervalSeconds"] = 3
+    if "updates" not in settings or not isinstance(settings["updates"], dict):
+        settings["updates"] = {
+            "checkOnStartup": True,
+            "updateUrl": "",
+        }
+    else:
+        if "checkOnStartup" not in settings["updates"]:
+            settings["updates"]["checkOnStartup"] = True
+        if "updateUrl" not in settings["updates"]:
+            settings["updates"]["updateUrl"] = ""
     return settings
 
 

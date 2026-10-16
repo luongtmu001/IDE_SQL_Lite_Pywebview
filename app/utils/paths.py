@@ -37,15 +37,58 @@ def get_bundle_dir() -> Path:
     return app_dir
 
 
+PORTABLE_FLAGS = ("portable.flag", "portable.txt", ".portable")
+
+
+def is_portable_mode(app_dir: Optional[Path] = None) -> bool:
+    """
+    Check if portable mode is enabled.
+    Returns True if any portable flag file (portable.flag, portable.txt, .portable)
+    exists in the application installation or source directory.
+    """
+    base_dir = app_dir or get_app_dir()
+    for flag_name in PORTABLE_FLAGS:
+        flag_path = base_dir / flag_name
+        if flag_path.exists():
+            return True
+    return False
+
+
+def set_portable_mode(enable: bool, app_dir: Optional[Path] = None) -> bool:
+    """
+    Enable or disable portable mode by creating or removing the portable.flag file.
+    """
+    base_dir = app_dir or get_app_dir()
+    primary_flag = base_dir / "portable.flag"
+    try:
+        if enable:
+            primary_flag.write_text("portable=true\n", encoding="utf-8")
+            (base_dir / "data").mkdir(parents=True, exist_ok=True)
+            logger.info("[Paths] Portable mode enabled at %s", primary_flag)
+        else:
+            for flag_name in PORTABLE_FLAGS:
+                f = base_dir / flag_name
+                if f.exists():
+                    f.unlink()
+            logger.info("[Paths] Portable mode disabled")
+        return True
+    except Exception as exc:
+        logger.warning("[Paths] Failed to change portable mode (%s): %s", enable, exc)
+        return False
+
+
 def get_user_data_dir() -> Path:
     """
     Return the user data directory.
-    Default: %APPDATA%\\LLTool (Windows) or ~/.local/share/LLTool (fallback/non-windows).
-    Can be overridden via LLTOOL_DATA_DIR environment variable.
+    Priority 1: Environment override via LLTOOL_DATA_DIR (testing / scripts).
+    Priority 2: Portable mode flag (portable.flag adjacent to app executable) -> <app_dir>/data.
+    Priority 3: Default %APPDATA%\\LLTool (Windows) or ~/.local/share/LLTool (fallback/non-windows).
     """
     env_dir = os.environ.get("LLTOOL_DATA_DIR")
     if env_dir:
         path = Path(env_dir).resolve()
+    elif is_portable_mode():
+        path = (get_app_dir() / "data").resolve()
     else:
         appdata = os.environ.get("APPDATA")
         if appdata:
@@ -70,6 +113,13 @@ def ensure_data_dir_migrated(app_dir: Optional[Path] = None) -> Path:
         return target_dir
 
     source_dir = (app_dir or get_app_dir()) / "data"
+
+    if source_dir.resolve() == target_dir.resolve():
+        try:
+            migration_flag.write_text("migrated=portable\n", encoding="utf-8")
+        except Exception:
+            pass
+        return target_dir
 
     if source_dir.exists() and source_dir.is_dir():
         logger.info("[Paths] First-run migration: copying existing data from %s to %s", source_dir, target_dir)

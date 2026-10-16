@@ -58,6 +58,8 @@ from app.bravo.api import BravoApiMixin as _BravoApiMixin
 from app.api.query_api import QueryApiMixin as _QueryApiMixin
 from app.api.history_api import HistoryApiMixin as _HistoryApiMixin
 from app.api.session_api import SessionApiMixin as _SessionApiMixin
+from app.api.activity_api import ActivityApiMixin as _ActivityApiMixin
+from app.api.schema_compare_api import SchemaCompareApiMixin as _SchemaCompareApiMixin
 
 logger = logging.getLogger("luobtool.main")
 connection_manager = ConnectionManager()
@@ -97,6 +99,8 @@ class MainApi(
     _HistoryApiMixin,
     _SessionApiMixin,
     _MainMetadataApiMixin,
+    _ActivityApiMixin,
+    _SchemaCompareApiMixin,
     BravoApi,
 ):
     def __init__(self, cm: ConnectionManager = connection_manager):
@@ -104,6 +108,8 @@ class MainApi(
         self._window = None
         self._bravo_windows = []
         self._profiler_windows = []
+        self._activity_windows = []
+        self._schema_compare_windows = []
         self._history_window = None
         self._on_ready_callback = None
 
@@ -280,6 +286,21 @@ def main():
         nonlocal frontend_ready
         frontend_ready = True
         maybe_transition()
+
+        # Launch non-blocking background update check after startup transition
+        def _on_update_found(update_info):
+            try:
+                import json
+                payload = json.dumps(update_info)
+                window.evaluate_js(f"if (window.onAppUpdateAvailable) {{ window.onAppUpdateAvailable({payload}); }}")
+            except Exception as exc:
+                logger.debug("Failed to dispatch update notification to window: %s", exc)
+
+        try:
+            from app.services.update_checker import start_background_check
+            start_background_check(callback=_on_update_found, delay=3.5)
+        except Exception as exc:
+            logger.debug("Could not initialize background update checker: %s", exc)
 
     main_api._on_ready_callback = on_app_ready
 

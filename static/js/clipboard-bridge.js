@@ -196,6 +196,24 @@
                     window.pywebview.api.set_clipboard_text(text);
                 } catch (_) {}
             }
+
+            // Nếu là thao tác CUT (Ctrl + X) trên input / textarea, chủ động cắt bỏ đoạn văn bản đã chọn
+            if (e.type === 'cut' && document.activeElement) {
+                const el = document.activeElement;
+                if ((el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') && typeof el.selectionStart === 'number' && !el.readOnly && !el.disabled) {
+                    const start = el.selectionStart;
+                    const end = el.selectionEnd;
+                    if (start !== end) {
+                        const val = el.value;
+                        el.value = val.substring(0, start) + val.substring(end);
+                        el.selectionStart = el.selectionEnd = start;
+                        try {
+                            el.dispatchEvent(new Event('input', { bubbles: true }));
+                            el.dispatchEvent(new Event('change', { bubbles: true }));
+                        } catch (_) {}
+                    }
+                }
+            }
         }
     }
 

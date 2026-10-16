@@ -60,6 +60,7 @@ def objects(connection_id):
             limit = int(limit_arg) if limit_arg is not None else 0
         except (ValueError, TypeError):
             limit = 0
+        refresh = request.args.get("refresh", "").lower() in ("true", "1", "yes")
         return jsonify(
             success=True,
             items=connection.metadata_service.list_objects(
@@ -67,9 +68,23 @@ def objects(connection_id):
                 request.args.get("schema"),
                 request.args.get("type", "tables"),
                 request.args.get("search"),
-                limit=limit
+                limit=limit,
+                refresh=refresh
             ),
         )
+    except Exception as exc:
+        return jsonify(success=False, error=str(exc)), 400
+
+@metadata_bp.post("/<connection_id>/refresh")
+def refresh_metadata(connection_id):
+    try:
+        connection = get_connection(connection_id)
+        payload = request.get_json(silent=True) or {}
+        database = payload.get("database") or request.args.get("database")
+        schema = payload.get("schema") or request.args.get("schema")
+        obj_type = payload.get("type") or request.args.get("type")
+        connection.metadata_service.invalidate(database=database, schema=schema, object_type=obj_type)
+        return jsonify(success=True, message="Metadata cache invalidated successfully")
     except Exception as exc:
         return jsonify(success=False, error=str(exc)), 400
 
@@ -91,6 +106,32 @@ def definition(connection_id):
         resp = jsonify(success=True, definition=value)
         resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
         resp.headers["Pragma"] = "no-cache"
+        return resp
+    except Exception as exc:
+        return jsonify(success=False, error=str(exc)), 400
+
+@metadata_bp.route("/<connection_id>/script", methods=["GET", "POST"])
+def script(connection_id):
+    try:
+        connection = get_connection(connection_id)
+        data = request.get_json(silent=True) or {}
+        name = request.args.get("name") or data.get("name")
+        if not name:
+            return jsonify(success=False, error="Name parameter is required"), 400
+        database = request.args.get("database") or data.get("database")
+        schema = request.args.get("schema") or data.get("schema")
+        obj_type = request.args.get("type") or data.get("type", "table")
+        action = request.args.get("action") or data.get("action", "CREATE")
+
+        script_sql = connection.metadata_service.script_object(
+            database=database,
+            schema=schema,
+            name=name,
+            object_type=obj_type,
+            action=action,
+        )
+        resp = jsonify(success=True, script=script_sql)
+        resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
         return resp
     except Exception as exc:
         return jsonify(success=False, error=str(exc)), 400

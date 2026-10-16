@@ -50,14 +50,35 @@
                         <select class="form-select form-select-sm" id="connType">
                             <option value="sqlserver">SQL Server</option>
                             <option value="postgresql">PostgreSQL</option>
+                            <option value="sqlite">SQLite</option>
                         </select>
                     </div>
 
-                    <div class="row g-2 mb-2">
-                        <div class="col-8">
-                            <label class="ide-form-label">Host / Server</label>
-                            <input type="text" class="form-control form-control-sm" id="connHost" placeholder="localhost" autocomplete="off">
+                    <div id="connSqliteOptionsGroup" class="d-none">
+                        <div class="mb-2">
+                            <label class="ide-form-label d-flex align-items-center justify-content-between">
+                                <span>Tệp cơ sở dữ liệu SQLite (.db)</span>
+                                <span class="small text-muted">File cục bộ hoặc :memory:</span>
+                            </label>
+                            <div class="input-group input-group-sm">
+                                <input type="text" class="form-control" id="connSqlitePath" placeholder="C:\path\to\database.db hoặc :memory:" autocomplete="off">
+                                <button type="button" class="btn btn-outline-secondary" id="btnBrowseSqliteFile" title="Chọn file SQLite từ máy tính">
+                                    <i class="fa-solid fa-folder-open me-1"></i>Chọn tệp...
+                                </button>
+                            </div>
+                            <div class="form-text small text-muted">
+                                Nhập đường dẫn tệp SQLite (.db, .sqlite, .sqlite3) hoặc bấm "Chọn tệp..." để duyệt.
+                            </div>
                         </div>
+                    </div>
+
+                    <div id="connServerOptionsGroup">
+                        <div class="row g-2 mb-2">
+                            <div class="col-8">
+                                <label class="ide-form-label">Host / Server</label>
+                                <input type="text" class="form-control form-control-sm" id="connHost" placeholder="localhost" autocomplete="off">
+                            </div>
+
                         <div class="col-4">
                             <label class="ide-form-label">Port</label>
                             <input type="number" class="form-control form-control-sm" id="connPort" placeholder="1433">
@@ -145,8 +166,11 @@
                             </div>
                         </div>
                     </div>
+                    <!-- End #connServerOptionsGroup -->
+                    </div>
 
                 </div>
+
             </div>
 
             <div class="modal-footer">

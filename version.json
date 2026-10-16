@@ -1,0 +1,15 @@
+{
+  "version": "1.0.0",
+  "releaseDate": "2026-10-16",
+  "minSupportedVersion": "1.0.0",
+  "title": "luoBTool IDE v1.0.0",
+  "downloadUrl": "https://github.com/luongtmu001/IDE_SQL_Lite_Pywebview/releases/latest",
+  "releaseNotes": "Bản phát hành chính thức tích hợp bộ so sánh cấu trúc Database siêu tốc (Bulk Catalog Compare), Giám sát hoạt động Out-of-band (Activity Monitor) và Chế độ Portable di động.",
+  "highlights": [
+    "Tối ưu hoá truy vấn Schema Compare bằng Bulk Catalog: so sánh hàng nghìn bảng chỉ trong vài giây",
+    "Trình giám sát Activity Monitor Hybrid (In-tab & Pop-out) với cơ chế Head Blocker Detection",
+    "Bảo vệ môi trường với Environment Safety và SQL Protection Guards",
+    "Hỗ trợ Chế độ Portable qua cờ portable.flag linh hoạt cho USB",
+    "Quản lý phiên bản tập trung và kiểm tra cập nhật tự động"
+  ]
+}

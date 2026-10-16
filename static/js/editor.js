@@ -951,6 +951,22 @@
             }
         });
 
+        // Ctrl+Shift+R: Refresh Objects & IntelliSense
+        editor.addAction({
+            id: 'sql-refresh-objects-intellisense',
+            label: 'Refresh Objects & IntelliSense (Làm mới)',
+            keybindings: [
+                monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyR
+            ],
+            contextMenuGroupId: '1_modification',
+            contextMenuOrder: 1.9,
+            run: () => {
+                if (typeof window.refreshActiveConnectionObjectsAndIntelliSense === 'function') {
+                    window.refreshActiveConnectionObjectsAndIntelliSense();
+                }
+            }
+        });
+
         // ── Split Editor Actions in Monaco Context Menu ───────────────────────
         editor.addAction({
             id: 'sql-split-right',
@@ -2590,6 +2606,26 @@
             });
         }
 
+        const menuRefresh = document.getElementById('ide-menu-refresh-objects-intellisense');
+        if (menuRefresh) {
+            menuRefresh.addEventListener('click', (e) => {
+                e.preventDefault();
+                if (typeof window.refreshActiveConnectionObjectsAndIntelliSense === 'function') {
+                    window.refreshActiveConnectionObjectsAndIntelliSense();
+                }
+            });
+        }
+
+        // Global shortcut Ctrl+Shift+R for Refresh Objects & IntelliSense
+        document.addEventListener('keydown', (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'R' || e.key === 'r' || e.code === 'KeyR')) {
+                e.preventDefault();
+                if (typeof window.refreshActiveConnectionObjectsAndIntelliSense === 'function') {
+                    window.refreshActiveConnectionObjectsAndIntelliSense();
+                }
+            }
+        });
+
         // ── Wire Responsive Action Bar Overflow Menu (Bug 3) ─────────────────
         const wireOverflowMenu = () => {
             const mappings = [
@@ -2693,6 +2729,72 @@
             }
         }
     });
+
+    // ── Global Helper: Refresh Active Connection Objects & IntelliSense ──────
+    async function refreshActiveConnectionObjectsAndIntelliSense() {
+        const tabState = (window.AppTabs && typeof window.AppTabs.getActiveTabState === 'function') 
+            ? window.AppTabs.getActiveTabState() 
+            : null;
+        const tabCtx = tabState?.context || {};
+        const connId = tabCtx.connectionId || window.ActiveConnectionId;
+        const connName = tabCtx.connectionName || window.ActiveConnectionName || 'Connection';
+        const database = tabCtx.database || window.ActiveDatabase;
+        const schema = tabCtx.schema || window.ActiveSchema;
+
+        if (typeof showToast === 'function') {
+            const scopeLabel = database ? ` [${database}]` : '';
+            showToast(`Đang làm mới objects & IntelliSense cho ${connName}${scopeLabel}...`, 'info');
+        }
+
+        // 1. Invalidate Backend metadata cache
+        if (connId) {
+            try {
+                await fetch(`/api/metadata/${connId}/refresh`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ database, schema })
+                }).catch(err => console.warn('[Refresh] Backend refresh warning:', err));
+            } catch (e) {
+                console.warn('[Refresh] Backend refresh error:', e);
+            }
+        }
+
+        // 2. Invalidate Frontend multi-tier metadata cache (Level 1, 2, 3)
+        if (window.AppMetadataCache) {
+            if (connId) {
+                window.AppMetadataCache.invalidateConnection(connId);
+            } else {
+                window.AppMetadataCache.invalidateAll();
+            }
+        }
+
+        // 3. Invalidate IntelliSense client cache
+        if (window.AppIntelliSense && typeof window.AppIntelliSense.invalidateConnection === 'function') {
+            window.AppIntelliSense.invalidateConnection(connId);
+        }
+
+        // 4. Invalidate and reload Explorer tree
+        if (window.AppExplorer) {
+            if (typeof window.AppExplorer.clearCategoryCache === 'function') {
+                window.AppExplorer.clearCategoryCache(connId, database);
+            }
+            if (connId) {
+                if (database) {
+                    window.AppExplorer.refreshNode({ connId, database, type: 'database', name: database });
+                } else {
+                    window.AppExplorer.refreshNode({ connId, type: 'connection', name: connName });
+                }
+            } else if (typeof window.AppExplorer.refreshNode === 'function') {
+                window.AppExplorer.refreshNode({});
+            }
+        }
+
+        if (typeof showToast === 'function') {
+            const scopeLabel = database ? ` [${database}]` : '';
+            showToast(`✓ Đã làm mới objects và IntelliSense cho kết nối ${connName}${scopeLabel}`, 'success');
+        }
+    }
+    window.refreshActiveConnectionObjectsAndIntelliSense = refreshActiveConnectionObjectsAndIntelliSense;
 
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', wireEditorUIControls);

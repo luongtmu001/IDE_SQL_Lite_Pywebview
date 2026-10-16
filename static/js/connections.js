@@ -33,6 +33,10 @@ function initConnections() {
     const sqlServerOptions = document.getElementById("connSqlServerOptionsGroup");
     const fUser = document.getElementById("connUser");
     const fPass = document.getElementById("connPass");
+    const fSqliteGroup = document.getElementById("connSqliteOptionsGroup");
+    const fServerGroup = document.getElementById("connServerOptionsGroup");
+    const fSqlitePath = document.getElementById("connSqlitePath");
+    const btnBrowseSqlite = document.getElementById("btnBrowseSqliteFile");
     
     // Helper to refresh group datalist safely
     async function refreshGroupList() {
@@ -173,6 +177,9 @@ function initConnections() {
                 if (fTimeout && data.timeout) {
                     fTimeout.value = data.timeout;
                 }
+                if (fSqlitePath && (data.type === 'sqlite' || data.type === 'sqlite3')) {
+                    fSqlitePath.value = data.database || data.file_path || "";
+                }
                 fUser.value = data.username || "";
                 fPass.value = ""; 
             } catch (e) {
@@ -185,6 +192,7 @@ function initConnections() {
             fHost.value = "localhost";
             fPort.value = "";
             fDb.value = "";
+            if (fSqlitePath) fSqlitePath.value = "";
             if (fSchema) {
                 fSchema.innerHTML = '<option value="">(Tất cả / Mặc định)</option>';
             }
@@ -202,14 +210,37 @@ function initConnections() {
     }
     
     function buildPayload() {
-        if (!fName.value || !fHost.value) {
-            alert("Connection Name and Host are required!");
-            return null;
-        }
         if (fType.value === "group_marker" || fName.value.startsWith('__group__')) {
             alert("Không thể tạo kết nối với định dạng nhóm (group marker)!");
             return null;
         }
+
+        if (fType.value === "sqlite") {
+            const sqlitePath = (fSqlitePath ? fSqlitePath.value : (fDb ? fDb.value : "")).trim();
+            if (!fName.value || !sqlitePath) {
+                alert("Vui lòng nhập Tên kết nối và Đường dẫn tệp SQLite!");
+                if (!fName.value) fName.focus();
+                else if (fSqlitePath) fSqlitePath.focus();
+                return null;
+            }
+            return {
+                id: window._editingConnId || null,
+                name: fName.value.trim(),
+                type: "sqlite",
+                database: sqlitePath,
+                file_path: sqlitePath,
+                server: sqlitePath,
+                group: fGroup ? fGroup.value.trim() : "",
+                environment: fEnvironment && fEnvironment.value ? fEnvironment.value : "",
+                read_only: fReadOnly ? Boolean(fReadOnly.checked) : false
+            };
+        }
+
+        if (!fName.value || !fHost.value) {
+            alert("Connection Name and Host are required!");
+            return null;
+        }
+
         
         const payload = {
             name: fName.value,
@@ -372,9 +403,18 @@ function initConnections() {
         });
     }
 
-    // Toggle SQL Server specific options when database type changes
+    // Toggle options when database type changes
     function syncTypeUI() {
         const isSqlServer = fType.value === "sqlserver";
+        const isSqlite = fType.value === "sqlite";
+
+        if (fSqliteGroup) {
+            fSqliteGroup.classList.toggle("d-none", !isSqlite);
+        }
+        if (fServerGroup) {
+            fServerGroup.classList.toggle("d-none", isSqlite);
+        }
+
         if (sqlServerOptions) {
             sqlServerOptions.style.display = isSqlServer ? "" : "none";
         }
@@ -386,7 +426,11 @@ function initConnections() {
         const logoImg = document.getElementById("connTypeLogo");
         const typeNameEl = document.getElementById("connTypeName");
         if (logoImg) {
-            if (isSqlServer) {
+            if (isSqlite) {
+                logoImg.src = "/static/icons/sqlite.png";
+                logoImg.alt = "sqlite";
+                logoImg.onerror = function() { this.src = "https://img.icons8.com/color/48/sqlite.png"; };
+            } else if (isSqlServer) {
                 logoImg.src = "/static/icons/sqlserver.png";
                 logoImg.alt = "microsoft-sql-server";
                 logoImg.onerror = function() { this.src = "https://img.icons8.com/color/48/microsoft-sql-server.png"; };
@@ -397,12 +441,41 @@ function initConnections() {
             }
         }
         if (typeNameEl) {
-            typeNameEl.textContent = isSqlServer ? "Microsoft SQL Server" : "PostgreSQL";
+            if (isSqlite) {
+                typeNameEl.textContent = "SQLite Database";
+            } else {
+                typeNameEl.textContent = isSqlServer ? "Microsoft SQL Server" : "PostgreSQL";
+            }
         }
 
         syncAuthUI();
     }
     if (fType) fType.addEventListener("change", syncTypeUI);
+
+    if (btnBrowseSqlite) {
+        btnBrowseSqlite.addEventListener("click", async () => {
+            try {
+                let res = null;
+                if (window.pywebview && window.pywebview.api && typeof window.pywebview.api.select_sqlite_file === "function") {
+                    res = await window.pywebview.api.select_sqlite_file();
+                } else {
+                    const fetchRes = await fetch("/api/connections/select-sqlite-file", { method: "POST" });
+                    res = await fetchRes.json();
+                }
+                if (res && res.success && res.file_path) {
+                    if (fSqlitePath) {
+                        fSqlitePath.value = res.file_path;
+                        if (fName && !fName.value.trim()) {
+                            const baseName = res.file_path.split(/[/\\]/).pop().replace(/\.[^/.]+$/, "");
+                            if (baseName) fName.value = baseName;
+                        }
+                    }
+                }
+            } catch (err) {
+                console.warn("[connections.js] Browse SQLite file error:", err);
+            }
+        });
+    }
 
     syncAuthUI(); // apply on load
     syncTypeUI();

@@ -23,9 +23,15 @@ def _quote_ident(name: str, engine: str) -> str:
 
 def _format_table_name(schema: str, table: str, engine: str, database: str = None) -> str:
     """Formats full table name using centralized quote_qualified."""
-    db_part = database if (database and engine.lower() != "postgresql") else None
-    s = schema or ("public" if engine.lower() == "postgresql" else "dbo")
+    eng = engine.lower()
+    if eng in ("sqlite", "sqlite3"):
+        if schema and schema.lower() != "main":
+            return quote_qualified(schema, table, engine=engine)
+        return quote_ident(table, engine=engine)
+    db_part = database if (database and eng != "postgresql") else None
+    s = schema or ("public" if eng == "postgresql" else "dbo")
     return quote_qualified(db_part, s, table, engine=engine)
+
 
 
 def _param_placeholder(engine: str) -> str:
@@ -107,7 +113,7 @@ class TableDataEditorService:
             cls._meta_cache.clear()
 
     @classmethod
-    def get_metadata(cls, adapter, database: str, schema: str, table: str, lock=None) -> Dict[str, Any]:
+    def get_metadata(cls, adapter, database: str, schema: str, table: str, lock=None, **kwargs) -> Dict[str, Any]:
         """
         Retrieves column metadata, identifying PKs, Identity, and Computed columns.
         Results are cached for _META_TTL_SECONDS to avoid repeated DB schema queries
@@ -118,9 +124,9 @@ class TableDataEditorService:
             if cached is not None:
                 return cached
 
-        raw_meta = adapter.get_table_design_metadata(database, schema, table)
-        if not raw_meta:
-            raise ValueError(f"Table '{schema}.{table}' not found or cannot load metadata.")
+            raw_meta = adapter.get_table_design_metadata(database, schema, table)
+            if not raw_meta:
+                raise ValueError(f"Table '{schema}.{table}' not found or cannot load metadata.")
 
         columns = []
         pk_columns = []
@@ -201,11 +207,17 @@ class TableDataEditorService:
                 "definition": chk.get("definition") or chk.get("check_clause") or ""
             })
 
+        eng = getattr(adapter, "db_type", "sqlserver").lower()
+        uses_rowid = False
+        if eng in ("sqlite", "sqlite3") and len(pk_columns) == 0:
+            pk_columns = ["rowid"]
+            uses_rowid = True
+
         result = {
             "database": database,
             "schema": schema,
             "table": table,
-            "engine": getattr(adapter, "db_type", "sqlserver").lower(),
+            "engine": eng,
             "columns": columns,
             "pk_columns": pk_columns,
             "identity_columns": identity_columns,
@@ -215,10 +227,12 @@ class TableDataEditorService:
             "unique_indexes": unique_indexes,
             "foreign_keys": foreign_keys,
             "checks": checks,
-            "has_pk": len(pk_columns) > 0
+            "has_pk": len(pk_columns) > 0,
+            "uses_rowid": uses_rowid,
         }
         cls._set_cached_metadata(adapter, database, schema, table, result)
         return result
+
 
     @classmethod
     def build_select_sql(
@@ -243,14 +257,15 @@ class TableDataEditorService:
         else:
             cols_str = "*"
 
-        # 2. TOP clause
+        # 2. TOP / LIMIT clause
         top_part = ""
         limit_part = ""
         if top_n and int(top_n) > 0:
-            if engine == "postgresql":
+            if engine in ("postgresql", "sqlite", "sqlite3"):
                 limit_part = f"\nLIMIT {int(top_n)}"
             else:
                 top_part = f"TOP ({int(top_n)}) "
+
 
         # 3. WHERE clause from Criteria
         where_clauses = []
@@ -350,56 +365,59 @@ class TableDataEditorService:
         select_cols: Optional[List[str]] = None,
         criteria: Optional[List[Dict[str, Any]]] = None,
         top_n: int = 200,
-        custom_sql: Optional[str] = None
+        custom_sql: Optional[str] = None,
+        lock=None,
+        **kwargs
     ) -> Dict[str, Any]:
         """
         Executes SELECT query to load data into the Data Grid.
         """
-        engine = getattr(adapter, "db_type", "sqlserver").lower()
-        limit = None
-        if custom_sql and custom_sql.strip():
-            sql = custom_sql.strip()
-            try:
-                n = int(top_n) if top_n is not None and str(top_n).strip() != "" else 0
-            except (ValueError, TypeError):
-                n = 0
-            if n > 0:
-                limit = n
+        with (lock or nullcontext()):
+            engine = getattr(adapter, "db_type", "sqlserver").lower()
+            limit = None
+            if custom_sql and custom_sql.strip():
+                sql = custom_sql.strip()
+                try:
+                    n = int(top_n) if top_n is not None and str(top_n).strip() != "" else 0
+                except (ValueError, TypeError):
+                    n = 0
+                if n > 0:
+                    limit = n
+                else:
+                    try:
+                        from config import Config
+                        limit = int(getattr(Config, "MAX_QUERY_ROWS", 1000))
+                    except Exception as ex:
+                        logger.debug("Config.MAX_QUERY_ROWS lookup failed: %s, using fallback 1000", ex)
+                        limit = 1000
             else:
-                try:
-                    from config import Config
-                    limit = int(getattr(Config, "MAX_QUERY_ROWS", 1000))
-                except Exception as ex:
-                    logger.debug("Config.MAX_QUERY_ROWS lookup failed: %s, using fallback 1000", ex)
-                    limit = 1000
-        else:
-            if not select_cols:
-                try:
-                    meta = cls.get_metadata(adapter, database, schema, table)
-                    select_cols = [c["name"] for c in meta.get("columns", [])]
-                except Exception as ex:
-                    logger.debug("Metadata fetch for select_cols in fetch_data failed: %s", ex)
-            sql = cls.build_select_sql(
-                engine=engine,
-                schema=schema,
-                table=table,
-                select_cols=select_cols,
-                criteria=criteria,
-                top_n=top_n,
-                database=database
-            )
+                if not select_cols:
+                    try:
+                        meta = cls.get_metadata(adapter, database, schema, table, lock=None)
+                        select_cols = [c["name"] for c in meta.get("columns", [])]
+                    except Exception as ex:
+                        logger.debug("Metadata fetch for select_cols in fetch_data failed: %s", ex)
+                sql = cls.build_select_sql(
+                    engine=engine,
+                    schema=schema,
+                    table=table,
+                    select_cols=select_cols,
+                    criteria=criteria,
+                    top_n=top_n,
+                    database=database
+                )
 
-        res = adapter.execute(sql, limit=limit, database=database)
-        if not res.get("success", True) and res.get("error"):
-            raise RuntimeError(res["error"])
+            res = adapter.execute(sql, limit=limit, database=database)
+            if not res.get("success", True) and res.get("error"):
+                raise RuntimeError(res["error"])
 
-        return {
-            "sql": sql,
-            "columns": res.get("columns", []),
-            "rows": res.get("rows", []),
-            "row_count": res.get("row_count", 0),
-            "messages": res.get("messages", [])
-        }
+            return {
+                "sql": sql,
+                "columns": res.get("columns", []),
+                "rows": res.get("rows", []),
+                "row_count": res.get("row_count", 0),
+                "messages": res.get("messages", [])
+            }
 
     @classmethod
     def update_row(
@@ -409,66 +427,69 @@ class TableDataEditorService:
         schema: str,
         table: str,
         pk_conditions: Dict[str, Any],
-        changes: Dict[str, Any]
+        changes: Dict[str, Any],
+        lock=None,
+        **kwargs
     ) -> Dict[str, Any]:
         """
         Performs safe parameterized UPDATE statement on a specific row.
         """
-        if not changes:
-            return {"success": True, "affected": 0, "message": "No changes to update"}
-        if not pk_conditions:
-            raise ValueError("Cannot update row: missing row identifier / primary key condition.")
+        with (lock or nullcontext()):
+            if not changes:
+                return {"success": True, "affected": 0, "message": "No changes to update"}
+            if not pk_conditions:
+                raise ValueError("Cannot update row: missing row identifier / primary key condition.")
 
-        engine = getattr(adapter, "db_type", "sqlserver").lower()
-        full_table = _format_table_name(schema, table, engine, database)
-        placeholder = _param_placeholder(engine)
+            engine = getattr(adapter, "db_type", "sqlserver").lower()
+            full_table = _format_table_name(schema, table, engine, database)
+            placeholder = _param_placeholder(engine)
 
-        set_clauses = []
-        set_params = []
-        preview_sets = []
+            set_clauses = []
+            set_params = []
+            preview_sets = []
 
-        for col, new_val in changes.items():
-            set_clauses.append(f"{_quote_ident(col, engine)} = {placeholder}")
-            set_params.append(new_val)
-            val_repr = escape_literal(new_val, engine)
-            preview_sets.append(f"{_quote_ident(col, engine)} = {val_repr}")
+            for col, new_val in changes.items():
+                set_clauses.append(f"{_quote_ident(col, engine)} = {placeholder}")
+                set_params.append(new_val)
+                val_repr = escape_literal(new_val, engine)
+                preview_sets.append(f"{_quote_ident(col, engine)} = {val_repr}")
 
-        where_clauses = []
-        where_params = []
-        preview_wheres = []
+            where_clauses = []
+            where_params = []
+            preview_wheres = []
 
-        for col, val in pk_conditions.items():
-            if val is None:
-                where_clauses.append(f"{_quote_ident(col, engine)} IS NULL")
-                preview_wheres.append(f"{_quote_ident(col, engine)} IS NULL")
-            else:
-                where_clauses.append(f"{_quote_ident(col, engine)} = {placeholder}")
-                where_params.append(val)
-                val_repr = escape_literal(val, engine)
-                preview_wheres.append(f"{_quote_ident(col, engine)} = {val_repr}")
+            for col, val in pk_conditions.items():
+                if val is None:
+                    where_clauses.append(f"{_quote_ident(col, engine)} IS NULL")
+                    preview_wheres.append(f"{_quote_ident(col, engine)} IS NULL")
+                else:
+                    where_clauses.append(f"{_quote_ident(col, engine)} = {placeholder}")
+                    where_params.append(val)
+                    val_repr = escape_literal(val, engine)
+                    preview_wheres.append(f"{_quote_ident(col, engine)} = {val_repr}")
 
-        sql = f"UPDATE {full_table}\nSET " + ", ".join(set_clauses) + "\nWHERE " + " AND ".join(where_clauses) + ";"
-        preview_sql = f"UPDATE {full_table}\nSET " + ", ".join(preview_sets) + "\nWHERE " + " AND ".join(preview_wheres) + ";"
+            sql = f"UPDATE {full_table}\nSET " + ", ".join(set_clauses) + "\nWHERE " + " AND ".join(where_clauses) + ";"
+            preview_sql = f"UPDATE {full_table}\nSET " + ", ".join(preview_sets) + "\nWHERE " + " AND ".join(preview_wheres) + ";"
 
-        all_params = tuple(set_params + where_params)
-        res = adapter.execute(sql, params=all_params, database=database)
+            all_params = tuple(set_params + where_params)
+            res = adapter.execute(sql, params=all_params, database=database)
 
-        if not res.get("success", True) and res.get("error"):
-            raise RuntimeError(res["error"])
+            if not res.get("success", True) and res.get("error"):
+                raise RuntimeError(res["error"])
 
-        affected = res.get("total_affected")
-        if affected is None:
-            affected = res.get("row_count")
-        if affected is None:
-            affected = res.get("rows_affected")
-        if affected is None:
-            affected = 0
+            affected = res.get("total_affected")
+            if affected is None:
+                affected = res.get("row_count")
+            if affected is None:
+                affected = res.get("rows_affected")
+            if affected is None:
+                affected = 0
 
-        return {
-            "success": True,
-            "affected": affected,
-            "sql": preview_sql
-        }
+            return {
+                "success": True,
+                "affected": affected,
+                "sql": preview_sql
+            }
 
     @classmethod
     def delete_row(
@@ -477,52 +498,55 @@ class TableDataEditorService:
         database: str,
         schema: str,
         table: str,
-        pk_conditions: Dict[str, Any]
+        pk_conditions: Dict[str, Any],
+        lock=None,
+        **kwargs
     ) -> Dict[str, Any]:
         """
         Performs safe parameterized DELETE statement for a specific row.
         """
-        if not pk_conditions:
-            raise ValueError("Cannot delete row: missing row identifier / primary key condition.")
+        with (lock or nullcontext()):
+            if not pk_conditions:
+                raise ValueError("Cannot delete row: missing row identifier / primary key condition.")
 
-        engine = getattr(adapter, "db_type", "sqlserver").lower()
-        full_table = _format_table_name(schema, table, engine, database)
-        placeholder = _param_placeholder(engine)
+            engine = getattr(adapter, "db_type", "sqlserver").lower()
+            full_table = _format_table_name(schema, table, engine, database)
+            placeholder = _param_placeholder(engine)
 
-        where_clauses = []
-        where_params = []
-        preview_wheres = []
+            where_clauses = []
+            where_params = []
+            preview_wheres = []
 
-        for col, val in pk_conditions.items():
-            if val is None:
-                where_clauses.append(f"{_quote_ident(col, engine)} IS NULL")
-                preview_wheres.append(f"{_quote_ident(col, engine)} IS NULL")
-            else:
-                where_clauses.append(f"{_quote_ident(col, engine)} = {placeholder}")
-                where_params.append(val)
-                val_repr = escape_literal(val, engine)
-                preview_wheres.append(f"{_quote_ident(col, engine)} = {val_repr}")
+            for col, val in pk_conditions.items():
+                if val is None:
+                    where_clauses.append(f"{_quote_ident(col, engine)} IS NULL")
+                    preview_wheres.append(f"{_quote_ident(col, engine)} IS NULL")
+                else:
+                    where_clauses.append(f"{_quote_ident(col, engine)} = {placeholder}")
+                    where_params.append(val)
+                    val_repr = escape_literal(val, engine)
+                    preview_wheres.append(f"{_quote_ident(col, engine)} = {val_repr}")
 
-        sql = f"DELETE FROM {full_table}\nWHERE " + " AND ".join(where_clauses) + ";"
-        preview_sql = f"DELETE FROM {full_table}\nWHERE " + " AND ".join(preview_wheres) + ";"
+            sql = f"DELETE FROM {full_table}\nWHERE " + " AND ".join(where_clauses) + ";"
+            preview_sql = f"DELETE FROM {full_table}\nWHERE " + " AND ".join(preview_wheres) + ";"
 
-        res = adapter.execute(sql, params=tuple(where_params), database=database)
-        if not res.get("success", True) and res.get("error"):
-            raise RuntimeError(res["error"])
+            res = adapter.execute(sql, params=tuple(where_params), database=database)
+            if not res.get("success", True) and res.get("error"):
+                raise RuntimeError(res["error"])
 
-        affected = res.get("total_affected")
-        if affected is None:
-            affected = res.get("row_count")
-        if affected is None:
-            affected = res.get("rows_affected")
-        if affected is None:
-            affected = 0
+            affected = res.get("total_affected")
+            if affected is None:
+                affected = res.get("row_count")
+            if affected is None:
+                affected = res.get("rows_affected")
+            if affected is None:
+                affected = 0
 
-        return {
-            "success": True,
-            "affected": affected,
-            "sql": preview_sql
-        }
+            return {
+                "success": True,
+                "affected": affected,
+                "sql": preview_sql
+            }
 
     @classmethod
     def insert_row(
@@ -533,53 +557,56 @@ class TableDataEditorService:
         table: str,
         values: Dict[str, Any],
         identity_columns: Optional[List[str]] = None,
-        computed_columns: Optional[List[str]] = None
+        computed_columns: Optional[List[str]] = None,
+        lock=None,
+        **kwargs
     ) -> Dict[str, Any]:
         """
         Performs safe parameterized INSERT statement for a new row,
         automatically excluding identity and computed columns.
         """
-        skip_cols_lower = {str(c).strip().lower() for c in ((identity_columns or []) + (computed_columns or []))}
-        insert_data = {k: v for k, v in values.items() if k.strip().lower() not in skip_cols_lower}
+        with (lock or nullcontext()):
+            skip_cols_lower = {str(c).strip().lower() for c in ((identity_columns or []) + (computed_columns or []))}
+            insert_data = {k: v for k, v in values.items() if k.strip().lower() not in skip_cols_lower}
 
-        if not insert_data:
-            # Table has only identity or default columns
+            if not insert_data:
+                # Table has only identity or default columns
+                engine = getattr(adapter, "db_type", "sqlserver").lower()
+                full_table = _format_table_name(schema, table, engine, database)
+                if engine == "postgresql":
+                    sql = f"INSERT INTO {full_table} DEFAULT VALUES;"
+                else:
+                    sql = f"INSERT INTO {full_table} DEFAULT VALUES;"
+                res = adapter.execute(sql, database=database)
+                return {"success": True, "affected": res.get("row_count", 1), "sql": sql}
+
             engine = getattr(adapter, "db_type", "sqlserver").lower()
             full_table = _format_table_name(schema, table, engine, database)
-            if engine == "postgresql":
-                sql = f"INSERT INTO {full_table} DEFAULT VALUES;"
-            else:
-                sql = f"INSERT INTO {full_table} DEFAULT VALUES;"
-            res = adapter.execute(sql, database=database)
-            return {"success": True, "affected": res.get("row_count", 1), "sql": sql}
+            placeholder = _param_placeholder(engine)
 
-        engine = getattr(adapter, "db_type", "sqlserver").lower()
-        full_table = _format_table_name(schema, table, engine, database)
-        placeholder = _param_placeholder(engine)
+            cols = list(insert_data.keys())
+            params = [insert_data[c] for c in cols]
 
-        cols = list(insert_data.keys())
-        params = [insert_data[c] for c in cols]
+            cols_str = ", ".join(_quote_ident(c, engine) for c in cols)
+            placeholders_str = ", ".join(placeholder for _ in cols)
 
-        cols_str = ", ".join(_quote_ident(c, engine) for c in cols)
-        placeholders_str = ", ".join(placeholder for _ in cols)
+            preview_vals = []
+            for c in cols:
+                v = insert_data[c]
+                preview_vals.append("NULL" if v is None else f"'{v}'" if isinstance(v, str) else str(v))
+            preview_sql = f"INSERT INTO {full_table} ({cols_str})\nVALUES ({', '.join(preview_vals)});"
 
-        preview_vals = []
-        for c in cols:
-            v = insert_data[c]
-            preview_vals.append("NULL" if v is None else f"'{v}'" if isinstance(v, str) else str(v))
-        preview_sql = f"INSERT INTO {full_table} ({cols_str})\nVALUES ({', '.join(preview_vals)});"
+            sql = f"INSERT INTO {full_table} ({cols_str})\nVALUES ({placeholders_str});"
 
-        sql = f"INSERT INTO {full_table} ({cols_str})\nVALUES ({placeholders_str});"
+            res = adapter.execute(sql, params=tuple(params), database=database)
+            if not res.get("success", True) and res.get("error"):
+                raise RuntimeError(res["error"])
 
-        res = adapter.execute(sql, params=tuple(params), database=database)
-        if not res.get("success", True) and res.get("error"):
-            raise RuntimeError(res["error"])
-
-        return {
-            "success": True,
-            "affected": res.get("row_count", 1),
-            "sql": preview_sql
-        }
+            return {
+                "success": True,
+                "affected": res.get("row_count", 1),
+                "sql": preview_sql
+            }
 
     @classmethod
     def submit_changes(
@@ -589,7 +616,9 @@ class TableDataEditorService:
         schema: str,
         table: str,
         changes: Dict[str, Any],
-        concurrency_mode: str = "optimistic"
+        concurrency_mode: str = "optimistic",
+        lock=None,
+        **kwargs
     ) -> Dict[str, Any]:
         """
         Executes inserts, updates, and deletes in a SINGLE ATOMIC TRANSACTION.

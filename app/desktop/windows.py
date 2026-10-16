@@ -214,6 +214,21 @@ class SettingsSubwindowApi:
     def open_settings_window(self):
         return self._main_api.open_settings_window()
 
+    def get_app_version(self):
+        return self._main_api.get_app_version()
+
+    def check_for_updates(self, force=True, custom_url=None):
+        return self._main_api.check_for_updates(force=force, custom_url=custom_url)
+
+    def set_portable_mode(self, enabled=True):
+        return self._main_api.set_portable_mode(enabled=enabled)
+
+    def open_data_folder(self):
+        return self._main_api.open_data_folder()
+
+    def open_external_url(self, url):
+        return self._main_api.open_external_url(url)
+
 
 class ProfilerSubwindowApi:
     def __init__(self, main_api):
@@ -380,6 +395,123 @@ class EventListenerSubwindowApi:
         return self._main_api.get_clipboard_text()
 
 
+class ActivityMonitorSubwindowApi:
+    """JS Bridge for standalone Pop-out Activity Monitor subwindows."""
+
+    def __init__(self, main_api):
+        self._main_api = main_api
+        self._window = None
+
+    def set_window(self, win):
+        self._window = win
+
+    def close_window(self):
+        if self._window:
+            try:
+                self._window.destroy()
+            except Exception:
+                pass
+        return {"success": True}
+
+    def apply_titlebar_theme(self, bg_hex=None, text_hex=None, border_hex=None, is_dark=None):
+        return self._main_api.apply_titlebar_theme(bg_hex, text_hex, border_hex, is_dark)
+
+    def activity_get_sessions(self, connection_id, database=None, active_only=False):
+        return self._main_api.activity_get_sessions(connection_id, database=database, active_only=active_only)
+
+    def activity_cancel_session(self, connection_id, session_id):
+        return self._main_api.activity_cancel_session(connection_id, session_id)
+
+    def activity_kill_session(self, connection_id, session_id):
+        return self._main_api.activity_kill_session(connection_id, session_id)
+
+    def activity_get_current_spid(self, connection_id):
+        return self._main_api.activity_get_current_spid(connection_id)
+
+    def get_saved_connections(self):
+        return self._main_api.get_saved_connections()
+
+    def get_settings(self):
+        return self._main_api.get_settings()
+
+    def set_clipboard_text(self, text):
+        return self._main_api.set_clipboard_text(text)
+
+    def get_clipboard_text(self):
+        return self._main_api.get_clipboard_text()
+
+
+class SchemaCompareSubwindowApi:
+    """JS Bridge for standalone Pop-out Schema Compare subwindows."""
+
+    def __init__(self, main_api, initial_options=None):
+        self._main_api = main_api
+        self._initial_options = initial_options or {}
+        self._window = None
+
+    def get_initial_options(self):
+        return self._initial_options
+
+    def set_window(self, win):
+        self._window = win
+
+    def close_window(self):
+        if self._window:
+            try:
+                self._window.destroy()
+            except Exception:
+                pass
+        return {"success": True}
+
+    def apply_titlebar_theme(self, bg_hex=None, text_hex=None, border_hex=None, is_dark=None):
+        return self._main_api.apply_titlebar_theme(bg_hex, text_hex, border_hex, is_dark)
+
+    def schema_compare_get_connections(self):
+        return self._main_api.schema_compare_get_connections()
+
+    def schema_compare_get_schemas(self, connection_id, database=None):
+        return self._main_api.schema_compare_get_schemas(connection_id, database=database)
+
+    def schema_compare_run(self, source_conn_id, source_db, source_schema, target_conn_id, target_db, target_schema, object_types=None):
+        return self._main_api.schema_compare_run(
+            source_conn_id, source_db, source_schema, target_conn_id, target_db, target_schema, object_types=object_types
+        )
+
+    def schema_compare_cancel(self):
+        return self._main_api.schema_compare_cancel()
+
+    def schema_compare_generate_script(self, diff_data, selected_tables=None, options=None):
+        return self._main_api.schema_compare_generate_script(diff_data, selected_tables=selected_tables, options=options)
+
+    def schema_compare_connect_direct(self, config):
+        return self._main_api.schema_compare_connect_direct(config)
+
+    def fetch_connection_metadata(self, config):
+        return self._main_api.fetch_connection_metadata(config)
+
+    def select_sqlite_file(self):
+        return self._main_api.select_sqlite_file()
+
+    def get_settings(self):
+        return self._main_api.get_settings()
+
+    def set_clipboard_text(self, text):
+        return self._main_api.set_clipboard_text(text)
+
+    def get_clipboard_text(self):
+        return self._main_api.get_clipboard_text()
+
+    def save_connection_profile(self, profile):
+        if hasattr(self._main_api, 'save_connection_profile'):
+            return self._main_api.save_connection_profile(profile)
+        return {"success": False, "error": "Not supported"}
+
+    def show_open_file_dialog(self, title=None, filters=None):
+        if hasattr(self._main_api, 'show_open_file_dialog'):
+            return self._main_api.show_open_file_dialog(title=title, filters=filters)
+        return None
+
+
 # ── Titlebar Synchronization & IPC Broadcast ──────────────────────────
 
 def apply_titlebar_theme_to_windows(api: Any, bg_hex: Optional[str] = None, text_hex: Optional[str] = None, border_hex: Optional[str] = None, is_dark: Optional[bool] = None) -> Dict[str, Any]:
@@ -486,6 +618,30 @@ def apply_titlebar_theme_to_windows(api: Any, bg_hex: Optional[str] = None, text
                 title="Query History — luoBTool IDE",
             )
 
+        # 7. Activity Monitor Windows
+        for aw in getattr(api, "_activity_windows", []):
+            if aw:
+                apply_dwm_titlebar_theme(
+                    aw,
+                    bg=bg_hex,
+                    text=text_hex,
+                    border=border_hex,
+                    is_dark=is_dark,
+                    title="Giám sát phiên & Khóa chặn (Activity Monitor) — luoBTool IDE",
+                )
+
+        # 8. Schema Compare Windows
+        for scw in getattr(api, "_schema_compare_windows", []):
+            if scw:
+                apply_dwm_titlebar_theme(
+                    scw,
+                    bg=bg_hex,
+                    text=text_hex,
+                    border=border_hex,
+                    is_dark=is_dark,
+                    title="So sánh Schema giữa 2 Database (Schema Compare) — luoBTool IDE",
+                )
+
         return {"success": True}
     except Exception as exc:
         return {"success": False, "error": str(exc)}
@@ -519,6 +675,12 @@ def broadcast_settings(api: Any, settings: Dict[str, Any]) -> None:
             for pw in getattr(api, "_profiler_windows", []):
                 if pw and pw not in targets:
                     targets.append(pw)
+            for aw in getattr(api, "_activity_windows", []):
+                if aw and aw not in targets:
+                    targets.append(aw)
+            for scw in getattr(api, "_schema_compare_windows", []):
+                if scw and scw not in targets:
+                    targets.append(scw)
             if getattr(api, "_history_window", None):
                 if api._history_window not in targets:
                     targets.append(api._history_window)
@@ -855,3 +1017,133 @@ def open_bravo_window(
         return {"success": True, "bravo_session_id": bravo_sess_id}
     except Exception as exc:
         return {"success": False, "error": str(exc)}
+
+
+def open_activity_monitor_window(api: Any, conn_id: Optional[str] = None, db_type: Optional[str] = None, base_dir: Optional[Path] = None) -> Dict[str, Any]:
+    """Open a new Activity & Locks Monitor subwindow (Pop-out mode)."""
+    if base_dir is None:
+        base_dir = get_bundle_dir()
+
+    try:
+        settings = _load_settings_file()
+        cur_theme = settings.get("theme") or settings.get("appearance", {}).get("theme", "dark")
+        activity_html = (base_dir / "templates" / "activity_monitor_window.html").resolve().as_uri()
+
+        win_title = "Giám sát phiên & Khóa chặn (Activity Monitor) — luoBTool IDE"
+        act_api = ActivityMonitorSubwindowApi(api)
+        act_win = webview.create_window(
+            title=win_title,
+            url=activity_html,
+            js_api=act_api,
+            width=1320,
+            height=840,
+            min_size=(920, 560),
+            text_select=True,
+        )
+        act_api.set_window(act_win)
+        if not hasattr(api, "_activity_windows") or api._activity_windows is None:
+            api._activity_windows = []
+        api._activity_windows.append(act_win)
+
+        if getattr(api, "_current_titlebar_theme", None):
+            t = api._current_titlebar_theme
+            apply_dwm_titlebar_theme(act_win, bg=t.get("bg"), text=t.get("text"), border=t.get("border"), is_dark=t.get("is_dark"), title=win_title)
+        else:
+            apply_dwm_titlebar_theme(act_win, bg=cur_theme, title=win_title)
+
+        def on_closed():
+            if act_win in getattr(api, "_activity_windows", []):
+                api._activity_windows.remove(act_win)
+            try:
+                if act_win in webview.windows:
+                    webview.windows.remove(act_win)
+            except Exception:
+                pass
+
+        act_win.events.closed += on_closed
+        return {"success": True}
+    except Exception as exc:
+        logger.exception("Error opening activity monitor window: %s", exc)
+        return {"success": False, "error": str(exc)}
+
+
+def open_schema_compare_window(
+    api: Any,
+    source_conn_id: Optional[str] = None,
+    source_db: Optional[str] = None,
+    source_schema: Optional[str] = None,
+    target_conn_id: Optional[str] = None,
+    target_db: Optional[str] = None,
+    target_schema: Optional[str] = None,
+    base_dir: Optional[Path] = None
+) -> Dict[str, Any]:
+    """Open a new Schema Compare subwindow (Pop-out mode)."""
+    if base_dir is None:
+        base_dir = get_bundle_dir()
+
+    try:
+        settings = _load_settings_file()
+        cur_theme = settings.get("theme") or settings.get("appearance", {}).get("theme", "dark")
+        
+        # Resolve html path with fallback to _internal and templates directories
+        candidate_paths = [
+            base_dir / "templates" / "schema_compare_window.html",
+            base_dir / "_internal" / "templates" / "schema_compare_window.html",
+            Path(__file__).resolve().parent.parent.parent / "templates" / "schema_compare_window.html"
+        ]
+        chosen_path = None
+        for cand in candidate_paths:
+            if cand.exists():
+                chosen_path = cand
+                break
+        if not chosen_path:
+            chosen_path = candidate_paths[0]
+        html_path = chosen_path.resolve().as_uri()
+
+        initial_options = {
+            "sourceConnId": source_conn_id,
+            "sourceDb": source_db,
+            "sourceSchema": source_schema,
+            "targetConnId": target_conn_id,
+            "targetDb": target_db,
+            "targetSchema": target_schema,
+        }
+
+        win_title = "So sánh Schema giữa 2 Database (Schema Compare) — luoBTool IDE"
+        sub_api = SchemaCompareSubwindowApi(api, initial_options=initial_options)
+        sub_win = webview.create_window(
+            title=win_title,
+            url=html_path,
+            js_api=sub_api,
+            width=1340,
+            height=860,
+            min_size=(960, 600),
+            text_select=True,
+        )
+        sub_api.set_window(sub_win)
+        if not hasattr(api, "_schema_compare_windows") or api._schema_compare_windows is None:
+            api._schema_compare_windows = []
+        api._schema_compare_windows.append(sub_win)
+
+        if getattr(api, "_current_titlebar_theme", None):
+            t = api._current_titlebar_theme
+            apply_dwm_titlebar_theme(sub_win, bg=t.get("bg"), text=t.get("text"), border=t.get("border"), is_dark=t.get("is_dark"), title=win_title)
+        else:
+            apply_dwm_titlebar_theme(sub_win, bg=cur_theme, title=win_title)
+
+        def on_closed():
+            if sub_win in getattr(api, "_schema_compare_windows", []):
+                api._schema_compare_windows.remove(sub_win)
+            try:
+                if sub_win in webview.windows:
+                    webview.windows.remove(sub_win)
+            except Exception:
+                pass
+
+        sub_win.events.closed += on_closed
+        return {"success": True}
+    except Exception as exc:
+        logger.exception("Error opening schema compare window: %s", exc)
+        return {"success": False, "error": str(exc)}
+
+

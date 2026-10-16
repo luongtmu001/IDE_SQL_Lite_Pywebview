@@ -325,3 +325,48 @@ class ConnectionsApiMixin:
                     return c
             return None
 
+    def select_sqlite_file(self):
+        """Opens native file picker to select an SQLite database file (.db, .sqlite, .sqlite3, etc.)."""
+        target_win = getattr(self, '_window', None)
+        if not target_win and hasattr(self, '_main_api') and self._main_api:
+            target_win = getattr(self._main_api, '_window', None)
+
+        selected_file = None
+        if target_win:
+            try:
+                import webview
+                files = target_win.create_file_dialog(
+                    webview.OPEN_DIALOG,
+                    allow_multiple=False,
+                    file_types=('SQLite Database (*.db;*.sqlite;*.sqlite3;*.db3)', 'All files (*.*)')
+                )
+                if files and len(files) > 0:
+                    selected_file = files[0]
+                else:
+                    return {"success": False, "cancelled": True}
+            except Exception as e:
+                logger.warning("[select_sqlite_file] pywebview file dialog error: %s", e)
+
+        if not selected_file:
+            try:
+                import tkinter as tk
+                from tkinter import filedialog
+                root = tk.Tk()
+                root.withdraw()
+                root.attributes('-topmost', True)
+                selected_file = filedialog.askopenfilename(
+                    title="Chọn file cơ sở dữ liệu SQLite",
+                    filetypes=[
+                        ("SQLite Database (*.db;*.sqlite;*.sqlite3;*.db3)", "*.db;*.sqlite;*.sqlite3;*.db3"),
+                        ("Tất cả tệp (*.*)", "*.*")
+                    ]
+                )
+                root.destroy()
+            except Exception as e:
+                logger.warning("[select_sqlite_file] Tkinter dialog fallback error: %s", e)
+
+        if selected_file:
+            return {"success": True, "file_path": str(selected_file)}
+        return {"success": False, "cancelled": True}
+
+

@@ -136,6 +136,16 @@
             }
         },
         {
+            id: 'connections:select_sqlite_file',
+            method: 'POST',
+            pattern: '/api/connections/select-sqlite-file',
+            targetMethods: ['select_sqlite_file'],
+            handler: async (api) => {
+                verifyNativeMethod(api, 'select_sqlite_file');
+                return await api.select_sqlite_file();
+            }
+        },
+        {
             id: 'connections:check_credential',
             method: 'POST',
             pattern: '/api/connections/check-credential',
@@ -185,7 +195,7 @@
             method: '*',
             pattern: /^\/api\/metadata\/([^/]+)(?:\/([^/]+))?(?:\/([^/]+))?$/,
             targetMethods: [
-                'get_databases', 'get_schemas', 'get_objects', 'get_definition', 'get_foreign_keys',
+                'get_databases', 'get_schemas', 'get_objects', 'get_definition', 'script_object', 'get_foreign_keys',
                 'get_linked_servers', 'get_remote_databases', 'get_remote_schemas', 'get_remote_objects',
                 'get_remote_columns', 'test_linked_server', 'get_linked_server_script', 'drop_linked_server',
                 'get_foreign_servers', 'get_foreign_tables', 'get_object_children',
@@ -212,6 +222,16 @@
                 } else if (action === 'definition') {
                     verifyNativeMethod(api, 'get_definition');
                     result = await api.get_definition(connId, searchParams.get('database'), searchParams.get('schema'), searchParams.get('name'), searchParams.get('type'));
+                } else if (action === 'script') {
+                    verifyNativeMethod(api, 'script_object');
+                    result = await api.script_object(
+                        connId,
+                        searchParams.get('database') || (body && body.database),
+                        searchParams.get('schema') || (body && body.schema),
+                        searchParams.get('name') || (body && body.name),
+                        searchParams.get('type') || (body && body.type) || 'table',
+                        searchParams.get('action') || (body && body.action) || 'CREATE'
+                    );
                 } else if (action === 'foreign_keys') {
                     verifyNativeMethod(api, 'get_foreign_keys');
                     result = await api.get_foreign_keys(connId, searchParams.get('database'), searchParams.get('schema'), searchParams.get('table'));
@@ -1127,6 +1147,55 @@
                     s.get('whole_word') === 'true',
                     s.get('is_regex') === 'true'
                 );
+            }
+        },
+
+        // =========================================================================
+        // Activity & Blocking Locks Monitor
+        // =========================================================================
+        {
+            id: 'activity:sessions',
+            method: 'GET',
+            pattern: '/api/activity/sessions',
+            targetMethods: ['activity_get_sessions'],
+            handler: async (api, ctx) => {
+                verifyNativeMethod(api, 'activity_get_sessions');
+                const s = ctx.searchParams;
+                return await api.activity_get_sessions(
+                    s.get('connection_id'),
+                    s.get('database') || null,
+                    s.get('active_only') === 'true'
+                );
+            }
+        },
+        {
+            id: 'activity:cancel',
+            method: 'POST',
+            pattern: '/api/activity/cancel',
+            targetMethods: ['activity_cancel_session'],
+            handler: async (api, ctx) => {
+                verifyNativeMethod(api, 'activity_cancel_session');
+                return await api.activity_cancel_session(ctx.body.connection_id, ctx.body.session_id);
+            }
+        },
+        {
+            id: 'activity:kill',
+            method: 'POST',
+            pattern: '/api/activity/kill',
+            targetMethods: ['activity_kill_session'],
+            handler: async (api, ctx) => {
+                verifyNativeMethod(api, 'activity_kill_session');
+                return await api.activity_kill_session(ctx.body.connection_id, ctx.body.session_id);
+            }
+        },
+        {
+            id: 'activity:open_window',
+            method: 'POST',
+            pattern: '/api/activity/open-window',
+            targetMethods: ['open_activity_monitor_window'],
+            handler: async (api, ctx) => {
+                verifyNativeMethod(api, 'open_activity_monitor_window');
+                return await api.open_activity_monitor_window(ctx.body.connection_id, ctx.body.db_type);
             }
         },
 

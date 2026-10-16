@@ -199,6 +199,29 @@ function initQuery() {
             }
         }
 
+        const topbarEnvBadge = document.getElementById('ide-topbar-env-badge');
+        if (topbarEnvBadge) {
+            const rawEnv = env || 'dev';
+            const envUpper = rawEnv.toUpperCase();
+            if (rawEnv === 'prod') {
+                topbarEnvBadge.className = 'badge bg-danger text-light px-2 py-1 user-select-none font-monospace';
+                topbarEnvBadge.textContent = 'PROD';
+                topbarEnvBadge.title = 'Môi trường: PRODUCTION (Cảnh báo: Cực kỳ cẩn trọng!)';
+            } else if (rawEnv === 'test') {
+                topbarEnvBadge.className = 'badge bg-warning text-dark px-2 py-1 user-select-none font-monospace';
+                topbarEnvBadge.textContent = 'TEST';
+                topbarEnvBadge.title = 'Môi trường: TEST (Kiểm thử)';
+            } else if (rawEnv === 'staging' || rawEnv === 'uat') {
+                topbarEnvBadge.className = 'badge bg-info text-dark px-2 py-1 user-select-none font-monospace';
+                topbarEnvBadge.textContent = envUpper;
+                topbarEnvBadge.title = `Môi trường: ${envUpper}`;
+            } else {
+                topbarEnvBadge.className = 'badge bg-primary text-light px-2 py-1 user-select-none font-monospace';
+                topbarEnvBadge.textContent = envUpper || 'DEV';
+                topbarEnvBadge.title = `Môi trường: ${envUpper || 'DEV'}`;
+            }
+        }
+
         if (roBadge) {
             roBadge.classList.toggle('d-none', !isReadOnly);
             if (isReadOnly) {

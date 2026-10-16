@@ -497,6 +497,40 @@
                     }
                 }
             ]
+        },
+        {
+            key: 'updates',
+            name: 'Thông tin & Cập nhật',
+            subtitle: 'About & Software Updates',
+            icon: 'fa-solid fa-arrows-rotate',
+            fields: [
+                {
+                    key: 'aboutInfoBox',
+                    type: 'custom',
+                    render: renderAboutAndVersionInfo
+                },
+                {
+                    key: 'checkOnStartup',
+                    label: 'Tự động kiểm tra bản cập nhật khi khởi động (Check on Startup)',
+                    desc: 'Biến cấu hình: updates.checkOnStartup. Tự động kiểm tra xem có phiên bản mới hơn trên GitHub Releases khi mở ứng dụng trong luồng nền không chặn.',
+                    type: 'switch'
+                },
+                {
+                    key: 'updateUrl',
+                    label: 'URL kiểm tra cập nhật tùy chỉnh (Custom Update URL)',
+                    desc: 'Biến cấu hình: updates.updateUrl. Để trống để sử dụng GitHub Releases chính thức. Nhập URL file version.json nếu doanh nghiệp dùng máy chủ phân phối nội bộ.',
+                    type: 'text'
+                },
+                {
+                    key: 'openDataFolderBtn',
+                    label: 'Mở thư mục Dữ liệu người dùng (Open User Data Folder)',
+                    desc: 'Mở thư mục chứa toàn bộ cấu hình, kết nối và lịch sử truy vấn trên máy tính hoặc thẻ nhớ USB Portable.',
+                    type: 'action-button',
+                    icon: 'fa-solid fa-folder-open',
+                    buttonText: 'Mở Thư mục Dữ liệu...',
+                    onClick: handleOpenDataFolder
+                }
+            ]
         }
     ];
 
@@ -550,13 +584,24 @@
             level: 'INFO',
             maxFileSizeMb: 2,
             maxFiles: 5
+        },
+        updates: {
+            checkOnStartup: true,
+            updateUrl: ''
         }
     };
 
     let _settings = null;       // Currently saved settings in file
     let _draftSettings = null;  // Temporary draft modified by user before clicking Save
-    let _isDirty = false;       // Has user changed anything?
+    let _isDirty = false;       // Flag tracking unsaved changes in draft
     let _activeCat = 'editor';
+    try {
+        const targetCat = localStorage.getItem('settings-active-cat');
+        if (targetCat && CATEGORIES.some(c => c.key === targetCat)) {
+            _activeCat = targetCat;
+            localStorage.removeItem('settings-active-cat');
+        }
+    } catch (_) {}
     let _activeTab = 'visual';   // 'visual' or 'json'
     let _searchQuery = '';
     let _bsModal = null;
@@ -1275,6 +1320,273 @@
         return wrap;
     }
 
+    // ── Open User Data Folder Helper ─────────────────────────────────────────
+    async function handleOpenDataFolder(btn) {
+        try {
+            if (btn) btn.disabled = true;
+            let res = null;
+            if (window.pywebview?.api?.open_data_folder) {
+                res = await window.pywebview.api.open_data_folder();
+            } else {
+                showPopupAlert('Thông báo', 'Tính năng mở thư mục chỉ hỗ trợ trên giao diện Desktop Native.');
+                return;
+            }
+            if (res && res.success) {
+                showPopupAlert('Thư mục Dữ liệu', `Đã mở thư mục dữ liệu:\n${res.path || ''}`, 'success');
+            } else {
+                showPopupAlert('Lỗi', res?.error || 'Không thể mở thư mục dữ liệu.', 'error');
+            }
+        } catch (err) {
+            showPopupAlert('Lỗi', 'Lỗi khi mở thư mục: ' + (err?.message || err), 'error');
+        } finally {
+            if (btn) btn.disabled = false;
+        }
+    }
+
+    // ── Render About & Software Updates Box ──────────────────────────────────
+    function renderAboutAndVersionInfo(catKey, field, currentVal) {
+        const wrap = document.createElement('div');
+        wrap.className = 'about-info-box';
+
+        wrap.innerHTML = `
+            <div class="about-header">
+                <div class="about-title-wrap">
+                    <img src="../static/image/logo-200x200.png" class="about-logo" alt="Logo" onerror="this.style.display='none'">
+                    <div>
+                        <div class="about-app-name" id="aboutAppName">luoBTool IDE</div>
+                        <div class="about-app-desc" id="aboutAppDesc">Modern SQL Database IDE & Developer Suite</div>
+                    </div>
+                </div>
+                <div>
+                    <span class="about-badge-pill about-badge-installed" id="aboutBadgeMode">
+                        <i class="fa-solid fa-spinner fa-spin me-1"></i> Đang tải...
+                    </span>
+                </div>
+            </div>
+
+            <div class="storage-metrics-grid">
+                <div class="metric-card">
+                    <div class="metric-label">Phiên bản (Version)</div>
+                    <div class="metric-value text-primary" id="aboutMetricVersion">--</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">Chế độ hoạt động</div>
+                    <div class="metric-value" id="aboutMetricMode">--</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">Python Runtime</div>
+                    <div class="metric-value" id="aboutMetricPython">--</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">Nền tảng (Platform)</div>
+                    <div class="metric-value" id="aboutMetricPlatform">--</div>
+                </div>
+            </div>
+
+            <div class="about-path-box">
+                <div class="about-path-label">
+                    <span><i class="fa-solid fa-folder me-1 text-warning"></i> Thư mục Dữ liệu Người dùng (User Data Directory):</span>
+                    <button type="button" class="btn-storage-action" id="btnTogglePortable" style="padding: 2px 8px; font-size: 11px;">
+                        <i class="fa-solid fa-arrow-right-arrow-left me-1"></i> Đổi chế độ Portable
+                    </button>
+                </div>
+                <div class="about-path-value" id="aboutUserDataDir">Đang tải...</div>
+            </div>
+
+            <div class="update-status-card" id="aboutUpdateCard">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <strong id="aboutUpdateStatusTitle"><i class="fa-solid fa-cloud-arrow-down me-2 text-info"></i>Trạng thái cập nhật phần mềm</strong>
+                        <div class="small text-muted mt-1" id="aboutUpdateStatusSub">Nhấn nút bên cạnh để kiểm tra phiên bản mới nhất từ máy chủ phát hành.</div>
+                    </div>
+                    <button type="button" class="btn-storage-action" id="aboutBtnCheckInline">
+                        <i class="fa-solid fa-rotate me-1"></i> Kiểm tra Cập nhật...
+                    </button>
+                </div>
+                <div id="aboutUpdateDetails" class="d-none mt-2"></div>
+            </div>
+        `;
+
+        let _isPortableNow = false;
+
+        async function refreshAboutInfo() {
+            try {
+                let info = null;
+                if (window.pywebview?.api?.get_app_version) {
+                    const res = await window.pywebview.api.get_app_version();
+                    if (res && res.success) info = res.data;
+                }
+                if (!info) {
+                    info = {
+                        appName: 'luoBTool IDE',
+                        version: '1.0.0',
+                        isPortable: false,
+                        pythonVersion: '3.x',
+                        platform: 'Windows',
+                        userDataDir: '%APPDATA%\\LLTool'
+                    };
+                }
+
+                _isPortableNow = Boolean(info.isPortable);
+
+                const appNameEl = wrap.querySelector('#aboutAppName');
+                const badgeModeEl = wrap.querySelector('#aboutBadgeMode');
+                const verEl = wrap.querySelector('#aboutMetricVersion');
+                const modeEl = wrap.querySelector('#aboutMetricMode');
+                const pyEl = wrap.querySelector('#aboutMetricPython');
+                const platEl = wrap.querySelector('#aboutMetricPlatform');
+                const dataDirEl = wrap.querySelector('#aboutUserDataDir');
+
+                if (appNameEl) appNameEl.textContent = info.appTitle || info.appName || 'luoBTool IDE';
+                if (verEl) verEl.textContent = `v${info.version || '1.0.0'}`;
+                if (modeEl) modeEl.textContent = _isPortableNow ? 'Portable (USB)' : 'Standard (%APPDATA%)';
+                if (pyEl) pyEl.textContent = `Python ${info.pythonVersion || '3.x'}`;
+                if (platEl) platEl.textContent = `${info.platform || 'Windows'}`;
+                if (dataDirEl) dataDirEl.textContent = info.userDataDir || '--';
+
+                if (badgeModeEl) {
+                    if (_isPortableNow) {
+                        badgeModeEl.className = 'about-badge-pill about-badge-portable';
+                        badgeModeEl.innerHTML = '<i class="fa-solid fa-box-archive me-1"></i> Chế độ Portable';
+                    } else {
+                        badgeModeEl.className = 'about-badge-pill about-badge-installed';
+                        badgeModeEl.innerHTML = '<i class="fa-solid fa-laptop me-1"></i> Cài đặt chuẩn';
+                    }
+                }
+            } catch (err) {
+                console.warn('[Settings] Failed to refresh about info:', err);
+            }
+        }
+
+        setTimeout(() => {
+            refreshAboutInfo();
+
+            const btnCheck = wrap.querySelector('#aboutBtnCheckInline');
+            const btnToggle = wrap.querySelector('#btnTogglePortable');
+            const detailsEl = wrap.querySelector('#aboutUpdateDetails');
+            const statusCard = wrap.querySelector('#aboutUpdateCard');
+            const titleEl = wrap.querySelector('#aboutUpdateStatusTitle');
+            const subEl = wrap.querySelector('#aboutUpdateStatusSub');
+
+            if (btnToggle) {
+                btnToggle.onclick = () => {
+                    const nextMode = !_isPortableNow;
+                    const promptMsg = nextMode
+                        ? 'Bạn có muốn BẬT chế độ Portable không?\n\nỨng dụng sẽ tạo cờ portable.flag bên cạnh file thực thi và lưu toàn bộ cấu hình vào thư mục data/ của ứng dụng. Rất thích hợp khi chạy từ USB!'
+                        : 'Bạn có muốn TẮT chế độ Portable không?\n\nCờ portable.flag sẽ bị xóa và ứng dụng sẽ lưu cấu hình người dùng vào %APPDATA%\\LLTool.';
+
+                    showPopupConfirm('Chuyển đổi chế độ Portable', promptMsg, async () => {
+                        try {
+                            btnToggle.disabled = true;
+                            if (window.pywebview?.api?.set_portable_mode) {
+                                const res = await window.pywebview.api.set_portable_mode(nextMode);
+                                if (res && res.success) {
+                                    await refreshAboutInfo();
+                                    showPopupAlert(
+                                        'Thành công',
+                                        `✓ Đã ${nextMode ? 'bật' : 'tắt'} Chế độ Portable thành công!`,
+                                        'success'
+                                    );
+                                } else {
+                                    showPopupAlert('Lỗi', res?.error || 'Không thể đổi chế độ Portable.', 'error');
+                                }
+                            }
+                        } catch (e) {
+                            showPopupAlert('Lỗi', 'Lỗi khi đổi chế độ Portable: ' + e.message, 'error');
+                        } finally {
+                            btnToggle.disabled = false;
+                        }
+                    });
+                };
+            }
+
+            if (btnCheck) {
+                btnCheck.onclick = async () => {
+                    btnCheck.disabled = true;
+                    btnCheck.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i> Đang kiểm tra...';
+                    if (subEl) subEl.textContent = 'Đang kết nối tới máy chủ kiểm tra phiên bản mới...';
+
+                    try {
+                        let res = null;
+                        const targetObj = _draftSettings || _settings || DEFAULT_SETTINGS;
+                        const customUrl = targetObj?.updates?.updateUrl || null;
+
+                        if (window.pywebview?.api?.check_for_updates) {
+                            const apiRes = await window.pywebview.api.check_for_updates(true, customUrl);
+                            if (apiRes && apiRes.success) res = apiRes.data;
+                            else if (apiRes && apiRes.data) res = apiRes.data;
+                            else throw new Error(apiRes?.error || 'Lỗi không xác định khi kiểm tra');
+                        } else {
+                            const resp = await fetch('/api/settings/check_updates', { method: 'POST' });
+                            const apiRes = await resp.json();
+                            res = apiRes?.data;
+                        }
+
+                        if (res) {
+                            if (res.hasUpdate) {
+                                statusCard.className = 'update-status-card has-update';
+                                titleEl.innerHTML = `<i class="fa-solid fa-circle-arrow-up text-success me-2"></i><strong>Đã có phiên bản mới: v${res.latestVersion}!</strong>`;
+                                subEl.textContent = `Phiên bản hiện tại của bạn là v${res.currentVersion}. Bản phát hành ngày: ${res.releaseDate || 'Gần đây'}.`;
+
+                                let highlightsList = '';
+                                if (Array.isArray(res.highlights) && res.highlights.length > 0) {
+                                    highlightsList = `<ul class="update-changelog-list">${res.highlights.map(h => `<li>${h}</li>`).join('')}</ul>`;
+                                } else if (res.releaseNotes) {
+                                    highlightsList = `<div class="small mt-1 text-muted">${res.releaseNotes}</div>`;
+                                }
+
+                                detailsEl.className = 'mt-2 pt-2 border-top';
+                                detailsEl.innerHTML = `
+                                    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                                        <div>
+                                            <span class="badge bg-success me-1">Khuyên dùng</span>
+                                            <span class="small fw-semibold">Những cải tiến mới:</span>
+                                        </div>
+                                        <button type="button" class="btn btn-sm btn-primary" id="btnDownloadUpdate">
+                                            <i class="fa-solid fa-download me-1"></i> Tải bản mới (Download)
+                                        </button>
+                                    </div>
+                                    ${highlightsList}
+                                `;
+
+                                const btnDownload = detailsEl.querySelector('#btnDownloadUpdate');
+                                if (btnDownload) {
+                                    btnDownload.onclick = () => {
+                                        if (window.pywebview?.api?.open_external_url && res.downloadUrl) {
+                                            window.pywebview.api.open_external_url(res.downloadUrl);
+                                        } else if (res.downloadUrl) {
+                                            window.open(res.downloadUrl, '_blank');
+                                        }
+                                    };
+                                }
+                            } else if (res.success) {
+                                statusCard.className = 'update-status-card up-to-date';
+                                titleEl.innerHTML = `<i class="fa-solid fa-circle-check text-success me-2"></i><strong>Bạn đang dùng phiên bản mới nhất (v${res.currentVersion})</strong>`;
+                                subEl.textContent = `Hệ thống đã kiểm tra lúc ${new Date().toLocaleTimeString()} và không tìm thấy bản cập nhật nào mới hơn.`;
+                                detailsEl.className = 'd-none';
+                            } else {
+                                statusCard.className = 'update-status-card';
+                                titleEl.innerHTML = `<i class="fa-solid fa-triangle-exclamation text-warning me-2"></i><strong>Không thể kiểm tra cập nhật</strong>`;
+                                subEl.textContent = res.error || 'Vui lòng kiểm tra lại kết nối mạng hoặc proxy.';
+                                detailsEl.className = 'd-none';
+                            }
+                        }
+                    } catch (err) {
+                        statusCard.className = 'update-status-card';
+                        titleEl.innerHTML = `<i class="fa-solid fa-triangle-exclamation text-warning me-2"></i><strong>Lỗi khi kiểm tra</strong>`;
+                        subEl.textContent = err.message || String(err);
+                        detailsEl.className = 'd-none';
+                    } finally {
+                        btnCheck.disabled = false;
+                        btnCheck.innerHTML = '<i class="fa-solid fa-rotate me-1"></i> Kiểm tra Cập nhật...';
+                    }
+                };
+            }
+        }, 50);
+
+        return wrap;
+    }
+
     // ── Render Sidebar ────────────────────────────────────────────────────────
     function renderSidebar() {
         const navList = document.getElementById('settingsNavList');
@@ -1739,10 +2051,15 @@
         }
 
         // Fallback: Open Modal Dialog
-        await loadSettingsData();
-        renderSidebar();
-        renderContent();
-        updateRawJsonEditor();
+        try {
+            await loadSettingsData();
+        } catch (err) {
+            console.error('[Settings] Error loading settings for modal:', err);
+        } finally {
+            renderSidebar();
+            renderContent();
+            updateRawJsonEditor();
+        }
 
         const modalEl = document.getElementById('settingsModal');
         if (modalEl) {
@@ -1766,6 +2083,7 @@
         if (!_settings.messages) _settings.messages = { ...DEFAULT_SETTINGS.messages };
         if (!_settings.appearance) _settings.appearance = { ...DEFAULT_SETTINGS.appearance };
         if (!_settings.history) _settings.history = { ...DEFAULT_SETTINGS.history };
+        if (!_settings.updates) _settings.updates = { ...DEFAULT_SETTINGS.updates };
 
         const currentTheme = document.documentElement.getAttribute('data-bs-theme') || _settings.theme || 'dark';
         _settings.theme = currentTheme;
@@ -1994,14 +2312,21 @@
 
         // 7. Auto-load on page ready
         setTimeout(async () => {
-            await loadSettingsData();
-            if (_settings) {
-                applyAllSettings(_settings);
-            }
-            if (isStandaloneWindow) {
-                renderSidebar();
-                renderContent();
-                updateRawJsonEditor();
+            try {
+                await loadSettingsData();
+                if (_settings) {
+                    applyAllSettings(_settings);
+                }
+            } catch (err) {
+                console.error('[Settings] Error loading settings data:', err);
+                if (!_settings) _settings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
+                if (!_draftSettings) _draftSettings = JSON.parse(JSON.stringify(_settings));
+            } finally {
+                if (isStandaloneWindow) {
+                    renderSidebar();
+                    renderContent();
+                    updateRawJsonEditor();
+                }
             }
         }, 120);
     }

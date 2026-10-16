@@ -191,6 +191,13 @@ def split_statements(sql: str, dialect: str = "sqlserver") -> List[Dict[str, Any
 
         # 9. Statement delimiter: semicolon ;
         if ch == ";":
+            current_so_far = sql[stmt_start_idx:i]
+            # If inside a CREATE TRIGGER statement, don't split on internal semicolons before END
+            if re.search(r"\bCREATE\s+(?:TEMP|TEMPORARY\s+)?TRIGGER\b", current_so_far, re.IGNORECASE):
+                if not re.search(r"\bEND\s*$", current_so_far, re.IGNORECASE):
+                    i += 1
+                    continue
+
             raw_chunk = sql[stmt_start_idx:i]
             chunk = raw_chunk.strip()
             if chunk:

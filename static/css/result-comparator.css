@@ -1,0 +1,75 @@
+/**
+ * result-comparator.css
+ * Styling cho Giao diện So sánh kết quả truy vấn (Result Comparator & Diff Modal).
+ * Mục 5.6 trong .SKILL/improve_general_program.md
+ */
+
+/* Row status coloring */
+.diff-row-added {
+    background-color: rgba(34, 197, 94, 0.08) !important;
+}
+
+.diff-row-added:hover {
+    background-color: rgba(34, 197, 94, 0.16) !important;
+}
+
+.diff-row-removed {
+    background-color: rgba(239, 68, 68, 0.08) !important;
+}
+
+.diff-row-removed:hover {
+    background-color: rgba(239, 68, 68, 0.16) !important;
+}
+
+.diff-row-modified {
+    background-color: rgba(234, 179, 8, 0.07) !important;
+}
+
+.diff-row-modified:hover {
+    background-color: rgba(234, 179, 8, 0.15) !important;
+}
+
+/* Modal styling */
+#ide-result-diff-modal .modal-content {
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+#ide-result-diff-modal .btn-group .btn {
+    font-size: 12px;
+    padding: 3px 10px;
+}
+
+#ide-result-diff-modal .dropdown-menu {
+    border-radius: 6px;
+}
+
+#ide-result-diff-modal select.form-select {
+    font-size: 12px;
+    padding-top: 4px;
+    padding-bottom: 4px;
+}
+
+/* Diff modified cell badge */
+.diff-cell-modified {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    white-space: nowrap;
+    padding: 1px 6px;
+    border-radius: 4px;
+    background: rgba(234, 179, 8, 0.15);
+    border: 1px dashed rgba(234, 179, 8, 0.5);
+    font-size: 12px;
+}
+
+.diff-cell-modified .diff-old {
+    color: #ef4444;
+    text-decoration: line-through;
+    opacity: 0.85;
+}
+
+.diff-cell-modified .diff-new {
+    color: #22c55e;
+    font-weight: 600;
+}

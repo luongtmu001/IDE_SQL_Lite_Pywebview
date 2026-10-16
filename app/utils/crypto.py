@@ -135,7 +135,15 @@ def encrypt_password(password: str) -> str:
 
     pw_bytes = password.encode("utf-8")
 
-    # Priority 1: Windows DPAPI
+    # Priority 0: Portable mode (Windows DPAPI cannot roam across machines)
+    from app.utils.paths import is_portable_mode
+    if is_portable_mode():
+        logger.info("[Crypto] Portable mode active: encrypting with portable file key (.secret.key)")
+        f = _get_fernet()
+        encrypted = f.encrypt(pw_bytes).decode("ascii")
+        return f"ENC2:F:{encrypted}"
+
+    # Priority 1: Windows DPAPI (Standard desktop installation)
     if _HAS_DPAPI:
         try:
             cipher = _dpapi_encrypt(pw_bytes)
@@ -187,7 +195,10 @@ def decrypt_password(encrypted_password: str) -> str:
                 f = _get_fernet()
                 return f.decrypt(token.encode("ascii")).decode("utf-8")
             except Exception:
-                raise CredentialDecryptError(f"Failed to decrypt DPAPI credential: {dpapi_exc}") from dpapi_exc
+                raise CredentialDecryptError(
+                    f"Failed to decrypt DPAPI credential: {dpapi_exc}. "
+                    "Nếu bạn đang chuyển bản Portable từ máy tính hoặc tài khoản khác, vui lòng nhập lại mật khẩu."
+                ) from dpapi_exc
         raise CredentialDecryptError("DPAPI decryption unavailable on this platform.")
 
     # Format: ENC:<legacy_fernet_token>

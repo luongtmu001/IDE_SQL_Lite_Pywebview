@@ -228,3 +228,73 @@ class SettingsApiMixin:
         self._broadcast_settings(settings)
         return {"success": success}
 
+
+    def get_app_version(self):
+        """Retrieve full version, runtime, and portable mode information."""
+        try:
+            from app.version import get_app_info
+            return {"success": True, "data": get_app_info()}
+        except Exception as exc:
+            logger.error("[SettingsApi] Error retrieving app version info: %s", exc)
+            return {"success": False, "error": str(exc)}
+
+
+    def check_for_updates(self, force=True, custom_url=None):
+        """Perform a check for software updates."""
+        try:
+            from app.services.update_checker import check_for_updates as _check_updates
+            res = _check_updates(force=bool(force), custom_url=custom_url)
+            return {"success": True, "data": res}
+        except Exception as exc:
+            logger.error("[SettingsApi] Error checking for updates: %s", exc)
+            return {"success": False, "error": str(exc)}
+
+
+    def set_portable_mode(self, enabled=True):
+        """Enable or disable portable mode."""
+        try:
+            from app.utils.paths import set_portable_mode as _set_portable, is_portable_mode
+            ok = _set_portable(bool(enabled))
+            return {"success": ok, "isPortable": is_portable_mode()}
+        except Exception as exc:
+            logger.error("[SettingsApi] Error toggling portable mode: %s", exc)
+            return {"success": False, "error": str(exc)}
+
+
+    def open_data_folder(self):
+        """Open user data directory in OS file manager."""
+        try:
+            import os
+            import sys
+            import subprocess
+            from app.utils.paths import get_user_data_dir
+
+            data_dir = get_user_data_dir()
+            data_dir.mkdir(parents=True, exist_ok=True)
+            path_str = str(data_dir.resolve())
+            if sys.platform == "win32":
+                os.startfile(path_str)
+            elif sys.platform == "darwin":
+                subprocess.Popen(["open", path_str])
+            else:
+                subprocess.Popen(["xdg-open", path_str])
+            return {"success": True, "path": path_str}
+        except Exception as exc:
+            logger.error("[SettingsApi] Error opening data folder: %s", exc)
+            return {"success": False, "error": str(exc)}
+
+
+    def open_external_url(self, url):
+        """Open an external link in default web browser."""
+        try:
+            import webbrowser
+            if url and isinstance(url, str) and (url.startswith("http://") or url.startswith("https://")):
+                webbrowser.open(url)
+                return {"success": True}
+            return {"success": False, "error": "Invalid URL protocol"}
+        except Exception as exc:
+            logger.error("[SettingsApi] Error opening URL: %s", exc)
+            return {"success": False, "error": str(exc)}
+
+
+

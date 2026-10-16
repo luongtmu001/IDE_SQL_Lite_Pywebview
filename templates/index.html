@@ -96,6 +96,9 @@
     <link rel="stylesheet" href="../static/css/sql-style.css">
     <link rel="stylesheet" href="../static/css/sql-visualization.css">
     <link rel="stylesheet" href="../static/css/structured-data-viewer.css">
+    <link rel="stylesheet" href="../static/css/result-comparator.css">
+    <link rel="stylesheet" href="../static/css/activity-monitor.css">
+    <link rel="stylesheet" href="../static/css/schema-compare.css">
 </head>
 
 <body class="overflow-hidden vh-100 d-flex flex-column m-0 p-0" style="background-color: var(--ide-bg-main, #1C1D23);">
@@ -184,6 +187,17 @@
                                     style="font-size: 10px; background: transparent; border: 1px solid var(--ide-border, #444);">Ctrl+Shift+F</kbd>
                             </a>
                         </li>
+                        <li>
+                            <hr class="dropdown-divider my-1">
+                        </li>
+                        <li>
+                            <a class="dropdown-item d-flex align-items-center justify-content-between" href="#"
+                                id="ide-menu-refresh-objects-intellisense">
+                                <span><i class="fa-solid fa-arrows-rotate me-2 text-primary"></i>Refresh Objects &amp; IntelliSense</span>
+                                <kbd class="text-muted"
+                                    style="font-size: 10px; background: transparent; border: 1px solid var(--ide-border, #444);">Ctrl+Shift+R</kbd>
+                            </a>
+                        </li>
                     </ul>
                 </li>
                 <li class="nav-item dropdown">
@@ -236,10 +250,59 @@
                                     style="font-size: 10px; background: transparent; border: 1px solid var(--ide-border, #444);">Ctrl+Alt+H</kbd>
                             </a>
                         </li>
+                        <li>
+                            <hr class="dropdown-divider my-1">
+                        </li>
+                        <li>
+                            <a class="dropdown-item d-flex align-items-center justify-content-between" href="#"
+                                id="ide-menu-compare-results">
+                                <span><i class="fa-solid fa-code-compare me-2 text-info"></i>So sánh kết quả...</span>
+                            </a>
+                        </li>
+                        <li>
+                            <hr class="dropdown-divider my-1">
+                        </li>
+                        <li>
+                            <a class="dropdown-item d-flex align-items-center justify-content-between" href="#"
+                                id="ide-menu-activity-monitor">
+                                <span><i class="fa-solid fa-heart-pulse me-2 text-danger"></i>Activity Monitor (Phiên & Khóa)</span>
+                                <kbd class="text-muted"
+                                    style="font-size: 10px; background: transparent; border: 1px solid var(--ide-border, #444);">Ctrl+Alt+A</kbd>
+                            </a>
+                        </li>
+                        <li>
+                            <a class="dropdown-item d-flex align-items-center justify-content-between" href="#"
+                                id="ide-menu-schema-compare">
+                                <span><i class="fa-solid fa-code-compare me-2 text-success"></i>So sánh Schema...</span>
+                                <kbd class="text-muted"
+                                    style="font-size: 10px; background: transparent; border: 1px solid var(--ide-border, #444);">Ctrl+Alt+C</kbd>
+                            </a>
+                        </li>
                     </ul>
                 </li>
                 <li class="nav-item"><a class="nav-link px-2 py-1" href="#" id="menu-settings">Settings</a></li>
-                <li class="nav-item"><a class="nav-link px-2 py-1" href="#">Help</a></li>
+                <li class="nav-item dropdown">
+                    <a class="nav-link px-2 py-1 dropdown-toggle" href="#" id="menu-help" role="button"
+                        data-bs-toggle="dropdown" aria-expanded="false">Help</a>
+                    <ul class="dropdown-menu shadow" aria-labelledby="menu-help"
+                        style="min-width: 220px; font-size: 13px;">
+                        <li>
+                            <a class="dropdown-item d-flex align-items-center justify-content-between" href="#"
+                                id="ide-menu-check-updates">
+                                <span><i class="fa-solid fa-arrows-rotate me-2 text-info"></i>Kiểm tra Cập nhật...</span>
+                            </a>
+                        </li>
+                        <li>
+                            <hr class="dropdown-divider my-1">
+                        </li>
+                        <li>
+                            <a class="dropdown-item d-flex align-items-center justify-content-between" href="#"
+                                id="ide-menu-about">
+                                <span><i class="fa-solid fa-circle-info me-2 text-primary"></i>Thông tin (About)...</span>
+                            </a>
+                        </li>
+                    </ul>
+                </li>
                 <li class="nav-item ms-1">
                     <button id="ide-snippets-btn" class="nav-link px-2 py-1 border-0 bg-transparent fw-semibold"
                         title="Quản lý SQL Snippets (Ctrl+Alt+S)">
@@ -261,15 +324,17 @@
 
         <!-- Right Actions -->
         <div class="d-flex align-items-center gap-2">
+            <button id="ide-update-btn" class="ide-toolbar-btn d-none text-warning" title="Có bản cập nhật mới! Nhấn để xem">
+                <i class="fa-solid fa-cloud-arrow-down"></i>
+                <span class="badge bg-danger ms-1" id="ide-update-tag" style="font-size: 10px;">New</span>
+            </button>
             <button id="ide-theme-btn" class="ide-toolbar-btn" title="Toggle Light/Dark Theme">
                 <i class="fa-solid fa-moon"></i>
             </button>
             <button id="ide-settings-btn" class="ide-toolbar-btn" title="Cài đặt (Settings)">
                 <i class="fa-solid fa-gear"></i>
             </button>
-            <button class="ide-toolbar-btn ide-toolbar-btn--accent" title="Account">
-                <i class="fa-solid fa-user me-1"></i><span>Login</span>
-            </button>
+            <span id="ide-topbar-env-badge" class="badge bg-primary text-light px-2 py-1 user-select-none font-monospace" title="Môi trường kết nối hiện tại (DEV / TEST / PROD)">DEV</span>
         </div>
     </nav>
 
@@ -299,6 +364,17 @@
                     </button>
                     <button id="ide-sidebar-toggle-btn" class="ide-toolbar-btn" title="Thu gọn Object Explorer">
                         <i class="fa-solid fa-angles-left"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Object Explorer Quick Search / Filter Bar -->
+            <div class="ide-sidebar-search px-2 py-1" id="ide-sidebar-search-container">
+                <div class="ide-search-box position-relative d-flex align-items-center">
+                    <i class="fa-solid fa-magnifying-glass ide-search-icon"></i>
+                    <input type="text" class="form-control form-control-sm ide-search-input" id="ide-explorer-search-input" placeholder="Search objects..." autocomplete="off" spellcheck="false" title="Search objects in tree (gõ để lọc object)">
+                    <button class="btn btn-link ide-search-clear-btn d-none" type="button" id="ide-explorer-search-clear" title="Clear filter (Xóa lọc)">
+                        <i class="fa-solid fa-xmark"></i>
                     </button>
                 </div>
             </div>
@@ -901,6 +977,18 @@
                     <!-- Built and managed dynamically by sql-visualizer.js -->
                 </div>
 
+                <!-- Activity & Blocking Locks Monitor Area -->
+                <div id="activity-monitor-container"
+                    class="d-none d-flex flex-grow-1 flex-column overflow-hidden position-relative">
+                    <!-- Built and managed dynamically by activity-monitor.js -->
+                </div>
+
+                <!-- Schema Compare & DDL Migration Area -->
+                <div id="schema-compare-container"
+                    class="d-none d-flex flex-grow-1 flex-column overflow-hidden position-relative">
+                    <!-- Built and managed dynamically by schema-compare.js -->
+                </div>
+
             </div>
 
             <!-- Horizontal drag resizer (editor ↕ results) -->
@@ -981,6 +1069,10 @@
                     </div>
                     <!-- Result status & actions (right-aligned) -->
                     <div class="ms-auto pe-2 d-flex align-items-center gap-2">
+                        <button type="button" class="btn btn-xs btn-outline-info" id="ide-btn-compare-results"
+                            title="So sánh hai kết quả truy vấn (Mục 5.6)">
+                            <i class="fa-solid fa-code-compare me-1"></i>So sánh
+                        </button>
                         <button type="button" class="btn btn-xs btn-outline-secondary d-none" id="ide-btn-copy-messages"
                             title="Sao chép toàn bộ thông báo (Copy All Messages)">
                             <i class="fa-solid fa-copy me-1"></i>Sao chép
@@ -1162,15 +1254,36 @@
                             <select class="form-select form-select-sm" id="connType">
                                 <option value="sqlserver">SQL Server</option>
                                 <option value="postgresql">PostgreSQL</option>
+                                <option value="sqlite">SQLite</option>
                             </select>
                         </div>
 
-                        <div class="row g-2 mb-2">
-                            <div class="col-8">
-                                <label class="ide-form-label">Host / Server</label>
-                                <input type="text" class="form-control form-control-sm" id="connHost"
-                                    placeholder="localhost" autocomplete="off">
+                        <div id="connSqliteOptionsGroup" class="d-none">
+                            <div class="mb-2">
+                                <label class="ide-form-label d-flex align-items-center justify-content-between">
+                                    <span>Tệp cơ sở dữ liệu SQLite (.db)</span>
+                                    <span class="small text-muted">File cục bộ hoặc :memory:</span>
+                                </label>
+                                <div class="input-group input-group-sm">
+                                    <input type="text" class="form-control" id="connSqlitePath" placeholder="C:\path\to\database.db hoặc :memory:" autocomplete="off">
+                                    <button type="button" class="btn btn-outline-secondary" id="btnBrowseSqliteFile" title="Chọn file SQLite từ máy tính">
+                                        <i class="fa-solid fa-folder-open me-1"></i>Chọn tệp...
+                                    </button>
+                                </div>
+                                <div class="form-text small text-muted">
+                                    Nhập đường dẫn tệp SQLite (.db, .sqlite, .sqlite3) hoặc bấm "Chọn tệp..." để duyệt.
+                                </div>
                             </div>
+                        </div>
+
+                        <div id="connServerOptionsGroup">
+                            <div class="row g-2 mb-2">
+                                <div class="col-8">
+                                    <label class="ide-form-label">Host / Server</label>
+                                    <input type="text" class="form-control form-control-sm" id="connHost"
+                                        placeholder="localhost" autocomplete="off">
+                                </div>
+
                             <div class="col-4">
                                 <label class="ide-form-label">Port</label>
                                 <input type="number" class="form-control form-control-sm" id="connPort"
@@ -1278,9 +1391,12 @@
                                 </div>
                             </div>
                         </div>
+                        <!-- End #connServerOptionsGroup -->
+                        </div>
 
                     </div>
                 </div>
+
 
                 <div class="modal-footer">
                     <button type="button" class="btn btn-sm btn-secondary" id="btnTestConnection">
@@ -1665,6 +1781,7 @@
     </script>
     <script src="../static/js/structured-data-viewer.js"></script>
     <script src="../static/js/grid-result.js"></script>
+    <script src="../static/js/result-comparator.js"></script>
     <script src="../static/js/debug-extension-registry.js"></script>
     <script src="../static/js/debug-session.js"></script>
     <script src="../static/js/sql-protection.js"></script>
@@ -1676,6 +1793,8 @@
     <script src="../static/js/find-replace.js"></script>
     <script src="../static/js/file-history-sidebar.js"></script>
     <script src="../static/js/app.js"></script>
+    <script src="../static/js/activity-monitor.js"></script>
+    <script src="../static/js/schema-compare.js"></script>
 
     <!-- SQL Formatter & Style Management Modules -->
     <script src="../static/js/sql-tokenizer.js"></script>
@@ -2037,19 +2156,181 @@
                 }
             }
 
-            document.addEventListener('DOMContentLoaded', function () {
+            function triggerActivityMonitor() {
+                try {
+                    var activeConnId = window.LastFocusedTreeContext?.connectionId
+                        || (window.AppExplorer && window.AppExplorer.currentConnection ? (window.AppExplorer.currentConnection.id || window.AppExplorer.currentConnection.name) : null)
+                        || window.ActiveConnectionId;
+                    var activeDbType = window.LastFocusedTreeContext?.dbType || window.ActiveDbType;
+                    if (window.openActivityMonitorTab) {
+                        window.openActivityMonitorTab({
+                            connectionId: activeConnId,
+                            dbType: activeDbType
+                        });
+                    }
+                } catch (e) {
+                    console.warn('Cannot open activity monitor:', e);
+                }
+            }
+
+            async function triggerSchemaCompare() {
+                if (window._isOpeningSchemaCompare) return;
+                window._isOpeningSchemaCompare = true;
+                setTimeout(function () { window._isOpeningSchemaCompare = false; }, 1500);
+
+                try {
+                    var activeConnId = window.LastFocusedTreeContext?.connectionId
+                        || (window.AppExplorer && window.AppExplorer.currentConnection ? (window.AppExplorer.currentConnection.id || window.AppExplorer.currentConnection.name) : null)
+                        || window.ActiveConnectionId;
+                    var activeDbType = window.LastFocusedTreeContext?.dbType || window.ActiveDbType;
+                    var activeDb = window.LastFocusedTreeContext?.database || window.ActiveDatabase;
+                    var activeSchema = window.LastFocusedTreeContext?.schema || window.ActiveSchema;
+
+                    if (activeConnId && typeof activeConnId === 'string') {
+                        activeConnId = activeConnId.replace(/\s*\([^)]*\)\s*$/, '').trim();
+                    }
+
+                    // Requirement: Schema compare from View menu opens as standalone subwindow
+                    if (window.pywebview && window.pywebview.api && typeof window.pywebview.api.open_schema_compare_window === 'function') {
+                        if (window.AppLoader) window.AppLoader.show('Đang mở cửa sổ So sánh Schema...');
+                        await window.pywebview.api.open_schema_compare_window(activeConnId, activeDb, activeSchema, null, null, null);
+                        setTimeout(function () { if (window.AppLoader) window.AppLoader.hide(); }, 600);
+                        return;
+                    }
+
+                    if (window.openSchemaCompareTab) {
+                        window.openSchemaCompareTab({
+                            connectionId: activeConnId,
+                            dbType: activeDbType,
+                            database: activeDb,
+                            schema: activeSchema
+                        });
+                    }
+                } catch (e) {
+                    if (window.AppLoader) window.AppLoader.hide();
+                    console.warn('Cannot open schema compare:', e);
+                } finally {
+                    setTimeout(function () { window._isOpeningSchemaCompare = false; }, 1000);
+                }
+            }
+
+            window.triggerSchemaCompare = triggerSchemaCompare;
+            window.triggerActivityMonitor = triggerActivityMonitor;
+            window.triggerProfiler = triggerProfiler;
+
+            function initToolMenuListeners() {
                 var menuProf = document.getElementById('menu-tools-profiler');
-                if (menuProf) menuProf.addEventListener('click', function (e) { e.preventDefault(); triggerProfiler(); });
+                if (menuProf && !menuProf._scBound) {
+                    menuProf._scBound = true;
+                    menuProf.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); triggerProfiler(); });
+                }
 
                 var btnProf = document.getElementById('ide-profiler-btn');
-                if (btnProf) btnProf.addEventListener('click', function (e) { e.preventDefault(); triggerProfiler(); });
+                if (btnProf && !btnProf._scBound) {
+                    btnProf._scBound = true;
+                    btnProf.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); triggerProfiler(); });
+                }
 
-                window.addEventListener('keydown', function (e) {
-                    if ((e.ctrlKey || e.metaKey) && e.altKey && (e.key === 'p' || e.key === 'P')) {
-                        e.preventDefault();
-                        triggerProfiler();
+                var menuAct = document.getElementById('ide-menu-activity-monitor');
+                if (menuAct && !menuAct._scBound) {
+                    menuAct._scBound = true;
+                    menuAct.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); triggerActivityMonitor(); });
+                }
+
+                var menuSc = document.getElementById('ide-menu-schema-compare');
+                if (menuSc && !menuSc._scBound) {
+                    menuSc._scBound = true;
+                    menuSc.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); triggerSchemaCompare(); });
+                }
+
+                function openSettingsToCategory(catKey) {
+                    try {
+                        localStorage.setItem('settings-active-cat', catKey);
+                    } catch (_) {}
+                    if (window.pywebview?.api?.open_settings_window) {
+                        window.pywebview.api.open_settings_window();
+                    } else {
+                        var sBtn = document.getElementById('ide-settings-btn');
+                        if (sBtn) sBtn.click();
                     }
-                });
+                }
+
+                var menuUpdates = document.getElementById('ide-menu-check-updates');
+                if (menuUpdates && !menuUpdates._scBound) {
+                    menuUpdates._scBound = true;
+                    menuUpdates.addEventListener('click', function (e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        openSettingsToCategory('updates');
+                    });
+                }
+
+                var menuAbout = document.getElementById('ide-menu-about');
+                if (menuAbout && !menuAbout._scBound) {
+                    menuAbout._scBound = true;
+                    menuAbout.addEventListener('click', function (e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        openSettingsToCategory('updates');
+                    });
+                }
+
+                var btnUpdate = document.getElementById('ide-update-btn');
+                if (btnUpdate && !btnUpdate._scBound) {
+                    btnUpdate._scBound = true;
+                    btnUpdate.addEventListener('click', function (e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        openSettingsToCategory('updates');
+                    });
+                }
+
+                window.onAppUpdateAvailable = function (info) {
+                    if (!info || !info.hasUpdate) return;
+                    var btn = document.getElementById('ide-update-btn');
+                    var tag = document.getElementById('ide-update-tag');
+                    if (btn) {
+                        btn.classList.remove('d-none');
+                        if (tag && info.latestVersion) {
+                            tag.textContent = 'v' + info.latestVersion;
+                        }
+                    }
+                };
+            }
+
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', initToolMenuListeners);
+            } else {
+                initToolMenuListeners();
+            }
+
+            // Global delegation only for dynamically added elements not caught by direct listeners
+            document.addEventListener('click', function (e) {
+                var scBtn = e.target.closest('#ide-menu-schema-compare');
+                if (scBtn && !scBtn._scBound) {
+                    e.preventDefault();
+                    triggerSchemaCompare();
+                    return;
+                }
+                var actBtn = e.target.closest('#ide-menu-activity-monitor');
+                if (actBtn && !actBtn._scBound) {
+                    e.preventDefault();
+                    triggerActivityMonitor();
+                    return;
+                }
+            });
+
+            window.addEventListener('keydown', function (e) {
+                if ((e.ctrlKey || e.metaKey) && e.altKey && (e.key === 'p' || e.key === 'P')) {
+                    e.preventDefault();
+                    triggerProfiler();
+                } else if ((e.ctrlKey || e.metaKey) && e.altKey && (e.key === 'a' || e.key === 'A')) {
+                    e.preventDefault();
+                    triggerActivityMonitor();
+                } else if ((e.ctrlKey || e.metaKey) && e.altKey && (e.key === 'c' || e.key === 'C')) {
+                    e.preventDefault();
+                    triggerSchemaCompare();
+                }
             });
         })();
     </script>

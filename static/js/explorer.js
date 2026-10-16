@@ -4,6 +4,143 @@ function initExplorer() {
     const rootUl    = document.getElementById('ide-tree-root');
     const refreshBtn = document.getElementById('ide-btn-refresh-tree');
 
+    // ── Object Explorer Quick Search / Tree Filtering ───────────────────────
+    const searchInput = document.getElementById('ide-explorer-search-input');
+    const searchClearBtn = document.getElementById('ide-explorer-search-clear');
+    let searchDebounceTimer = null;
+
+    function removeHighlights(container) {
+        if (!container) return;
+        container.querySelectorAll('.tree-search-highlight').forEach(el => {
+            const parent = el.parentNode;
+            if (parent) {
+                parent.replaceChild(document.createTextNode(el.textContent), el);
+                parent.normalize();
+            }
+        });
+    }
+
+    function highlightText(labelEl, query) {
+        if (!labelEl || !query) return;
+        removeHighlights(labelEl);
+        const text = labelEl.textContent;
+        const qLower = query.toLowerCase();
+        const tLower = text.toLowerCase();
+        const idx = tLower.indexOf(qLower);
+        if (idx === -1) return;
+
+        const before = text.substring(0, idx);
+        const match = text.substring(idx, idx + query.length);
+        const after = text.substring(idx + query.length);
+
+        labelEl.innerHTML = '';
+        if (before) labelEl.appendChild(document.createTextNode(before));
+        const span = document.createElement('span');
+        span.className = 'tree-search-highlight';
+        span.textContent = match;
+        labelEl.appendChild(span);
+        if (after) labelEl.appendChild(document.createTextNode(after));
+    }
+
+    function applyTreeFilter(query) {
+        const q = (query !== undefined && query !== null ? String(query) : (searchInput ? searchInput.value : '')).trim().toLowerCase();
+        const root = document.getElementById('ide-tree-root');
+        if (!root) return;
+
+        if (searchClearBtn) {
+            if (q) searchClearBtn.classList.remove('d-none');
+            else searchClearBtn.classList.add('d-none');
+        }
+
+        if (!q) {
+            // Restore visibility of all nodes and remove search highlights
+            root.querySelectorAll('.tree-node-filtered-out').forEach(el => {
+                el.classList.remove('tree-node-filtered-out');
+            });
+            removeHighlights(root);
+            return;
+        }
+
+        // Recursive tree filtering: returns true if this li or any descendant matches query
+        function filterLi(li) {
+            const item = li.querySelector(':scope > .tree-item');
+            const labelEl = item ? item.querySelector('.tree-label') : null;
+            const labelText = (labelEl?.textContent || '').trim().toLowerCase();
+
+            const selfMatch = labelText.includes(q);
+
+            // Check children
+            const childUl = li.querySelector(':scope > .tree-children');
+            let childMatch = false;
+
+            if (childUl) {
+                const childLis = childUl.querySelectorAll(':scope > li');
+                childLis.forEach(cLi => {
+                    if (filterLi(cLi)) {
+                        childMatch = true;
+                    }
+                });
+            }
+
+            const isMatched = selfMatch || childMatch;
+
+            if (isMatched) {
+                li.classList.remove('tree-node-filtered-out');
+                if (labelEl && selfMatch) {
+                    highlightText(labelEl, q);
+                } else if (labelEl) {
+                    removeHighlights(labelEl);
+                }
+
+                // If children matched, ensure parent ul is visible and toggle shows caret-down
+                if (childMatch && childUl) {
+                    childUl.style.display = 'block';
+                    const toggle = item ? item.querySelector('.tree-toggle') : null;
+                    if (toggle && toggle.classList.contains('fa-caret-right')) {
+                        toggle.classList.replace('fa-caret-right', 'fa-caret-down');
+                    }
+                }
+            } else {
+                li.classList.add('tree-node-filtered-out');
+                if (labelEl) removeHighlights(labelEl);
+            }
+
+            return isMatched;
+        }
+
+        const topLis = root.querySelectorAll(':scope > li');
+        topLis.forEach(li => filterLi(li));
+    }
+
+    if (searchInput) {
+        searchInput.addEventListener('input', (e) => {
+            clearTimeout(searchDebounceTimer);
+            const val = e.target.value;
+            searchDebounceTimer = setTimeout(() => {
+                applyTreeFilter(val);
+            }, 120);
+        });
+
+        searchInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                searchInput.value = '';
+                applyTreeFilter('');
+                searchInput.blur();
+            }
+        });
+    }
+
+    if (searchClearBtn) {
+        searchClearBtn.addEventListener('click', () => {
+            if (searchInput) {
+                searchInput.value = '';
+                searchInput.focus();
+            }
+            applyTreeFilter('');
+        });
+    }
+
     // ── Global context tracking ───────────────────────────────────────────────
     window.ActiveConnectionId   = null;
     window.ActiveConnectionName = null;
@@ -310,9 +447,11 @@ function initExplorer() {
                 toggle.classList.replace('fa-caret-right', 'fa-caret-down');
 
                 if (!loaded && loadCallback) {
+                    const isForce = !!item._forceNextRefresh;
+                    item._forceNextRefresh = false;
                     childUl.innerHTML = '<li><div class="tree-item text-muted" style="font-size: 11px;"><i class="fa-solid fa-spinner fa-spin me-2"></i>Loading…</div></li>';
                     try {
-                        await loadCallback(childUl);
+                        await loadCallback(childUl, isForce);
                         loaded = true;
                     } catch (err) {
                         childUl.innerHTML = `<li><div class="tree-item" style="color: var(--ide-danger); font-size: 11px;">Error: ${escapeHtml(err.message)}</div></li>`;
@@ -326,8 +465,9 @@ function initExplorer() {
 
         container.appendChild(li);
 
-        const reloadFn = async () => {
+        const reloadFn = async (force = true) => {
             loaded = false;
+            item._forceNextRefresh = force;
             if (childUl) { childUl.innerHTML = ''; childUl.style.display = 'none'; }
             toggle.classList.replace('fa-caret-down', 'fa-caret-right');
             item.click();
@@ -793,39 +933,48 @@ function initExplorer() {
             catNodeCtrl = renderNode(containerUl, {
                 name: cat.label, type: `group-${cat.type}`, icon: cat.icon, iconColor: cat.color,
                 hasChildren: true,
-                loadCallback: ul => fetchObjects(ul, connId, connName, dbName, safeSchema, cat.type, dbType, countBadge),
-                nodeData: { connId, connName, database: dbName, schema: safeSchema, dbType },
+                loadCallback: (ul, force) => fetchObjects(ul, connId, connName, dbName, safeSchema, cat.type, dbType, countBadge, force),
+                nodeData: { connId, connName, database: dbName, schema: safeSchema, dbType, catType: cat.type, objectType: cat.type },
                 rightEl: catActions,
                 countBadgeEl: countBadge
             });
+
+            catNodeCtrl.item._updateBadge = async (force = false) => {
+                try {
+                    const items = force
+                        ? await loadCategoryObjects(connId, dbName, safeSchema, cat.type, dbType, true)
+                        : await loadCategoryObjects(connId, dbName, safeSchema, cat.type, dbType);
+                    const fk = `${connId}::${dbName}::${safeSchema}::${cat.type}`;
+                    const fkLegacy = `${connId}::${dbName}::${cat.type}`;
+                    const filter = filterState[fk] || filterState[fkLegacy];
+                    const isFilterActive = hasActiveFilter(fk) || hasActiveFilter(fkLegacy);
+                    const totalCount = items.length;
+                    const filteredItems = isFilterActive 
+                        ? items.filter(obj => matchFilterItem(obj, safeSchema, filter))
+                        : items;
+                    if (countBadge) {
+                        if (isFilterActive) {
+                            countBadge.textContent = `${filteredItems.length}/${totalCount}`;
+                            countBadge.className = 'tree-count-badge is-filtered';
+                            countBadge.title = `Filtered: ${filteredItems.length} of ${totalCount} objects`;
+                        } else {
+                            countBadge.textContent = `${totalCount}`;
+                            countBadge.className = 'tree-count-badge';
+                            countBadge.title = `Total: ${totalCount} objects`;
+                        }
+                    }
+                } catch (err) {
+                    console.warn(`[Explorer] Error calculating count for ${cat.label}:`, err);
+                }
+            };
         });
 
         // 1. Calculate object counts for each category immediately upon schema expansion
         categories.forEach(cat => {
-            const countBadge = countBadges[cat.type];
-            loadCategoryObjects(connId, dbName, safeSchema, cat.type, dbType).then(items => {
-                const fk = `${connId}::${dbName}::${safeSchema}::${cat.type}`;
-                const fkLegacy = `${connId}::${dbName}::${cat.type}`;
-                const filter = filterState[fk] || filterState[fkLegacy];
-                const isFilterActive = hasActiveFilter(fk) || hasActiveFilter(fkLegacy);
-                const totalCount = items.length;
-                const filteredItems = isFilterActive 
-                    ? items.filter(obj => matchFilterItem(obj, safeSchema, filter))
-                    : items;
-                if (countBadge) {
-                    if (isFilterActive) {
-                        countBadge.textContent = `${filteredItems.length}/${totalCount}`;
-                        countBadge.className = 'tree-count-badge is-filtered';
-                        countBadge.title = `Filtered: ${filteredItems.length} of ${totalCount} objects`;
-                    } else {
-                        countBadge.textContent = `${totalCount}`;
-                        countBadge.className = 'tree-count-badge';
-                        countBadge.title = `Total: ${totalCount} objects`;
-                    }
-                }
-            }).catch(err => {
-                console.warn(`[Explorer] Error calculating count for ${cat.label}:`, err);
-            });
+            const catItem = containerUl.querySelector(`.tree-item[data-node-type="group-${cat.type}"]`);
+            if (catItem && typeof catItem._updateBadge === 'function') {
+                catItem._updateBadge(false);
+            }
         });
     }
 
@@ -837,16 +986,28 @@ function initExplorer() {
         const isPg = ((dbType || window.ActiveDbType || '').toLowerCase().includes('postgr'));
         const safeSchema = schemaName || (isPg ? 'public' : 'dbo');
         const cacheKey = `${connId}::${dbName}::${safeSchema}::${catType}`;
-        if (!forceRefresh && categoryDataCache[cacheKey]) {
-            return categoryDataCache[cacheKey];
-        }
-        if (!forceRefresh && categoryPromiseCache[cacheKey]) {
-            return categoryPromiseCache[cacheKey];
+        if (forceRefresh) {
+            delete categoryDataCache[cacheKey];
+            delete categoryPromiseCache[cacheKey];
+            if (window.AppMetadataCache && typeof window.AppMetadataCache.invalidateSchema === 'function') {
+                window.AppMetadataCache.invalidateSchema(connId, dbName, safeSchema);
+            }
+        } else {
+            if (categoryDataCache[cacheKey]) {
+                return categoryDataCache[cacheKey];
+            }
+            if (categoryPromiseCache[cacheKey]) {
+                return categoryPromiseCache[cacheKey];
+            }
         }
 
         const fetchPromise = (async () => {
             try {
                 const params = new URLSearchParams({ database: dbName, schema: safeSchema, type: catType });
+                if (forceRefresh) {
+                    params.set('refresh', 'true');
+                    params.set('_t', String(Date.now()));
+                }
                 const res = await fetch(`/api/metadata/${connId}/objects?${params}`);
                 const data = await res.json();
                 const items = data.items || [];
@@ -1016,6 +1177,9 @@ function initExplorer() {
             });
         });
         containerUl.appendChild(fragment);
+        if (searchInput && searchInput.value && searchInput.value.trim()) {
+            applyTreeFilter(searchInput.value.trim());
+        }
     }
 
     // ── Fetch object folders (Columns, Keys, etc.) ────────────────────────────
@@ -2836,9 +3000,21 @@ function initExplorer() {
 
     // ── Refresh button ────────────────────────────────────────────────────────
     if (refreshBtn) {
-        refreshBtn.addEventListener('click', () => {
+        refreshBtn.addEventListener('click', async () => {
+            if (window.ActiveConnectionId) {
+                try {
+                    await fetch(`/api/metadata/${window.ActiveConnectionId}/refresh`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({})
+                    }).catch(e => {});
+                } catch (e) {}
+            }
             if (window.AppMetadataCache && typeof window.AppMetadataCache.invalidateAll === 'function') {
                 window.AppMetadataCache.invalidateAll();
+            }
+            if (window.AppIntelliSense && typeof window.AppIntelliSense.invalidateAll === 'function') {
+                window.AppIntelliSense.invalidateAll();
             }
             Object.keys(categoryDataCache).forEach(k => delete categoryDataCache[k]);
             rootUl.innerHTML = '';
@@ -2903,53 +3079,180 @@ function initExplorer() {
         loadActiveConnections();
     });
 
-    function refreshNode(nodeData) {
-        if (!nodeData) return;
-        const targetConn = nodeData.connId;
-        const targetDb = nodeData.database;
-        const targetSchema = nodeData.schema;
-        const targetName = nodeData.name ? String(nodeData.name).trim().toLowerCase() : null;
+    function clearCategoryCache(connId = null, dbName = null) {
+        if (!connId) {
+            Object.keys(categoryDataCache).forEach(k => delete categoryDataCache[k]);
+            return;
+        }
+        const prefix = dbName ? `${connId}::${dbName}` : `${connId}::`;
+        for (const k of Object.keys(categoryDataCache)) {
+            if (k.startsWith(prefix)) {
+                delete categoryDataCache[k];
+            }
+        }
+    }
 
-        // Invalidate category count cache for refreshed scope
+    async function refreshNode(nodeData) {
+        if (!nodeData) return;
+        const targetConn = nodeData.connId || nodeData.connectionId || window.ActiveConnectionId;
+        const targetDb = nodeData.database || (nodeData.type === 'database' ? nodeData.name : window.ActiveDatabase);
+        const targetSchema = nodeData.schema || (nodeData.type === 'schema' ? nodeData.name : null);
+        const targetType = nodeData.type || '';
+        const targetName = nodeData.name ? String(nodeData.name).trim().toLowerCase() : null;
+        const catType = nodeData.catType || nodeData.objectType || (targetType.startsWith('group-') ? targetType.replace(/^group-/, '') : null);
+
+        // 1. Invalidate Backend Cache via API
         if (targetConn) {
+            try {
+                fetch(`/api/metadata/${targetConn}/refresh`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        database: targetDb,
+                        schema: targetSchema,
+                        type: catType
+                    })
+                }).catch(e => console.warn('[refreshNode] backend refresh warn:', e));
+            } catch (e) {}
+        }
+
+        // 2. Invalidate Frontend Cache
+        if (targetConn) {
+            // Invalidate categoryDataCache for target scope
             const prefix = targetDb ? `${targetConn}::${targetDb}` : `${targetConn}::`;
             for (const k of Object.keys(categoryDataCache)) {
                 if (k.startsWith(prefix)) {
-                    delete categoryDataCache[k];
+                    if (!catType || k.endsWith(`::${catType}`)) {
+                        delete categoryDataCache[k];
+                    }
+                }
+            }
+            // Invalidate AppMetadataCache
+            if (window.AppMetadataCache) {
+                if (targetType.startsWith('group-') || targetType === 'schema') {
+                    window.AppMetadataCache.invalidateSchema(targetConn, targetDb, targetSchema);
+                } else if (targetType === 'database') {
+                    window.AppMetadataCache.invalidateDatabase(targetConn, targetDb);
+                } else if (targetType === 'connection') {
+                    window.AppMetadataCache.invalidateConnection(targetConn);
+                } else if (targetName && ['table', 'view', 'procedure', 'function', 'materialized_view', 'trigger', 'sequence'].includes(targetType)) {
+                    window.AppMetadataCache.invalidateObject(targetConn, targetDb, targetSchema, nodeData.name);
+                } else {
+                    window.AppMetadataCache.invalidateConnection(targetConn);
+                }
+            }
+            // Invalidate AppIntelliSense data provider
+            if (window.AppIntelliSense && typeof window.AppIntelliSense.invalidateConnection === 'function') {
+                window.AppIntelliSense.invalidateConnection(targetConn);
+            }
+        }
+
+        // 3. Locate and reload corresponding tree items in DOM
+        const items = document.querySelectorAll('.tree-item');
+
+        // Case A: Group node refresh (group-tables, group-views, group-procedures, etc.)
+        if (catType || targetType.startsWith('group-')) {
+            const expectedGroupType = catType ? `group-${catType}` : targetType;
+            for (const it of items) {
+                const nd = it._nodeData;
+                if (!nd) continue;
+                if (targetConn && nd.connId && nd.connId !== targetConn) continue;
+                if (targetDb && nd.database && nd.database !== targetDb) continue;
+                if (targetSchema && nd.schema && nd.schema !== targetSchema) continue;
+
+                if (nd.type === expectedGroupType || (catType && (nd.catType === catType || nd.objectType === catType))) {
+                    if (typeof it._reload === 'function') {
+                        await it._reload(true);
+                    }
+                    if (typeof it._updateBadge === 'function') {
+                        it._updateBadge(true);
+                    }
+                    return;
                 }
             }
         }
 
-        const items = document.querySelectorAll('.tree-item');
-        for (const it of items) {
-            const nd = it._nodeData;
-            if (!nd) continue;
-            if (targetConn && nd.connId && nd.connId !== targetConn) continue;
-            if (targetDb && nd.database && nd.database !== targetDb) continue;
-
-            if (nodeData.type === 'linked_server' || nodeData.type === 'linked_servers_group') {
+        // Case B: Linked Server / Linked Servers Group
+        if (targetType === 'linked_server' || targetType === 'linked_servers_group') {
+            for (const it of items) {
+                const nd = it._nodeData;
+                if (!nd) continue;
                 if (nd.type === 'linked_servers_group' && (!targetConn || nd.connId === targetConn)) {
                     if (typeof it._reload === 'function') {
-                        it._reload();
+                        await it._reload(true);
                         return;
                     }
                 }
             }
+        }
 
-            if (targetName && nd.name && String(nd.name).trim().toLowerCase() === targetName) {
-                if (typeof it._reload === 'function') {
-                    it._reload();
+        // Case C: Single Object (table, view, proc, etc.) - reload item and its parent group
+        if (['table', 'view', 'procedure', 'function', 'materialized_view', 'trigger', 'sequence'].includes(targetType)) {
+            for (const it of items) {
+                const nd = it._nodeData;
+                if (!nd) continue;
+                if (targetConn && nd.connId && nd.connId !== targetConn) continue;
+                if (targetDb && nd.database && nd.database !== targetDb) continue;
+                if (targetSchema && nd.schema && nd.schema !== targetSchema) continue;
+
+                if (nd.name && String(nd.name).trim().toLowerCase() === targetName) {
+                    // Reload item if it has children (e.g. table columns)
+                    if (typeof it._reload === 'function') {
+                        it._reload(true);
+                    }
+                    // Also reload parent group (e.g. Tables folder)
+                    const parentItem = it.parentElement?.parentElement?.closest('.tree-item');
+                    if (parentItem && typeof parentItem._reload === 'function') {
+                        parentItem._reload(true);
+                        if (typeof parentItem._updateBadge === 'function') parentItem._updateBadge(true);
+                    }
                     return;
                 }
-                const parentItem = it.parentElement?.parentElement?.closest('.tree-item');
-                if (parentItem && typeof parentItem._reload === 'function') {
-                    parentItem._reload();
-                    return;
+            }
+        }
+
+        // Case D: Schema, Database, or Connection Node
+        for (const it of items) {
+            const nd = it._nodeData;
+            if (!nd) continue;
+            if (targetConn && nd.connId && nd.connId !== targetConn) continue;
+
+            if (targetType === 'schema' && nd.type === 'schema') {
+                if (targetDb && nd.database && nd.database !== targetDb) continue;
+                if (targetName && String(nd.name).trim().toLowerCase() === targetName) {
+                    if (typeof it._reload === 'function') {
+                        await it._reload(true);
+                        return;
+                    }
                 }
-            } else if (!targetName && targetSchema && nd.schema === targetSchema) {
-                if (typeof it._reload === 'function') {
-                    it._reload();
-                    return;
+            } else if (targetType === 'database' && nd.type === 'database') {
+                if (targetName && String(nd.name).trim().toLowerCase() === targetName) {
+                    if (typeof it._reload === 'function') {
+                        await it._reload(true);
+                        return;
+                    }
+                }
+            } else if (targetType === 'connection' && nd.type === 'connection') {
+                if (nd.connId === targetConn) {
+                    if (typeof it._reload === 'function') {
+                        await it._reload(true);
+                        return;
+                    }
+                }
+            }
+        }
+
+        // Fallback: match by name
+        if (targetName) {
+            for (const it of items) {
+                const nd = it._nodeData;
+                if (!nd) continue;
+                if (targetConn && nd.connId && nd.connId !== targetConn) continue;
+                if (nd.name && String(nd.name).trim().toLowerCase() === targetName) {
+                    if (typeof it._reload === 'function') {
+                        await it._reload(true);
+                        return;
+                    }
                 }
             }
         }
@@ -3252,6 +3555,8 @@ function initExplorer() {
         renameGroup,
         deleteGroup,
         refreshNode,
+        clearCategoryCache,
+        filterTree: applyTreeFilter,
         showDatabaseFilterModal,
         showSchemaChecklistModal,
         getSchemaFilter: (connId, db) => schemaFilters[`${connId}::${db}`]

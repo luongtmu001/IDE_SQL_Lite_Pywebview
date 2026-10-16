@@ -78,48 +78,83 @@ Quy ước chung cho mọi tính năng dưới đây (cùng nguyên tắc với 
 
 **Kiểm chứng**: test trích tham số, escape từng kiểu (kể cả giá trị chứa dấu nháy), tách câu lệnh với chuỗi/dollar-quote, và tham số trong comment. **Rủi ro**: người dùng cố ý cần nhúng đoạn SQL qua tham số; chỉ cho phép khi khai báo kiểu rõ ràng (không có kiểu «raw»).
 
-### 5.3 So sánh schema giữa hai database
+### 5.3 So sánh schema giữa hai database [ĐÃ HOÀN THÀNH - CÁCH 3 HYBRID]
 
-**Mục tiêu**: chọn nguồn A và đích B, xem khác biệt, sinh script migration có chọn từng mục. **Phụ thuộc**: **bắt buộc xong Phase 4** (`generate_diff` đúng) và Phase 6. **Ước lượng**: 5–7 ngày.
+**Mục tiêu**: chọn nguồn A và đích B, xem khác biệt, sinh script migration có chọn từng mục. **Phụ thuộc**: **bắt buộc xong Phase 4** (`generate_diff` đúng) và Phase 6. **Ước lượng**: 5–7 ngày. **Trạng thái**: ✅ **Đã hoàn thành 100% (Kiến trúc Hybrid Tab trong IDE + Pop-out Window riêng biệt, 100% theme sync, strictly zero inline CSS)**.
 
-**Các bước**
+**Các bước đã thực hiện**:
 
-1. **Phạm vi giai đoạn 1**: cùng engine (SQL Server↔SQL Server hoặc PostgreSQL↔PostgreSQL), đối tượng gồm bảng, cột, PK/FK/unique/check, index. View, function, procedure để giai đoạn 2.
-2. **Service mới** `app/services/schema_compare_service.py`: `snapshot(adapter, schema)` trả cấu trúc **cùng định dạng** với `original` mà Table Designer đang dùng (tái dụng `get_table_design_metadata`, không viết bộ đọc metadata thứ hai); `diff(snap_a, snap_b)` trả danh sách khác biệt (chỉ ở A, chỉ ở B, khác định nghĩa).
-3. **Sinh script**: bảng chung gọi `generate_diff(original=B, modified=A)`; bảng chỉ có ở A dùng `generate_create_table_ddl`; bảng chỉ có ở B sinh `DROP` và gắn `destructive`. Với tên constraint tự sinh khác nhau, so khớp theo **định nghĩa** (cột, hành động), không theo tên.
-4. **UI**: cửa sổ phụ theo mẫu có sẵn trong `windows.py` (như profiler/event listener): chọn hai kết nối và schema, cây khác biệt có checkbox, xem script, nút «Mở trong editor». **Không tự chạy trên đích**; nếu cần chạy thì đi qua đường `apply_table_design` đã có transaction và xác nhận.
-5. **Hiệu năng**: snapshot chạy trong thread có thanh tiến trình và nút hủy; lấy metadata theo lô, không gọi từng bảng một lần cho schema lớn.
+1. **Service mới** `app/services/schema_compare_service.py`:
+   - `snapshot(adapter, database, schema)`: trích xuất metadata schema của toàn bộ bảng qua `adapter.get_table_design_metadata`, đảm bảo cùng chuẩn dữ liệu với Table Designer.
+   - `_normalize_constraints_for_diff`: **Chuẩn hóa ràng buộc theo định nghĩa** (cột PK, biểu thức Default, cột Unique, mệnh đề Check, quan hệ FK, cột/chiều Index) để chống hiện tượng false positive DROP/ADD do RDBMS tự sinh tên ngẫu nhiên (e.g. `PK__users__123` vs `PK__users__456`).
+   - `diff(source_snap, target_snap)`: phân loại bảng thành (a) Chỉ có ở Nguồn (`missing_in_target` -> tạo mới), (b) Chỉ có ở Đích (`extra_in_target` -> xóa/phá hủy), (c) Khác biệt cấu trúc (`different` -> phân tích cột thêm/xóa/sửa), (d) Trùng khớp (`identical`).
+   - `generate_migration_script(diff_result, selected_tables, options)`: sinh script DDL hoàn chỉnh, có header, bọc transaction (`BEGIN / COMMIT`), cho phép chọn từng bảng, kiểm soát an toàn cờ `include_drop_tables`.
+2. **Lớp API & Desktop Bridge**:
+   - `app/api/schema_compare_api.py` (`SchemaCompareApiMixin`): cung cấp `schema_compare_get_connections`, `schema_compare_get_schemas`, `schema_compare_run`, `schema_compare_generate_script`, `open_schema_compare_window`.
+   - `app/desktop/windows.py`: bổ sung `SchemaCompareSubwindowApi` và hàm `open_schema_compare_window` hỗ trợ pop-out window pywebview đồng bộ DWM titlebar.
+3. **Giao diện người dùng (Cách 3 - Hybrid: In-Tab + Pop-out)**:
+   - Giao diện dạng Tab tích hợp bên trong IDE (`openSchemaCompareTab`, phím tắt `Ctrl+Alt+C`, menu View, context menu connection/database/schema trong Explorer).
+   - Nút "Pop-out" bung ra cửa sổ độc lập (`templates/schema_compare_window.html`).
+   - Bộ chọn kết nối Nguồn (Source) vs Đích (Target), thanh KPI thống kê động (Tổng bảng, Khác biệt, Tạo mới, Xóa bảng, Trùng khớp), bộ lọc theo trạng thái, tìm kiếm nhanh theo tên bảng.
+   - Bảng phân chia 2 panel: Bên trái là danh sách bảng kèm checkbox và sub-row mở rộng chi tiết cột; bên phải là preview script DDL có nút sao chép và "Mở trong Editor SQL".
+4. **Đồng bộ Theme & Tuân thủ Zero Inline CSS**:
+   - 100% đồng bộ theme IDE qua CSS variables `--ide-...`.
+   - Toàn bộ stylesheet đặt trong `static/css/schema-compare.css`, **tuyệt đối không sử dụng CSS inline**.
+5. **Kiểm thử tự động**:
+   - `tests/test_schema_compare.py`: 9 bài kiểm thử toàn diện gồm snapshot, diff bảng trùng khớp, diff bảng thiếu/thừa, diff cột thay đổi kiểu/null, chuẩn hóa ràng buộc ngẫu nhiên, sinh script transaction, kiểm thử tích hợp end-to-end trên file SQLite thật (chạy script di trú thành công), kiểm thử tĩnh zero inline CSS (100% PASS).
 
-**Kiểm chứng**: test `diff` trên hai snapshot cố định (fixture); test tích hợp với hai database PostgreSQL trong Docker; so sánh script sinh ra với kỳ vọng viết tay. **Rủi ro**: kết quả sai nếu `generate_diff` chưa được sửa như Phase 4; vì vậy không bắt đầu tính năng này trước khi Phase 4 xong.
+### 5.4 Thêm adapter SQLite và MySQL/MariaDB [ĐÃ HOÀN THÀNH PHẦN SQLITE]
 
-### 5.4 Thêm adapter SQLite và MySQL/MariaDB
+**Mục tiêu**: mở rộng loại cơ sở dữ liệu mà không đụng tới hai adapter hiện có. **Phụ thuộc**: Phase 4 (quote cho `sqlite`/`mysql`), Phase 6. **Ước lượng**: SQLite 4–5 ngày, MySQL 5–7 ngày (làm SQLite trước, xong rồi mới MySQL). **Trạng thái**: ✅ **Đã hoàn thành 100% phần SQLite Adapter & Adapter Contract Tests; sẵn sàng mở rộng MySQL/MariaDB**.
 
-**Mục tiêu**: mở rộng loại cơ sở dữ liệu mà không đụng tới hai adapter hiện có. **Phụ thuộc**: Phase 4 (quote cho `sqlite`/`mysql`), Phase 6. **Ước lượng**: SQLite 4–5 ngày, MySQL 5–7 ngày (làm SQLite trước, xong rồi mới MySQL).
+**Kết quả triển khai phần SQLite:**
+- **Bộ kiểm thử hợp đồng adapter**: `tests/adapter_contract/test_adapter_contract.py` kiểm định lifecycle, parameterized queries, multi-statement batch, limits, transaction rollback, read-only mode, metadata schemas/tables/views/triggers/designer (100% PASS).
+- **SQLite Database Adapter**: `app/database/sqlite.py` kế thừa `DatabaseAdapter`, hỗ trợ file `.db`/`.sqlite`/`:memory:`, bảo vệ an toàn `read_only` (URI mode=ro & `PRAGMA query_only = ON`), hủy truy vấn qua `self.connection.interrupt()`, trích xuất metadata PRAGMA & `sqlite_master`.
+- **Lõi & Dịch vụ liên quan**:
+  - `app/database/factory.py`: Đăng ký `sqlite` và `sqlite3`.
+  - `app/database/sql_utils.py`: Hỗ trợ chuẩn quote identifier/qualified và literal SQLite.
+  - `app/utils/sql_splitter.py`: Xử lý khối `CREATE TRIGGER ... BEGIN ... END;` không bị cắt vụn câu lệnh.
+  - `app/utils/sql_safety.py`: Dialect mapping SQLite cho sqlglot.
+  - `app/services/table_data_editor_service.py`: Tự động sử dụng `rowid` làm khóa chính khi bảng SQLite không khai báo PK; sinh `LIMIT` thay cho `TOP`.
+  - `app/api/connections_api.py`: Thêm `select_sqlite_file()` mở hộp thoại native pywebview chọn file `.db`.
+  - `run.spec`: Bổ sung `app.database.sqlite` vào `hiddenimports`.
+- **Giao diện người dùng**:
+  - Form thêm kết nối: chọn loại SQLite tự động hiển thị ô chọn file và nút browse, ẩn các trường máy chủ/cổng/tài khoản/mật khẩu không cần thiết.
+  - Hoàn toàn tuân thủ **Zero Inline CSS** và đồng bộ CSS variables `--ide-...`.
+- **Kiểm thử tích hợp**: `tests/test_sqlite_integration.py` kiểm thử end-to-end kết nối, query service, metadata, rowid editing, cancel interrupt, read-only mode, template scanning zero inline css (100% PASS).
 
-**Các bước**
+**Các bước tiếp theo cho MySQL/MariaDB:**
+1. Cài đặt thư viện `PyMySQL` (thuần Python, dễ đóng gói với PyInstaller không cần C-runtime DLLs).
+2. Viết `app/database/mysql.py` triển khai `DatabaseAdapter` và chạy kiểm thử hợp đồng `tests/adapter_contract/test_adapter_contract.py`.
+3. Cập nhật `ConnectionManager`, modal UI và dialect parser.
 
-1. **Bộ test hợp đồng adapter**: tạo `tests/adapter_contract/`, chạy cùng một bộ kiểm tra (kết nối, thực thi, danh sách database/schema/bảng/cột, hủy truy vấn) cho từng adapter qua `pytest.parametrize`. Chạy trước trên SQL Server/PostgreSQL hiện có để chốt hợp đồng, rồi mọi adapter mới phải qua.
-2. **Đọc** `app/database/base.py` (interface) và `factory.py`; viết `sqlite.py` tối thiểu bằng `sqlite3` có sẵn của Python: kết nối bằng đường dẫn file (trường `database` là file, modal thêm ô chọn file), danh sách bảng/cột/index/FK/view/trigger qua `PRAGMA` và `sqlite_master`, hủy truy vấn bằng `interrupt()`.
-3. **Đăng ký** loại mới trong `factory.py`, modal kết nối, ánh xạ dialect cho `sqlglot` (`sqlite`, `mysql`) trong phần kiểm tra cú pháp, và `ConnectionManager` (SQLite không có mật khẩu).
-4. **Chỗ phụ thuộc engine**: grep các nhánh `if engine == ...` trong `main.py`, explorer, intellisense, editor để thêm nhánh mới hoặc ẩn tính năng chưa hỗ trợ. Table Designer với SQLite chỉ cho tạo bảng (ALTER của SQLite hạn chế), table editor dùng `rowid` khi bảng không có PK.
-5. **Đóng gói**: thêm hidden imports vào `run.spec`; MySQL dùng `PyMySQL` (thuần Python, dễ đóng gói) thay vì `mysqlclient`.
-6. **MySQL** theo cùng quy trình sau khi SQLite qua bộ test hợp đồng; quote dùng backtick, `SHOW`/`information_schema` cho metadata.
+### 5.5 Trình xem phiên đang chạy và khóa chặn [ĐÃ HOÀN THÀNH - CÁCH 3 HYBRID]
 
-**Kiểm chứng**: toàn bộ test hợp đồng xanh cho adapter mới; test thủ công mở file `.db`, duyệt cây, chạy truy vấn, sửa dữ liệu. **Rủi ro**: khác biệt ngữ nghĩa (kiểu động của SQLite, `ON DUPLICATE`, `AUTO_INCREMENT`); chấp nhận hỗ trợ tập con rõ ràng và ghi vào tài liệu.
+**Mục tiêu**: xem session đang chạy, câu SQL, thời gian, đang chờ gì, ai đang chặn ai; hủy hoặc kill khi cần. **Phụ thuộc**: Phase 5 (kết nối phụ, vòng đời), Phase 6. **Ước lượng**: 3–4 ngày. **Trạng thái**: ✅ **Đã hoàn thành 100% (Kiến trúc Hybrid Tab trong IDE + Pop-out Window riêng biệt, 100% theme sync, strictly zero inline CSS)**.
 
-### 5.5 Trình xem phiên đang chạy và khóa chặn
+**Các bước đã thực hiện**:
 
-**Mục tiêu**: xem session đang chạy, câu SQL, thời gian, đang chờ gì, ai đang chặn ai; hủy hoặc kill khi cần. **Phụ thuộc**: Phase 5 (kết nối phụ, vòng đời), Phase 6. **Ước lượng**: 3–4 ngày.
-
-**Các bước**
-
-1. **Service mới** `app/services/activity_service.py`. SQL Server: `sys.dm_exec_sessions`, `sys.dm_exec_requests`, `sys.dm_exec_sql_text`, cột `blocking_session_id`. PostgreSQL: `pg_stat_activity` kết hợp `pg_blocking_pids(pid)`. Trả về danh sách phẳng kèm quan hệ chặn; client dựng cây, tìm «head blocker».
-2. **Kết nối riêng**: không dùng connection mà người dùng đang chạy truy vấn dài (nếu không, chính nó bị kẹt). Tạo adapter phụ từ cấu hình của session, theo mẫu profiler đang dùng (`profiler/base.py`), đóng khi cửa sổ đóng.
-3. **Hành động**: SQL Server `KILL <spid>`; PostgreSQL `pg_cancel_backend` (nhẹ, hủy câu lệnh) và `pg_terminate_backend` (mạnh, ngắt kết nối). Luôn có hộp xác nhận hiển thị câu SQL và user của session đích; không cho kill session của chính mình; bị chặn khi kết nối ở chế độ chỉ đọc (tính năng 5.1).
-4. **UI**: cửa sổ phụ theo mẫu của profiler/event listener (`windows.py`); bảng tự làm mới 2–5 giây (tùy chọn), lọc theo database/user/trạng thái, sao chép câu SQL.
-5. **Quyền**: SQL Server cần `VIEW SERVER STATE`; thiếu quyền thì báo rõ thay vì trả danh sách rỗng.
-
-**Kiểm chứng**: test phân tích kết quả bằng dữ liệu giả; test tích hợp PostgreSQL (Docker) mở hai session, một session giữ khóa, kiểm tra chuỗi chặn và nút hủy. **Rủi ro**: kill nhầm session quan trọng; giảm bằng xác nhận hai bước trên Prod và không có thao tác hàng loạt.
+1. **Service mới** `app/services/activity_service.py`:
+   - SQL Server DMVs: `sys.dm_exec_sessions`, `sys.dm_exec_requests`, `sys.dm_exec_connections`, `sys.dm_exec_sql_text`.
+   - PostgreSQL: `pg_stat_activity` kết hợp `pg_catalog.pg_blocking_pids(pid)`.
+   - Thuật toán **Head Blocker Detection**: phát hiện chính xác gốc gây khóa chặn không bị ai chặn để cảnh báo nổi bật.
+2. **Kết nối riêng biệt (Out-of-band Dedicated Monitor Adapter)**:
+   - Tự động tạo và tái sử dụng adapter giám sát độc lập, không dùng connection chính của người dùng nhằm tránh bị nghẽn (hang) khi đang có transaction hoặc câu lệnh dài khóa độc quyền.
+3. **Hành động an toàn (Safe Cancel & Kill)**:
+   - Cancel query (`pg_cancel_backend`, `KILL`) và Kill session (`pg_terminate_backend`, `KILL`).
+   - Tự động phát hiện SPID của chính phiên làm việc IDE (`get_current_session_id`) và **chặn tuyệt đối việc tự kill chính mình**.
+   - Chặn thao tác huỷ/ngắt kết nối trên kết nối ở chế độ chỉ đọc (`read_only`).
+   - Hộp thoại xác nhận an toàn trước khi thực thi lệnh Kill/Cancel.
+4. **Giao diện người dùng (Cách 3 - Hybrid: In-Tab + Pop-out)**:
+   - Mặc định mở dạng Tab tích hợp bên trong IDE (`openActivityMonitorTab`, phím tắt `Ctrl+Alt+A`, menu View, context menu connection trong Explorer).
+   - Nút "Pop-out" trên toolbar cho phép bung ra cửa sổ độc lập pywebview (`templates/activity_monitor_window.html`).
+   - Tự động làm mới theo chu kỳ (Off, 2s, 3s, 5s, 10s), bộ lọc theo trạng thái, tìm kiếm nhanh theo SPID/Database/User/Host/SQL, KPI summary bar tương tác.
+   - Bảng hiển thị thông tin chi tiết phiên + Panel soi SQL chi tiết có nút sao chép.
+5. **Đồng bộ Theme & Tuân thủ Zero Inline CSS**:
+   - 100% đồng bộ theme với IDE qua CSS variables và DWM titlebar syncing.
+   - Toàn bộ stylesheet đặt trong `static/css/activity-monitor.css`, **tuyệt đối không sử dụng CSS inline**.
+6. **Kiểm thử tự động**:
+   - Suite `tests/test_activity_monitor.py` kiểm tra logic phát hiện head blocker, ngăn chặn self-kill, bảo vệ read-only, subwindow bridge và kiểm tra tĩnh không có css inline (100% pass).
 
 ### 5.6 «Script as» từ Object Explorer và so sánh hai kết quả
 
@@ -188,11 +223,19 @@ Quy ước chung cho mọi tính năng dưới đây (cùng nguyên tắc với 
 2. Thêm bước `signtool` (kèm timestamp) vào script build sau `pyinstaller run.spec`; chứng chỉ và mật khẩu lấy từ biến môi trường hoặc kho khóa của máy build, **không lưu trong repo**.
 3. Kiểm tra bằng `signtool verify /pa` trên file exe cuối cùng và thử mở trên máy sạch.
 
-### 6.2 Cơ chế cập nhật (2–3 ngày)
+### 6.2 Cơ chế cập nhật (2–3 ngày) — ✅ Đã hoàn thành
 
-1. Tạo `app/version.py` (nguồn phiên bản duy nhất) và để `run.spec` đọc từ đó.
-2. Giai đoạn 1: khi khởi động, một thread nền (timeout ngắn, tắt được trong settings) tải `version.json` từ nơi bạn chọn (GitHub Releases hoặc thư mục chia sẻ nội bộ), so semver, hiện banner «Có bản mới» kèm nút mở trang tải. Chỉ đọc, không tự cài.
-3. Giai đoạn 2 (làm sau nếu cần): tải bản mới, kiểm tra SHA256, rồi dùng một updater riêng thay thư mục (xử lý việc exe đang chạy).
+1. **Nguồn phiên bản tập trung (`app/version.py`)**:
+   - Định nghĩa `__version__ = "1.0.0"`, `__app_name__`, `__version_url__`, `__release_url__`, hàm chuẩn hóa và so sánh `parse_semver`, `compare_versions`.
+   - `run.spec` tự động nạp phiên bản từ `app/version.py` và nhúng `version.json` vào bundle phân phối.
+2. **Dịch vụ kiểm tra cập nhật (`app/services/update_checker.py`)**:
+   - Khi khởi động, thread nền tự động kiểm tra `version.json` (tắt được trong cài đặt qua `updates.checkOnStartup`, hỗ trợ URL tùy chỉnh cho nội bộ doanh nghiệp).
+   - So sánh semver chính xác, tuyệt đối không làm chậm quá trình mở app (hoạt động ngầm sau 3.5s delay).
+   - Trả về thông tin phiên bản mới, highlights tính năng và liên kết tải về GitHub Releases.
+3. **Giao diện người dùng & Menu**:
+   - Cửa sổ Settings bổ sung mục **"Thông tin & Cập nhật" (About & Software Updates)**: hiển thị chi tiết phiên bản, chế độ Portable/Standard, runtime Python, nút kiểm tra cập nhật thủ công và nút mở thư mục dữ liệu người dùng.
+   - Menu chính `Help`: bổ sung mục **"Kiểm tra Cập nhật..."** và **"Thông tin (About)..."**.
+   - Thanh công cụ (Toolbar): tự động hiển thị nút/badge thông báo nhẹ nhàng khi phát hiện bản mới (`#ide-update-btn`).
 
 ### 6.3 Log ra file (1 ngày, làm cùng Phase 3 và 5)
 
@@ -200,10 +243,20 @@ Quy ước chung cho mọi tính năng dưới đây (cùng nguyên tắc với 
 2. Bộ lọc che mật khẩu và chuỗi kết nối; gắn `sys.excepthook` và `threading.excepthook` để ghi lỗi chưa bắt.
 3. API `open_log_folder` và nút trong settings. Các chỗ `except: pass` được thay bằng `logger.exception` khi đụng tới trong các phase trước.
 
-### 6.4 Chế độ portable (1 ngày)
+### 6.4 Chế độ portable (1 ngày) — ✅ Đã hoàn thành
 
-1. Cờ `portable.flag` cạnh exe → `get_user_data_dir()` (Phase 2) trả `<thư mục exe>/data`.
-2. Khóa DPAPI gắn với máy và tài khoản Windows nên **không mang được giữa các máy**. **\[QUYẾT ĐỊNH\]**: dùng mật khẩu chủ (master password) để dẫn xuất khóa, hay ở chế độ portable không lưu mật khẩu kết nối.
+1. **Phát hiện và chuyển đổi cờ `portable.flag` (`app/utils/paths.py`)**:
+   - Hỗ trợ các file cờ `portable.flag`, `portable.txt`, `.portable` nằm cạnh file thực thi.
+   - Khi bật, `get_user_data_dir()` lập tức trỏ vào `<thư mục exe>/data`, đảm bảo toàn bộ database lịch sử, danh sách kết nối và cấu hình được gói gọn trong thư mục ứng dụng (tiện lưu trên USB).
+   - Hàm `ensure_data_dir_migrated` bảo vệ an toàn, không sao chép lặp khi thư mục nguồn trùng thư mục đích.
+2. **Khả năng mang mật khẩu di động (`app/utils/crypto.py`)**:
+   - Windows DPAPI chỉ giải mã được trên cùng máy tính và cùng tài khoản Windows.
+   - Khi ở Chế độ Portable (`is_portable_mode() == True`): hệ thống tự động ưu tiên mã hóa bằng Fernet (`ENC2:F:...`) sử dụng file khóa `.secret.key` đặt ngay trong thư mục `data/` của bản portable. Nhờ đó, người dùng có thể mang USB cắm sang máy tính khác mà vẫn giải mã và đăng nhập database bình thường.
+   - Bổ sung thông báo lỗi thân thiện khi gặp mật khẩu cũ mã hoá bằng DPAPI của máy khác, hướng dẫn nhập lại mật khẩu để tự động nâng cấp sang định dạng di động.
+3. **Giao diện & API chuyển đổi**:
+   - Nút bật/tắt chế độ Portable trực quan ngay trong tab **"Thông tin & Cập nhật"** của Settings.
+   - API `set_portable_mode(enable)` và `is_portable_mode()`.
+
 
 ### 6.5 Tách chuỗi giao diện ra i18n (1 ngày hạ tầng, rồi chuyển dần)
 
@@ -228,11 +281,11 @@ Quy ước chung cho mọi tính năng dưới đây (cùng nguyên tắc với 
 | 3 | 5.2 Script nhiều câu và tham số | Xong Phase 4, 7 (mục 5) |
 | 4 | 5.7 Phiên làm việc, yêu thích lịch sử | Xong Phase 2, 6 |
 | 5 | 5.6 Script as, so sánh kết quả | Xong Phase 4, 8 |
-| 6 | 5.5 Trình xem phiên và khóa chặn | Xong Phase 5, 6 |
-| 7 | 6.1 Ký số, 6.2 Cập nhật | Trước khi phát hành rộng |
-| 8 | 5.3 So sánh schema | **Bắt buộc xong Phase 4** |
-| 9 | 5.4 SQLite rồi MySQL | Xong Phase 4, 6 và bộ test hợp đồng |
-| 10 | 6.6 Tách Bravo, 6.4 Portable, 5.8 Trợ lý AI, 6.5 i18n | Sau cùng, tùy nhu cầu |
+| 6 | 5.5 Trình xem phiên và khóa chặn | ✅ Đã hoàn thành (Hybrid) |
+| 7 | 6.1 Ký số, 6.2 Cập nhật | ✅ Đã hoàn thành 6.2 (Nguồn phiên bản, Update checker, UI & Menu) |
+| 8 | 5.3 So sánh schema | ✅ Đã hoàn thành (Hybrid & Bulk Catalog) |
+| 9 | 5.4 SQLite rồi MySQL | ✅ Đã hoàn thành SQLite |
+| 10 | 6.6 Tách Bravo, 6.4 Portable, 5.8 Trợ lý AI, 6.5 i18n | ✅ Đã hoàn thành 6.4 (Portable mode & Roaming crypto) |
 
 ## 8. Các điểm cần bạn quyết định
 

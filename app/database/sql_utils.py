@@ -20,7 +20,7 @@ def quote_ident(name: Optional[str], engine: str = "sqlserver") -> str:
 
     eng = (engine or "sqlserver").lower()
 
-    if eng in ("postgresql", "postgres"):
+    if eng in ("postgresql", "postgres", "sqlite", "sqlite3"):
         # If wrapped in outer double-quotes, safely unwrap first
         if s.startswith('"') and s.endswith('"') and len(s) >= 2:
             inner = s[1:-1].replace('""', '"')
@@ -55,7 +55,7 @@ def escape_literal(val: Any, engine: str = "sqlserver") -> str:
     """
     Escapes a literal value for safe embedding in dynamic SQL.
     None -> NULL
-    bool -> 1 / 0 (SQL Server) or TRUE / FALSE (PostgreSQL)
+    bool -> 1 / 0 (SQL Server/SQLite) or TRUE / FALSE (PostgreSQL)
     int / float -> str(val)
     str -> escaped single quotes, with optional N'...' prefix for Unicode in SQL Server.
     """
@@ -75,3 +75,4 @@ def escape_literal(val: Any, engine: str = "sqlserver") -> str:
     if eng in ("sqlserver", "mssql") and any(ord(c) > 127 for c in s):
         return f"N'{s}'"
     return f"'{s}'"
+
