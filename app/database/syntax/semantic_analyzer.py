@@ -582,18 +582,24 @@ def get_physical_table_columns(
 
     # Check client-provided cache first (matches simple table name, schema.table, or multipart)
     if cached_tables_dict:
-        candidate_keys = {clean_tbl}
+        candidate_keys = set()
         if clean_schema:
             candidate_keys.add(f"{clean_schema}.{clean_tbl}")
-        if clean_db and clean_schema:
-            candidate_keys.add(f"{clean_db}.{clean_schema}.{clean_tbl}")
-        if clean_server and clean_db and clean_schema:
-            candidate_keys.add(f"{clean_server}.{clean_db}.{clean_schema}.{clean_tbl}")
+            if clean_db:
+                candidate_keys.add(f"{clean_db}.{clean_schema}.{clean_tbl}")
+                if clean_server:
+                    candidate_keys.add(f"{clean_server}.{clean_db}.{clean_schema}.{clean_tbl}")
+        else:
+            candidate_keys.add(clean_tbl)
+            candidate_keys.add(f"dbo.{clean_tbl}")
+            candidate_keys.add(f"public.{clean_tbl}")
+            if clean_db:
+                candidate_keys.add(f"{clean_db}.{clean_tbl}")
+                candidate_keys.add(f"{clean_db}.dbo.{clean_tbl}")
 
         for k, col_list in cached_tables_dict.items():
             norm_k = re.sub(r"[\[\]\"`]", "", k).strip().lower()
-            k_last = norm_k.split(".")[-1] if "." in norm_k else norm_k
-            if norm_k in candidate_keys or k_last == clean_tbl:
+            if norm_k in candidate_keys:
                 cols = {clean_identifier(c).lower() for c in col_list}
                 if cols:
                     return cols
@@ -602,9 +608,10 @@ def get_physical_table_columns(
     cache_key = (norm_dialect, clean_server, clean_db, clean_schema, clean_tbl)
     if cache_key in _PHYSICAL_TABLE_COLUMNS_CACHE:
         return _PHYSICAL_TABLE_COLUMNS_CACHE[cache_key]
-    simple_key = (norm_dialect, clean_server, "", "", clean_tbl)
-    if simple_key in _PHYSICAL_TABLE_COLUMNS_CACHE:
-        return _PHYSICAL_TABLE_COLUMNS_CACHE[simple_key]
+    if not clean_schema:
+        simple_key = (norm_dialect, clean_server, "", "", clean_tbl)
+        if simple_key in _PHYSICAL_TABLE_COLUMNS_CACHE:
+            return _PHYSICAL_TABLE_COLUMNS_CACHE[simple_key]
 
     # Check connection_session.metadata_cache before attempting connection lock
     if connection_session:
@@ -943,6 +950,59 @@ STATEMENT_BREAK_KEYWORDS = {
 }
 
 
+def _extract_derived_columns(
+    inner_sql: str,
+    local_tables: dict[str, set[str]],
+    cached_tables_dict: dict[str, list[str]] | None = None,
+) -> set[str]:
+    """Extract projected column names from an inner derived subquery SQL."""
+    m = re.search(r"\bSELECT\b\s+(.*?)\s+\bFROM\b", inner_sql, re.IGNORECASE | re.DOTALL)
+    if not m:
+        return set()
+    proj_str = m.group(1).strip()
+    cols: set[str] = set()
+
+    depth = 0
+    curr: list[str] = []
+    items: list[str] = []
+    for ch in proj_str:
+        if ch == '(':
+            depth += 1
+            curr.append(ch)
+        elif ch == ')':
+            depth = max(0, depth - 1)
+            curr.append(ch)
+        elif ch == ',' and depth == 0:
+            it = "".join(curr).strip()
+            if it:
+                items.append(it)
+            curr = []
+        else:
+            curr.append(ch)
+    last_it = "".join(curr).strip()
+    if last_it:
+        items.append(last_it)
+
+    for it in items:
+        col_name = _extract_projection_column_name(it)
+        if col_name:
+            if col_name == "*":
+                m_from = re.search(r"\bFROM\s+([#@\w\.\"\[\]]+)", inner_sql, re.IGNORECASE)
+                if m_from:
+                    from_tbl = clean_identifier(m_from.group(1)).lower()
+                    if from_tbl in local_tables:
+                        cols.update(local_tables[from_tbl])
+                    elif cached_tables_dict:
+                        for k, v in cached_tables_dict.items():
+                            norm_k = re.sub(r"[\[\]\"`]", "", k).strip().lower()
+                            if norm_k == from_tbl or norm_k.endswith(f".{from_tbl}"):
+                                cols.update({clean_identifier(c).lower() for c in v})
+                                break
+            else:
+                cols.add(col_name)
+    return cols
+
+
 def extract_select_query_blocks(sql_masked: str, sql_raw: str):
     """
     Extract SELECT ... FROM query blocks accurately without crossing statement boundaries.
@@ -1012,38 +1072,77 @@ def extract_select_query_blocks(sql_masked: str, sql_raw: str):
         while pos < n and sql_masked[pos].isspace():
             pos += 1
 
-        t_start = pos
-        while pos < n and (sql_masked[pos].isalnum() or sql_masked[pos] in ('_', '@', '#', '$', '.', '[', ']', '"')):
-            pos += 1
-        raw_table_name = sql_raw[t_start:pos].strip()
-
-        if not raw_table_name:
-            i = m_sel.end()
-            continue
-
-        while pos < n and sql_masked[pos].isspace():
-            pos += 1
-
         raw_alias = None
-        w_start = pos
-        while pos < n and (sql_masked[pos].isalnum() or sql_masked[pos] in ('_', '[', ']', '"')):
+        if pos < n and sql_masked[pos] == '(':
+            # Derived table subquery: FROM (SELECT ...) [AS] alias
+            sub_start = pos + 1
+            depth = 1
             pos += 1
-        next_word = sql_raw[w_start:pos].strip()
+            while pos < n and depth > 0:
+                if sql_masked[pos] == '(':
+                    depth += 1
+                elif sql_masked[pos] == ')':
+                    depth -= 1
+                pos += 1
+            sub_end = pos - 1
+            inner_sub_sql = sql_raw[sub_start:sub_end].strip()
 
-        if next_word.lower() == 'as':
             while pos < n and sql_masked[pos].isspace():
                 pos += 1
-            a_start = pos
+
+            w_start = pos
             while pos < n and (sql_masked[pos].isalnum() or sql_masked[pos] in ('_', '[', ']', '"')):
                 pos += 1
-            raw_alias = sql_raw[a_start:pos].strip()
-        elif next_word and next_word.lower() not in STATEMENT_BREAK_KEYWORDS and next_word.lower() not in {
-            "where", "join", "inner", "left", "right", "full", "cross", "outer", "on",
-            "group", "order", "having", "union", "limit", "offset", "with", "into", "for", "window"
-        }:
-            raw_alias = next_word
+            next_word = sql_raw[w_start:pos].strip()
+
+            if next_word.lower() == 'as':
+                while pos < n and sql_masked[pos].isspace():
+                    pos += 1
+                a_start = pos
+                while pos < n and (sql_masked[pos].isalnum() or sql_masked[pos] in ('_', '[', ']', '"')):
+                    pos += 1
+                raw_alias = sql_raw[a_start:pos].strip()
+            elif next_word and next_word.lower() not in STATEMENT_BREAK_KEYWORDS and next_word.lower() not in {
+                "where", "join", "inner", "left", "right", "full", "cross", "outer", "on",
+                "group", "order", "having", "union", "limit", "offset", "with", "into", "for", "window"
+            }:
+                raw_alias = next_word
+            else:
+                pos = w_start
+
+            raw_table_name = f"__derived__::{raw_alias or 'sub'}::{inner_sub_sql}"
         else:
-            pos = w_start
+            t_start = pos
+            while pos < n and (sql_masked[pos].isalnum() or sql_masked[pos] in ('_', '@', '#', '$', '.', '[', ']', '"')):
+                pos += 1
+            raw_table_name = sql_raw[t_start:pos].strip()
+
+            if not raw_table_name:
+                i = m_sel.end()
+                continue
+
+            while pos < n and sql_masked[pos].isspace():
+                pos += 1
+
+            w_start = pos
+            while pos < n and (sql_masked[pos].isalnum() or sql_masked[pos] in ('_', '[', ']', '"')):
+                pos += 1
+            next_word = sql_raw[w_start:pos].strip()
+
+            if next_word.lower() == 'as':
+                while pos < n and sql_masked[pos].isspace():
+                    pos += 1
+                a_start = pos
+                while pos < n and (sql_masked[pos].isalnum() or sql_masked[pos] in ('_', '[', ']', '"')):
+                    pos += 1
+                raw_alias = sql_raw[a_start:pos].strip()
+            elif next_word and next_word.lower() not in STATEMENT_BREAK_KEYWORDS and next_word.lower() not in {
+                "where", "join", "inner", "left", "right", "full", "cross", "outer", "on",
+                "group", "order", "having", "union", "limit", "offset", "with", "into", "for", "window"
+            }:
+                raw_alias = next_word
+            else:
+                pos = w_start
 
         # Read rest_of_query until next statement boundary at depth 0
         rest_start = pos
@@ -1152,6 +1251,9 @@ def analyze_sql_semantics(
     local_tables.update(temp_tables)
     local_tables.update(ctes)
 
+    # Scopes registry to allow correlated subqueries to reference outer query aliases
+    outer_table_scopes: dict[str, set[str]] = {}
+
     # 2. Extract SELECT / UPDATE / INSERT query statements without boundary bleed
     norm_dialect = "postgres" if ("postgres" in dialect.lower() or "pgsql" in dialect.lower() or dialect.lower() == "pg") else "sqlserver"
 
@@ -1179,46 +1281,60 @@ def analyze_sql_semantics(
             proj_str = proj_str[:into_match.start()] + " " + proj_str[into_match.end():]
 
         # 2. Parse multi-part table name (supports 1, 2, 3, or 4-part names for linked servers)
-        t_server, t_db, t_schema, t_tbl = split_qualified_table_name(raw_table_name)
-        clean_tbl = t_tbl.lower()
-        alias_name = clean_identifier(raw_alias).lower() if raw_alias else clean_tbl
-
-        # Determine table category and known columns
+        # Check if table is a derived table subquery: FROM (SELECT ...) [AS] alias
         known_columns: set[str] | None = None
         table_category = "table"
 
-        if clean_tbl in table_vars or (t_schema and f"{t_schema}.{clean_tbl}" in table_vars):
-            known_columns = table_vars.get(clean_tbl) or table_vars.get(f"{t_schema}.{clean_tbl}")
-            table_category = "table variable"
-        elif clean_tbl in temp_tables or (t_schema and f"{t_schema}.{clean_tbl}" in temp_tables):
-            known_columns = temp_tables.get(clean_tbl) or temp_tables.get(f"{t_schema}.{clean_tbl}")
-            table_category = "temporary table"
-        elif clean_tbl.startswith("#") or clean_tbl.startswith("temp_") or (t_schema and t_schema.lower() in ("pg_temp", "temp")):
-            # Temporary table created outside current script/procedure - query from DB session
-            known_columns = get_temp_table_columns_from_db(
-                connection_session=connection_session,
-                dialect=dialect,
-                table_name=clean_tbl,
-            )
-            table_category = "temporary table"
-            if known_columns:
-                temp_tables[clean_tbl] = known_columns
-                local_tables[clean_tbl] = known_columns
-        elif clean_tbl in ctes:
-            known_columns = ctes[clean_tbl]
-            table_category = "CTE"
+        if raw_table_name.startswith("__derived__::"):
+            _, d_alias, d_inner = raw_table_name.split("::", 2)
+            clean_tbl = d_alias.lower()
+            alias_name = clean_identifier(raw_alias).lower() if raw_alias else clean_tbl
+            known_columns = _extract_derived_columns(d_inner, local_tables, cached_tables_dict)
+            table_category = "derived table"
+            local_tables[clean_tbl] = known_columns
+            local_tables[alias_name] = known_columns
+            raw_table_name = alias_name
         else:
-            # Physical table: local, database-qualified, or linked server table
-            known_columns = get_physical_table_columns(
-                connection_session=connection_session,
-                dialect=dialect,
-                database=t_db or database,
-                schema=t_schema or schema,
-                table_name=clean_tbl,
-                cached_tables_dict=cached_tables_dict,
-                server=t_server,
-            )
-            table_category = "linked server table" if t_server else "table"
+            t_server, t_db, t_schema, t_tbl = split_qualified_table_name(raw_table_name)
+            clean_tbl = t_tbl.lower()
+            alias_name = clean_identifier(raw_alias).lower() if raw_alias else clean_tbl
+
+            if clean_tbl in table_vars or (t_schema and f"{t_schema}.{clean_tbl}" in table_vars):
+                known_columns = table_vars.get(clean_tbl) or table_vars.get(f"{t_schema}.{clean_tbl}")
+                table_category = "table variable"
+            elif clean_tbl in temp_tables or (t_schema and f"{t_schema}.{clean_tbl}" in temp_tables):
+                known_columns = temp_tables.get(clean_tbl) or temp_tables.get(f"{t_schema}.{clean_tbl}")
+                table_category = "temporary table"
+            elif clean_tbl.startswith("#") or clean_tbl.startswith("temp_") or (t_schema and t_schema.lower() in ("pg_temp", "temp")):
+                # Temporary table created outside current script/procedure - query from DB session
+                known_columns = get_temp_table_columns_from_db(
+                    connection_session=connection_session,
+                    dialect=dialect,
+                    table_name=clean_tbl,
+                )
+                table_category = "temporary table"
+                if known_columns:
+                    temp_tables[clean_tbl] = known_columns
+                    local_tables[clean_tbl] = known_columns
+            elif clean_tbl in ctes:
+                known_columns = ctes[clean_tbl]
+                table_category = "CTE"
+            else:
+                # Physical table: local, database-qualified, or linked server table
+                known_columns = get_physical_table_columns(
+                    connection_session=connection_session,
+                    dialect=dialect,
+                    database=t_db or database,
+                    schema=t_schema or schema,
+                    table_name=clean_tbl,
+                    cached_tables_dict=cached_tables_dict,
+                    server=t_server,
+                )
+                table_category = "linked server table" if t_server else "table"
+
+        if known_columns:
+            outer_table_scopes[alias_name] = known_columns
+            outer_table_scopes[clean_tbl] = known_columns
 
         # 3. If SELECT INTO created a target table, register its projected columns into temp_tables
         if into_target_clean:
@@ -1290,13 +1406,16 @@ def analyze_sql_semantics(
         # Strip JOIN table declarations and nested subqueries so inner queries are not treated as outer columns
         if rest_of_query.strip():
             rest_no_sub = strip_subqueries(rest_of_query)
+            rest_no_hints = re.sub(r"\bWITH\s*\([^)]*\)", " ", rest_no_sub, flags=re.IGNORECASE)
+            rest_no_hints = re.sub(r"\b(?:CROSS|OUTER)\s+APPLY\b", " ", rest_no_hints, flags=re.IGNORECASE)
+            rest_no_hints = re.sub(r"\)\s*(?:AS\s+)?[a-zA-Z_][a-zA-Z0-9_]*", ") ", rest_no_hints, flags=re.IGNORECASE)
             rest_for_cols = re.sub(
                 r"\b(?:INNER\s+|LEFT\s+(?:OUTER\s+)?|RIGHT\s+(?:OUTER\s+)?|FULL\s+(?:OUTER\s+)?|CROSS\s+)?JOIN\s+[#@\w\.\"\[\]]+(?:\s+(?:AS\s+)?[a-zA-Z_][a-zA-Z0-9_]*)?",
                 " ",
-                rest_no_sub,
+                rest_no_hints,
                 flags=re.IGNORECASE,
             )
-            _extract_referenced_identifiers(rest_for_cols, alias_name, clean_tbl, referenced_tokens)
+            _extract_referenced_identifiers(rest_for_cols, alias_name, clean_tbl, referenced_tokens, is_projection=False)
 
         # Collect any joined tables to avoid false positives for unqualified columns
         join_tables_known: dict[str, set[str]] = {}
@@ -1304,12 +1423,12 @@ def analyze_sql_semantics(
         has_unknown_joined_table = False
 
         if rest_of_query.strip():
-            # Match derived tables: JOIN (...) AS alias or ) AS alias ON
-            derived_on_pattern = re.compile(
-                r"\)\s*(?:AS\s+)?([a-zA-Z_][a-zA-Z0-9_]*)\s+ON\b",
+            # Match derived tables or APPLY aliases: ) AS alias or ) alias
+            derived_alias_pattern = re.compile(
+                r"\)\s*(?:AS\s+)?([a-zA-Z_][a-zA-Z0-9_]*)",
                 re.IGNORECASE,
             )
-            for dom in derived_on_pattern.finditer(rest_of_query):
+            for dom in derived_alias_pattern.finditer(rest_of_query):
                 d_alias = clean_identifier(dom.group(1)).lower()
                 unknown_table_aliases.add(d_alias)
                 has_unknown_joined_table = True
@@ -1383,6 +1502,7 @@ def analyze_sql_semantics(
             target_table_label = clean_identifier(raw_table_name)
             target_cat = table_category
 
+            is_invalid_alias = False
             if qualifier:
                 if qualifier in (alias_name, clean_tbl):
                     if "*" not in known_columns and token_clean not in known_columns:
@@ -1397,8 +1517,26 @@ def analyze_sql_semantics(
                     # Qualified with a joined table whose columns are unknown; do not report false error
                     continue
                 else:
-                    # Qualified with a table not in this query block, skip
-                    continue
+                    if qualifier in local_tables:
+                        l_cols = local_tables[qualifier]
+                        if "*" not in l_cols and token_clean not in l_cols:
+                            is_invalid = True
+                            target_table_label = qualifier
+                            target_cat = "table"
+                    elif qualifier in outer_table_scopes:
+                        o_cols = outer_table_scopes[qualifier]
+                        if "*" not in o_cols and token_clean not in o_cols:
+                            is_invalid = True
+                            target_table_label = qualifier
+                            target_cat = "table"
+                    elif qualifier in ("inserted", "deleted", "dbo", "public", (schema or "").lower(), (t_schema or "").lower()):
+                        continue
+                    elif qualifier in _SQL_RESERVED_IDENTIFIERS:
+                        continue
+                    else:
+                        # Non-existent alias (Issue S5 / SEM-FN-3)
+                        is_invalid_alias = True
+                        target_table_label = qualifier
             else:
                 if has_unknown_joined_table:
                     # Unqualified column could belong to an unknown joined table; do not report false error
@@ -1409,16 +1547,17 @@ def analyze_sql_semantics(
                 if "*" not in all_known and token_clean not in all_known:
                     is_invalid = True
 
-            if is_invalid:
+            if is_invalid or is_invalid_alias:
                 # Find line and column in target script
                 found_line = None
                 found_col = 1
-                found_end_col = 1 + len(token_clean)
+                search_token = qualifier if is_invalid_alias else token
+                found_end_col = 1 + len(search_token)
 
                 for l_idx in range(query_start_line - 1, min(len(lines), query_end_line)):
                     line_txt = lines[l_idx]
                     m_txt = masked_lines[l_idx] if l_idx < len(masked_lines) else None
-                    pos = _find_token_position_in_line(line_txt, token, m_txt)
+                    pos = _find_token_position_in_line(line_txt, search_token, m_txt)
                     if pos:
                         found_line = l_idx + 1
                         found_col, found_end_col = pos
@@ -1428,24 +1567,34 @@ def analyze_sql_semantics(
                     # Token not actually found in non-comment code lines; skip to avoid placing error on SELECT/WITH
                     continue
 
-                key = (found_line, found_col, token_clean)
+                key = (found_line, found_col, search_token.lower())
                 if key not in seen_diags:
                     seen_diags.add(key)
 
-                    if norm_dialect == "postgres":
-                        msg = f'column "{clean_identifier(token)}" does not exist in {target_cat} "{target_table_label}"'
+                    if is_invalid_alias:
+                        if norm_dialect == "postgres":
+                            msg = f'missing FROM-clause entry for table "{clean_identifier(qualifier)}"'
+                        else:
+                            msg = f'The multi-part identifier "{clean_identifier(qualifier)}.{clean_identifier(token)}" could not be bound.'
+                        code = "SQL_INVALID_ALIAS"
+                        diag_token = clean_identifier(qualifier)
                     else:
-                        msg = f"Invalid column name '{clean_identifier(token)}' in {target_cat} '{target_table_label}'."
+                        if norm_dialect == "postgres":
+                            msg = f'column "{clean_identifier(token)}" does not exist in {target_cat} "{target_table_label}"'
+                        else:
+                            msg = f"Invalid column name '{clean_identifier(token)}' in {target_cat} '{target_table_label}'."
+                        code = "SQL_INVALID_COLUMN"
+                        diag_token = clean_identifier(token)
 
                     diagnostics.append(
                         {
                             "severity": "error",
                             "message": msg,
-                            "code": "SQL_INVALID_COLUMN",
+                            "code": code,
                             "line": found_line,
                             "column": found_col,
                             "end_column": found_end_col,
-                            "token": clean_identifier(token),
+                            "token": diag_token,
                             "source": dialect,
                         }
                     )
@@ -1472,6 +1621,18 @@ def analyze_sql_semantics(
         elif i_clean_tbl.startswith("#"):
             i_known_cols = get_temp_table_columns_from_db(connection_session, dialect, i_clean_tbl)
             i_cat = "temporary table"
+        else:
+            i_server, i_db, i_schema, i_tbl_name = split_qualified_table_name(i_raw_tbl)
+            i_known_cols = get_physical_table_columns(
+                connection_session=connection_session,
+                dialect=dialect,
+                database=i_db or database,
+                schema=i_schema or schema,
+                table_name=i_tbl_name.lower(),
+                cached_tables_dict=cached_tables_dict,
+                server=i_server,
+            )
+            i_cat = "linked server table" if i_server else "table"
 
         if i_known_cols:
             i_start_line = sql[: im.start()].count("\n") + 1
@@ -1532,6 +1693,18 @@ def analyze_sql_semantics(
         elif u_clean_tbl.startswith("#"):
             u_known_cols = get_temp_table_columns_from_db(connection_session, dialect, u_clean_tbl)
             u_cat = "temporary table"
+        else:
+            u_server, u_db, u_schema, u_tbl_name = split_qualified_table_name(u_raw_tbl)
+            u_known_cols = get_physical_table_columns(
+                connection_session=connection_session,
+                dialect=dialect,
+                database=u_db or database,
+                schema=u_schema or schema,
+                table_name=u_tbl_name.lower(),
+                cached_tables_dict=cached_tables_dict,
+                server=u_server,
+            )
+            u_cat = "linked server table" if u_server else "table"
 
         if u_known_cols:
             u_start_line = sql[: um.start()].count("\n") + 1
@@ -1578,6 +1751,7 @@ def _extract_referenced_identifiers(
     table_alias: str,
     table_name: str,
     out_list: list[tuple[str, str]],
+    is_projection: bool = True,
 ) -> None:
     """
     Extract referenced column identifiers from an expression string,
@@ -1597,8 +1771,9 @@ def _extract_referenced_identifiers(
     cleaned = re.sub(r"\bAS\s+(?:\[[^\]]+\]|\"[^\"]+\"|[a-zA-Z_@#$][a-zA-Z0-9_@#$]*)\b", " ", cleaned, flags=re.IGNORECASE)
     # Remove T-SQL alias assignment: my_alias = expr
     cleaned = re.sub(r"^\s*(?:\[[^\]]+\]|\"[^\"]+\"|[a-zA-Z_@#$][a-zA-Z0-9_@#$]*)\s*=\s*", " ", cleaned)
-    # Remove trailing space-separated alias: expr my_alias
-    cleaned = re.sub(r"\s+(?:\[[^\]]+\]|\"[^\"]+\"|[a-zA-Z_@#$][a-zA-Z0-9_@#$]*)\s*$", " ", cleaned)
+    if is_projection:
+        # Remove trailing space-separated alias: expr my_alias
+        cleaned = re.sub(r"\s+(?:\[[^\]]+\]|\"[^\"]+\"|[a-zA-Z_@#$][a-zA-Z0-9_@#$]*)\s*$", " ", cleaned)
 
     # 4. Match any qualified column reference: alias.col or table.col
     qual_pattern = re.compile(

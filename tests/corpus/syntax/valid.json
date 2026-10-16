@@ -34,10 +34,10 @@
   { "id": "V-033", "dialect": "sqlserver", "sql": "SELECT CONVERT(VARCHAR(20), o.OrderDate, 120) AS FmtDate FROM dbo.Orders o;", "expect": { "diagnosticsCount": 0 } },
   { "id": "V-034", "dialect": "sqlserver", "sql": "SELECT CAST(o.Total AS INT) AS IntTotal FROM dbo.Orders o;", "expect": { "diagnosticsCount": 0 } },
 
-  { "id": "SEM-FP-1", "dialect": "sqlserver", "sql": "SELECT o.OrderID FROM dbo.Orders o WHERE EXISTS (SELECT 1 FROM dbo.OrderItems i WHERE i.OrderID = o.OrderID);", "expect": { "diagnosticsCount": 0 }, "status": "expectedFailure", "issue": "S4" },
-  { "id": "SEM-FP-2", "dialect": "sqlserver", "sql": "SELECT o.OrderID FROM dbo.Orders o WHERE NOT EXISTS (SELECT 1 FROM dbo.OrderItems i WHERE i.OrderID = o.OrderID);", "expect": { "diagnosticsCount": 0 }, "status": "expectedFailure", "issue": "S4" },
-  { "id": "SEM-FP-3", "dialect": "sqlserver", "sql": "SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY Total) OVER () AS MedianTotal FROM dbo.Orders;", "expect": { "diagnosticsCount": 0 }, "status": "expectedFailure", "issue": "S4" },
-  { "id": "SEM-FP-4", "dialect": "sqlserver", "sql": "SELECT o.OrderID FROM dbo.Orders AS o WITH (NOLOCK);", "expect": { "diagnosticsCount": 0 }, "status": "expectedFailure", "issue": "S4" },
-  { "id": "SEM-FP-5", "dialect": "sqlserver", "sql": "SELECT o.OrderID, (SELECT c.CustomerName FROM dbo.Customers c WHERE c.CustomerID = o.CustomerID) AS CustName FROM dbo.Orders o;", "expect": { "diagnosticsCount": 0 }, "status": "expectedFailure", "issue": "S4" },
-  { "id": "SEM-FP-6", "dialect": "sqlserver", "sql": "SELECT r.RegionName FROM sales.Region r;", "expect": { "diagnosticsCount": 0 }, "status": "expectedFailure", "issue": "S6" }
+  { "id": "SEM-FP-1", "dialect": "sqlserver", "sql": "SELECT o.OrderID FROM dbo.Orders o WHERE EXISTS (SELECT 1 FROM dbo.OrderItems i WHERE i.OrderID = o.OrderID);", "expect": { "diagnosticsCount": 0 } },
+  { "id": "SEM-FP-2", "dialect": "sqlserver", "sql": "SELECT o.OrderID FROM dbo.Orders o WHERE NOT EXISTS (SELECT 1 FROM dbo.OrderItems i WHERE i.OrderID = o.OrderID);", "expect": { "diagnosticsCount": 0 } },
+  { "id": "SEM-FP-3", "dialect": "sqlserver", "sql": "SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY Total) OVER () AS MedianTotal FROM dbo.Orders;", "expect": { "diagnosticsCount": 0 } },
+  { "id": "SEM-FP-4", "dialect": "sqlserver", "sql": "SELECT o.OrderID FROM dbo.Orders AS o WITH (NOLOCK);", "expect": { "diagnosticsCount": 0 } },
+  { "id": "SEM-FP-5", "dialect": "sqlserver", "sql": "SELECT o.OrderID, (SELECT c.CustomerName FROM dbo.Customers c WHERE c.CustomerID = o.CustomerID) AS CustName FROM dbo.Orders o;", "expect": { "diagnosticsCount": 0 } },
+  { "id": "SEM-FP-6", "dialect": "sqlserver", "sql": "SELECT r.RegionName FROM sales.Region r;", "expect": { "diagnosticsCount": 0 } }
 ]

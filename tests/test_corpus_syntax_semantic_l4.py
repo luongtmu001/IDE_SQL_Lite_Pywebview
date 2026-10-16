@@ -25,6 +25,7 @@ CACHED_SCHEMA_MSSQL = {
     "Region": ["RegionID", "RegionDescription", "RegionName"],
     "sales.Region": ["RegionID", "RegionDescription", "RegionName"],
     "hr.Employees": ["EmployeeID", "LastName", "FirstName", "Title"],
+    "hr.Region": ["RegionID", "ManagerID"],
 }
 
 CACHED_SCHEMA_PG = {
