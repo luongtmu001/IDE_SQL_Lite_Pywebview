@@ -1893,7 +1893,7 @@
     // ─────────────────────────────────────────────────────────────────────────────
     // 8. MAIN CONTEXT ANALYZER (analyze)
     // ─────────────────────────────────────────────────────────────────────────────
-    function analyze(fullSql, cursorIndex) {
+    function analyze(fullSql, cursorIndex, dialect = '') {
         fullSql = fullSql || "";
         cursorIndex = (cursorIndex !== undefined && cursorIndex !== null) ? cursorIndex : fullSql.length;
         const textBeforeCursor = fullSql.substring(0, cursorIndex);
@@ -2430,6 +2430,7 @@
         const selectAliases = extractSelectAliases(fullSql, statementRange, fullTokens);
 
         return {
+            dialect: dialect || '',
             fullSql,
             currentWord,
             rawToken: currentWord,

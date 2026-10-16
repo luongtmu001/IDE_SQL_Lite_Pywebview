@@ -3222,7 +3222,7 @@
         async expandStar(documentText, cursorOffset, context, tabCtx) {
             if (!context) {
                 context = (window.SqlContextAnalyzer && typeof window.SqlContextAnalyzer.analyze === 'function')
-                    ? window.SqlContextAnalyzer.analyze(documentText, cursorOffset)
+                    ? window.SqlContextAnalyzer.analyze(documentText, cursorOffset, (tabCtx && tabCtx.dbType) ? tabCtx.dbType : '')
                     : { clause: 'SELECT', queryTables: [] };
             }
             return this.generator.expandStarColumns(context, tabCtx, context.qualifier || null);
@@ -3790,12 +3790,12 @@
 
             // 3. Context, active query scope & caches
             let context = null;
+            const effectiveTabCtx = this.getTabContext(tabCtx);
             if (window.SqlContextAnalyzer && typeof window.SqlContextAnalyzer.analyze === 'function') {
-                context = window.SqlContextAnalyzer.analyze(fullSql, cursorOffset);
+                context = window.SqlContextAnalyzer.analyze(fullSql, cursorOffset, (effectiveTabCtx && effectiveTabCtx.dbType) ? effectiveTabCtx.dbType : '');
             }
             const queryTables = (context && context.queryTables) ? context.queryTables : [];
             const activeScope = (context && context.activeScope) ? context.activeScope : null;
-            const effectiveTabCtx = this.getTabContext(tabCtx);
             const cache = this.getMetadataCache();
             const dataProvider = this.getDataProvider();
 

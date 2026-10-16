@@ -1151,7 +1151,8 @@
                 const cursorOffset = adapter.getCursorOffset();
                 let context = null;
                 if (window.SqlContextAnalyzer && typeof window.SqlContextAnalyzer.analyze === 'function') {
-                    context = window.SqlContextAnalyzer.analyze(fullSql, cursorOffset);
+                    const tabCtx = this.getActiveTabContext();
+                    context = window.SqlContextAnalyzer.analyze(fullSql, cursorOffset, tabCtx ? tabCtx.dbType : '');
                 }
                 this.activeContext = context;
 
@@ -1394,8 +1395,9 @@
 
             const cursorOffset = adapter.getCursorOffset();
             const fullSql = adapter.getText();
+            const tabCtx = this.getActiveTabContext();
 
-            const context = window.SqlContextAnalyzer.analyze(fullSql, cursorOffset);
+            const context = window.SqlContextAnalyzer.analyze(fullSql, cursorOffset, tabCtx ? tabCtx.dbType : '');
             const prevQualifier = (this.activeContext && this.activeContext.qualifier) ? this.activeContext.qualifier.toLowerCase() : '';
             const currQualifier = (context && context.qualifier) ? context.qualifier.toLowerCase() : '';
             const prevStmtStart = (this.activeContext && this.activeContext.statementRange) ? this.activeContext.statementRange.start : 0;
@@ -1427,7 +1429,6 @@
                 return;
             }
 
-            const tabCtx = this.getActiveTabContext();
             await this.collectAndShowCandidates(adapter, context, tabCtx);
         }
 
