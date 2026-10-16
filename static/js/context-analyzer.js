@@ -177,26 +177,36 @@
         return null;
     }
 
+    // Memoization variables for analyze & statement boundaries (Issue I1)
+    let _lastFullSql = null;
+    let _lastFullTokens = null;
+    let _lastFullCodeTokens = null;
+    let _lastSortedBoundaries = null;
+
     // ─────────────────────────────────────────────────────────────────────────────
     // 3. STATEMENT BOUNDARY DETECTOR
     // ─────────────────────────────────────────────────────────────────────────────
     // 3. STATEMENT BOUNDARY DETECTOR (Spec Section 5.1 & T-SQL Semicolon-less Statements)
     // ─────────────────────────────────────────────────────────────────────────────
-    function detectStatementBoundary(fullSql, cursorIndex) {
+    function detectStatementBoundary(fullSql, cursorIndex, optionalTokens = null) {
         if (!fullSql) return { start: 0, end: 0, text: "" };
         const tokenizer = getTokenizer();
-        if (!tokenizer) {
+        if (!tokenizer && !optionalTokens) {
             return { start: 0, end: fullSql.length, text: fullSql };
         }
 
-        const allTokens = tokenizer.tokenize(fullSql);
-        const codeTokens = [];
-        for (let i = 0; i < allTokens.length; i++) {
-            const t = allTokens[i];
-            if (t.type !== 'WHITESPACE' && t.type !== 'COMMENT_LINE' && t.type !== 'COMMENT_BLOCK') {
-                codeTokens.push(t);
+        let sortedBoundaries = null;
+        if (fullSql === _lastFullSql && _lastSortedBoundaries) {
+            sortedBoundaries = _lastSortedBoundaries;
+        } else {
+            const allTokens = optionalTokens || (tokenizer ? tokenizer.tokenize(fullSql) : []);
+            const codeTokens = [];
+            for (let i = 0; i < allTokens.length; i++) {
+                const t = allTokens[i];
+                if (t.type !== 'WHITESPACE' && t.type !== 'COMMENT_LINE' && t.type !== 'COMMENT_BLOCK') {
+                    codeTokens.push(t);
+                }
             }
-        }
 
         const boundaries = [0];
         let parenDepth = 0;
@@ -289,7 +299,11 @@
         boundaries.push(fullSql.length);
 
         // Sort unique boundaries
-        const sortedBoundaries = [...new Set(boundaries)].sort((a, b) => a - b);
+        sortedBoundaries = [...new Set(boundaries)].sort((a, b) => a - b);
+        if (fullSql === _lastFullSql) {
+            _lastSortedBoundaries = sortedBoundaries;
+        }
+        }
 
         // Find boundary interval enclosing cursorIndex
         let start = 0;
@@ -810,11 +824,11 @@
     // ─────────────────────────────────────────────────────────────────────────────
     // 6. SCOPE, TEMP TABLES & TABLE VARIABLES EXTRACTION
     // ─────────────────────────────────────────────────────────────────────────────
-    function extractLocalTempTables(sqlText) {
+    function extractLocalTempTables(sqlText, optionalTokens = null) {
         if (!sqlText) return [];
         const tokenizer = getTokenizer();
-        if (tokenizer) {
-            const tokens = tokenizer.tokenize(sqlText);
+        if (optionalTokens || tokenizer) {
+            const tokens = optionalTokens || tokenizer.tokenize(sqlText);
             const seen = new Set();
             const result = [];
             tokens.forEach(t => {
@@ -846,11 +860,11 @@
         return result;
     }
 
-    function extractLocalTableVars(sqlText) {
+    function extractLocalTableVars(sqlText, optionalTokens = null) {
         if (!sqlText) return [];
         const tokenizer = getTokenizer();
-        if (tokenizer) {
-            const allTokens = tokenizer.tokenize(sqlText);
+        if (optionalTokens || tokenizer) {
+            const allTokens = optionalTokens || tokenizer.tokenize(sqlText);
             const codeTokens = tokenizer.filterCodeTokens(allTokens);
             const seen = new Set();
             const result = [];
@@ -893,13 +907,13 @@
     // ─────────────────────────────────────────────────────────────────────────────
     // 7. ALIAS AND QUERY TABLES RESOLVER
     // ─────────────────────────────────────────────────────────────────────────────
-    function extractAliases(sqlText) {
+    function extractAliases(sqlText, optionalTokens = null) {
         const aliasMap = {};
         if (!sqlText) return aliasMap;
 
         const tokenizer = getTokenizer();
-        if (tokenizer) {
-            const allTokens = tokenizer.tokenize(sqlText);
+        if (optionalTokens || tokenizer) {
+            const allTokens = optionalTokens || tokenizer.tokenize(sqlText);
             const codeTokens = tokenizer.filterCodeTokens(allTokens);
             const nonAliases = new Set([
                 "WHERE", "ON", "JOIN", "INNER", "LEFT", "RIGHT", "FULL", "CROSS", "OUTER",
@@ -1277,14 +1291,14 @@
         return tables;
     }
 
-    function extractSelectAliases(sqlText, statementRange = null) {
+    function extractSelectAliases(sqlText, statementRange = null, optionalTokens = null) {
         const selectAliases = [];
         if (!sqlText) return selectAliases;
 
         const tokenizer = getTokenizer();
-        if (!tokenizer) return selectAliases;
+        if (!tokenizer && !optionalTokens) return selectAliases;
 
-        const allTokens = tokenizer.tokenize(sqlText);
+        const allTokens = optionalTokens || tokenizer.tokenize(sqlText);
         const codeTokens = tokenizer.filterCodeTokens(allTokens);
 
         // Filter tokens within statementRange if provided
@@ -1750,12 +1764,23 @@
         let prefixRange = { start: cursorIndex, end: cursorIndex };
         let replacementRange = { start: cursorIndex, end: cursorIndex };
 
+        let fullTokens = null;
         let fullCodeTokens = [];
 
         if (tokenizer) {
+            if (fullSql === _lastFullSql && _lastFullTokens) {
+                fullTokens = _lastFullTokens;
+                fullCodeTokens = _lastFullCodeTokens;
+            } else {
+                fullTokens = tokenizer.tokenize(fullSql);
+                fullCodeTokens = tokenizer.filterCodeTokens(fullTokens);
+                _lastFullSql = fullSql;
+                _lastFullTokens = fullTokens;
+                _lastFullCodeTokens = fullCodeTokens;
+                _lastSortedBoundaries = null;
+            }
+
             // 0. Detect Comment / String Literal isolation (Plan Section 20, 21, 22)
-            const fullTokens = tokenizer.tokenize(fullSql);
-            fullCodeTokens = tokenizer.filterCodeTokens(fullTokens);
             for (let i = 0; i < fullTokens.length; i++) {
                 const tok = fullTokens[i];
                 if (tok.start <= cursorIndex && cursorIndex <= tok.end) {
@@ -1786,11 +1811,28 @@
             }
 
             // 1. Statement Boundary
-            stmtInfo = detectStatementBoundary(fullSql, cursorIndex);
+            stmtInfo = detectStatementBoundary(fullSql, cursorIndex, fullTokens);
             statementRange = { start: stmtInfo.start, end: stmtInfo.end };
 
-            // 2. Tokenize text up to cursor
-            const allTokens = tokenizer.tokenize(textBeforeCursor);
+            // 2. Tokenize text up to cursor (Single tokenization slicing, Issue I1)
+            const allTokens = [];
+            for (let i = 0; i < fullTokens.length; i++) {
+                const t = fullTokens[i];
+                if (t.end <= cursorIndex) {
+                    allTokens.push(t);
+                } else if (t.start < cursorIndex) {
+                    const val = fullSql.substring(t.start, cursorIndex);
+                    allTokens.push({
+                        ...t,
+                        end: cursorIndex,
+                        value: val,
+                        upper: val.toUpperCase()
+                    });
+                    break;
+                } else {
+                    break;
+                }
+            }
             const codeTokens = tokenizer.filterCodeTokens(allTokens);
 
             // 3. Current token and dot-qualifier
@@ -2059,8 +2101,8 @@
         }
 
         // 9. Local script objects & table aliases
-        let localTempTables = extractLocalTempTables(fullSql);
-        let localTableVars = extractLocalTableVars(fullSql);
+        let localTempTables = extractLocalTempTables(fullSql, fullTokens);
+        let localTableVars = extractLocalTableVars(fullSql, fullTokens);
         let localVariables = [];
         let ctes = [];
         let aliasMap = {};
@@ -2164,7 +2206,7 @@
             }
         }
 
-        const selectAliases = extractSelectAliases(fullSql, statementRange);
+        const selectAliases = extractSelectAliases(fullSql, statementRange, fullTokens);
 
         return {
             fullSql,
