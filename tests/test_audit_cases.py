@@ -70,7 +70,7 @@ def test_baseline_pg_kw_plpgsql_in_dialect():
     data = json.loads(res.stdout)
 
     print(f"\n[BASELINE] Present PL/pgSQL in dialect: {data['present']}, Missing: {data['missing']}")
-    # This documents the baseline: currently missing is not empty
+    assert len(data['missing']) == 0, f"Expected all required PL/pgSQL keywords to be present, missing: {data['missing']}"
 
 
 # ==============================================================================
@@ -85,6 +85,7 @@ def test_baseline_pg_highlight_in_monaco():
     required = ['"PERFORM"', '"RAISE"', '"ELSIF"', '"FOREACH"', '"EXCEPTION"']
     missing = [k for k in required if k not in content]
     print(f"\n[BASELINE] Missing in Monaco Monarch tokenizer: {missing}")
+    assert len(missing) == 0, f"Expected PL/pgSQL keywords in Monaco Monarch tokenizer, missing: {missing}"
 
 
 # ==============================================================================
@@ -119,6 +120,9 @@ def test_baseline_mssql_catch_block_context():
     assert res.returncode == 0, f"Node execution failed: {res.stderr}"
     data = json.loads(res.stdout)
     print(f"\n[BASELINE] CATCH context: {data}")
+    assert data["isInCatchBlock"] is True, "Must detect CATCH block context"
+    assert data["hasErrorMessage"] is True, "Must suggest ERROR_MESSAGE in CATCH block"
+    assert data["hasThrow"] is True, "Must suggest THROW in CATCH block"
 
 
 # ==============================================================================
@@ -146,3 +150,4 @@ def test_baseline_pg_fn_missing_end():
     pipe_has_err = any(d.get("severity") in ("error", "critical", 1, 8) for d in pipe_diags)
 
     print(f"\n[BASELINE] PG offline: legacy_has_err: {legacy_has_err}, pipe_has_err: {pipe_has_err}")
+    assert pipe_has_err is True, "Pipeline offline validator must catch missing END IF in PL/pgSQL function"
