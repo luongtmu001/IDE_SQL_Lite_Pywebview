@@ -1037,6 +1037,12 @@
                 totalCount: unique.length,
                 limit: maxLimit
             };
+            if (items.hasError) {
+                sliced.hasError = true;
+            }
+            if (items.meta && items.meta.errors) {
+                sliced.meta.errors = items.meta.errors;
+            }
             return sliced;
         }
     }
@@ -1465,6 +1471,7 @@
 
         async generate(context, tabCtx, wordLower = '') {
             const allCandidates = [];
+            const metadataErrors = [];
 
             // ─────────────────────────────────────────────────────────────────────────
             // 0a. Data Type Context (Issue I3 - Section 11, Spec Phase 4)
@@ -1516,6 +1523,11 @@
                     });
                 });
 
+                if (metadataErrors.length > 0) {
+                    allCandidates.hasError = true;
+                    allCandidates.meta = allCandidates.meta || {};
+                    allCandidates.meta.errors = metadataErrors;
+                }
                 return allCandidates;
             }
 
@@ -2305,10 +2317,19 @@
                             if (this.metadataCache && typeof this.metadataCache.getColumns === 'function') {
                                 fetchedCols = this.metadataCache.getColumns(tabCtx.connectionId, targetDatabase, uSchema, uTbl.table);
                             }
-                            if (!fetchedCols && this.dataProvider && typeof this.dataProvider.fetchColumns === 'function') {
-                                fetchedCols = await this.dataProvider.fetchColumns(tabCtx.connectionId, targetDatabase, uSchema, uTbl.table);
-                            } else if (!fetchedCols && this.dataProvider && typeof this.dataProvider.getColumns === 'function') {
-                                fetchedCols = await this.dataProvider.getColumns(tabCtx.connectionId, targetDatabase, uSchema, uTbl.table);
+                            if (!fetchedCols && this.dataProvider) {
+                                try {
+                                    if (typeof this.dataProvider.fetchColumns === 'function') {
+                                        fetchedCols = await this.dataProvider.fetchColumns(tabCtx.connectionId, targetDatabase, uSchema, uTbl.table);
+                                    } else if (typeof this.dataProvider.getColumns === 'function') {
+                                        fetchedCols = await this.dataProvider.getColumns(tabCtx.connectionId, targetDatabase, uSchema, uTbl.table);
+                                    }
+                                    if (fetchedCols && (fetchedCols.hasError || fetchedCols.error)) {
+                                        metadataErrors.push(fetchedCols.error || new Error(`Error fetching columns for ${uTbl.table}`));
+                                    }
+                                } catch (err) {
+                                    metadataErrors.push(err);
+                                }
                             }
                         }
                         if (fetchedCols && Array.isArray(fetchedCols)) {
@@ -2338,7 +2359,15 @@
                 // C. If qualifier is schema (e.g. dbo.), fetch objects in that schema
                 if (tabCtx.connectionId && !isKnownAlias && !isLocalSymbol && this.dataProvider && typeof this.dataProvider.fetchObjects === 'function') {
                     const isExecContext = Boolean(isStrictExec || context.clause === 'EXEC' || context.clause === 'EXECUTE' || (context.execContext && context.execContext.isExec));
-                    const dbObjects = await this.dataProvider.fetchObjects(tabCtx.connectionId, tabCtx.database, context.qualifier);
+                    let dbObjects = null;
+                    try {
+                        dbObjects = await this.dataProvider.fetchObjects(tabCtx.connectionId, tabCtx.database, context.qualifier);
+                        if (dbObjects && (dbObjects.hasError || dbObjects.error)) {
+                            metadataErrors.push(dbObjects.error || new Error(`Error fetching objects for schema ${context.qualifier}`));
+                        }
+                    } catch (err) {
+                        metadataErrors.push(err);
+                    }
                     (dbObjects || []).forEach(obj => {
                         if (isExecContext) {
                             // Apply procedure filter in EXEC context (Issue I7)
@@ -2434,12 +2463,19 @@
                         schemas = this.metadataCache.getSchemas(tabCtx.connectionId, tabCtx.database);
                     }
                     if (!schemas && this.dataProvider) {
-                        if (typeof this.dataProvider.getSchemas === 'function') {
-                            schemas = await this.dataProvider.getSchemas(tabCtx.connectionId, tabCtx.database);
-                        } else if (typeof this.dataProvider.fetchSchemas === 'function') {
-                            schemas = await this.dataProvider.fetchSchemas(tabCtx.connectionId, tabCtx.database);
+                        try {
+                            if (typeof this.dataProvider.getSchemas === 'function') {
+                                schemas = await this.dataProvider.getSchemas(tabCtx.connectionId, tabCtx.database);
+                            } else if (typeof this.dataProvider.fetchSchemas === 'function') {
+                                schemas = await this.dataProvider.fetchSchemas(tabCtx.connectionId, tabCtx.database);
+                            }
+                            if (schemas && (schemas.hasError || schemas.error)) {
+                                metadataErrors.push(schemas.error || new Error('Error fetching schemas'));
+                            }
+                        } catch (err) {
+                            metadataErrors.push(err);
                         }
-                        if (schemas && this.metadataCache && typeof this.metadataCache.setSchemas === 'function') {
+                        if (schemas && !schemas.hasError && this.metadataCache && typeof this.metadataCache.setSchemas === 'function') {
                             this.metadataCache.setSchemas(tabCtx.connectionId, tabCtx.database, schemas);
                         }
                     }
@@ -2510,7 +2546,21 @@
                 }
 
                 // No qualifier: Fetch database objects for active schema
-                const dbObjects = await this.dataProvider.fetchObjects(tabCtx.connectionId, tabCtx.database, tabCtx.schema);
+                let dbObjects = null;
+                try {
+                    dbObjects = await this.dataProvider.fetchObjects(tabCtx.connectionId, tabCtx.database, tabCtx.schema);
+                    if (dbObjects && (dbObjects.hasError || dbObjects.error)) {
+                        metadataErrors.push(dbObjects.error || new Error('Error fetching database objects'));
+                    }
+                } catch (err) {
+                    metadataErrors.push(err);
+                }
+                if (this.dataProvider && typeof this.dataProvider.getLastError === 'function') {
+                    const lastErr = this.dataProvider.getLastError();
+                    if (lastErr && !metadataErrors.includes(lastErr)) {
+                        metadataErrors.push(lastErr);
+                    }
+                }
                 const seenTableNames = new Set();
 
                 (dbObjects || []).forEach(obj => {
@@ -2571,6 +2621,12 @@
                         }
                     });
                 }
+            }
+
+            if (metadataErrors.length > 0) {
+                allCandidates.hasError = true;
+                allCandidates.meta = allCandidates.meta || {};
+                allCandidates.meta.errors = metadataErrors;
             }
 
             return allCandidates;
@@ -3144,13 +3200,19 @@
                 ranked.rawCandidates = rawCandidates;
                 ranked.replacementRange = context.replacementRange || null;
                 ranked.prefixRange = context.prefixRange || null;
+                if (rawCandidates && rawCandidates.hasError) {
+                    ranked.hasError = true;
+                    ranked.meta = ranked.meta || {};
+                    ranked.meta.errors = rawCandidates.meta ? rawCandidates.meta.errors : [];
+                }
                 if (ranked.meta) {
                     ranked.isTruncated = Boolean(ranked.meta.truncated);
                 }
             }
 
-            // Step 4: Level 3 Memoization Store
-            if (this.metadataCache && typeof this.metadataCache.setCompletions === 'function' && ranked.length > 0) {
+            // Step 4: Level 3 Memoization Store (Do not cache if there were metadata errors)
+            const hasErrors = Boolean(ranked && (ranked.hasError || (ranked.meta && ranked.meta.errors && ranked.meta.errors.length > 0)));
+            if (!hasErrors && this.metadataCache && typeof this.metadataCache.setCompletions === 'function' && ranked && ranked.length > 0) {
                 this.metadataCache.setCompletions(tabCtx.connectionId, tabCtx.database, tabCtx.schema, scopeKey, wordLower, ranked);
             }
 

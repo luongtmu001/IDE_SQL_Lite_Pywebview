@@ -669,13 +669,14 @@
             });
         }
 
-        render(candidates, cursorCoords, tabCtx, dataProvider) {
-            if (!this.popup || !candidates || candidates.length === 0) {
+        render(candidates, cursorCoords, tabCtx, dataProvider, errorInfo = null) {
+            const hasError = Boolean((candidates && candidates.hasError) || (candidates && candidates.meta && candidates.meta.errors && candidates.meta.errors.length > 0) || errorInfo);
+            if (!this.popup || (!hasError && (!candidates || candidates.length === 0))) {
                 this.hide();
                 return;
             }
 
-            this.candidates = candidates;
+            this.candidates = candidates || [];
 
             if (this.popupHasBeenDragged && this.isVisible) {
                 // User manually dragged popup; preserve chosen position
@@ -703,6 +704,31 @@
 
             // Render list
             this.listEl.innerHTML = '';
+
+            // Issue I12: Hiển thị cảnh báo lỗi metadata kèm nút thử lại
+            if (hasError) {
+                const errorBanner = document.createElement('div');
+                errorBanner.className = 'ide-intellisense-error-banner p-1 px-2 text-danger small bg-danger-subtle border-bottom d-flex align-items-center justify-content-between';
+                errorBanner.innerHTML = `
+                    <span><i class="fa-solid fa-triangle-exclamation me-1"></i>Không tải được metadata</span>
+                    <button type="button" class="btn btn-xs btn-outline-danger py-0 px-1 btn-retry-metadata" style="font-size: 11px; cursor: pointer;">Thử lại</button>
+                `;
+                const retryBtn = errorBanner.querySelector('.btn-retry-metadata');
+                if (retryBtn) {
+                    retryBtn.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (window.AppMetadataCache && typeof window.AppMetadataCache.clearConnection === 'function' && tabCtx && tabCtx.connectionId) {
+                            window.AppMetadataCache.clearConnection(tabCtx.connectionId);
+                        }
+                        if (typeof this.onRetryMetadata === 'function') {
+                            this.onRetryMetadata();
+                        }
+                    });
+                }
+                this.listEl.appendChild(errorBanner);
+            }
+
             this.candidates.forEach((cand, idx) => {
                 const row = document.createElement('div');
                 row.className = `ide-intellisense-item ${cand.type === 'keyword' ? 'is-keyword' : ''}`;
@@ -1416,7 +1442,16 @@
                 if (requestId !== this._currentRequestId) {
                     return; // Dropped stale response
                 }
+                this.popupUI.onRetryMetadata = () => {
+                    this.requestCompletion(adapter, true);
+                };
+
                 if (!ranked || ranked.length === 0) {
+                    if (ranked && (ranked.hasError || (ranked.meta && ranked.meta.errors && ranked.meta.errors.length > 0))) {
+                        const cursorCoords = adapter.getCursorCoordinates();
+                        this.popupUI.render([], cursorCoords, tabCtx, this.dataProvider, ranked);
+                        return;
+                    }
                     this.hidePopup();
                     return;
                 }

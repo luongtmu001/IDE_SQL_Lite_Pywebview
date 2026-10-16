@@ -84,16 +84,34 @@
     class ProjectMetadataAdapter extends MetadataProvider {
         constructor(dbType = 'generic') {
             super(dbType);
+            this._lastError = null;
+        }
+
+        getLastError() {
+            return this._lastError;
+        }
+
+        clearLastError() {
+            this._lastError = null;
         }
 
         async _fetchJson(url) {
             try {
+                this._lastError = null;
                 const res = await fetch(url);
-                if (!res.ok) return null;
+                if (!res.ok) {
+                    this._lastError = new Error(`HTTP ${res.status}: ${res.statusText}`);
+                    return null;
+                }
                 const data = await res.json();
-                return data && data.success ? data : null;
+                if (data && data.success) {
+                    return data;
+                }
+                this._lastError = new Error((data && data.error) ? data.error : 'Metadata request unsuccessful');
+                return null;
             } catch (err) {
                 console.warn(`[MetadataAdapter] Error fetching ${url}:`, err);
+                this._lastError = err;
                 return null;
             }
         }
@@ -101,6 +119,12 @@
         async getDatabases(connectionId) {
             if (!connectionId) return [];
             const data = await this._fetchJson(`/api/metadata/${connectionId}/databases`);
+            if (!data && this._lastError) {
+                const errResult = [];
+                errResult.hasError = true;
+                errResult.error = this._lastError;
+                return errResult;
+            }
             return data && Array.isArray(data.databases) ? data.databases : [];
         }
 
@@ -108,6 +132,12 @@
             if (!connectionId) return [];
             const q = database ? `?database=${encodeURIComponent(database)}` : '';
             const data = await this._fetchJson(`/api/metadata/${connectionId}/schemas${q}`);
+            if (!data && this._lastError) {
+                const errResult = [];
+                errResult.hasError = true;
+                errResult.error = this._lastError;
+                return errResult;
+            }
             return data && Array.isArray(data.schemas) ? data.schemas : [];
         }
 
@@ -118,6 +148,12 @@
             if (schema) params.append('schema', schema);
             const q = params.toString() ? `?${params.toString()}` : '';
             const data = await this._fetchJson(`/api/metadata/${connectionId}/intellisense/objects${q}`);
+            if (!data && this._lastError) {
+                const errResult = [];
+                errResult.hasError = true;
+                errResult.error = this._lastError;
+                return errResult;
+            }
             return data && Array.isArray(data.items) ? data.items : [];
         }
 
@@ -129,6 +165,12 @@
             params.append('table', table);
             const q = `?${params.toString()}`;
             const data = await this._fetchJson(`/api/metadata/${connectionId}/intellisense/columns${q}`);
+            if (!data && this._lastError) {
+                const errResult = [];
+                errResult.hasError = true;
+                errResult.error = this._lastError;
+                return errResult;
+            }
             return data && Array.isArray(data.items) ? data.items : [];
         }
 

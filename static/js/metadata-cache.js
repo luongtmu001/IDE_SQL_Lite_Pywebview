@@ -270,7 +270,15 @@
             return null;
         }
 
+        static _isValidMetadataPayload(data) {
+            if (data === null || data === undefined) return false;
+            if (data.hasError || data.error || data.isError) return false;
+            if (Array.isArray(data) && data.length === 0 && (data.hasError || data.error || data.isError)) return false;
+            return true;
+        }
+
         setDatabases(connectionId, databases, ttlMs = this.defaultTTL) {
+            if (!AppMetadataCache._isValidMetadataPayload(databases)) return;
             const key = String(connectionId || '');
             this.databasesTier.set(key, databases, ttlMs);
         }
@@ -288,6 +296,7 @@
         }
 
         setSchemas(connectionId, database, schemas, ttlMs = this.defaultTTL) {
+            if (!AppMetadataCache._isValidMetadataPayload(schemas)) return;
             const key = this._buildKey(connectionId, database);
             this.schemasTier.set(key, schemas, ttlMs);
         }
@@ -305,6 +314,7 @@
         }
 
         setObjects(connectionId, database, schema, objects, ttlMs = this.objectsTTL) {
+            if (!AppMetadataCache._isValidMetadataPayload(objects)) return;
             const key = this._buildKey(connectionId, database, schema);
             this.objectsTier.set(key, objects, ttlMs);
         }
@@ -327,6 +337,7 @@
         }
 
         setColumns(connectionId, database, schema, table, columns, server = null, ttlMs = this.columnsTTL) {
+            if (!AppMetadataCache._isValidMetadataPayload(columns)) return;
             const key = server
                 ? this._buildKey(connectionId, server, database, schema, table)
                 : this._buildKey(connectionId, database, schema, table);
@@ -523,6 +534,8 @@
         }
 
         setCompletions(connectionId, database, schema, scopeKey, prefix, candidates, ttlMs = this.completionTTL) {
+            if (!AppMetadataCache._isValidMetadataPayload(candidates)) return;
+            if (candidates && (candidates.hasError || (candidates.meta && candidates.meta.errors && candidates.meta.errors.length > 0))) return;
             const key = this._buildKey(connectionId, database, schema, scopeKey, prefix);
             this.completionsTier.set(key, candidates, ttlMs);
         }
