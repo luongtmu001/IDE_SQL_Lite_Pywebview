@@ -1747,6 +1747,9 @@
         let triggerChar = "";
         let previousToken = "";
         let previousTokens = [];
+        let isPrecedingOperator = false;
+        let precedingOperator = null;
+        let onLeftOperand = null;
         let clause = "";
         let alterContext = { isAlter: false, action: "", alterType: "" };
         let execContext = { isExec: false, procedureName: "", procedureSchema: "", isParameterPosition: false };
@@ -1957,6 +1960,40 @@
             if (nonPunct.length > 0) {
                 previousTokens = nonPunct.slice(-3).map(t => (t.upper || t.value).toUpperCase());
                 previousToken = previousTokens[previousTokens.length - 1];
+            }
+
+            // 4b. Preceding operator & ON clause left-hand operand detection (Issue I6)
+            if (codeTokens.length > 0) {
+                let lastIdx = codeTokens.length - 1;
+                if (currentWord && codeTokens[lastIdx].value === currentWord) {
+                    lastIdx--;
+                }
+                if (lastIdx >= 0) {
+                    const lastCode = codeTokens[lastIdx];
+                    if (lastCode.type === 'OPERATOR') {
+                        isPrecedingOperator = true;
+                        precedingOperator = lastCode.value;
+
+                        if (precedingOperator === '=' && lastIdx > 0) {
+                            let opCol = '';
+                            let opTable = '';
+                            let p = lastIdx - 1;
+                            if (p >= 0 && (codeTokens[p].type === 'IDENTIFIER' || codeTokens[p].type === 'KEYWORD')) {
+                                opCol = cleanIdentifier(codeTokens[p].value);
+                                p--;
+                                if (p >= 0 && codeTokens[p].value === '.') {
+                                    p--;
+                                    if (p >= 0 && (codeTokens[p].type === 'IDENTIFIER' || codeTokens[p].type === 'KEYWORD')) {
+                                        opTable = cleanIdentifier(codeTokens[p].value);
+                                    }
+                                }
+                            }
+                            if (opCol) {
+                                onLeftOperand = { tableOrAlias: opTable, column: opCol };
+                            }
+                        }
+                    }
+                }
             }
 
             // 5. Clause Detection
@@ -2227,6 +2264,9 @@
             contextType,
             previousToken,
             previousTokens,
+            isPrecedingOperator,
+            precedingOperator,
+            onLeftOperand,
             hasFollowUp,
             followUpKeywords,
             aliasMap,

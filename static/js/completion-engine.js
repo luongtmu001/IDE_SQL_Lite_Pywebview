@@ -1640,6 +1640,16 @@
                         const alreadySet = new Set((context.alreadyListed || []).map(s => s.toLowerCase()));
 
                         for (const tbl of context.queryTables) {
+                            // In JOIN ON after '=': only suggest columns of the remaining table(s) (Issue I6)
+                            if (context.clause === 'ON' && context.precedingOperator === '=' && context.onLeftOperand && context.onLeftOperand.tableOrAlias) {
+                                const leftRef = context.onLeftOperand.tableOrAlias.toLowerCase();
+                                const tblName = (tbl.table || '').toLowerCase();
+                                const tblAlias = (tbl.alias || '').toLowerCase();
+                                if (tblAlias === leftRef || tblName === leftRef) {
+                                    continue; // Skip the table that is already on the left of =
+                                }
+                            }
+
                             // In UPDATE SET target column position (left side of =):
                             // ONLY suggest columns from target table (physical, temp table, table variable, or alias)
                             if (isUpdateSet && context.targetTable && context.targetTable.table) {
@@ -1770,12 +1780,19 @@
                                             return;
                                         }
 
+                                        let colLevel = isInsertCols ? 0.9 : 1.1;
+                                        if (context.clause === 'ON' && context.precedingOperator === '=' && context.onLeftOperand && context.onLeftOperand.column) {
+                                            if (colLower === context.onLeftOperand.column.toLowerCase()) {
+                                                colLevel = 0.7; // Prioritize FK/name matching column
+                                            }
+                                        }
+
                                         allCandidates.push({
                                             name: colName,
                                             label: colName,
                                             type: c.is_pk ? 'pk_column' : 'column',
                                             kind: 'column',
-                                            level: isInsertCols ? 0.9 : 1.1,
+                                            level: colLevel,
                                             displayType: 'Column',
                                             dataType: c.data_type || '',
                                             tableName: tbl.table,
@@ -1797,9 +1814,11 @@
                     }
                 }
 
-                // Phase 5: Gợi ý ON dựa trên Foreign Key & Heuristic fallback (Spec 11.4)
+                // Phase 5: Gợi ý ON dựa trên Foreign Key & Heuristic fallback (Spec 11.4, Issue I6)
                 if (context.clause === 'ON' && tabCtx.connectionId) {
-                    await this._generateJoinOnCandidates(allCandidates, context, tabCtx);
+                    if (!context.isPrecedingOperator) {
+                        await this._generateJoinOnCandidates(allCandidates, context, tabCtx);
+                    }
                 }
 
                 // F. Data Types
