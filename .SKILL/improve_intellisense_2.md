@@ -157,23 +157,23 @@ Mỗi giai đoạn: một nhánh git; mỗi thay đổi hành vi một commit k�
 
 ### Giai đoạn 3 – IntelliSense: hiệu năng và lỗi cục bộ (5–6 ngày)
 
-- [ ] I1: token hóa một lần trong `analyze`, truyền `tokens` tùy chọn xuống các hàm con; nhớ kết quả theo chuỗi gần nhất; kết quả `analyze` phải giống hệt trên corpus.
-- [ ] I2: `currentWord` rỗng khi token cuối là dấu câu hoặc toán tử.
-- [ ] I4a: `isValues` chỉ khi con trỏ trong `VALUES (…)`; ưu tiên `RETURNING`/`OUTPUT` khi ngoài ngoặc.
-- [ ] I6: điều kiện JOIN đầy đủ chỉ khi token liền trước không phải toán tử.
-- [ ] I7: bộ lọc `procedure` cho nhánh qualifier là schema trong ngữ cảnh `EXEC`.
-- [ ] I9: khóa cache thêm băm văn bản câu lệnh và chữ ký `aliasMap`; `replacementRange` gắn theo từng lần gọi.
+- [x] I1: token hóa một lần trong `analyze`, truyền `tokens` tùy chọn xuống các hàm con; nhớ kết quả theo chuỗi gần nhất; kết quả `analyze` phải giống hệt trên corpus.
+- [x] I2: `currentWord` rỗng khi token cuối là dấu câu hoặc toán tử.
+- [x] I4a: `isValues` chỉ khi con trỏ trong `VALUES (…)`; ưu tiên `RETURNING`/`OUTPUT` khi ngoài ngoặc.
+- [x] I6: điều kiện JOIN đầy đủ chỉ khi token liền trước không phải toán tử.
+- [x] I7: bộ lọc `procedure` cho nhánh qualifier là schema trong ngữ cảnh `EXEC`.
+- [x] I9: khóa cache thêm băm văn bản câu lệnh và chữ ký `aliasMap`; `replacementRange` gắn theo từng lần gọi.
 
-**Cổng**: INS-1, RET-1, ON-1, EXEC-1, ALIAS-1, PERF-1 xanh; snapshot «đã làm tốt» không đổi; L8 vẫn 0 exception.
+**Cổng**: INS-1, RET-1, ON-1, EXEC-1, ALIAS-1, PERF-1 xanh; snapshot «đã làm tốt» không đổi; L8 vẫn 0 exception. [ĐÃ ĐẠT]
 
 ### Giai đoạn 4 – IntelliSense: ngữ cảnh mới (6–8 ngày)
 
-- [ ] I3: `DATA_TYPE` và `isDataTypePosition`; generator chỉ trả kiểu ở vị trí này; bỏ việc thêm kiểu ở mọi vị trí chung; ranker cộng điểm `data_type`.
-- [ ] I5: ứng viên `schema` từ `MetadataProvider.getSchemas`; tùy chọn `intellisense.crossSchema` (mặc định tắt).
-- [ ] I8: nâng trần cho danh sách cột của một đối tượng (\~500), gắn `meta.truncated`.
-- [ ] I12: `meta.errors`; không cache kết quả rỗng do lỗi; hiện trạng thái «Không tải được metadata».
+- [x] I3: `DATA_TYPE` và `isDataTypePosition`; generator chỉ trả kiểu ở vị trí này; bỏ việc thêm kiểu ở mọi vị trí chung; ranker cộng điểm `data_type`.
+- [x] I5: ứng viên `schema` từ `MetadataProvider.getSchemas`; tùy chọn `intellisense.crossSchema` (mặc định tắt).
+- [x] I8: nâng trần cho danh sách cột của một đối tượng (~500/1000), gắn `meta.truncated`.
+- [x] I12: `meta.errors`; không cache kết quả rỗng do lỗi; hiện trạng thái «Không tải được metadata».
 
-**Cổng**: CAST-1, DECL-1, INS-2, PG-CAST, SCH-1, WIDE-1 xanh; L13 các mục liên quan.
+**Cổng**: CAST-1, DECL-1, INS-2, PG-CAST, SCH-1, WIDE-1 xanh; L13 các mục liên quan. [ĐÃ ĐẠT]
 
 ### Giai đoạn 5 – Câu lệnh nâng cao, dialect, nối pipeline (6–7 ngày)
 
