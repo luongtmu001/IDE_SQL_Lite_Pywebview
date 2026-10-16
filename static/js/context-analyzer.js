@@ -25,6 +25,7 @@
         ORDER_COLUMN: "order_column",
         GROUP_COLUMN: "group_column",
         ALTER_OBJECT: "alter_object",
+        DATA_TYPE: "data_type",
         UNKNOWN: "unknown"
     };
 
@@ -1738,6 +1739,149 @@
     }
 
     // ─────────────────────────────────────────────────────────────────────────────
+    // 7b. DATA TYPE CONTEXT DETECTION (Issue I3)
+    // ─────────────────────────────────────────────────────────────────────────────
+    function detectDataTypeContext(codeTokens, currentWord, fullCodeTokens, cursorIndex) {
+        if (!codeTokens || codeTokens.length === 0) {
+            return { isDataTypePosition: false, dataTypeTarget: null };
+        }
+
+        let lastIdx = codeTokens.length - 1;
+        if (lastIdx >= 0 && currentWord && codeTokens[lastIdx].value === currentWord) {
+            lastIdx--;
+        }
+
+        if (lastIdx < 0) {
+            return { isDataTypePosition: false, dataTypeTarget: null };
+        }
+
+        const lastTok = codeTokens[lastIdx];
+        const lastUpper = (lastTok.upper || lastTok.value || '').toUpperCase();
+        const lastVal = lastTok.value || '';
+
+        // Rule 1: After '::' (PostgreSQL cast operator, e.g. SELECT id::‸ or id::int‸)
+        if (lastVal === '::' || (lastTok.type === 'OPERATOR' && lastVal === '::')) {
+            return { isDataTypePosition: true, dataTypeTarget: 'PG_CAST' };
+        }
+
+        // Rule 2: After 'AS' inside CAST( / TRY_CAST( (e.g. SELECT CAST(OrderID AS ‸) FROM dbo.Orders)
+        if (lastUpper === 'AS') {
+            let depth = 0;
+            for (let p = lastIdx - 1; p >= 0; p--) {
+                const tok = codeTokens[p];
+                if (tok.value === ')') {
+                    depth++;
+                } else if (tok.value === '(') {
+                    depth--;
+                    if (depth < 0) {
+                        if (p > 0) {
+                            const fnName = (codeTokens[p - 1].upper || codeTokens[p - 1].value || '').toUpperCase();
+                            if (fnName === 'CAST' || fnName === 'TRY_CAST') {
+                                return { isDataTypePosition: true, dataTypeTarget: 'CAST' };
+                            }
+                        }
+                        break;
+                    }
+                }
+            }
+        }
+
+        // Rule 3: First argument of CONVERT( / TRY_CONVERT( (e.g. SELECT CONVERT(‸, OrderID) FROM dbo.Orders)
+        let depth = 0;
+        let commaCount = 0;
+        for (let p = lastIdx; p >= 0; p--) {
+            const tok = codeTokens[p];
+            if (tok.value === ')') {
+                depth++;
+            } else if (tok.value === ',') {
+                if (depth === 0) commaCount++;
+            } else if (tok.value === '(') {
+                if (depth === 0) {
+                    if (p > 0) {
+                        const fnName = (codeTokens[p - 1].upper || codeTokens[p - 1].value || '').toUpperCase();
+                        if ((fnName === 'CONVERT' || fnName === 'TRY_CONVERT') && commaCount === 0) {
+                            return { isDataTypePosition: true, dataTypeTarget: 'CONVERT' };
+                        }
+                    }
+                    break;
+                } else {
+                    depth--;
+                }
+            }
+        }
+
+        // Rule 4: After DECLARE @x [AS] (e.g. DECLARE @x ‸) or CREATE PROC/FUNC (@p ‸
+        let checkIdx = lastIdx;
+        if (lastUpper === 'AS' && checkIdx > 0) {
+            checkIdx--;
+        }
+        const targetTok = codeTokens[checkIdx];
+        if (targetTok && (targetTok.type === 'PARAMETER' || (targetTok.value && targetTok.value.startsWith('@')))) {
+            let inDeclare = false;
+            let dDepth = 0;
+            for (let p = checkIdx - 1; p >= 0; p--) {
+                const tok = codeTokens[p];
+                if (tok.value === ')') dDepth++;
+                else if (tok.value === '(') dDepth--;
+                else if (dDepth === 0) {
+                    const u = (tok.upper || tok.value || '').toUpperCase();
+                    if (u === ';' || u === 'GO' || u === 'BEGIN') break;
+                    if (u === 'DECLARE') {
+                        inDeclare = true;
+                        break;
+                    }
+                    if (u === 'PROCEDURE' || u === 'PROC' || u === 'FUNCTION') {
+                        return { isDataTypePosition: true, dataTypeTarget: 'ROUTINE_PARAM' };
+                    }
+                }
+            }
+            if (inDeclare) {
+                return { isDataTypePosition: true, dataTypeTarget: 'DECLARE' };
+            }
+        }
+
+        // Rule 6: After RETURNS (e.g. CREATE FUNCTION fn() RETURNS ‸)
+        if (lastUpper === 'RETURNS') {
+            return { isDataTypePosition: true, dataTypeTarget: 'RETURNS' };
+        }
+
+        // Rule 5: Column definition in CREATE TABLE (...), @t TABLE (...), or ALTER TABLE ... ADD col ‸
+        if (lastTok.type === 'IDENTIFIER' || lastTok.type === 'KEYWORD') {
+            const nonColWords = new Set(['CONSTRAINT', 'PRIMARY', 'FOREIGN', 'CHECK', 'UNIQUE', 'KEY', 'INDEX', 'DEFAULT', 'NULL', 'NOT', 'AS', 'SET', 'WHERE', 'AND', 'OR', 'SELECT', 'FROM']);
+            if (!nonColWords.has(lastUpper)) {
+                if (lastIdx > 0) {
+                    const prevTok = codeTokens[lastIdx - 1];
+                    const prevUp = (prevTok.upper || prevTok.value || '').toUpperCase();
+                    if (prevUp === 'ADD' || prevUp === 'COLUMN') {
+                        return { isDataTypePosition: true, dataTypeTarget: 'TABLE_COLUMN' };
+                    }
+                    if (prevTok.value === '(' || prevTok.value === ',') {
+                        let tDepth = 0;
+                        for (let p = lastIdx - 1; p >= 0; p--) {
+                            const tok = codeTokens[p];
+                            if (tok.value === ')') tDepth++;
+                            else if (tok.value === '(') {
+                                tDepth--;
+                                if (tDepth < 0) {
+                                    if (p > 0) {
+                                        const pWord = (codeTokens[p - 1].upper || codeTokens[p - 1].value || '').toUpperCase();
+                                        if (pWord === 'TABLE' || (p > 1 && (codeTokens[p - 2].upper || codeTokens[p - 2].value || '').toUpperCase() === 'TABLE')) {
+                                            return { isDataTypePosition: true, dataTypeTarget: 'TABLE_COLUMN' };
+                                        }
+                                    }
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        return { isDataTypePosition: false, dataTypeTarget: null };
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────────
     // 8. MAIN CONTEXT ANALYZER (analyze)
     // ─────────────────────────────────────────────────────────────────────────────
     function analyze(fullSql, cursorIndex) {
@@ -1761,6 +1905,7 @@
         let alterContext = { isAlter: false, action: "", alterType: "" };
         let execContext = { isExec: false, procedureName: "", procedureSchema: "", isParameterPosition: false };
         let routineContext = { isInRoutine: false, isRoutineBody: false, routineType: "", routineName: "" };
+        let dataTypeContext = { isDataTypePosition: false, dataTypeTarget: null };
         let statementRange = { start: 0, end: fullSql.length };
         let stmtInfo = { start: 0, end: fullSql.length, text: fullSql };
         let isInsideComment = false;
@@ -2006,10 +2151,11 @@
             // 5. Clause Detection
             clause = detectClauseFromTokens(codeTokens, cursorIndex, statementRange.start);
 
-            // 6. ALTER, EXEC & ROUTINE Context Detection
+            // 6. ALTER, EXEC, ROUTINE & DATA TYPE Context Detection
             alterContext = detectAlterContext(textBeforeCursor, codeTokens);
             execContext = detectExecContext(codeTokens);
             routineContext = detectRoutineContext(codeTokens, textBeforeCursor, fullCodeTokens);
+            dataTypeContext = detectDataTypeContext(codeTokens, currentWord, fullCodeTokens, cursorIndex);
 
             if (routineContext && routineContext.isRoutineBody) {
                 alterContext = { isAlter: false, action: "", alterType: "" };
@@ -2041,6 +2187,21 @@
             if (routineContext && routineContext.isRoutineBody) {
                 alterContext = { isAlter: false, action: "", alterType: "" };
             }
+
+            let isDt = false;
+            let dtTarget = null;
+            if (/::\s*[a-zA-Z0-9_]*$/i.test(textBeforeCursor)) {
+                isDt = true; dtTarget = 'PG_CAST';
+            } else if (/\b(?:CAST|TRY_CAST)\s*\([^)]*\bAS\s+[a-zA-Z0-9_]*$/i.test(textBeforeCursor)) {
+                isDt = true; dtTarget = 'CAST';
+            } else if (/\b(?:CONVERT|TRY_CONVERT)\s*\(\s*[a-zA-Z0-9_]*$/i.test(textBeforeCursor)) {
+                isDt = true; dtTarget = 'CONVERT';
+            } else if (/\bDECLARE\s+@[a-zA-Z0-9_#$]+\s*(?:AS\s+)?[a-zA-Z0-9_]*$/i.test(textBeforeCursor)) {
+                isDt = true; dtTarget = 'DECLARE';
+            } else if (/\bRETURNS\s+[a-zA-Z0-9_]*$/i.test(textBeforeCursor)) {
+                isDt = true; dtTarget = 'RETURNS';
+            }
+            dataTypeContext = { isDataTypePosition: isDt, dataTypeTarget: dtTarget };
         }
 
         // 7. Follow-up keywords check
@@ -2098,7 +2259,9 @@
 
         // 8. Standardize Context Type (Section 11)
         let contextType = IntelliSenseContextType.KEYWORD;
-        if (alterContext.isAlter) {
+        if (dataTypeContext.isDataTypePosition) {
+            contextType = IntelliSenseContextType.DATA_TYPE;
+        } else if (alterContext.isAlter) {
             contextType = IntelliSenseContextType.ALTER_OBJECT;
         } else if (execContext.isExec) {
             contextType = execContext.procedureName ? IntelliSenseContextType.PARAMETER : IntelliSenseContextType.PROCEDURE;
@@ -2269,6 +2432,8 @@
             triggerChar,
             clause,
             contextType,
+            isDataTypePosition: Boolean(dataTypeContext.isDataTypePosition),
+            dataTypeTarget: dataTypeContext.dataTypeTarget || null,
             previousToken,
             previousTokens,
             isPrecedingOperator,

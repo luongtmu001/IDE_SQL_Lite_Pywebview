@@ -922,6 +922,45 @@
                     }
                 }
 
+                // Phase 4: Data Type Context Priorities (Issue I3)
+                if (context.isDataTypePosition || context.contextType === 'data_type') {
+                    if (type === 'data_type') {
+                        contextScore += 200;
+                        const itemName = (item.name || '').toLowerCase();
+                        if (context.dataTypeTarget === 'CONVERT') {
+                            if (itemName === 'varchar') contextScore += 60;
+                            else if (itemName === 'int') contextScore += 50;
+                            else if (itemName === 'datetime') contextScore += 40;
+                            else if (itemName === 'nvarchar') contextScore += 35;
+                            else if (itemName === 'decimal') contextScore += 30;
+                        } else if (context.dataTypeTarget === 'CAST') {
+                            if (itemName === 'int') contextScore += 60;
+                            else if (itemName === 'varchar') contextScore += 50;
+                            else if (itemName === 'bigint') contextScore += 40;
+                            else if (itemName === 'decimal') contextScore += 35;
+                            else if (itemName === 'datetime') contextScore += 30;
+                        } else if (context.dataTypeTarget === 'DECLARE') {
+                            if (itemName === 'int') contextScore += 60;
+                            else if (itemName === 'varchar') contextScore += 50;
+                            else if (itemName === 'bigint') contextScore += 40;
+                            else if (itemName === 'bit') contextScore += 35;
+                            else if (itemName === 'nvarchar') contextScore += 30;
+                        } else if (context.dataTypeTarget === 'PG_CAST') {
+                            if (itemName === 'integer') contextScore += 60;
+                            else if (itemName === 'text') contextScore += 50;
+                            else if (itemName === 'numeric') contextScore += 40;
+                            else if (itemName === 'varchar') contextScore += 35;
+                            else if (itemName === 'boolean') contextScore += 30;
+                        } else {
+                            if (['int', 'integer', 'varchar', 'bigint', 'text'].includes(itemName)) {
+                                contextScore += 30;
+                            }
+                        }
+                    } else {
+                        contextScore -= 100;
+                    }
+                }
+
                 // 5. Qualifier Priority (Section 24, 39, 40, 46)
                 if (context.qualifier) {
                     if (type === 'star_expansion') {
@@ -1401,6 +1440,59 @@
             const allCandidates = [];
 
             // ─────────────────────────────────────────────────────────────────────────
+            // 0a. Data Type Context (Issue I3 - Section 11, Spec Phase 4)
+            // ─────────────────────────────────────────────────────────────────────────
+            if (context.isDataTypePosition || context.contextType === 'data_type') {
+                let rawTypes = [];
+                let userTypes = [];
+
+                if (this.dataProvider && typeof this.dataProvider.fetchDataTypes === 'function') {
+                    const dtData = await this.dataProvider.fetchDataTypes(tabCtx.connectionId, tabCtx.database);
+                    if (Array.isArray(dtData)) {
+                        rawTypes = dtData;
+                    } else if (dtData && typeof dtData === 'object') {
+                        rawTypes = dtData.types || [];
+                        userTypes = dtData.user_types || [];
+                    }
+                }
+
+                if (rawTypes.length === 0) {
+                    const defaultList = (tabCtx.dbType === 'postgresql' || tabCtx.dbType === 'postgres')
+                        ? ['bigint', 'bigserial', 'boolean', 'bytea', 'char', 'date', 'decimal', 'double precision', 'integer', 'interval', 'json', 'jsonb', 'numeric', 'real', 'serial', 'smallint', 'text', 'time', 'timestamp', 'timestamptz', 'uuid', 'varchar']
+                        : ['bigint', 'binary', 'bit', 'char', 'date', 'datetime', 'datetime2', 'decimal', 'float', 'image', 'int', 'money', 'nchar', 'ntext', 'numeric', 'nvarchar', 'real', 'smalldatetime', 'smallint', 'smallmoney', 'text', 'time', 'tinyint', 'uniqueidentifier', 'varbinary', 'varchar', 'xml'];
+                    rawTypes = defaultList;
+                }
+
+                rawTypes.forEach(dt => {
+                    const dtStr = String(dt);
+                    allCandidates.push({
+                        name: dtStr,
+                        label: dtStr,
+                        type: 'data_type',
+                        kind: 'type',
+                        level: 0,
+                        displayType: 'Data Type',
+                        insertText: dtStr
+                    });
+                });
+
+                userTypes.forEach(ut => {
+                    const utName = String(ut.name || ut);
+                    allCandidates.push({
+                        name: utName,
+                        label: utName,
+                        type: 'data_type',
+                        kind: 'type',
+                        level: 0.1,
+                        displayType: 'User Type',
+                        insertText: utName
+                    });
+                });
+
+                return allCandidates;
+            }
+
+            // ─────────────────────────────────────────────────────────────────────────
             // 0. Level 0: Stored Procedure Parameters (EXEC context - Section 29, 51)
             // ─────────────────────────────────────────────────────────────────────────
             if (context.execContext && context.execContext.isExec && context.execContext.procedureName) {
@@ -1818,24 +1910,6 @@
                 if (context.clause === 'ON' && tabCtx.connectionId) {
                     if (!context.isPrecedingOperator) {
                         await this._generateJoinOnCandidates(allCandidates, context, tabCtx);
-                    }
-                }
-
-                // F. Data Types
-                if (this.dataProvider && typeof this.dataProvider.fetchDataTypes === 'function') {
-                    const dtData = await this.dataProvider.fetchDataTypes(tabCtx.connectionId, tabCtx.database);
-                    if (dtData && dtData.types) {
-                        dtData.types.forEach(dt => {
-                            allCandidates.push({
-                                name: dt.toUpperCase(),
-                                label: dt.toUpperCase(),
-                                type: 'data_type',
-                                kind: 'type',
-                                level: 1.8,
-                                displayType: 'Data Type',
-                                insertText: dt.toUpperCase()
-                            });
-                        });
                     }
                 }
             }
@@ -2915,7 +2989,8 @@
             const stmtHash = CompletionEngine.hashString(stmtText);
             const aliasSig = CompletionEngine.computeAliasSignature(context.aliasMap);
 
-            const scopeKey = `${context.clause || 'DEFAULT'}::${tablesKey}::${stmtHash}::${aliasSig}::${context.qualifier || ''}::${alterPart}::${execPart}::${context.resolvedObject ? context.resolvedObject.name : ''}`;
+            const dtPart = context.isDataTypePosition ? `DT_${context.dataTypeTarget || ''}` : '';
+            const scopeKey = `${context.clause || 'DEFAULT'}::${tablesKey}::${stmtHash}::${aliasSig}::${context.qualifier || ''}::${alterPart}::${execPart}::${dtPart}::${context.resolvedObject ? context.resolvedObject.name : ''}`;
 
             // Level 3 Completion Memoization lookup (Issue I9: attach replacementRange per call, never reuse stale offsets from cache)
             if (this.metadataCache && typeof this.metadataCache.getCompletions === 'function') {
