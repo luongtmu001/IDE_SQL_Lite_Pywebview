@@ -75,7 +75,7 @@ def normalize_diagnostic(
     else:
         canonical_src = raw_src
 
-    return {
+    diag_dict = {
         "severity": str(raw.get("severity") or "error").lower(),
         "message": clean_diagnostic_message(str(raw.get("message") or "Syntax error")),
         "code": str(raw.get("code") or "SQL_SYNTAX_ERROR"),
@@ -86,6 +86,9 @@ def normalize_diagnostic(
         "offset": raw.get("offset"),
         "source": canonical_src,
     }
+    if "status" in raw:
+        diag_dict["status"] = raw["status"]
+    return diag_dict
 
 
 def deduplicate_diagnostics(diagnostics: list[dict[str, Any]]) -> list[dict[str, Any]]:

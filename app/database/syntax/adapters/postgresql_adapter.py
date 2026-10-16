@@ -250,6 +250,8 @@ def check_offline_postgres_structural_blocks(sql: str) -> list[dict[str, Any]]:
 
         # Process tokens
         begin_stack: list[tuple[str, int, int, int]] = []
+        if_stack: list[tuple[str, int, int, int]] = []
+        loop_stack: list[tuple[str, int, int, int]] = []
         case_stack_count = 0
         k = 0
         num_toks = len(tokens)
@@ -263,6 +265,21 @@ def check_offline_postgres_structural_blocks(sql: str) -> list[dict[str, Any]]:
                 k += 1
                 continue
 
+            if upper == "IF":
+                # Ensure not DDL "DROP ... IF EXISTS" inside block
+                prev_tok = tokens[k - 1][0].upper() if k > 0 else ""
+                if prev_tok in ("DROP", "CREATE", "TABLE", "VIEW", "INDEX", "SCHEMA", "DATABASE", "EXTENSION"):
+                    pass
+                else:
+                    if_stack.append((tok_text, tok_pos, tok_line, tok_col))
+                k += 1
+                continue
+
+            if upper == "LOOP":
+                loop_stack.append((tok_text, tok_pos, tok_line, tok_col))
+                k += 1
+                continue
+
             if upper == "CASE":
                 case_stack_count += 1
                 k += 1
@@ -270,12 +287,55 @@ def check_offline_postgres_structural_blocks(sql: str) -> list[dict[str, Any]]:
 
             if upper == "END":
                 next_tok = tokens[k + 1][0].upper() if k + 1 < num_toks else ""
-                if next_tok in ("IF", "LOOP"):
+                if next_tok == "IF":
+                    if if_stack:
+                        if_stack.pop()
+                    else:
+                        diags.append({
+                            "severity": "error",
+                            "message": "Unmatched END IF: no corresponding IF block",
+                            "code": "SQL_SYNTAX_ERROR",
+                            "line": tok_line,
+                            "column": tok_col,
+                            "end_column": tok_col + 6,
+                            "token": "END IF",
+                            "source": "postgresql",
+                        })
                     k += 2
+                    continue
+                elif next_tok == "LOOP":
+                    if loop_stack:
+                        loop_stack.pop()
+                    else:
+                        diags.append({
+                            "severity": "error",
+                            "message": "Unmatched END LOOP: no corresponding LOOP block",
+                            "code": "SQL_SYNTAX_ERROR",
+                            "line": tok_line,
+                            "column": tok_col,
+                            "end_column": tok_col + 8,
+                            "token": "END LOOP",
+                            "source": "postgresql",
+                        })
+                    k += 2
+                    # Skip optional loop label, e.g. END LOOP my_loop;
+                    if k < num_toks and tokens[k][0] not in (";", ",", "(", ")") and tokens[k][0].upper() not in ("BEGIN", "END", "IF", "CASE", "LOOP"):
+                        k += 1
                     continue
                 elif next_tok == "CASE":
                     if case_stack_count > 0:
                         case_stack_count -= 1
+                    else:
+                        diags.append({
+                            "severity": "error",
+                            "message": "Unmatched END CASE: no corresponding CASE block",
+                            "code": "SQL_SYNTAX_ERROR",
+                            "line": tok_line,
+                            "column": tok_col,
+                            "end_column": tok_col + 8,
+                            "token": "END CASE",
+                            "source": "postgresql",
+                        })
                     k += 2
                     continue
                 else:
@@ -310,6 +370,30 @@ def check_offline_postgres_structural_blocks(sql: str) -> list[dict[str, Any]]:
                         continue
 
             k += 1
+
+        for i_tok, i_pos, i_line, i_col in if_stack:
+            diags.append({
+                "severity": "error",
+                "message": "Unmatched IF block: missing corresponding END IF in procedural code",
+                "code": "SQL_SYNTAX_ERROR",
+                "line": i_line,
+                "column": i_col,
+                "end_column": i_col + 2,
+                "token": "IF",
+                "source": "postgresql",
+            })
+
+        for l_tok, l_pos, l_line, l_col in loop_stack:
+            diags.append({
+                "severity": "error",
+                "message": "Unmatched LOOP block: missing corresponding END LOOP in procedural code",
+                "code": "SQL_SYNTAX_ERROR",
+                "line": l_line,
+                "column": l_col,
+                "end_column": l_col + 4,
+                "token": "LOOP",
+                "source": "postgresql",
+            })
 
         for b_tok, b_pos, b_line, b_col in begin_stack:
             diags.append({
@@ -362,6 +446,23 @@ class PostgreSqlAdapter(BaseSyntaxAdapter):
         if not has_active_conn:
             block_diags = check_offline_postgres_structural_blocks(sql)
             raw_diags.extend(block_diags)
+
+            # Honest status marking: If routine contains procedural elements and no syntax errors were found,
+            # note that full semantic validation requires database connection (PARTIAL)
+            has_errors = any(d.get("severity") == "error" for d in raw_diags)
+            if not has_errors and ("$$" in sql or "plpgsql" in sql.lower()):
+                upper_sql = sql.upper()
+                if any(kw in upper_sql for kw in ("BEGIN", "IF", "LOOP", "PERFORM", "RAISE", "DECLARE", "EXCEPTION")):
+                    raw_diags.append({
+                        "severity": "info",
+                        "message": "PL/pgSQL block structure validated (offline mode). Full semantic validation requires active database connection.",
+                        "code": "SQL_SYNTAX_PARTIAL",
+                        "line": 1,
+                        "column": 1,
+                        "token": "$$",
+                        "source": "postgresql",
+                        "status": "PARTIAL",
+                    })
 
         # Standardize diagnostics
         normalized = [
