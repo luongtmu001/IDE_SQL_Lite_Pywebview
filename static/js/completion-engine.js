@@ -795,6 +795,8 @@
                 if (context.isAlterContext && context.alterObjectType) {
                     if (type === context.alterObjectType) {
                         contextScore += 100;
+                    } else if (type === 'schema') {
+                        contextScore += 75;
                     }
                 }
 
@@ -802,6 +804,8 @@
                 if ((isFromClause || isDmlTableClause) && !context.qualifier) {
                     if (['table', 'view', 'cte', 'subquery', 'apply_subquery', 'lateral_subquery', 'table_function', 'temp_table', 'table_variable', 'synonym', 'pseudo_table', 'linked_server', 'foreign_server'].includes(type)) {
                         contextScore += (type === 'cte' || type === 'pseudo_table') ? 85 : 80;
+                    } else if (type === 'schema') {
+                        contextScore += 75;
                     } else if (isFromClause && type === 'keyword' && ['JOIN', 'LEFT', 'RIGHT', 'INNER', 'ON', 'WHERE'].includes(item.name.toUpperCase())) {
                         contextScore += 30;
                     } else if (isDmlTableClause && type === 'keyword') {
@@ -846,6 +850,8 @@
                     } else {
                         if (type === 'procedure' || type === 'stored_procedure') {
                             contextScore += 95;
+                        } else if (type === 'schema') {
+                            contextScore += 85;
                         } else if (type === 'linked_server' || type === 'foreign_server') {
                             contextScore += 80;
                         }
@@ -2386,6 +2392,99 @@
                                 insertText: this.formatInsertText(sName, 'server', context, tabCtx)
                             });
                         });
+                    }
+                }
+
+                // Phase 4: Schema candidates (Issue I5)
+                // In FROM, JOIN, INSERT INTO, UPDATE, EXEC and ALTER contexts, suggest available schemas
+                const isSchemaContext = Boolean(
+                    context.clause === 'FROM' ||
+                    context.clause === 'JOIN' ||
+                    context.clause === 'INSERT INTO' ||
+                    context.clause === 'UPDATE' ||
+                    context.clause === 'EXEC' ||
+                    context.clause === 'EXECUTE' ||
+                    (context.execContext && context.execContext.isExec) ||
+                    context.isAlterContext
+                );
+                let schemas = null;
+                if (isSchemaContext && tabCtx.connectionId) {
+                    if (this.metadataCache && typeof this.metadataCache.getSchemas === 'function') {
+                        schemas = this.metadataCache.getSchemas(tabCtx.connectionId, tabCtx.database);
+                    }
+                    if (!schemas && this.dataProvider) {
+                        if (typeof this.dataProvider.getSchemas === 'function') {
+                            schemas = await this.dataProvider.getSchemas(tabCtx.connectionId, tabCtx.database);
+                        } else if (typeof this.dataProvider.fetchSchemas === 'function') {
+                            schemas = await this.dataProvider.fetchSchemas(tabCtx.connectionId, tabCtx.database);
+                        }
+                        if (schemas && this.metadataCache && typeof this.metadataCache.setSchemas === 'function') {
+                            this.metadataCache.setSchemas(tabCtx.connectionId, tabCtx.database, schemas);
+                        }
+                    }
+
+                    (schemas || []).forEach(sch => {
+                        const sName = typeof sch === 'string' ? sch : (sch.name || sch.schema || '');
+                        if (!sName) return;
+                        allCandidates.push({
+                            name: sName,
+                            label: sName,
+                            type: 'schema',
+                            kind: 'schema',
+                            level: 1.5,
+                            displayType: 'Schema',
+                            insertText: `${this.formatInsertText(sName, 'schema', context, tabCtx)}.`
+                        });
+                    });
+
+                    // Cross-Schema Object Suggestions (Issue I5, default false)
+                    let crossSchemaEnabled = Boolean(tabCtx && tabCtx.crossSchema);
+                    if (!crossSchemaEnabled) {
+                        try {
+                            const rawSettings = typeof localStorage !== 'undefined' ? localStorage.getItem('ide-settings') : null;
+                            if (rawSettings) {
+                                const s = JSON.parse(rawSettings);
+                                crossSchemaEnabled = Boolean(s && (s['intellisense.crossSchema'] || (s.intellisense && s.intellisense.crossSchema)));
+                            }
+                        } catch (_) {}
+                    }
+
+                    if (crossSchemaEnabled && wordLower.length >= 2 && Array.isArray(schemas) && schemas.length > 0) {
+                        const otherSchemas = schemas
+                            .map(s => typeof s === 'string' ? s : (s.name || s.schema || ''))
+                            .filter(s => s && s.toLowerCase() !== (tabCtx.schema || '').toLowerCase());
+
+                        for (const othSch of otherSchemas) {
+                            let othObjects = null;
+                            if (this.metadataCache && typeof this.metadataCache.getObjects === 'function') {
+                                othObjects = this.metadataCache.getObjects(tabCtx.connectionId, tabCtx.database, othSch);
+                            }
+                            if (!othObjects && this.dataProvider && typeof this.dataProvider.fetchObjects === 'function') {
+                                othObjects = await this.dataProvider.fetchObjects(tabCtx.connectionId, tabCtx.database, othSch);
+                                if (othObjects && this.metadataCache && typeof this.metadataCache.setObjects === 'function') {
+                                    this.metadataCache.setObjects(tabCtx.connectionId, tabCtx.database, othSch, othObjects);
+                                }
+                            }
+                            (othObjects || []).slice(0, 50).forEach(obj => {
+                                if (isStrictAlter && obj.type !== context.alterObjectType) return;
+                                if (isStrictExec && obj.type !== 'procedure') return;
+                                if (context.clause === 'FROM' || context.clause === 'JOIN' || context.clause === 'INSERT INTO' || context.clause === 'UPDATE') {
+                                    if (!['table', 'view', 'temp_table', 'table_variable', 'synonym', 'foreign_table'].includes(obj.type)) return;
+                                }
+                                const qualifiedName = `${othSch}.${obj.name}`;
+                                allCandidates.push({
+                                    name: obj.name,
+                                    label: qualifiedName,
+                                    type: obj.type,
+                                    kind: obj.type,
+                                    level: 2.5,
+                                    displayType: `${this._formatDisplayType(obj.type)} (${othSch})`,
+                                    schema: othSch,
+                                    targetObject: obj.target_object,
+                                    insertText: `${this.formatInsertText(othSch, 'schema', context, tabCtx)}.${this.formatInsertText(obj.name, obj.type, context, tabCtx)}`
+                                });
+                            });
+                        }
                     }
                 }
 

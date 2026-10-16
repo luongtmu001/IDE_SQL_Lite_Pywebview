@@ -26,7 +26,7 @@
   { "id": "PG-CAST", "dialect": "postgresql", "sql": "SELECT id::‸ FROM public.orders", "expect": { "first": ["integer", "text", "numeric"] } },
   { "id": "RET-1", "dialect": "postgresql", "sql": "INSERT INTO public.orders (customer_id) VALUES (1) RETURNING ‸", "expect": { "contains": ["id", "customer_id", "total"] } },
   { "id": "MRG-1", "dialect": "mssql", "sql": "MERGE INTO dbo.Orders AS tgt USING dbo.OrderItems AS src ON tgt.OrderID = src.‸", "expect": { "contains": ["OrderID", "Quantity", "UnitPrice"] }, "status": "expectedFailure", "issue": "I4" },
-  { "id": "SCH-1", "dialect": "mssql", "sql": "SELECT * FROM ‸", "expect": { "contains": ["dbo", "sales", "hr"] }, "status": "expectedFailure", "issue": "I5" },
+  { "id": "SCH-1", "dialect": "mssql", "sql": "SELECT * FROM ‸", "expect": { "contains": ["dbo", "sales", "hr"] } },
   { "id": "ON-1", "dialect": "mssql", "sql": "SELECT * FROM dbo.Orders o JOIN dbo.OrderItems i ON i.OrderID = ‸", "expect": { "not": ["o.OrderID = i.OrderID"] } },
   { "id": "EXEC-1", "dialect": "mssql", "sql": "EXEC dbo.‸", "expect": { "contains": ["usp_GetOrders"], "not": ["Orders", "Customers"] } },
   { "id": "WIDE-1", "dialect": "mssql", "sql": "SELECT t.‸ FROM dbo.Tbl1 t", "expect": { "contains": ["Col_550"] }, "status": "expectedFailure", "issue": "I8" },
