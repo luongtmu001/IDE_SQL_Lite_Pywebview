@@ -177,13 +177,13 @@ Mỗi giai đoạn: một nhánh git; mỗi thay đổi hành vi một commit k�
 
 ### Giai đoạn 5 – Câu lệnh nâng cao, dialect, nối pipeline (6–7 ngày)
 
-- [ ] MERGE (`USING … AS alias`, `WHEN MATCHED/NOT MATCHED`), PostgreSQL `ON CONFLICT` và `EXCLUDED` (chạm `scope-resolver.js`).
-- [ ] Tham số dialect tùy chọn cho `analyze`; `intellisense.js` truyền `tabCtx.dbType`.
-- [ ] `MainApi.syntax_check` gọi `validate_sql_pipeline` ở chế độ bóng, ghi chênh lệch ra log; sau thời gian quan sát mới bật cờ `syntax.pipeline`.
-- [ ] **\[QUYẾT ĐỊNH\]** bundle ScriptDom DLL hay giữ tìm trong SSMS/Azure Data Studio; thiếu DLL phải báo rõ nguồn đang dùng.
-- [ ] `transform_pg_temp_tables` xử lý dollar-quote, `"…"`, `E'…'`.
+- [x] MERGE (`USING … AS alias`, `WHEN MATCHED/NOT MATCHED`), PostgreSQL `ON CONFLICT` và `EXCLUDED` (chạm `scope-resolver.js`).
+- [x] Tham số dialect tùy chọn cho `analyze`; `intellisense.js` truyền `tabCtx.dbType`.
+- [x] `MainApi.syntax_check` gọi `validate_sql_pipeline` ở chế độ bóng, ghi chênh lệch ra log; sau thời gian quan sát mới bật cờ `syntax.pipeline`.
+- [x] **[QUYẾT ĐỊNH]** bundle ScriptDom DLL hay giữ tìm trong SSMS/Azure Data Studio; thiếu DLL phải báo rõ nguồn đang dùng (Đã bundle `Microsoft.SqlServer.TransactSql.ScriptDom.dll` trong `app/database/syntax/bin`, hỗ trợ `settings.json` `syntax.scriptDomDllPath`, ghi log cảnh báo kèm nguồn fallback).
+- [x] `transform_pg_temp_tables` xử lý dollar-quote, `"…"`, `E'…'`.
 
-**Cổng**: MRG-1 xanh; L12 0 chênh lệch trên corpus hợp lệ.
+**Cổng**: MRG-1 xanh; L12 0 chênh lệch trên corpus hợp lệ. [ĐÃ ĐẠT]
 
 ### Giai đoạn 6 – Cấu trúc và bảo trì (4–5 ngày, sau khi 0–5 xanh)
 
@@ -194,19 +194,19 @@ Mỗi giai đoạn: một nhánh git; mỗi thay đổi hành vi một commit k�
 
 **Cổng**: toàn bộ lớp xanh, snapshot không đổi, không còn `expectedFailure` thuộc các mã đã xử lý.
 
-**Báo cáo cuối mỗi giai đoạn**: file đã sửa, ca đã thêm, kết quả trước và sau của từng lớp, số đo hiệu năng, rủi ro còn lại, mục \[QUYẾT ĐỊNH\] đang chờ.
+**Báo cáo cuối mỗi giai đoạn**: file đã sửa, ca đã thêm, kết quả trước và sau của từng lớp, số đo hiệu năng, rủi ro còn lại, mục [QUYẾT ĐỊNH] đang chờ.
 
 ## C. Theo dõi tiến độ
 
 | Giai đoạn | Ước lượng | Cổng test phải xanh | Trạng thái |
 | --- | --- | --- | --- |
-| 0 – Hạ tầng đo | 3–4 ngày | Toàn bộ test với mã chưa sửa | Chưa bắt đầu |
-| 1 – An toàn cú pháp | 3–4 ngày | L10, L11 | Chưa bắt đầu |
-| 2 – Độ đúng cú pháp | 5–6 ngày | L4, L6, L7 | Chưa bắt đầu |
-| 3 – IntelliSense hiệu năng, lỗi cục bộ | 5–6 ngày | L1, L2, L9 | Chưa bắt đầu |
-| 4 – IntelliSense ngữ cảnh mới | 6–8 ngày | L2, L13 | Chưa bắt đầu |
-| 5 – Nâng cao và nối pipeline | 6–7 ngày | L1, L2, L12 | Chưa bắt đầu |
-| 6 – Cấu trúc | 4–5 ngày | Toàn bộ lớp, snapshot | Chưa bắt đầu |
+| 0 – Hạ tầng đo | 3–4 ngày | Toàn bộ test với mã chưa sửa | Đã hoàn thành |
+| 1 – An toàn cú pháp | 3–4 ngày | L10, L11 | Đã hoàn thành |
+| 2 – Độ đúng cú pháp | 5–6 ngày | L4, L6, L7 | Đã hoàn thành |
+| 3 – IntelliSense hiệu năng, lỗi cục bộ | 5–6 ngày | L1, L2, L9 | Đã hoàn thành |
+| 4 – IntelliSense ngữ cảnh mới | 6–8 ngày | L2, L13 | Đã hoàn thành |
+| 5 – Nâng cao và nối pipeline | 6–7 ngày | L1, L2, L12 | Đã hoàn thành |
+| 6 – Cấu trúc | 4–5 ngày | Toàn bộ lớp, snapshot | Đang thực hiện |
 
 Tổng giai đoạn 0–6 khoảng 32–40 ngày công của một người.
 
