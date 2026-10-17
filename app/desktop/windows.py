@@ -309,9 +309,24 @@ class UpdateSubwindowApi:
         from app.services.update_checker import cancel_download
         return cancel_download()
 
+    def _dismiss_main_update_indicator(self):
+        try:
+            target_win = getattr(self._main_api, '_window', None)
+            if not target_win and hasattr(webview, "windows") and webview.windows:
+                target_win = webview.windows[0]
+            if target_win:
+                target_win.evaluate_js(
+                    "if (window.dismissAppUpdate) { window.dismissAppUpdate(); } "
+                    "var btn = document.getElementById('ide-update-btn'); if (btn) btn.classList.add('d-none');"
+                )
+        except Exception as exc:
+            logger.debug("[UpdateSubwindowApi] Failed to dismiss update badge: %s", exc)
+
     def open_downloaded_file(self, file_path=None):
         from app.services.update_checker import open_downloaded_file
-        return open_downloaded_file(file_path=file_path)
+        res = open_downloaded_file(file_path=file_path)
+        self._dismiss_main_update_indicator()
+        return res
 
     def open_containing_folder(self, file_path=None):
         from app.services.update_checker import open_containing_folder

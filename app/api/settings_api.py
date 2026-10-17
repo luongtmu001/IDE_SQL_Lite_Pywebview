@@ -295,6 +295,7 @@ class SettingsApiMixin:
             logger.error("[SettingsApi] Error opening downloaded file: %s", exc)
             return {"success": False, "error": str(exc)}
 
+
     def open_containing_folder(self, file_path=None):
         try:
             from app.services.update_checker import open_containing_folder as _open_folder

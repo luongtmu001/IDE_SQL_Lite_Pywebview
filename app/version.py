@@ -7,8 +7,8 @@ import sys
 from typing import Any, Dict, Tuple
 
 
-__version__ = "1.0.0"
-__version_tuple__: Tuple[int, int, int] = (1, 0, 0)
+__version__ = "1.0.1"
+__version_tuple__: Tuple[int, int, int] = (1, 0, 1)
 __app_name__ = "luoBTool IDE"
 __app_title__ = "luoBTool IDE / LLTool Desktop"
 __author__ = "luonght"
@@ -17,10 +17,67 @@ __github_repo__ = "luongtmu001/IDE_SQL_Lite_Pywebview"
 __release_url__ = "https://github.com/luongtmu001/IDE_SQL_Lite_Pywebview/releases"
 __version_url__ = "https://raw.githubusercontent.com/luongtmu001/IDE_SQL_Lite_Pywebview/main/version.json"
 
+_runtime_version: Any = None
+
+
+def set_runtime_version(new_version: str) -> None:
+    """Set the active version string in runtime memory."""
+    global _runtime_version
+    if new_version:
+        _runtime_version = str(new_version).strip()
+
 
 def get_version() -> str:
-    """Return the current version string."""
+    """
+    Return the current version string.
+    Checks in order:
+    1. Active runtime version (if updated in current session)
+    2. User settings (installedVersion)
+    3. Local version.json
+    4. Static build version (__version__)
+    """
+    global _runtime_version
+    if _runtime_version:
+        return _runtime_version
+
+    try:
+        import json
+        from pathlib import Path
+
+        # 1. Check user data settings
+        try:
+            from app.utils.paths import get_user_data_dir, get_app_dir
+            user_settings = get_user_data_dir() / "settings.json"
+            if user_settings.exists():
+                with open(user_settings, "r", encoding="utf-8") as f:
+                    s = json.load(f)
+                    inst_ver = s.get("updates", {}).get("installedVersion") or s.get("installedVersion")
+                    if inst_ver:
+                        _runtime_version = str(inst_ver).strip()
+                        return _runtime_version
+        except Exception:
+            pass
+
+        # 2. Check candidate version.json files
+        candidates = []
+        try:
+            candidates.append(get_app_dir() / "version.json")
+            candidates.append(get_app_dir() / "_internal" / "version.json")
+        except Exception:
+            pass
+
+        for cand in candidates:
+            if cand.exists():
+                with open(cand, "r", encoding="utf-8") as f:
+                    v_data = json.load(f)
+                    if v_data.get("version"):
+                        _runtime_version = str(v_data["version"]).strip()
+                        return _runtime_version
+    except Exception:
+        pass
+
     return __version__
+
 
 
 def parse_semver(version_str: str) -> Tuple[int, ...]:
@@ -68,7 +125,7 @@ def get_app_info() -> Dict[str, Any]:
     return {
         "appName": __app_name__,
         "appTitle": __app_title__,
-        "version": __version__,
+        "version": get_version(),
         "author": __author__,
         "description": __description__,
         "isPortable": is_portable_mode(),

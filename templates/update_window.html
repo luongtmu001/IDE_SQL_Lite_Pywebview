@@ -568,8 +568,14 @@
 
                                 // Tự động áp dụng cập nhật / khởi chạy cài đặt ngay khi tải xong
                                 try {
-                                    await callApi('open_downloaded_file');
-                                    btnText.textContent = 'Đã áp dụng cập nhật';
+                                    const res = await callApi('open_downloaded_file');
+                                    const newVer = (res && res.version) ? ('v' + res.version) : '';
+                                    btnText.textContent = newVer ? `Đã cập nhật lên ${newVer}` : 'Đã cập nhật thành công';
+
+                                    const curEl = document.getElementById('lblCurrentVer');
+                                    if (curEl && newVer) {
+                                        curEl.textContent = newVer;
+                                    }
                                 } catch (applyErr) {
                                     console.error('[UpdateWindow] Apply update error:', applyErr);
                                     btnText.textContent = 'Đã cập nhật xong';

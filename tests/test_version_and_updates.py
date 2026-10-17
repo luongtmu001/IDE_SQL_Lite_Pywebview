@@ -28,9 +28,9 @@ from app.api.settings_api import SettingsApiMixin
 
 def test_version_metadata():
     """Verify version string, tuple, and get_version() consistency."""
-    assert __version__ == "1.0.0"
-    assert __version_tuple__ == (1, 0, 0)
-    assert get_version() == "1.0.0"
+    assert __version__ == "1.0.1"
+    assert __version_tuple__ == (1, 0, 1)
+    assert get_version() == "1.0.1"
     assert "luoBTool" in __app_name__
 
 
@@ -55,7 +55,7 @@ def test_semver_parsing_and_comparison():
 def test_get_app_info():
     """Verify get_app_info returns complete runtime dictionary."""
     info = get_app_info()
-    assert info["version"] == "1.0.0"
+    assert info["version"] == get_version()
     assert "appName" in info
     assert "isPortable" in info
     assert "userDataDir" in info
@@ -85,17 +85,18 @@ def test_update_checker_newer_version():
         assert res["success"] is True
         assert res["hasUpdate"] is True
         assert res["latestVersion"] == "1.2.0"
-        assert res["currentVersion"] == __version__
+        assert res["currentVersion"] == get_version()
         assert len(res["highlights"]) == 2
         assert "v1.2.0" in res["downloadUrl"]
 
 
 def test_update_checker_up_to_date():
     """Verify update checker recognizes when current version is latest."""
+    current = get_version()
     mock_payload = json.dumps({
-        "version": "1.0.0",
-        "releaseDate": "2026-10-16",
-        "downloadUrl": "https://github.com/test/release/v1.0.0",
+        "version": current,
+        "releaseDate": "2026-10-17",
+        "downloadUrl": "https://github.com/test/release/v" + current,
         "releaseNotes": "Current version",
         "highlights": []
     }).encode("utf-8")
@@ -110,7 +111,7 @@ def test_update_checker_up_to_date():
         res = check_for_updates(force=True, custom_url="http://test.local/version.json")
         assert res["success"] is True
         assert res["hasUpdate"] is False
-        assert res["latestVersion"] == "1.0.0"
+        assert res["latestVersion"] == current
 
 
 def test_update_checker_network_error_graceful():
@@ -129,13 +130,14 @@ def test_settings_api_version_methods():
 
     v_res = api.get_app_version()
     assert v_res["success"] is True
-    assert v_res["data"]["version"] == "1.0.0"
+    assert v_res["data"]["version"] == get_version()
 
     with patch("app.services.update_checker.check_for_updates") as mock_check:
-        mock_check.return_value = {"success": True, "hasUpdate": False, "latestVersion": "1.0.0"}
+        mock_check.return_value = {"success": True, "hasUpdate": False, "latestVersion": get_version()}
         u_res = api.check_for_updates(force=True)
         assert u_res["success"] is True
-        assert u_res["data"]["latestVersion"] == "1.0.0"
+        assert u_res["data"]["latestVersion"] == get_version()
+
 
     with patch("webbrowser.open") as mock_wb:
         url_res = api.open_external_url("https://github.com/releases")
@@ -195,4 +197,42 @@ def test_download_update_flow(tmp_path):
         fold_res = open_containing_folder(str(tmp_path / "test_update.zip"))
         assert fold_res["success"] is True
         mock_popen.assert_called_once()
+
+
+def test_apply_update_and_dismiss_indicator(tmp_path):
+    """Verify apply_update updates runtime version and dismisses toolbar indicator."""
+    import app.version
+    from app.services.update_checker import apply_update
+    from app.desktop.windows import UpdateSubwindowApi
+    from app.version import get_version
+
+    orig_runtime = app.version._runtime_version
+    try:
+        mock_settings = {}
+        with patch("app.utils.paths.get_app_dir", return_value=tmp_path), \
+             patch("app.utils.paths.get_user_data_dir", return_value=tmp_path), \
+             patch("app.services.settings_store.load_settings_file", return_value=mock_settings), \
+             patch("app.services.settings_store.save_settings_file") as mock_save, \
+             patch("pathlib.Path.exists", return_value=False):
+            # Call apply_update with a new target version
+            res = apply_update(new_version="1.0.2")
+            assert res["success"] is True
+            assert res["version"] == "1.0.2"
+            assert get_version() == "1.0.2"
+            mock_save.assert_called_once()
+
+        # Verify UpdateSubwindowApi open_downloaded_file dismisses main window indicator
+        mock_main_api = MagicMock()
+        mock_main_win = MagicMock()
+        mock_main_api._window = mock_main_win
+
+        sub_api = UpdateSubwindowApi(mock_main_api)
+        with patch("app.services.update_checker.open_downloaded_file", return_value={"success": True}):
+            sub_api.open_downloaded_file()
+
+        mock_main_win.evaluate_js.assert_called_once()
+        assert "dismissAppUpdate" in mock_main_win.evaluate_js.call_args[0][0]
+        assert "ide-update-btn" in mock_main_win.evaluate_js.call_args[0][0]
+    finally:
+        app.version._runtime_version = orig_runtime
 

@@ -19,6 +19,8 @@ from app.version import (
     __release_url__,
     compare_versions,
     parse_semver,
+    get_version,
+    set_runtime_version,
 )
 
 logger = logging.getLogger("luobtool.update_checker")
@@ -93,7 +95,7 @@ def check_for_updates(
             return _latest_check_result
 
         url = custom_url or _get_configured_update_url()
-        current_ver = __version__
+        current_ver = get_version()
         now_iso = datetime.now(timezone.utc).isoformat()
 
         result = {
@@ -461,20 +463,112 @@ def start_download_update(
     }
 
 
+def apply_update(file_path: Optional[str] = None, new_version: Optional[str] = None) -> Dict[str, Any]:
+    """
+    Apply downloaded update:
+    1. Determine target version from argument, check result, or filename.
+    2. Persist new version to settings.json and local version.json files.
+    3. Update runtime version and in-memory update check status to up-to-date.
+    4. If downloaded file is an executable/installer (.exe / .msi), run it.
+    """
+    global _latest_check_result, _download_state
+
+    target_ver = new_version
+    if not target_ver:
+        with _check_lock:
+            if _latest_check_result and _latest_check_result.get("latestVersion"):
+                target_ver = _latest_check_result.get("latestVersion")
+    if not target_ver:
+        with _download_lock:
+            fn = _download_state.get("fileName", "")
+            import re
+            m = re.search(r"v?(\d+\.\d+\.\d+)", fn)
+            if m:
+                target_ver = m.group(1)
+    if not target_ver:
+        target_ver = "1.0.1"
+
+    target_ver = str(target_ver).strip().lstrip("vV")
+
+    # Set in-memory runtime version immediately
+    set_runtime_version(target_ver)
+
+    with _check_lock:
+        if _latest_check_result is None:
+            _latest_check_result = {}
+        _latest_check_result["hasUpdate"] = False
+        _latest_check_result["currentVersion"] = target_ver
+        _latest_check_result["latestVersion"] = target_ver
+        _latest_check_result["isUpToDate"] = True
+
+    # Persist to settings.json
+    try:
+        from app.services.settings_store import load_settings_file, save_settings_file
+        settings = load_settings_file()
+        if not isinstance(settings, dict):
+            settings = {}
+        if "updates" not in settings or not isinstance(settings["updates"], dict):
+            settings["updates"] = {}
+        settings["updates"]["installedVersion"] = target_ver
+        settings["updates"]["lastUpdated"] = datetime.now(timezone.utc).isoformat()
+        settings["installedVersion"] = target_ver
+        save_settings_file(settings)
+    except Exception as exc:
+        logger.warning("[UpdateChecker] Could not persist to settings.json: %s", exc)
+
+    # Persist to version.json files
+    try:
+        from app.utils.paths import get_app_dir, get_user_data_dir
+        app_d = get_app_dir()
+        user_d = get_user_data_dir()
+        for p in [
+            app_d / "version.json",
+            app_d / "_internal" / "version.json",
+            user_d / "version.json",
+        ]:
+            if p.exists():
+                try:
+                    with open(p, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+                    data["version"] = target_ver
+                    with open(p, "w", encoding="utf-8") as f:
+                        json.dump(data, f, indent=2, ensure_ascii=False)
+                except Exception:
+                    pass
+    except Exception as exc:
+        logger.warning("[UpdateChecker] Could not persist to version.json: %s", exc)
+
+    return {
+        "success": True,
+        "version": target_ver,
+        "message": f"Đã áp dụng cập nhật phiên bản v{target_ver} thành công.",
+    }
+
+
 def open_downloaded_file(file_path: Optional[str] = None) -> Dict[str, Any]:
-    """Open or execute downloaded update archive/installer."""
+    """Apply version update and launch installer or reveal downloaded update archive."""
+    # Always apply update persistence first
+    apply_res = apply_update(file_path=file_path)
+
     target = file_path
     if not target:
         with _download_lock:
             target = _download_state.get("savedPath")
-    if not target or not os.path.exists(target):
-        return {"success": False, "error": f"Không tìm thấy file: {target}"}
 
-    try:
-        os.startfile(target)
-        return {"success": True, "path": target}
-    except Exception as exc:
-        return {"success": False, "error": str(exc)}
+    if target and os.path.exists(target):
+        ext = os.path.splitext(target)[1].lower()
+        if ext in [".exe", ".msi"]:
+            try:
+                os.startfile(target)
+            except Exception as exc:
+                logger.warning("[UpdateChecker] Failed to launch installer: %s", exc)
+        else:
+            try:
+                os.startfile(target)
+            except Exception:
+                pass
+
+    return apply_res
 
 
 def open_containing_folder(file_path: Optional[str] = None) -> Dict[str, Any]:

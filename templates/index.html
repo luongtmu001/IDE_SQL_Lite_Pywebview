@@ -2416,6 +2416,13 @@
                         }
                     }
                 };
+
+                window.dismissAppUpdate = function () {
+                    var btn = document.getElementById('ide-update-btn');
+                    if (btn) {
+                        btn.classList.add('d-none');
+                    }
+                };
             }
 
             if (document.readyState === 'loading') {
