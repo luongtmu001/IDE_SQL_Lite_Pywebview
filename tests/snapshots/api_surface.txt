@@ -3,9 +3,10 @@
 # Generated for IDE-SQL-Lite_New_Pyweb_Claude
 # ====================================================================
 
-CLASS BravoApi (104 public methods):
+CLASS BravoApi (109 public methods):
   - apply_table_design(self, connection_id, database=None, statements=None, migration_sql=None)
   - apply_titlebar_theme(self, bg_hex=None, text_hex=None, border_hex=None, is_dark=None)
+  - cancel_download(self)
   - check_credential(self, config)
   - check_for_updates(self, force=True, custom_url=None)
   - clear_credential(self, config)
@@ -26,6 +27,7 @@ CLASS BravoApi (104 public methods):
   - get_connection_password(self, profile_id_or_name)
   - get_databases(self, connection_id, search=None)
   - get_definition(self, connection_id, database=None, schema=None, name=None, type=None)
+  - get_download_progress(self)
   - get_foreign_keys(self, connection_id, database=None, schema=None, table=None)
   - get_foreign_servers(self, connection_id)
   - get_foreign_tables(self, connection_id, schema=None)
@@ -65,7 +67,9 @@ CLASS BravoApi (104 public methods):
   - list_connections(self)
   - list_features(self)
   - open_about_window(self)
+  - open_containing_folder(self, file_path=None)
   - open_data_folder(self)
+  - open_downloaded_file(self, file_path=None)
   - open_event_listener_window(self, conn_id=None, db_type=None)
   - open_external_url(self, url)
   - open_log_folder(self)
@@ -99,6 +103,7 @@ CLASS BravoApi (104 public methods):
   - set_portable_mode(self, enabled=True)
   - set_window(self, win)
   - set_window_title(self, title)
+  - start_download_update(self, download_url=None, file_name=None, total_bytes_hint=0)
   - submit_table_changes(self, connection_id, database=None, schema=None, table=None, changes=None, concurrency_mode='optimistic')
   - test_linked_server(self, connection_id, server)
   - tx_begin(self, connection_id)
@@ -109,7 +114,7 @@ CLASS BravoApi (104 public methods):
   - validate_table_row(self, connection_id, database=None, schema=None, table=None, values=None, keys=None, is_new=True, target_column=None)
   - validate_table_rows(self, connection_id, database=None, schema=None, table=None, rows=None)
 
-CLASS MainApi (168 public methods):
+CLASS MainApi (173 public methods):
   - activity_cancel_session(self, connection_id: str, session_id: int) -> Dict[str, Any]
   - activity_get_current_spid(self, connection_id: str) -> Dict[str, Any]
   - activity_get_sessions(self, connection_id: str, database: str | None = None, active_only: bool = False) -> Dict[str, Any]
@@ -117,6 +122,7 @@ CLASS MainApi (168 public methods):
   - analyze_query_flow(self, sql, dialect='tsql')
   - apply_table_design(self, connection_id, database=None, statements=None, migration_sql=None)
   - apply_titlebar_theme(self, bg_hex=None, text_hex=None, border_hex=None, is_dark=None)
+  - cancel_download(self)
   - cancel_query(self, connection_id)
   - check_credential(self, config)
   - check_for_updates(self, force=True, custom_url=None)
@@ -140,6 +146,7 @@ CLASS MainApi (168 public methods):
   - get_connection_password(self, profile_id_or_name)
   - get_databases(self, connection_id, search=None)
   - get_definition(self, connection_id, database=None, schema=None, name=None, type=None)
+  - get_download_progress(self)
   - get_foreign_keys(self, connection_id, database=None, schema=None, table=None)
   - get_foreign_servers(self, connection_id)
   - get_foreign_tables(self, connection_id, schema=None)
@@ -215,7 +222,9 @@ CLASS MainApi (168 public methods):
   - open_about_window(self)
   - open_activity_monitor_window(self, connection_id: str | None = None, db_type: str | None = None) -> Dict[str, Any]
   - open_bravo_window(self, conn_id=None, conn_name=None, database=None, db_type=None, schema=None)
+  - open_containing_folder(self, file_path=None)
   - open_data_folder(self)
+  - open_downloaded_file(self, file_path=None)
   - open_event_listener_window(self, conn_id=None, db_type=None)
   - open_external_url(self, url)
   - open_log_folder(self)
@@ -268,6 +277,7 @@ CLASS MainApi (168 public methods):
   - set_window_title(self, title)
   - sql_object_ddl(self, conn_id=None, schema='dbo', name='', object_type='VIEW', database=None, keyword=None, case_sensitive=False, whole_word=False, is_regex=False)
   - sql_object_search(self, conn_id=None, keyword='', database=None, object_types=None, case_sensitive=False, whole_word=False, is_regex=False, schema=None)
+  - start_download_update(self, download_url=None, file_name=None, total_bytes_hint=0)
   - submit_table_changes(self, connection_id, database=None, schema=None, table=None, changes=None, concurrency_mode='optimistic')
   - syntax_check(self, connection_id=None, sql='', dialect='sqlserver', database=None, schema=None, is_debug=False, cached_tables=None)
   - test_linked_server(self, connection_id, server)
@@ -353,13 +363,18 @@ CLASS AboutSubwindowApi (6 public methods):
   - open_update_window(self)
   - set_window(self, win)
 
-CLASS UpdateSubwindowApi (6 public methods):
+CLASS UpdateSubwindowApi (11 public methods):
   - apply_titlebar_theme(self, bg_hex=None, text_hex=None, border_hex=None, is_dark=None)
+  - cancel_download(self)
   - check_for_updates(self, force=True, custom_url=None)
   - close_window(self)
   - get_app_version(self)
+  - get_download_progress(self)
+  - open_containing_folder(self, file_path=None)
+  - open_downloaded_file(self, file_path=None)
   - open_external_url(self, url)
   - set_window(self, win)
+  - start_download_update(self, download_url=None, file_name=None, total_bytes_hint=0)
 
 CLASS ProfilerSubwindowApi (9 public methods):
   - apply_titlebar_theme(self, bg_hex=None, text_hex=None, border_hex=None, is_dark=None)

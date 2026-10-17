@@ -259,6 +259,50 @@ class SettingsApiMixin:
             logger.error("[SettingsApi] Error checking for updates: %s", exc)
             return {"success": False, "error": str(exc)}
 
+    def start_download_update(self, download_url=None, file_name=None, total_bytes_hint=0):
+        try:
+            from app.services.update_checker import start_download_update as _start_download
+            return _start_download(
+                download_url=download_url,
+                file_name=file_name,
+                total_bytes_hint=total_bytes_hint or 0,
+            )
+        except Exception as exc:
+            logger.error("[SettingsApi] Error starting update download: %s", exc)
+            return {"success": False, "error": str(exc)}
+
+    def get_download_progress(self):
+        try:
+            from app.services.update_checker import get_download_progress as _get_progress
+            return _get_progress()
+        except Exception as exc:
+            logger.error("[SettingsApi] Error getting download progress: %s", exc)
+            return {"status": "error", "error": str(exc)}
+
+    def cancel_download(self):
+        try:
+            from app.services.update_checker import cancel_download as _cancel_download
+            return _cancel_download()
+        except Exception as exc:
+            logger.error("[SettingsApi] Error cancelling download: %s", exc)
+            return {"success": False, "error": str(exc)}
+
+    def open_downloaded_file(self, file_path=None):
+        try:
+            from app.services.update_checker import open_downloaded_file as _open_file
+            return _open_file(file_path=file_path)
+        except Exception as exc:
+            logger.error("[SettingsApi] Error opening downloaded file: %s", exc)
+            return {"success": False, "error": str(exc)}
+
+    def open_containing_folder(self, file_path=None):
+        try:
+            from app.services.update_checker import open_containing_folder as _open_folder
+            return _open_folder(file_path=file_path)
+        except Exception as exc:
+            logger.error("[SettingsApi] Error opening containing folder: %s", exc)
+            return {"success": False, "error": str(exc)}
+
 
     def set_portable_mode(self, enabled=True):
         """Enable or disable portable mode."""

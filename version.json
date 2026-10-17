@@ -2,14 +2,16 @@
   "version": "1.0.1",
   "releaseDate": "2026-10-17",
   "minSupportedVersion": "1.0.0",
-  "title": "luoBTool IDE v1.0.1",
-  "downloadUrl": "https://github.com/luongtmu001/IDE_SQL_Lite_Pywebview/releases/latest",
-  "releaseNotes": "Bản phát hành v1.0.1 chính thức tích hợp tính năng tự động kiểm tra bản cập nhật mới từ xa, cửa sổ About và hoàn thiện giao diện.",
+  "title": "LLTool IDE v1.0.1",
+  "downloadUrl": "https://github.com/luongtmu001/IDE_SQL_Lite_Pywebview/archive/refs/heads/main.zip",
+  "fileName": "LLTool_v1.0.1.zip",
+  "fileSize": 6500000,
+  "releaseNotes": "Bản phát hành v1.0.1 chính thức tích hợp tính năng tự động kiểm tra và tải trực tiếp bản cập nhật mới, hiển thị tiến trình % màu xanh trực quan.",
   "highlights": [
+    "Tự động tải trực tiếp bản cập nhật vào máy với thanh tiến trình % màu xanh trực quan",
+    "Hỗ trợ mở trực tiếp file cài đặt và mở thư mục chứa file đã tải",
     "Tích hợp tính năng Check for Update tự động từ GitHub Releases",
     "Thêm cửa sổ Thông tin phần mềm (About dialog) và Kiểm tra Cập nhật trực quan",
-    "Tối ưu hoá giao diện tab editor với đường viền bo theo màu theme",
-    "Tối ưu hoá truy vấn Schema Compare bằng Bulk Catalog",
-    "Quản lý phiên bản tập trung và kiểm tra cập nhật tự động"
+    "Tối ưu hoá giao diện tab editor với đường viền bo theo màu theme"
   ]
 }

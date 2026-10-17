@@ -293,6 +293,30 @@ class UpdateSubwindowApi:
     def open_external_url(self, url):
         return self._main_api.open_external_url(url)
 
+    def start_download_update(self, download_url=None, file_name=None, total_bytes_hint=0):
+        from app.services.update_checker import start_download_update
+        return start_download_update(
+            download_url=download_url,
+            file_name=file_name,
+            total_bytes_hint=total_bytes_hint or 0,
+        )
+
+    def get_download_progress(self):
+        from app.services.update_checker import get_download_progress
+        return get_download_progress()
+
+    def cancel_download(self):
+        from app.services.update_checker import cancel_download
+        return cancel_download()
+
+    def open_downloaded_file(self, file_path=None):
+        from app.services.update_checker import open_downloaded_file
+        return open_downloaded_file(file_path=file_path)
+
+    def open_containing_folder(self, file_path=None):
+        from app.services.update_checker import open_containing_folder
+        return open_containing_folder(file_path=file_path)
+
 
 class ProfilerSubwindowApi:
     def __init__(self, main_api):

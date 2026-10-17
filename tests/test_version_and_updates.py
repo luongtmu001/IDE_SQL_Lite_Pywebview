@@ -145,3 +145,54 @@ def test_settings_api_version_methods():
     # Invalid URL scheme rejected safely
     bad_url_res = api.open_external_url("javascript:alert(1)")
     assert bad_url_res["success"] is False
+
+
+def test_download_update_flow(tmp_path):
+    """Verify in-app download flow with progress tracking and file completion."""
+    from app.services.update_checker import (
+        start_download_update,
+        get_download_progress,
+        cancel_download,
+        open_downloaded_file,
+        open_containing_folder,
+    )
+
+    content = b"PK_FAKE_ZIP_CONTENT_FOR_TESTING" * 50
+    mock_resp = MagicMock()
+    mock_resp.status = 200
+    mock_resp.__enter__.return_value = mock_resp
+    mock_resp.headers = {"Content-Length": str(len(content))}
+    mock_resp.read.side_effect = [content[:500], content[500:], b""]
+
+    with patch("urllib.request.urlopen", return_value=mock_resp):
+        res = start_download_update(
+            download_url="https://example.com/test_update.zip",
+            file_name="test_update.zip",
+            target_dir=str(tmp_path),
+            total_bytes_hint=len(content),
+        )
+        assert res["success"] is True
+        assert res["status"] == "downloading"
+
+        # Wait briefly for thread to finish
+        import time
+        time.sleep(0.3)
+
+        prog = get_download_progress()
+        assert prog["status"] == "completed"
+        assert prog["progress"] == 100.0
+        assert (tmp_path / "test_update.zip").exists()
+        assert (tmp_path / "test_update.zip").read_bytes() == content
+
+    # Test open_downloaded_file with mock
+    with patch("os.startfile") as mock_startfile:
+        op_res = open_downloaded_file(str(tmp_path / "test_update.zip"))
+        assert op_res["success"] is True
+        mock_startfile.assert_called_once_with(str(tmp_path / "test_update.zip"))
+
+    # Test open_containing_folder with mock
+    with patch("subprocess.Popen") as mock_popen:
+        fold_res = open_containing_folder(str(tmp_path / "test_update.zip"))
+        assert fold_res["success"] is True
+        mock_popen.assert_called_once()
+

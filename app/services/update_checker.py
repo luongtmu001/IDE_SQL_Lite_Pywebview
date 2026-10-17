@@ -119,7 +119,8 @@ def check_for_updates(
                 },
             )
             with urllib.request.urlopen(req, timeout=timeout) as resp:
-                if resp.status == 200:
+                status_code = getattr(resp, "status", 200)
+                if status_code in (200, None):
                     raw_data = resp.read().decode("utf-8")
                     data = json.loads(raw_data)
 
@@ -130,6 +131,11 @@ def check_for_updates(
                         result["downloadUrl"] = str(data.get("downloadUrl", __release_url__))
                         result["releaseNotes"] = str(data.get("releaseNotes", ""))
                         result["highlights"] = list(data.get("highlights", []))
+                        result["fileName"] = str(data.get("fileName", ""))
+                        try:
+                            result["fileSize"] = int(data.get("fileSize", 0))
+                        except Exception:
+                            result["fileSize"] = 0
                         result["success"] = True
 
                         # Compare versions (remote > current)
@@ -219,3 +225,274 @@ def start_background_check(
 
     thread = threading.Thread(target=_worker, name="UpdateCheckerThread", daemon=True)
     thread.start()
+
+
+# ── In-App Update Downloader & Progress Tracking ────────────────────────
+
+import os
+import subprocess
+from pathlib import Path
+
+_download_state: Dict[str, Any] = {
+    "status": "idle",       # "idle" | "downloading" | "completed" | "error" | "cancelled"
+    "progress": 0.0,
+    "downloadedBytes": 0,
+    "totalBytes": 0,
+    "speed": "",
+    "savedPath": "",
+    "fileName": "",
+    "error": None,
+}
+_download_lock = threading.Lock()
+_cancel_download_event = threading.Event()
+_download_thread: Optional[threading.Thread] = None
+
+
+def get_default_download_dir() -> Path:
+    """Return user's standard Downloads folder."""
+    user_profile = os.environ.get("USERPROFILE")
+    if user_profile:
+        dl = Path(user_profile) / "Downloads"
+        if dl.exists():
+            return dl
+    try:
+        home_dl = Path.home() / "Downloads"
+        if home_dl.exists():
+            return home_dl
+    except Exception:
+        pass
+    import tempfile
+    return Path(tempfile.gettempdir())
+
+
+def get_download_progress() -> Dict[str, Any]:
+    """Retrieve thread-safe snapshot of download progress."""
+    with _download_lock:
+        return dict(_download_state)
+
+
+def cancel_download() -> Dict[str, Any]:
+    """Cancel ongoing download if active."""
+    global _download_state
+    _cancel_download_event.set()
+    with _download_lock:
+        if _download_state["status"] == "downloading":
+            _download_state["status"] = "cancelled"
+            _download_state["error"] = "Đã huỷ tải xuống."
+    return {"success": True, "status": "cancelled"}
+
+
+def start_download_update(
+    download_url: Optional[str] = None,
+    file_name: Optional[str] = None,
+    target_dir: Optional[str] = None,
+    total_bytes_hint: int = 0,
+) -> Dict[str, Any]:
+    """
+    Start downloading update package in background daemon thread.
+    Non-blocking. UI polls get_download_progress() for percentage updates.
+    """
+    global _download_state, _download_thread
+
+    with _download_lock:
+        if _download_state["status"] == "downloading":
+            return {
+                "success": False,
+                "error": "Đang có tiến trình tải cập nhật khác đang chạy.",
+                "data": dict(_download_state),
+            }
+
+        # Resolve URL
+        url = download_url
+        if not url:
+            with _check_lock:
+                if _latest_check_result and _latest_check_result.get("downloadUrl"):
+                    url = _latest_check_result.get("downloadUrl")
+        if not url:
+            url = __release_url__
+
+        # Resolve target directory
+        save_dir = Path(target_dir) if target_dir else get_default_download_dir()
+        try:
+            save_dir.mkdir(parents=True, exist_ok=True)
+        except Exception:
+            pass
+
+        # Resolve filename
+        if not file_name:
+            with _check_lock:
+                if _latest_check_result and _latest_check_result.get("fileName"):
+                    file_name = _latest_check_result.get("fileName")
+        if not file_name:
+            raw_name = url.split("?")[0].rstrip("/").split("/")[-1]
+            if raw_name and ("." in raw_name) and not raw_name.endswith(".html"):
+                file_name = raw_name
+            else:
+                latest_ver = "latest"
+                with _check_lock:
+                    if _latest_check_result and _latest_check_result.get("latestVersion"):
+                        latest_ver = _latest_check_result.get("latestVersion")
+                file_name = f"LLTool_v{latest_ver}.zip"
+
+        dest_file = save_dir / file_name
+
+        _cancel_download_event.clear()
+        _download_state = {
+            "status": "downloading",
+            "progress": 0.0,
+            "downloadedBytes": 0,
+            "totalBytes": total_bytes_hint,
+            "speed": "0 KB/s",
+            "savedPath": str(dest_file),
+            "fileName": file_name,
+            "error": None,
+        }
+
+    def _worker():
+        global _download_state
+        temp_file = dest_file.with_name(dest_file.name + ".part")
+        start_time = time.time()
+        last_calc_time = start_time
+        last_calc_bytes = 0
+
+        try:
+            req = urllib.request.Request(
+                url,
+                headers={
+                    "User-Agent": f"luoBTool-IDE/{__version__} (UpdateDownloader; Windows)",
+                    "Accept": "*/*",
+                },
+            )
+            with urllib.request.urlopen(req, timeout=30.0) as resp:
+                try:
+                    status_code = int(getattr(resp, "status", 200))
+                except Exception:
+                    status_code = 200
+                if status_code >= 400:
+                    raise Exception(f"Máy chủ phản hồi mã lỗi {status_code}")
+
+                # Check Content-Length header
+                content_len_header = resp.headers.get("Content-Length")
+                total_len = 0
+                if content_len_header and content_len_header.isdigit():
+                    total_len = int(content_len_header)
+                if total_len == 0 and total_bytes_hint > 0:
+                    total_len = total_bytes_hint
+
+                with _download_lock:
+                    if total_len > 0:
+                        _download_state["totalBytes"] = total_len
+
+                downloaded = 0
+                chunk_size = 64 * 1024  # 64 KB
+
+                with open(temp_file, "wb") as out_fp:
+                    while True:
+                        if _cancel_download_event.is_set():
+                            raise Exception("Tải xuống đã bị huỷ bởi người dùng.")
+
+                        chunk = resp.read(chunk_size)
+                        if not chunk:
+                            break
+
+                        out_fp.write(chunk)
+                        downloaded += len(chunk)
+
+                        now = time.time()
+                        dt = now - last_calc_time
+                        speed_str = ""
+                        if dt >= 0.3:
+                            speed_bps = (downloaded - last_calc_bytes) / dt
+                            last_calc_time = now
+                            last_calc_bytes = downloaded
+                            if speed_bps >= 1024 * 1024:
+                                speed_str = f"{speed_bps / (1024 * 1024):.1f} MB/s"
+                            else:
+                                speed_str = f"{speed_bps / 1024:.0f} KB/s"
+
+                        pct = 0.0
+                        if total_len > 0:
+                            pct = min(99.9, (downloaded / total_len) * 100.0)
+                        else:
+                            pct = min(95.0, (downloaded / (downloaded + 1024 * 1024)) * 100.0)
+
+                        with _download_lock:
+                            _download_state["downloadedBytes"] = downloaded
+                            _download_state["progress"] = pct
+                            if speed_str:
+                                _download_state["speed"] = speed_str
+
+            # Finish download atomically
+            if temp_file.exists():
+                if dest_file.exists():
+                    try:
+                        dest_file.unlink()
+                    except Exception:
+                        pass
+                temp_file.replace(dest_file)
+
+            with _download_lock:
+                _download_state["status"] = "completed"
+                _download_state["progress"] = 100.0
+                _download_state["downloadedBytes"] = downloaded
+                _download_state["totalBytes"] = downloaded
+                _download_state["speed"] = "Hoàn tất"
+                _download_state["savedPath"] = str(dest_file)
+                _download_state["error"] = None
+
+        except Exception as exc:
+            logger.warning("[UpdateDownloader] Download failed: %s", exc)
+            if temp_file.exists():
+                try:
+                    temp_file.unlink()
+                except Exception:
+                    pass
+            with _download_lock:
+                _download_state["status"] = "error"
+                _download_state["error"] = str(exc)
+
+    _download_thread = threading.Thread(target=_worker, name="UpdateDownloadWorker", daemon=True)
+    _download_thread.start()
+
+    return {
+        "success": True,
+        "status": "downloading",
+        "data": dict(_download_state),
+    }
+
+
+def open_downloaded_file(file_path: Optional[str] = None) -> Dict[str, Any]:
+    """Open or execute downloaded update archive/installer."""
+    target = file_path
+    if not target:
+        with _download_lock:
+            target = _download_state.get("savedPath")
+    if not target or not os.path.exists(target):
+        return {"success": False, "error": f"Không tìm thấy file: {target}"}
+
+    try:
+        os.startfile(target)
+        return {"success": True, "path": target}
+    except Exception as exc:
+        return {"success": False, "error": str(exc)}
+
+
+def open_containing_folder(file_path: Optional[str] = None) -> Dict[str, Any]:
+    """Reveal downloaded file in Windows Explorer."""
+    target = file_path
+    if not target:
+        with _download_lock:
+            target = _download_state.get("savedPath")
+    if not target or not os.path.exists(target):
+        dl = get_default_download_dir()
+        if dl.exists():
+            os.startfile(str(dl))
+            return {"success": True, "path": str(dl)}
+        return {"success": False, "error": f"Không tìm thấy đường dẫn: {target}"}
+
+    try:
+        subprocess.Popen(f'explorer /select,"{os.path.abspath(target)}"', shell=True)
+        return {"success": True, "path": target}
+    except Exception as exc:
+        return {"success": False, "error": str(exc)}
+
