@@ -71,22 +71,23 @@
             display: flex;
             flex-direction: column;
             height: 100%;
-            padding: 24px;
+            padding: 20px 24px 16px 24px;
             box-sizing: border-box;
             justify-content: space-between;
         }
 
         .update-main-card {
-            background: var(--ide-bg-sidebar, #252526);
-            border: 1px solid var(--ide-border, #3c3c3c);
-            border-radius: 8px;
-            padding: 24px;
-            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+            background: transparent;
+            border: none;
+            border-radius: 0;
+            padding: 0;
+            box-shadow: none;
             display: flex;
             flex-direction: column;
-            gap: 16px;
-            flex-grow: 1;
-            overflow-y: auto;
+            gap: 12px;
+            flex: 1;
+            min-height: 0;
+            overflow: hidden;
         }
 
         .state-checking {
@@ -94,10 +95,11 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
+            flex: 1;
             height: 100%;
             text-align: center;
             gap: 16px;
-            padding: 30px 0;
+            padding: 20px 0;
         }
 
         .state-uptodate {
@@ -105,6 +107,7 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
+            flex: 1;
             height: 100%;
             text-align: center;
             gap: 14px;
@@ -114,7 +117,10 @@
         .state-update-available {
             display: flex;
             flex-direction: column;
-            gap: 16px;
+            gap: 12px;
+            flex: 1;
+            min-height: 0;
+            height: 100%;
         }
 
         .state-error {
@@ -122,6 +128,7 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
+            flex: 1;
             height: 100%;
             text-align: center;
             gap: 12px;
@@ -158,14 +165,16 @@
         }
 
         .update-details-box {
-            background: var(--ide-bg-input, rgba(0, 0, 0, 0.2));
+            background: var(--ide-bg-input, rgba(0, 0, 0, 0.05));
             border: 1px solid var(--ide-border, #333333);
             border-radius: 6px;
-            padding: 14px;
-            max-height: 160px;
+            padding: 14px 16px;
+            flex: 1;
+            min-height: 0;
+            max-height: none;
             overflow-y: auto;
             font-size: 13px;
-            line-height: 1.5;
+            line-height: 1.6;
         }
 
         .update-highlights-list {

@@ -206,12 +206,18 @@ def main():
         on_top=True
     )
 
+    main_w, main_h = 1400, 900
+    main_x = max(0, (sw - main_w) // 2)
+    main_y = max(0, (sh - main_h) // 2)
+
     window = webview.create_window(
         title="luoBTool IDE",
         url=index_html,
         js_api=main_api,
-        width=1400,
-        height=900,
+        width=main_w,
+        height=main_h,
+        x=main_x,
+        y=main_y,
         min_size=(900, 600),
         hidden=True,
         background_color=bg_color,

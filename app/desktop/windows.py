@@ -8,7 +8,7 @@ import os
 import threading
 import uuid
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import webview
 
@@ -814,6 +814,78 @@ def broadcast_settings(api: Any, settings: Dict[str, Any]) -> None:
 
 # ── Subwindow Creation Functions ───────────────────────────────────────
 
+def calculate_centered_coordinates(
+    target_width: int,
+    target_height: int,
+    api: Optional[Any] = None,
+) -> Tuple[int, int, Optional[Any]]:
+    """
+    Calculate (cx, cy, target_screen) in logical coordinates so that
+    a newly opened subwindow is always centered on the active screen / monitor
+    where the main IDE window resides.
+    """
+    screens = []
+    try:
+        screens = getattr(webview, "screens", []) or []
+    except Exception:
+        screens = []
+
+    # Find the main window if available
+    main_win = None
+    if api is not None:
+        main_win = getattr(api, "_window", None)
+        if not main_win and hasattr(api, "_main_api"):
+            main_win = getattr(api._main_api, "_window", None)
+    if not main_win and getattr(webview, "windows", None):
+        try:
+            main_win = webview.windows[0]
+        except Exception:
+            main_win = None
+
+    target_screen = None
+    if screens:
+        if len(screens) == 1:
+            target_screen = screens[0]
+        elif main_win:
+            try:
+                mx = getattr(main_win, "x", None)
+                my = getattr(main_win, "y", None)
+                mw = getattr(main_win, "width", None)
+                mh = getattr(main_win, "height", None)
+                if mx is not None and my is not None and mw and mh:
+                    mcx = mx + mw // 2
+                    mcy = my + mh // 2
+                    for sc in screens:
+                        if (sc.x <= mcx < sc.x + sc.width) and (sc.y <= mcy < sc.y + sc.height):
+                            target_screen = sc
+                            break
+            except Exception:
+                pass
+        if not target_screen:
+            target_screen = screens[0]
+
+    if target_screen:
+        sx = getattr(target_screen, "x", 0)
+        sy = getattr(target_screen, "y", 0)
+        sw = getattr(target_screen, "width", 1920)
+        sh = getattr(target_screen, "height", 1080)
+        cx = sx + max(0, (sw - target_width) // 2)
+        cy = sy + max(0, (sh - target_height) // 2)
+        return int(cx), int(cy), target_screen
+
+    # Fallback to ctypes user32 metrics
+    try:
+        import ctypes
+        user32 = ctypes.windll.user32
+        sw = user32.GetSystemMetrics(0)
+        sh = user32.GetSystemMetrics(1)
+        cx = max(0, (sw - target_width) // 2)
+        cy = max(0, (sh - target_height) // 2)
+        return int(cx), int(cy), None
+    except Exception:
+        return 100, 100, None
+
+
 def open_settings_window(api: Any, base_dir: Optional[Path] = None) -> Dict[str, Any]:
     """Open or focus the Settings subwindow."""
     if base_dir is None:
@@ -824,8 +896,15 @@ def open_settings_window(api: Any, base_dir: Optional[Path] = None) -> Dict[str,
         settings = _load_settings_file()
         cur_theme = settings.get("theme") or settings.get("appearance", {}).get("theme", "dark")
 
+        w, h = 1050, 720
+        cx, cy, target_screen = calculate_centered_coordinates(w, h, api)
+
         if hasattr(api, "_settings_window") and api._settings_window:
             try:
+                try:
+                    api._settings_window.move(cx, cy)
+                except Exception:
+                    pass
                 api._settings_window.show()
                 api._settings_window.focus()
                 return {"success": True}
@@ -838,13 +917,24 @@ def open_settings_window(api: Any, base_dir: Optional[Path] = None) -> Dict[str,
             title=win_title,
             url=settings_html,
             js_api=settings_api,
-            width=1050,
-            height=720,
+            width=w,
+            height=h,
+            x=cx,
+            y=cy,
+            screen=target_screen,
             min_size=(800, 520),
             text_select=True,
         )
         settings_api.set_window(settings_win)
         api._settings_window = settings_win
+
+        def _center_on_shown():
+            try:
+                settings_win.move(cx, cy)
+            except Exception:
+                pass
+
+        settings_win.events.shown += _center_on_shown
 
         if getattr(api, "_current_titlebar_theme", None):
             t = api._current_titlebar_theme
@@ -889,8 +979,15 @@ def open_about_window(api: Any, base_dir: Optional[Path] = None) -> Dict[str, An
         settings = _load_settings_file()
         cur_theme = settings.get("theme") or settings.get("appearance", {}).get("theme", "dark")
 
+        w, h = 580, 460
+        cx, cy, target_screen = calculate_centered_coordinates(w, h, api)
+
         if hasattr(api, "_about_window") and api._about_window:
             try:
+                try:
+                    api._about_window.move(cx, cy)
+                except Exception:
+                    pass
                 api._about_window.show()
                 api._about_window.focus()
                 return {"success": True}
@@ -903,14 +1000,25 @@ def open_about_window(api: Any, base_dir: Optional[Path] = None) -> Dict[str, An
             title=win_title,
             url=about_html,
             js_api=about_api,
-            width=580,
-            height=460,
+            width=w,
+            height=h,
+            x=cx,
+            y=cy,
+            screen=target_screen,
             min_size=(480, 380),
             text_select=True,
             resizable=True,
         )
         about_api.set_window(about_win)
         api._about_window = about_win
+
+        def _center_on_shown():
+            try:
+                about_win.move(cx, cy)
+            except Exception:
+                pass
+
+        about_win.events.shown += _center_on_shown
 
         if getattr(api, "_current_titlebar_theme", None):
             t = api._current_titlebar_theme
@@ -956,8 +1064,15 @@ def open_update_window(api: Any, base_dir: Optional[Path] = None) -> Dict[str, A
         settings = _load_settings_file()
         cur_theme = settings.get("theme") or settings.get("appearance", {}).get("theme", "dark")
 
+        w, h = 620, 500
+        cx, cy, target_screen = calculate_centered_coordinates(w, h, api)
+
         if hasattr(api, "_update_window") and api._update_window:
             try:
+                try:
+                    api._update_window.move(cx, cy)
+                except Exception:
+                    pass
                 api._update_window.show()
                 api._update_window.focus()
                 return {"success": True}
@@ -970,14 +1085,25 @@ def open_update_window(api: Any, base_dir: Optional[Path] = None) -> Dict[str, A
             title=win_title,
             url=update_html,
             js_api=update_api,
-            width=620,
-            height=500,
+            width=w,
+            height=h,
+            x=cx,
+            y=cy,
+            screen=target_screen,
             min_size=(500, 420),
             text_select=True,
             resizable=True,
         )
         update_api.set_window(update_win)
         api._update_window = update_win
+
+        def _center_on_shown():
+            try:
+                update_win.move(cx, cy)
+            except Exception:
+                pass
+
+        update_win.events.shown += _center_on_shown
 
         if getattr(api, "_current_titlebar_theme", None):
             t = api._current_titlebar_theme
@@ -1013,14 +1139,20 @@ def open_profiler_window(api: Any, conn_id: Optional[str] = None, db_type: Optio
         cur_theme = settings.get("theme") or settings.get("appearance", {}).get("theme", "dark")
         profiler_html = (base_dir / "templates" / "profiler_window.html").resolve().as_uri()
 
+        w, h = 1320, 840
+        cx, cy, target_screen = calculate_centered_coordinates(w, h, api)
+
         win_title = "SQL Trace Profiler — luoBTool IDE"
         profiler_api = ProfilerSubwindowApi(api)
         profiler_win = webview.create_window(
             title=win_title,
             url=profiler_html,
             js_api=profiler_api,
-            width=1320,
-            height=840,
+            width=w,
+            height=h,
+            x=cx,
+            y=cy,
+            screen=target_screen,
             min_size=(920, 560),
             text_select=True,
         )
@@ -1028,6 +1160,14 @@ def open_profiler_window(api: Any, conn_id: Optional[str] = None, db_type: Optio
         if not hasattr(api, "_profiler_windows") or api._profiler_windows is None:
             api._profiler_windows = []
         api._profiler_windows.append(profiler_win)
+
+        def _center_on_shown():
+            try:
+                profiler_win.move(cx, cy)
+            except Exception:
+                pass
+
+        profiler_win.events.shown += _center_on_shown
 
         if getattr(api, "_current_titlebar_theme", None):
             t = api._current_titlebar_theme
@@ -1065,14 +1205,20 @@ def open_event_listener_window(api: Any, conn_id: Optional[str] = None, db_type:
         cur_theme = settings.get("theme") or settings.get("appearance", {}).get("theme", "dark")
         el_html = (base_dir / "templates" / "event_listener_window.html").resolve().as_uri()
 
+        w, h = 1340, 860
+        cx, cy, target_screen = calculate_centered_coordinates(w, h, api)
+
         win_title = "PostgreSQL Event Listener — luoBTool IDE"
         el_api = EventListenerSubwindowApi(api)
         el_win = webview.create_window(
             title=win_title,
             url=el_html,
             js_api=el_api,
-            width=1340,
-            height=860,
+            width=w,
+            height=h,
+            x=cx,
+            y=cy,
+            screen=target_screen,
             min_size=(920, 580),
             text_select=True,
         )
@@ -1080,6 +1226,14 @@ def open_event_listener_window(api: Any, conn_id: Optional[str] = None, db_type:
         if not hasattr(api, "_event_listener_windows") or api._event_listener_windows is None:
             api._event_listener_windows = []
         api._event_listener_windows.append(el_win)
+
+        def _center_on_shown():
+            try:
+                el_win.move(cx, cy)
+            except Exception:
+                pass
+
+        el_win.events.shown += _center_on_shown
 
         if getattr(api, "_current_titlebar_theme", None):
             t = api._current_titlebar_theme
@@ -1117,8 +1271,15 @@ def open_query_history_window(api: Any, base_dir: Optional[Path] = None) -> Dict
         cur_theme = settings.get("theme") or settings.get("appearance", {}).get("theme", "dark")
         history_html = (base_dir / "templates" / "query_history_window.html").resolve().as_uri()
 
+        w, h = 1280, 820
+        cx, cy, target_screen = calculate_centered_coordinates(w, h, api)
+
         if hasattr(api, "_history_window") and api._history_window:
             try:
+                try:
+                    api._history_window.move(cx, cy)
+                except Exception:
+                    pass
                 api._history_window.show()
                 api._history_window.focus()
                 return {"success": True}
@@ -1131,13 +1292,24 @@ def open_query_history_window(api: Any, base_dir: Optional[Path] = None) -> Dict
             title=win_title,
             url=history_html,
             js_api=history_api,
-            width=1280,
-            height=820,
+            width=w,
+            height=h,
+            x=cx,
+            y=cy,
+            screen=target_screen,
             min_size=(900, 560),
             text_select=True,
         )
         history_api.set_window(history_win)
         api._history_window = history_win
+
+        def _center_on_shown():
+            try:
+                history_win.move(cx, cy)
+            except Exception:
+                pass
+
+        history_win.events.shown += _center_on_shown
 
         for delay in (0.05, 0.15, 0.3, 0.6, 1.0):
             threading.Timer(delay, lambda: api.apply_titlebar_theme()).start()
@@ -1213,14 +1385,20 @@ def open_bravo_window(
             "bravo_session_id": bravo_sess_id,
         }
 
+        w, h = 1340, 860
+        cx, cy, target_screen = calculate_centered_coordinates(w, h, api)
+
         from main import BravoApi  # dynamically imported to avoid circular dependency
         bravo_api = BravoApi(api.cm, owner_session_id=bravo_sess_id, initial_context=initial_ctx, main_api=api)
         bravo_win = webview.create_window(
             title=win_title,
             url=full_url,
             js_api=bravo_api,
-            width=1340,
-            height=860,
+            width=w,
+            height=h,
+            x=cx,
+            y=cy,
+            screen=target_screen,
             min_size=(960, 600),
             text_select=True,
         )
@@ -1228,6 +1406,14 @@ def open_bravo_window(
         if not hasattr(api, "_bravo_windows") or api._bravo_windows is None:
             api._bravo_windows = []
         api._bravo_windows.append(bravo_win)
+
+        def _center_on_shown():
+            try:
+                bravo_win.move(cx, cy)
+            except Exception:
+                pass
+
+        bravo_win.events.shown += _center_on_shown
 
         settings = _load_settings_file()
         cur_theme = settings.get("theme") or settings.get("appearance", {}).get("theme", "dark")
@@ -1266,14 +1452,20 @@ def open_activity_monitor_window(api: Any, conn_id: Optional[str] = None, db_typ
         cur_theme = settings.get("theme") or settings.get("appearance", {}).get("theme", "dark")
         activity_html = (base_dir / "templates" / "activity_monitor_window.html").resolve().as_uri()
 
+        w, h = 1320, 840
+        cx, cy, target_screen = calculate_centered_coordinates(w, h, api)
+
         win_title = "Giám sát phiên & Khóa chặn (Activity Monitor) — luoBTool IDE"
         act_api = ActivityMonitorSubwindowApi(api)
         act_win = webview.create_window(
             title=win_title,
             url=activity_html,
             js_api=act_api,
-            width=1320,
-            height=840,
+            width=w,
+            height=h,
+            x=cx,
+            y=cy,
+            screen=target_screen,
             min_size=(920, 560),
             text_select=True,
         )
@@ -1281,6 +1473,14 @@ def open_activity_monitor_window(api: Any, conn_id: Optional[str] = None, db_typ
         if not hasattr(api, "_activity_windows") or api._activity_windows is None:
             api._activity_windows = []
         api._activity_windows.append(act_win)
+
+        def _center_on_shown():
+            try:
+                act_win.move(cx, cy)
+            except Exception:
+                pass
+
+        act_win.events.shown += _center_on_shown
 
         if getattr(api, "_current_titlebar_theme", None):
             t = api._current_titlebar_theme
@@ -1346,14 +1546,20 @@ def open_schema_compare_window(
             "targetSchema": target_schema,
         }
 
+        w, h = 1340, 860
+        cx, cy, target_screen = calculate_centered_coordinates(w, h, api)
+
         win_title = "So sánh Schema giữa 2 Database (Schema Compare) — luoBTool IDE"
         sub_api = SchemaCompareSubwindowApi(api, initial_options=initial_options)
         sub_win = webview.create_window(
             title=win_title,
             url=html_path,
             js_api=sub_api,
-            width=1340,
-            height=860,
+            width=w,
+            height=h,
+            x=cx,
+            y=cy,
+            screen=target_screen,
             min_size=(960, 600),
             text_select=True,
         )
@@ -1361,6 +1567,14 @@ def open_schema_compare_window(
         if not hasattr(api, "_schema_compare_windows") or api._schema_compare_windows is None:
             api._schema_compare_windows = []
         api._schema_compare_windows.append(sub_win)
+
+        def _center_on_shown():
+            try:
+                sub_win.move(cx, cy)
+            except Exception:
+                pass
+
+        sub_win.events.shown += _center_on_shown
 
         if getattr(api, "_current_titlebar_theme", None):
             t = api._current_titlebar_theme
@@ -1440,14 +1654,20 @@ def open_result_comparator_window(
             chosen_path = candidate_paths[0]
         html_path = chosen_path.resolve().as_uri()
 
+        w, h = 1380, 880
+        cx, cy, target_screen = calculate_centered_coordinates(w, h, api)
+
         win_title = "So sánh kết quả truy vấn (Result Comparator) — luoBTool IDE"
         sub_api = ResultComparatorSubwindowApi(api, initial_data=payload)
         sub_win = webview.create_window(
             title=win_title,
             url=html_path,
             js_api=sub_api,
-            width=1380,
-            height=880,
+            width=w,
+            height=h,
+            x=cx,
+            y=cy,
+            screen=target_screen,
             min_size=(960, 600),
             text_select=True,
         )
@@ -1455,6 +1675,14 @@ def open_result_comparator_window(
         if not hasattr(api, "_result_comparator_windows") or api._result_comparator_windows is None:
             api._result_comparator_windows = []
         api._result_comparator_windows.append(sub_win)
+
+        def _center_on_shown():
+            try:
+                sub_win.move(cx, cy)
+            except Exception:
+                pass
+
+        sub_win.events.shown += _center_on_shown
 
         if getattr(api, "_current_titlebar_theme", None):
             t = api._current_titlebar_theme

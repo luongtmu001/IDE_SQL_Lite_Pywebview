@@ -77,11 +77,11 @@
         }
 
         .about-card {
-            background: var(--ide-bg-sidebar, #252526);
-            border: 1px solid var(--ide-border, #3c3c3c);
-            border-radius: 8px;
-            padding: 20px;
-            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+            background: transparent;
+            border: none;
+            border-radius: 0;
+            padding: 0;
+            box-shadow: none;
         }
 
         .about-header {
@@ -239,16 +239,10 @@
         </div>
 
         <div class="about-footer">
-            <div class="d-flex gap-2">
-                <button type="button" class="btn-ide btn-ide-primary" id="btnCheckUpdateFromAbout">
-                    <i class="fa-solid fa-arrows-rotate"></i>
-                    <span>Kiểm tra Cập nhật</span>
-                </button>
-                <button type="button" class="btn-ide btn-ide-subtle" id="btnOpenGitHub">
-                    <i class="fa-brands fa-github"></i>
-                    <span>GitHub Repo</span>
-                </button>
-            </div>
+            <button type="button" class="btn-ide btn-ide-primary" id="btnCheckUpdateFromAbout">
+                <i class="fa-solid fa-arrows-rotate"></i>
+                <span>Kiểm tra Cập nhật</span>
+            </button>
             <button type="button" class="btn-ide btn-ide-subtle" id="btnCloseAboutWindow">
                 <i class="fa-solid fa-xmark"></i>
                 <span>Đóng</span>
@@ -292,10 +286,6 @@
                     // Fallback if already focused or direct check
                     alert('Đang mở cửa sổ kiểm tra cập nhật...');
                 }
-            });
-
-            document.getElementById('btnOpenGitHub').addEventListener('click', async function () {
-                await callApi('open_external_url', 'https://github.com/luongtmu001/IDE_SQL_Lite_Pywebview');
             });
 
             document.getElementById('btnCloseAboutWindow').addEventListener('click', async function () {
