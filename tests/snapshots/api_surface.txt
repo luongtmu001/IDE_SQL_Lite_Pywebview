@@ -3,7 +3,7 @@
 # Generated for IDE-SQL-Lite_New_Pyweb_Claude
 # ====================================================================
 
-CLASS BravoApi (100 public methods):
+CLASS BravoApi (104 public methods):
   - apply_table_design(self, connection_id, database=None, statements=None, migration_sql=None)
   - apply_titlebar_theme(self, bg_hex=None, text_hex=None, border_hex=None, is_dark=None)
   - check_credential(self, config)
@@ -64,12 +64,14 @@ CLASS BravoApi (100 public methods):
   - layout_editor_search_xml(self, connection_id, keyword, form_ids=None, database=None, platform='Win', version='Bravo 10', is_regex=False)
   - list_connections(self)
   - list_features(self)
+  - open_about_window(self)
   - open_data_folder(self)
   - open_event_listener_window(self, conn_id=None, db_type=None)
   - open_external_url(self, url)
   - open_log_folder(self)
   - open_profiler_window(self, conn_id=None, db_type=None)
   - open_settings_window(self)
+  - open_update_window(self)
   - preview_table_design(self, connection_id, data=None)
   - profiler_get_status(self, session_id)
   - profiler_list_connections(self)
@@ -78,6 +80,8 @@ CLASS BravoApi (100 public methods):
   - profiler_start_trace(self, conn_id=None, conn_config=None, target_win=None)
   - profiler_stop_trace(self, session_id)
   - ready(self)
+  - reconnect_connection(self, connection_id, password=None)
+  - refresh_metadata(self, connection_id, database=None, schema=None, type=None)
   - reset_code_styles(self)
   - reset_snippets(self)
   - run_program(self, program_data)
@@ -105,7 +109,7 @@ CLASS BravoApi (100 public methods):
   - validate_table_row(self, connection_id, database=None, schema=None, table=None, values=None, keys=None, is_new=True, target_column=None)
   - validate_table_rows(self, connection_id, database=None, schema=None, table=None, rows=None)
 
-CLASS MainApi (162 public methods):
+CLASS MainApi (168 public methods):
   - activity_cancel_session(self, connection_id: str, session_id: int) -> Dict[str, Any]
   - activity_get_current_spid(self, connection_id: str) -> Dict[str, Any]
   - activity_get_sessions(self, connection_id: str, database: str | None = None, active_only: bool = False) -> Dict[str, Any]
@@ -200,6 +204,7 @@ CLASS MainApi (162 public methods):
   - history_update_execution(self, payload)
   - import_vsix_theme(self, target_win=None)
   - insert_table_row(self, connection_id, database=None, schema=None, table=None, values=None, identity_columns=None, computed_columns=None)
+  - invalidate_metadata_cache(self, connection_id=None, database=None, schema=None, table_name=None)
   - layout_editor_commit(self, connection_id, forms, database=None, platform='Win', version='Bravo 10')
   - layout_editor_list(self, connection_id, database=None, platform='Win', version='Bravo 10', custom_where='')
   - layout_editor_payload(self, connection_id, form_id, database=None, platform='Win', version='Bravo 10')
@@ -207,6 +212,7 @@ CLASS MainApi (162 public methods):
   - list_connections(self)
   - list_features(self)
   - notify_app_ready(self)
+  - open_about_window(self)
   - open_activity_monitor_window(self, connection_id: str | None = None, db_type: str | None = None) -> Dict[str, Any]
   - open_bravo_window(self, conn_id=None, conn_name=None, database=None, db_type=None, schema=None)
   - open_data_folder(self)
@@ -215,8 +221,10 @@ CLASS MainApi (162 public methods):
   - open_log_folder(self)
   - open_profiler_window(self, conn_id=None, db_type=None)
   - open_query_history_window(self)
+  - open_result_comparator_window(self, payload=None)
   - open_schema_compare_window(self, source_conn_id: str | None = None, source_db: str | None = None, source_schema: str | None = None, target_conn_id: str | None = None, target_db: str | None = None, target_schema: str | None = None) -> Dict[str, Any]
   - open_settings_window(self)
+  - open_update_window(self)
   - parse_query_parameters(self, sql, dialect='sqlserver')
   - pg_dependency_get_column(self, conn_id, schema, table, column, direction='dependents', depth=2, database=None, include_source=True)
   - pg_dependency_get_definition(self, conn_id, obj_type, schema, name, oid=None, database=None)
@@ -230,6 +238,8 @@ CLASS MainApi (162 public methods):
   - profiler_start_trace(self, conn_id=None, conn_config=None, target_win=None)
   - profiler_stop_trace(self, session_id)
   - ready(self)
+  - reconnect_connection(self, connection_id, password=None)
+  - refresh_metadata(self, connection_id, database=None, schema=None, type=None)
   - reset_code_styles(self)
   - reset_snippets(self)
   - run_program(self, program_data)
@@ -301,7 +311,7 @@ CLASS QueryHistorySubwindowApi (30 public methods):
   - open_in_editor(self, payload)
   - set_window(self, win)
 
-CLASS SettingsSubwindowApi (30 public methods):
+CLASS SettingsSubwindowApi (32 public methods):
   - apply_titlebar_theme(self, bg_hex=None, text_hex=None, border_hex=None, is_dark=None)
   - check_for_updates(self, force=True, custom_url=None)
   - close_window(self)
@@ -320,10 +330,12 @@ CLASS SettingsSubwindowApi (30 public methods):
   - history_get_stats(self)
   - history_purge(self, max_age_days=None, max_entries_per_doc=None, max_db_size_mb=None)
   - import_vsix_theme(self)
+  - open_about_window(self)
   - open_data_folder(self)
   - open_external_url(self, url)
   - open_log_folder(self)
   - open_settings_window(self)
+  - open_update_window(self)
   - reset_code_styles(self)
   - reset_snippets(self)
   - save_code_styles(self, payload)
@@ -331,6 +343,22 @@ CLASS SettingsSubwindowApi (30 public methods):
   - save_settings(self, settings)
   - save_snippets(self, snippets_data)
   - set_portable_mode(self, enabled=True)
+  - set_window(self, win)
+
+CLASS AboutSubwindowApi (6 public methods):
+  - apply_titlebar_theme(self, bg_hex=None, text_hex=None, border_hex=None, is_dark=None)
+  - close_window(self)
+  - get_app_version(self)
+  - open_external_url(self, url)
+  - open_update_window(self)
+  - set_window(self, win)
+
+CLASS UpdateSubwindowApi (6 public methods):
+  - apply_titlebar_theme(self, bg_hex=None, text_hex=None, border_hex=None, is_dark=None)
+  - check_for_updates(self, force=True, custom_url=None)
+  - close_window(self)
+  - get_app_version(self)
+  - open_external_url(self, url)
   - set_window(self, win)
 
 CLASS ProfilerSubwindowApi (9 public methods):

@@ -310,7 +310,23 @@ class QueryApiMixin:
         try:
             from app.database.syntax.semantic_analyzer import invalidate_physical_table_columns_cache
             count = invalidate_physical_table_columns_cache(connection_id, database, schema, table_name)
+            if connection_id and hasattr(self, 'cm') and self.cm:
+                try:
+                    conn = self._get_connection(connection_id) if hasattr(self, '_get_connection') else self.cm.get(self.owner_session_id, connection_id)
+                    if conn and hasattr(conn, 'metadata_service'):
+                        conn.metadata_service.invalidate(database=database, schema=schema)
+                except Exception:
+                    pass
             return {"success": True, "invalidated": count}
         except Exception as exc:
+            return {"success": False, "error": str(exc)}
+
+    def open_result_comparator_window(self, payload=None):
+        """Open dedicated Result Comparator subwindow."""
+        try:
+            from app.desktop.windows import open_result_comparator_window
+            return open_result_comparator_window(self, payload=payload)
+        except Exception as exc:
+            logger.exception("Failed to open result comparator window: %s", exc)
             return {"success": False, "error": str(exc)}
 

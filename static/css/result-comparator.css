@@ -1,60 +1,192 @@
 /**
  * result-comparator.css
- * Styling cho Giao diện So sánh kết quả truy vấn (Result Comparator & Diff Modal).
- * Mục 5.6 trong .SKILL/improve_general_program.md
+ * Styling cho Giao diện So sánh kết quả truy vấn (Result Comparator & Diff Window/Modal).
+ * Đồng bộ toàn diện với Hệ thống Theme luoBTool IDE & AG-Grid Quartz.
  */
 
-/* Row status coloring */
+/* ── Connection Info Badges Bar ────────────────────────────────────────────── */
+.diff-conn-badge-bar {
+    min-height: 22px;
+}
+
+.diff-conn-badge {
+    font-size: 11px;
+    padding: 2px 7px;
+    border-radius: 4px;
+    font-weight: 500;
+    line-height: 1.3;
+    display: inline-flex;
+    align-items: center;
+    border: 1px solid var(--ide-border, #3a3d45);
+    background: var(--ide-bg-main, #1c1d23);
+    color: var(--ide-text-main, #d4d4d4);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+    white-space: nowrap;
+}
+
+.diff-badge-server {
+    background: rgba(0, 122, 204, 0.12);
+    border-color: rgba(0, 122, 204, 0.4);
+    color: #38bdf8;
+}
+
+.diff-badge-db {
+    background: rgba(168, 85, 247, 0.12);
+    border-color: rgba(168, 85, 247, 0.4);
+    color: #c084fc;
+}
+
+.diff-badge-schema {
+    background: rgba(34, 197, 94, 0.12);
+    border-color: rgba(34, 197, 94, 0.4);
+    color: #4ade80;
+}
+
+.diff-badge-type {
+    background: rgba(234, 179, 8, 0.12);
+    border-color: rgba(234, 179, 8, 0.4);
+    color: #facc15;
+    font-family: var(--ide-font-mono, monospace);
+    font-size: 10px;
+}
+
+.diff-badge-env-prod {
+    background: rgba(239, 68, 68, 0.15);
+    border-color: rgba(239, 68, 68, 0.5);
+    color: #f87171;
+    font-weight: 700;
+}
+
+.diff-badge-env-test {
+    background: rgba(249, 115, 22, 0.15);
+    border-color: rgba(249, 115, 22, 0.5);
+    color: #fb923c;
+    font-weight: 600;
+}
+
+.diff-badge-env-dev {
+    background: rgba(59, 130, 246, 0.15);
+    border-color: rgba(59, 130, 246, 0.5);
+    color: #60a5fa;
+    font-weight: 600;
+}
+
+/* ── Column Picker Dropdown Menu ───────────────────────────────────────────── */
+.diff-col-picker-menu {
+    border-radius: 6px;
+    background: var(--ide-bg-sidebar, #1f2128) !important;
+    border: 1px solid var(--ide-border, #3a3d45) !important;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+}
+
+.diff-col-scrollable-list {
+    scrollbar-width: thin;
+    scrollbar-color: var(--ide-border, #444) transparent;
+}
+
+.diff-col-scrollable-list::-webkit-scrollbar {
+    width: 6px;
+}
+
+.diff-col-scrollable-list::-webkit-scrollbar-thumb {
+    background: var(--ide-border, #444);
+    border-radius: 3px;
+}
+
+.diff-col-item {
+    padding: 3px 6px;
+    border-radius: 4px;
+    transition: background-color 0.15s ease;
+    cursor: pointer;
+}
+
+.diff-col-item:hover {
+    background-color: var(--ide-hover-bg, rgba(255, 255, 255, 0.08));
+}
+
+.diff-col-item .form-check-input {
+    cursor: pointer;
+}
+
+.diff-col-tag {
+    font-size: 9.5px;
+    padding: 1px 4px;
+    border-radius: 3px;
+    margin-left: 6px;
+    font-weight: 600;
+}
+
+/* ── Filter Button Pills ───────────────────────────────────────────────────── */
+#diff-filter-group .btn {
+    font-size: 12px;
+    padding: 4px 10px;
+    transition: all 0.15s ease;
+}
+
+#diff-filter-group .btn.active {
+    font-weight: 700;
+    box-shadow: 0 0 10px rgba(0, 122, 204, 0.35);
+}
+
+/* ── AG-Grid Theme Customization & Diff Rows ──────────────────────────────── */
+.ag-theme-quartz-dark,
+.ag-theme-quartz {
+    --ag-background-color: var(--ide-bg-editor, #1e1e1e);
+    --ag-header-background-color: var(--ide-bg-toolbar, #252526);
+    --ag-header-foreground-color: var(--ide-text-main, #d4d4d4);
+    --ag-foreground-color: var(--ide-text-main, #d4d4d4);
+    --ag-border-color: var(--ide-border, #333842);
+    --ag-row-border-color: var(--ide-border, #2a2d34);
+    --ag-odd-row-background-color: rgba(255, 255, 255, 0.015);
+    --ag-row-hover-color: var(--ide-hover-bg, rgba(255, 255, 255, 0.06));
+    --ag-font-family: var(--ide-ui-font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif);
+    --ag-font-size: 12px;
+}
+
+/* Light Theme overrides for AG-Grid */
+[data-bs-theme="light"] .ag-theme-quartz,
+[data-bs-theme="win-nt"] .ag-theme-quartz,
+[data-bs-theme="win-xp"] .ag-theme-quartz {
+    --ag-background-color: #ffffff;
+    --ag-header-background-color: #f1f3f5;
+    --ag-header-foreground-color: #212529;
+    --ag-foreground-color: #212529;
+    --ag-border-color: #dee2e6;
+    --ag-row-border-color: #e9ecef;
+    --ag-odd-row-background-color: #f8f9fa;
+    --ag-row-hover-color: #e2e6ea;
+}
+
+/* Diff Row Highlighting */
 .diff-row-added {
-    background-color: rgba(34, 197, 94, 0.08) !important;
+    background-color: rgba(34, 197, 94, 0.09) !important;
 }
 
 .diff-row-added:hover {
-    background-color: rgba(34, 197, 94, 0.16) !important;
+    background-color: rgba(34, 197, 94, 0.18) !important;
 }
 
 .diff-row-removed {
-    background-color: rgba(239, 68, 68, 0.08) !important;
+    background-color: rgba(239, 68, 68, 0.09) !important;
 }
 
 .diff-row-removed:hover {
-    background-color: rgba(239, 68, 68, 0.16) !important;
+    background-color: rgba(239, 68, 68, 0.18) !important;
 }
 
 .diff-row-modified {
-    background-color: rgba(234, 179, 8, 0.07) !important;
+    background-color: rgba(234, 179, 8, 0.08) !important;
 }
 
 .diff-row-modified:hover {
-    background-color: rgba(234, 179, 8, 0.15) !important;
-}
-
-/* Modal styling */
-#ide-result-diff-modal .modal-content {
-    border-radius: 8px;
-    overflow: hidden;
-}
-
-#ide-result-diff-modal .btn-group .btn {
-    font-size: 12px;
-    padding: 3px 10px;
-}
-
-#ide-result-diff-modal .dropdown-menu {
-    border-radius: 6px;
-}
-
-#ide-result-diff-modal select.form-select {
-    font-size: 12px;
-    padding-top: 4px;
-    padding-bottom: 4px;
+    background-color: rgba(234, 179, 8, 0.17) !important;
 }
 
 /* Diff modified cell badge */
 .diff-cell-modified {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
+    gap: 5px;
     white-space: nowrap;
     padding: 1px 6px;
     border-radius: 4px;
@@ -72,4 +204,42 @@
 .diff-cell-modified .diff-new {
     color: #22c55e;
     font-weight: 600;
+}
+
+/* Diff status badges */
+.diff-badge-status {
+    font-size: 11px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+/* ── Fallback Modal Specific Styling ───────────────────────────────────────── */
+#ide-result-diff-modal .modal-content {
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid var(--ide-border, #3c3c3c);
+}
+
+#ide-result-diff-modal .modal-header {
+    background: var(--ide-bg-toolbar, #252526);
+    border-bottom: 1px solid var(--ide-border, #3c3c3c);
+}
+
+#ide-result-diff-modal .modal-body {
+    background: var(--ide-bg-editor, #1e1e1e);
+}
+
+#ide-result-diff-modal .modal-footer {
+    background: var(--ide-bg-toolbar, #252526);
+    border-top: 1px solid var(--ide-border, #3c3c3c);
+}
+
+#ide-result-diff-modal select.form-select {
+    font-size: 12px;
+    padding-top: 4px;
+    padding-bottom: 4px;
 }

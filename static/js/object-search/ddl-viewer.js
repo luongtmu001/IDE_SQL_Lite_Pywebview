@@ -179,6 +179,7 @@
             if (this.editor && typeof monaco !== 'undefined' && monaco.editor) {
                 const monacoTheme = getActiveMonacoTheme();
                 monaco.editor.setTheme(monacoTheme);
+                this.editor.updateOptions({ theme: monacoTheme });
             }
         }
 

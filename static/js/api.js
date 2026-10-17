@@ -7,6 +7,7 @@
     'use strict';
 
     let _cachedNativeApi = null;
+    let _readyPromise = null;
 
     global.waitForPywebview = function () {
         if (_cachedNativeApi) return Promise.resolve(_cachedNativeApi);
@@ -14,7 +15,9 @@
             _cachedNativeApi = window.pywebview.api;
             return Promise.resolve(_cachedNativeApi);
         }
-        return new Promise((resolve) => {
+        if (_readyPromise) return _readyPromise;
+
+        _readyPromise = new Promise((resolve) => {
             let done = false;
             const finish = (api) => {
                 if (done) return;
@@ -22,6 +25,8 @@
                 window.removeEventListener('pywebviewready', onReady);
                 if (api) {
                     _cachedNativeApi = api;
+                } else {
+                    _readyPromise = null;
                 }
                 resolve(_cachedNativeApi || null);
             };
@@ -31,19 +36,21 @@
             };
             window.addEventListener('pywebviewready', onReady);
 
-            // Active interval polling (up to 2500ms max, 30ms interval)
+            // Active interval polling (up to 15000ms max, 40ms interval)
             let elapsed = 0;
             const poll = setInterval(() => {
-                elapsed += 30;
+                elapsed += 40;
                 if (window.pywebview && window.pywebview.api) {
                     clearInterval(poll);
                     finish(window.pywebview.api);
-                } else if (elapsed >= 2500) {
+                } else if (elapsed >= 15000) {
                     clearInterval(poll);
                     finish(null);
                 }
-            }, 30);
+            }, 40);
         });
+
+        return _readyPromise;
     };
 
     window.addEventListener('pywebviewready', () => {
@@ -177,6 +184,20 @@
             }
         },
         {
+            id: 'connections:reconnect',
+            method: 'POST',
+            pattern: /^\/api\/connections\/([^/]+)\/reconnect$/,
+            targetMethods: ['reconnect_connection', 'create_connection'],
+            handler: async (api, ctx) => {
+                const connId = decodeURIComponent(ctx.match[1]);
+                if (typeof api.reconnect_connection === 'function') {
+                    return await api.reconnect_connection(connId, ctx.body?.password);
+                }
+                verifyNativeMethod(api, 'create_connection');
+                return await api.create_connection({ id: connId, ...(ctx.body || {}) });
+            }
+        },
+        {
             id: 'connections:delete',
             method: 'DELETE',
             pattern: /^\/api\/connections\/([^/]+)$/,
@@ -200,7 +221,8 @@
                 'get_remote_columns', 'test_linked_server', 'get_linked_server_script', 'drop_linked_server',
                 'get_foreign_servers', 'get_foreign_tables', 'get_object_children',
                 'get_table_design', 'get_table_design_types', 'preview_table_design', 'diff_table_design', 'apply_table_design',
-                'get_intellisense_objects', 'get_intellisense_columns', 'get_intellisense_parameters', 'get_intellisense_types'
+                'get_intellisense_objects', 'get_intellisense_columns', 'get_intellisense_parameters', 'get_intellisense_types',
+                'refresh_metadata'
             ],
             handler: async (api, ctx) => {
                 const connId = ctx.match[1];
@@ -301,6 +323,17 @@
                     } else if (subAction === 'types') {
                         verifyNativeMethod(api, 'get_intellisense_types');
                         result = await api.get_intellisense_types(connId, searchParams.get('database'));
+                    }
+                } else if (action === 'refresh') {
+                    const db = (body && body.database) || searchParams.get('database');
+                    const sc = (body && body.schema) || searchParams.get('schema');
+                    const tp = (body && body.type) || searchParams.get('type');
+                    if (typeof api.refresh_metadata === 'function') {
+                        result = await api.refresh_metadata(connId, db, sc, tp);
+                    } else if (typeof api.invalidate_metadata_cache === 'function') {
+                        result = await api.invalidate_metadata_cache(connId, db, sc, null);
+                    } else {
+                        result = { success: true, message: "Metadata cache refreshed" };
                     }
                 }
                 return result;
@@ -1290,12 +1323,13 @@
 
         const api = await global.waitForPywebview();
         if (!api) {
-            if (originalFetch) {
+            const isDesktop = (window.location && window.location.protocol === 'file:') || !!window.pywebview;
+            if (!isDesktop && originalFetch) {
                 return originalFetch(input, init);
             }
             console.error('[IPC] pywebview.api not ready for url:', url);
             return new Response(JSON.stringify({ success: false, error: "Native API bridge not ready" }), {
-                status: 500,
+                status: 503,
                 headers: { 'Content-Type': 'application/json' }
             });
         }

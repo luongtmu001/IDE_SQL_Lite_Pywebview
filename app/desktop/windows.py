@@ -706,6 +706,18 @@ def apply_titlebar_theme_to_windows(api: Any, bg_hex: Optional[str] = None, text
                     title="So sánh Schema giữa 2 Database (Schema Compare) — luoBTool IDE",
                 )
 
+        # 9. Result Comparator Windows
+        for rcw in getattr(api, "_result_comparator_windows", []):
+            if rcw:
+                apply_dwm_titlebar_theme(
+                    rcw,
+                    bg=bg_hex,
+                    text=text_hex,
+                    border=border_hex,
+                    is_dark=is_dark,
+                    title="So sánh kết quả truy vấn (Result Comparator) — luoBTool IDE",
+                )
+
         return {"success": True}
     except Exception as exc:
         return {"success": False, "error": str(exc)}
@@ -745,6 +757,9 @@ def broadcast_settings(api: Any, settings: Dict[str, Any]) -> None:
             for scw in getattr(api, "_schema_compare_windows", []):
                 if scw and scw not in targets:
                     targets.append(scw)
+            for rcw in getattr(api, "_result_comparator_windows", []):
+                if rcw and rcw not in targets:
+                    targets.append(rcw)
             if getattr(api, "_history_window", None):
                 if api._history_window not in targets:
                     targets.append(api._history_window)
@@ -1342,6 +1357,100 @@ def open_schema_compare_window(
         return {"success": True}
     except Exception as exc:
         logger.exception("Error opening schema compare window: %s", exc)
+        return {"success": False, "error": str(exc)}
+
+
+class ResultComparatorSubwindowApi:
+    """JS Bridge for standalone Pop-out Result Comparator subwindows."""
+
+    def __init__(self, main_api, initial_data=None):
+        self._main_api = main_api
+        self._initial_data = initial_data or {}
+        self._window = None
+
+    def get_initial_data(self):
+        return self._initial_data
+
+    def set_window(self, win):
+        self._window = win
+
+    def close_window(self):
+        if self._window:
+            try:
+                self._window.destroy()
+            except Exception:
+                pass
+        return {"success": True}
+
+    def apply_titlebar_theme(self, bg_hex=None, text_hex=None, border_hex=None, is_dark=None):
+        return self._main_api.apply_titlebar_theme(bg_hex, text_hex, border_hex, is_dark)
+
+    def get_settings(self):
+        return self._main_api.get_settings()
+
+
+def open_result_comparator_window(
+    api: Any,
+    payload: Optional[Dict[str, Any]] = None,
+    base_dir: Optional[Path] = None
+) -> Dict[str, Any]:
+    """Open a new Result Comparator subwindow (Pop-out mode)."""
+    if base_dir is None:
+        base_dir = get_bundle_dir()
+
+    try:
+        settings = _load_settings_file()
+        cur_theme = settings.get("theme") or settings.get("appearance", {}).get("theme", "dark")
+
+        candidate_paths = [
+            base_dir / "templates" / "result_comparator_window.html",
+            base_dir / "_internal" / "templates" / "result_comparator_window.html",
+            Path(__file__).resolve().parent.parent.parent / "templates" / "result_comparator_window.html"
+        ]
+        chosen_path = None
+        for cand in candidate_paths:
+            if cand.exists():
+                chosen_path = cand
+                break
+        if not chosen_path:
+            chosen_path = candidate_paths[0]
+        html_path = chosen_path.resolve().as_uri()
+
+        win_title = "So sánh kết quả truy vấn (Result Comparator) — luoBTool IDE"
+        sub_api = ResultComparatorSubwindowApi(api, initial_data=payload)
+        sub_win = webview.create_window(
+            title=win_title,
+            url=html_path,
+            js_api=sub_api,
+            width=1380,
+            height=880,
+            min_size=(960, 600),
+            text_select=True,
+        )
+        sub_api.set_window(sub_win)
+        if not hasattr(api, "_result_comparator_windows") or api._result_comparator_windows is None:
+            api._result_comparator_windows = []
+        api._result_comparator_windows.append(sub_win)
+
+        if getattr(api, "_current_titlebar_theme", None):
+            t = api._current_titlebar_theme
+            apply_dwm_titlebar_theme(sub_win, bg=t.get("bg"), text=t.get("text"), border=t.get("border"), is_dark=t.get("is_dark"), title=win_title)
+        else:
+            apply_dwm_titlebar_theme(sub_win, bg=cur_theme, title=win_title)
+
+        def on_closed():
+            if sub_win in getattr(api, "_result_comparator_windows", []):
+                api._result_comparator_windows.remove(sub_win)
+            try:
+                if sub_win in webview.windows:
+                    webview.windows.remove(sub_win)
+            except Exception:
+                pass
+
+        sub_win.events.closed += on_closed
+        return {"success": True}
+    except Exception as exc:
+        logger.exception("Error opening result comparator window: %s", exc)
         return {"success": False, "error": str(exc)}
 
 

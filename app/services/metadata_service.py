@@ -48,9 +48,12 @@ class MetadataService:
             limit,
         )
 
-        if refresh and key in self.session.metadata_cache:
+        if refresh:
+            self.invalidate(database=database, schema=schema, object_type=object_type)
             with self.session.lock:
-                self.session.metadata_cache.pop(key, None)
+                for k in list(self.session.metadata_cache.keys()):
+                    if str(k).startswith(f"intellisense_objects::{database}"):
+                        self.session.metadata_cache.pop(k, None)
 
         if key not in self.session.metadata_cache:
             with self.session.lock:
@@ -227,6 +230,10 @@ class MetadataService:
                 return
 
             keys_to_remove = []
+            db_clean = str(database).strip().lower() if database else None
+            schema_clean = str(schema).strip().lower() if schema else None
+            obj_type_clean = str(object_type).strip().lower() if object_type else None
+
             for k in list(self.session.metadata_cache.keys()):
                 if isinstance(k, str):
                     parts = k.split("::")
@@ -235,20 +242,38 @@ class MetadataService:
                 else:
                     continue
 
-                if len(parts) > 0:
-                    # Check database matching if present
-                    if database and len(parts) > 1 and parts[1]:
-                        if str(parts[1]).lower() != str(database).lower():
-                            continue
-                    # Check schema matching if present
-                    if schema and len(parts) > 2 and parts[2]:
-                        if str(parts[2]).lower() != str(schema).lower():
-                            continue
-                    # Check object_type matching if present
-                    if object_type and len(parts) > 3 and parts[3]:
-                        if str(parts[3]).lower() != str(object_type).lower():
-                            continue
+                if not parts:
+                    continue
+
+                prefix = str(parts[0]).lower()
+
+                # Always invalidate intellisense_objects if database matches (or no database specified)
+                if prefix == "intellisense_objects":
+                    k_db = str(parts[1]).strip().lower() if len(parts) > 1 and parts[1] else None
+                    k_schema = str(parts[2]).strip().lower() if len(parts) > 2 and parts[2] else None
+                    if db_clean and k_db and k_db != db_clean:
+                        continue
+                    if schema_clean and k_schema and k_schema != schema_clean:
+                        continue
                     keys_to_remove.append(k)
+                    continue
+
+                # Check database matching if present
+                if db_clean and len(parts) > 1 and parts[1]:
+                    if str(parts[1]).strip().lower() != db_clean:
+                        continue
+
+                # Check schema matching if present
+                if schema_clean and len(parts) > 2 and parts[2]:
+                    if str(parts[2]).strip().lower() != schema_clean:
+                        continue
+
+                # Check object_type matching if present
+                if obj_type_clean and len(parts) > 3 and parts[3]:
+                    if str(parts[3]).strip().lower() != obj_type_clean:
+                        continue
+
+                keys_to_remove.append(k)
 
             for k in keys_to_remove:
                 self.session.metadata_cache.pop(k, None)

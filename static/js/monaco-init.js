@@ -197,8 +197,24 @@
             colors: {
                 "editor.background": "#ffffff",
                 "editor.foreground": "#1e1e1e",
-                "editor.lineHighlightBackground": "#f8f8f8",
-                "editorLineNumber.foreground": "#a0a0a0"
+                "editorGutter.background": "#ffffff",
+                "editor.lineHighlightBackground": "#f5f5f5",
+                "editorLineNumber.foreground": "#999999",
+                "editorLineNumber.activeForeground": "#333333",
+                "editor.selectionBackground": "#add6ff",
+                "editor.selectionHighlightBackground": "#d0e4ff",
+                "editorCursor.foreground": "#000000",
+                "editorIndentGuide.background1": "#e5e5e5",
+                "editorIndentGuide.activeBackground1": "#adadad",
+                "scrollbarSlider.background": "#cccccc66",
+                "scrollbarSlider.hoverBackground": "#99999999",
+                "editorWidget.background": "#f8f9fa",
+                "editorWidget.border": "#cccccc",
+                "editorSuggestWidget.background": "#ffffff",
+                "editorSuggestWidget.border": "#cccccc",
+                "editorSuggestWidget.selectedBackground": "#e0e8f8",
+                "editorHoverWidget.background": "#ffffff",
+                "editorHoverWidget.border": "#cccccc"
             }
         });
 
@@ -209,8 +225,24 @@
             colors: {
                 "editor.background": "#ffffff",
                 "editor.foreground": "#1e1e1e",
-                "editor.lineHighlightBackground": "#f8f8f8",
-                "editorLineNumber.foreground": "#a0a0a0"
+                "editorGutter.background": "#ffffff",
+                "editor.lineHighlightBackground": "#f5f5f5",
+                "editorLineNumber.foreground": "#999999",
+                "editorLineNumber.activeForeground": "#333333",
+                "editor.selectionBackground": "#add6ff",
+                "editor.selectionHighlightBackground": "#d0e4ff",
+                "editorCursor.foreground": "#000000",
+                "editorIndentGuide.background1": "#e5e5e5",
+                "editorIndentGuide.activeBackground1": "#adadad",
+                "scrollbarSlider.background": "#cccccc66",
+                "scrollbarSlider.hoverBackground": "#99999999",
+                "editorWidget.background": "#f8f9fa",
+                "editorWidget.border": "#cccccc",
+                "editorSuggestWidget.background": "#ffffff",
+                "editorSuggestWidget.border": "#cccccc",
+                "editorSuggestWidget.selectedBackground": "#e0e8f8",
+                "editorHoverWidget.background": "#ffffff",
+                "editorHoverWidget.border": "#cccccc"
             }
         });
 
@@ -358,6 +390,37 @@
         return fallbackHex;
     }
 
+    function getCssRuleColors(themeId) {
+        if (typeof document === 'undefined' || !document.styleSheets) return null;
+        try {
+            const selector = `[data-bs-theme="${themeId}"]`;
+            for (let i = 0; i < document.styleSheets.length; i++) {
+                const sheet = document.styleSheets[i];
+                let rules;
+                try {
+                    rules = sheet.cssRules || sheet.rules;
+                } catch (_) {
+                    continue;
+                }
+                if (!rules) continue;
+                for (let j = 0; j < rules.length; j++) {
+                    const rule = rules[j];
+                    if (rule.selectorText && rule.selectorText.includes(selector)) {
+                        const style = rule.style;
+                        if (style) {
+                            const bg = (style.getPropertyValue('--ide-bg-editor') || '').trim();
+                            const fg = (style.getPropertyValue('--ide-text-main') || '').trim();
+                            if (bg || fg) {
+                                return { bg, fg };
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (_) {}
+        return null;
+    }
+
     function ensureDynamicMonacoTheme(themeObj) {
         if (typeof monaco === "undefined" || !monaco.editor || !themeObj || !themeObj.id) return;
         const themeId = themeObj.id;
@@ -365,13 +428,25 @@
 
         let bg = isDark ? "#1e1e1e" : "#ffffff";
         let fg = isDark ? "#d4d4d4" : "#1e1e1e";
-        try {
-            const computed = window.getComputedStyle(document.documentElement);
-            const cssBg = (computed.getPropertyValue('--ide-bg-editor') || '').trim();
-            const cssFg = (computed.getPropertyValue('--ide-text-main') || '').trim();
-            if (cssBg) bg = cssBg;
-            if (cssFg) fg = cssFg;
-        } catch (_) {}
+
+        // If the document currently has this theme active, sample its computed CSS variables directly
+        const activeTheme = document.documentElement.getAttribute('data-bs-theme');
+        if (activeTheme === themeId) {
+            try {
+                const computed = window.getComputedStyle(document.documentElement);
+                const cssBg = (computed.getPropertyValue('--ide-bg-editor') || '').trim();
+                const cssFg = (computed.getPropertyValue('--ide-text-main') || '').trim();
+                if (cssBg) bg = cssBg;
+                if (cssFg) fg = cssFg;
+            } catch (_) {}
+        } else {
+            // Document currently displays a different theme; query stylesheet rule for this specific theme
+            const ruleColors = getCssRuleColors(themeId);
+            if (ruleColors) {
+                if (ruleColors.bg) bg = ruleColors.bg;
+                if (ruleColors.fg) fg = ruleColors.fg;
+            }
+        }
 
         bg = toFullHexColor(bg, isDark ? "#1e1e1e" : "#ffffff");
         fg = toFullHexColor(fg, isDark ? "#d4d4d4" : "#1e1e1e");
@@ -396,6 +471,16 @@
             return nr;
         });
 
+        const gutterBg = bg;
+        const lineHighlight = isDark ? "#2d2d2d" : "#f5f5f5";
+        const lineNumFg = isDark ? "#858585" : "#999999";
+        const lineNumActive = isDark ? "#c6c6c6" : "#333333";
+        const cursorFg = isDark ? "#aeafad" : "#000000";
+        const selBg = isDark ? "#264f78" : "#add6ff";
+        const widgetBg = isDark ? "#252526" : "#f8f9fa";
+        const widgetBorder = isDark ? "#454545" : "#cccccc";
+        const suggestSelBg = isDark ? "#0d6efd33" : "#e0e8f8";
+
         try {
             monaco.editor.defineTheme(themeId, {
                 base: isDark ? "vs-dark" : "vs",
@@ -404,10 +489,24 @@
                 colors: {
                     "editor.background": bg,
                     "editor.foreground": fg,
-                    "editor.lineHighlightBackground": isDark ? "#2d2d2d" : "#f8f8f8",
-                    "editorLineNumber.foreground": isDark ? "#858585" : "#a0a0a0",
-                    "editor.selectionBackground": isDark ? "#264f78" : "#add6ff",
-                    "editorWidget.background": isDark ? "#252526" : "#f3f3f3"
+                    "editorGutter.background": gutterBg,
+                    "editor.lineHighlightBackground": lineHighlight,
+                    "editorLineNumber.foreground": lineNumFg,
+                    "editorLineNumber.activeForeground": lineNumActive,
+                    "editorCursor.foreground": cursorFg,
+                    "editor.selectionBackground": selBg,
+                    "editor.selectionHighlightBackground": isDark ? "#2f3f5c" : "#d0e4ff",
+                    "editorIndentGuide.background1": isDark ? "#404040" : "#e5e5e5",
+                    "editorIndentGuide.activeBackground1": isDark ? "#707070" : "#adadad",
+                    "scrollbarSlider.background": isDark ? "#424242" : "#cccccc66",
+                    "scrollbarSlider.hoverBackground": isDark ? "#686868" : "#99999999",
+                    "editorWidget.background": widgetBg,
+                    "editorWidget.border": widgetBorder,
+                    "editorSuggestWidget.background": widgetBg,
+                    "editorSuggestWidget.border": widgetBorder,
+                    "editorSuggestWidget.selectedBackground": suggestSelBg,
+                    "editorHoverWidget.background": widgetBg,
+                    "editorHoverWidget.border": widgetBorder
                 }
             });
         } catch (err) {
@@ -415,28 +514,25 @@
         }
     }
 
+    const PREDEFINED_MONACO_THEMES = [
+        "tokyo-night-light",
+        "tokyo-night-dark",
+        "tokyo-night-storm-dark",
+        "monokai",
+        "nord"
+    ];
+
     function getMonacoTheme(themeName) {
         if (!themeName) {
             themeName = document.documentElement.getAttribute("data-bs-theme") || "dark";
         }
 
-        // 1. Direct specific themes defined in Monaco
-        const definedThemes = [
-            "tokyo-night-light",
-            "tokyo-night-dark",
-            "tokyo-night-storm-dark",
-            "monokai",
-            "nord",
-            "dark",
-            "light",
-            DARK_THEME,
-            LIGHT_THEME
-        ];
-        if (definedThemes.includes(themeName)) {
+        // 1. Direct specific custom token themes defined in Monaco
+        if (PREDEFINED_MONACO_THEMES.includes(themeName)) {
             return themeName;
         }
 
-        // 2. Check ThemeRegistry for dark vs light
+        // 2. Check ThemeRegistry and define/ensure dynamic Monaco theme
         const reg = window.ThemeRegistry || (window.parent && window.parent.ThemeRegistry);
         if (reg && typeof reg.getThemeById === 'function') {
             const tObj = reg.getThemeById(themeName);
@@ -465,7 +561,7 @@
 
     window.MonacoInit = {
         DARK_THEME, LIGHT_THEME,
-        defineThemes, getMonacoTheme, getMonacoLanguage,
+        defineThemes, getMonacoTheme, ensureDynamicMonacoTheme, getMonacoLanguage,
         basePath: _base
     };
 

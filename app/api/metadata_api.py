@@ -43,6 +43,21 @@ class MetadataApiMixin:
             return {"success": False, "error": str(exc)}
 
 
+    def refresh_metadata(self, connection_id, database=None, schema=None, type=None):
+        try:
+            conn = self._get_connection(connection_id)
+            conn.metadata_service.invalidate(database=database, schema=schema, object_type=type)
+            try:
+                from app.database.syntax.semantic_analyzer import invalidate_physical_table_columns_cache
+                invalidate_physical_table_columns_cache(connection_id, database, schema)
+            except Exception:
+                pass
+            return {"success": True, "message": "Metadata cache invalidated successfully"}
+        except Exception as exc:
+            logger.exception("Failed to refresh metadata: %s", exc)
+            return {"success": False, "error": str(exc)}
+
+
     def get_definition(self, connection_id, database=None, schema=None, name=None, type=None):
         try:
             conn = self._get_connection(connection_id)

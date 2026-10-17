@@ -253,7 +253,7 @@
                         contextScore += 95;
                     } else if (type === 'column' || type === 'remote_column') {
                         contextScore += 90;
-                    } else if (['database', 'remote_database', 'schema', 'remote_schema', 'remote_table', 'remote_view'].includes(type)) {
+                    } else if (['database', 'remote_database', 'schema', 'remote_schema', 'remote_table', 'remote_view', 'table', 'view', 'procedure', 'function', 'synonym', 'sequence'].includes(type)) {
                         contextScore += 92;
                     }
                     // Phase 3: Alias che ten goc (Spec 8.3 Rule 1)

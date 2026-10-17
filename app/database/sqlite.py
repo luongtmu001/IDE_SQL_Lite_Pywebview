@@ -374,6 +374,30 @@ class SqliteAdapter(DatabaseAdapter):
         res = self.execute(sql, params=tuple(params) if params else None, limit=limit)
         return [{"schema": schema or "main", "name": r[0]} for r in res.get("rows", [])]
 
+    def get_intellisense_objects(self, database=None, schema=None):
+        """Returns tables, views, and triggers for IntelliSense completion."""
+        db_prefix = f"{quote_ident(database, 'sqlite')}." if database and database != "main" else ""
+        sql = f"""
+            SELECT name, type
+            FROM {db_prefix}sqlite_master
+            WHERE type IN ('table', 'view', 'trigger')
+              AND name NOT LIKE 'sqlite_%'
+            ORDER BY name
+        """
+        try:
+            res = self.execute(sql, limit=0)
+            items = []
+            for r in res.get("rows", []):
+                items.append({
+                    "name": r[0],
+                    "schema": schema or "main",
+                    "type": r[1],
+                    "target_object": ""
+                })
+            return items
+        except Exception:
+            return []
+
     def get_object_definition(self, database: str, schema: str, name: str, object_type: str) -> str:
         """Retrieves raw CREATE DDL from sqlite_master."""
         db_prefix = f"{quote_ident(database, 'sqlite')}." if database and database != "main" else ""

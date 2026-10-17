@@ -112,6 +112,7 @@ class MainApi(
         self._profiler_windows = []
         self._activity_windows = []
         self._schema_compare_windows = []
+        self._result_comparator_windows = []
         self._history_window = None
         self._on_ready_callback = None
 

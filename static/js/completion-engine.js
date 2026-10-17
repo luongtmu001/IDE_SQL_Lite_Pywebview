@@ -4203,6 +4203,25 @@
     defaultEngine.signatureResolver = signatureResolver;
     defaultEngine.hoverResolver = hoverResolver;
 
+    CompletionEngine.invalidate = function (connId, database) {
+        if (typeof window !== 'undefined') {
+            if (window.AppMetadataCache) {
+                if (database && typeof window.AppMetadataCache.invalidateDatabase === 'function') {
+                    window.AppMetadataCache.invalidateDatabase(connId, database);
+                } else if (typeof window.AppMetadataCache.invalidateConnection === 'function') {
+                    window.AppMetadataCache.invalidateConnection(connId);
+                }
+            }
+            if (window.AppIntelliSense && window.AppIntelliSense.dataProvider) {
+                if (database && typeof window.AppIntelliSense.dataProvider.invalidateDatabase === 'function') {
+                    window.AppIntelliSense.dataProvider.invalidateDatabase(connId, database);
+                } else if (typeof window.AppIntelliSense.dataProvider.invalidateConnection === 'function') {
+                    window.AppIntelliSense.dataProvider.invalidateConnection(connId);
+                }
+            }
+        }
+    };
+
     window.SqlFunctionSignatures = FUNCTION_SIGNATURES;
     window.CandidateFilter = CandidateFilter;
     window.CompletionRanker = CompletionRanker;

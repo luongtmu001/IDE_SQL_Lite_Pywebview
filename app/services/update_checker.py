@@ -29,12 +29,36 @@ _check_lock = threading.Lock()
 _bg_thread_started = False
 
 
+def _get_settings_dict() -> Dict[str, Any]:
+    """Retrieve settings dictionary with fallback if settings_store is not available."""
+    try:
+        from app.services.settings_store import load_settings_file
+        return load_settings_file()
+    except Exception:
+        pass
+    try:
+        from app.utils.paths import get_user_data_dir
+        user_settings = get_user_data_dir() / "settings.json"
+        if user_settings.exists():
+            with open(user_settings, "r", encoding="utf-8") as f:
+                return json.load(f)
+    except Exception:
+        pass
+    try:
+        from pathlib import Path
+        for cand in [Path("data/settings.json"), Path("settings.json")]:
+            if cand.exists():
+                with open(cand, "r", encoding="utf-8") as f:
+                    return json.load(f)
+    except Exception:
+        pass
+    return {}
+
+
 def _get_configured_update_url() -> str:
     """Retrieve update URL from settings or return default GitHub URL."""
     try:
-        from app.services.settings_store import load_settings_file
-
-        settings = load_settings_file()
+        settings = _get_settings_dict()
         custom_url = settings.get("updates", {}).get("updateUrl", "")
         if custom_url and isinstance(custom_url, str) and custom_url.strip():
             return custom_url.strip()
@@ -46,9 +70,7 @@ def _get_configured_update_url() -> str:
 def _is_check_on_startup_enabled() -> bool:
     """Check if automatic update check on startup is enabled in settings."""
     try:
-        from app.services.settings_store import load_settings_file
-
-        settings = load_settings_file()
+        settings = _get_settings_dict()
         return bool(settings.get("updates", {}).get("checkOnStartup", True))
     except Exception:
         return True

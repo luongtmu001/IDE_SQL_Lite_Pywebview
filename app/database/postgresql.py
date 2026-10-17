@@ -1056,11 +1056,18 @@ class PostgreSqlAdapter(DatabaseAdapter):
         return None
 
     def get_intellisense_objects(self, database=None, schema=None):
-        target_schema = (schema or "public").strip()
         items = []
         try:
+            if schema and schema.strip():
+                target_schema = schema.strip()
+                schema_filter = "(n.nspname = %s OR lower(n.nspname) = lower(%s))"
+                schema_params = [target_schema, target_schema]
+            else:
+                schema_filter = "n.nspname NOT IN ('pg_catalog', 'information_schema', 'pg_toast') AND n.nspname NOT LIKE 'pg_temp_%'"
+                schema_params = []
+
             # 1. Tables, Views, Materialized Views from pg_class
-            tv_query = """
+            tv_query = f"""
                 SELECT c.relname, n.nspname,
                        CASE c.relkind
                            WHEN 'r' THEN 'table'
@@ -1072,11 +1079,11 @@ class PostgreSqlAdapter(DatabaseAdapter):
                        END AS obj_type
                 FROM pg_catalog.pg_class c
                 JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
-                WHERE (n.nspname = %s OR lower(n.nspname) = lower(%s))
+                WHERE {schema_filter}
                   AND c.relkind IN ('r', 'p', 'v', 'm', 'f')
                 ORDER BY c.relname
             """
-            res = self.execute(tv_query, [target_schema, target_schema], limit=0, database=database)
+            res = self.execute(tv_query, schema_params, limit=0, database=database)
             for row in res.get("rows", []):
                 items.append({
                     "name": row[0],
@@ -1086,7 +1093,7 @@ class PostgreSqlAdapter(DatabaseAdapter):
                 })
 
             # 2. Routines (Procedures / Functions from pg_proc)
-            routines_query = """
+            routines_query = f"""
                 SELECT 
                     p.proname AS routine_name, 
                     n.nspname AS routine_schema, 
@@ -1096,10 +1103,10 @@ class PostgreSqlAdapter(DatabaseAdapter):
                     END AS routine_type
                 FROM pg_catalog.pg_proc p
                 JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace
-                WHERE (n.nspname = %s OR lower(n.nspname) = lower(%s))
+                WHERE {schema_filter}
                 ORDER BY p.proname
             """
-            res_r = self.execute(routines_query, [target_schema, target_schema], limit=0, database=database)
+            res_r = self.execute(routines_query, schema_params, limit=0, database=database)
             for row in res_r.get("rows", []):
                 name, s_name, r_type = row[0], row[1], (row[2] or "").lower()
                 items.append({
@@ -1111,16 +1118,16 @@ class PostgreSqlAdapter(DatabaseAdapter):
 
             # 3. Triggers from pg_trigger
             try:
-                triggers_query = """
+                triggers_query = f"""
                     SELECT t.tgname, n.nspname
                     FROM pg_catalog.pg_trigger t
                     JOIN pg_catalog.pg_class c ON c.oid = t.tgrelid
                     JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
-                    WHERE (n.nspname = %s OR lower(n.nspname) = lower(%s))
+                    WHERE {schema_filter}
                       AND NOT t.tgisinternal
                     ORDER BY t.tgname
                 """
-                res_t = self.execute(triggers_query, [target_schema, target_schema], limit=0, database=database)
+                res_t = self.execute(triggers_query, schema_params, limit=0, database=database)
                 for row in res_t.get("rows", []):
                     name, s_name = row[0], row[1]
                     items.append({

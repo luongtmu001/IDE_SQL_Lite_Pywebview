@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="vi" data-bs-theme="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self'; worker-src 'self' blob:;">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kiểm tra Cập nhật — luoBTool IDE</title>
+    <link rel="icon" type="image/png" href="../static/image/logo-200x200.png">
+
+    <!-- Immediate Theme & Typography Restore -->
+    <script>
+        (function () {
+            try {
+                var saved = localStorage.getItem('ide-theme');
+                if (saved) {
+                    document.documentElement.setAttribute('data-bs-theme', saved);
+                }
+                var fontFam = localStorage.getItem('ide-ui-font-family');
+                var fontSz = localStorage.getItem('ide-ui-font-size');
+                if (fontFam) {
+                    var stack = fontFam;
+                    if (fontFam === 'Segoe UI') stack = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif";
+                    else if (fontFam === 'Inter') stack = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif";
+                    else if (fontFam === 'Roboto') stack = "'Roboto', 'Segoe UI', Arial, sans-serif";
+                    else if (fontFam === 'Arial') stack = "Arial, 'Helvetica Neue', Helvetica, sans-serif";
+                    else if (fontFam === 'Tahoma') stack = "Tahoma, Verdana, 'Segoe UI', sans-serif";
+                    else if (fontFam === 'System UI') stack = "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+                    document.documentElement.style.setProperty('--ide-ui-font-family', stack);
+                    document.documentElement.style.setProperty('--bs-body-font-family', stack);
+                }
+                if (fontSz) {
+                    var szNum = parseInt(fontSz, 10);
+                    if (!isNaN(szNum) && szNum >= 10 && szNum <= 24) {
+                        document.documentElement.style.setProperty('--ide-ui-font-size', szNum + 'px');
+                        document.documentElement.style.setProperty('--bs-body-font-size', szNum + 'px');
+                    }
+                }
+            } catch (e) { }
+        })();
+    </script>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+
+    <!-- Bootstrap 5 & Font Awesome 6 -->
+    <link href="../static/vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
+    <link href="../static/vendor/fontawesome/all.min.css" rel="stylesheet">
+    <link href="../static/vendor/fonts/jetbrains-mono-local.css" rel="stylesheet">
+
+    <!-- Theme Variables & IDE Themes -->
+    <link rel="stylesheet" href="../static/css/theme-variables.css">
+    <link rel="stylesheet" href="../static/css/themes.css">
+
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: var(--ide-bg-main, #1e1e1e);
+            color: var(--ide-text-main, #d4d4d4);
+            font-family: var(--ide-ui-font-family, 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif);
+            user-select: none;
+        }
+
+        .update-container {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            padding: 24px;
+            box-sizing: border-box;
+            justify-content: space-between;
+        }
+
+        .update-main-card {
+            background: var(--ide-bg-sidebar, #252526);
+            border: 1px solid var(--ide-border, #3c3c3c);
+            border-radius: 8px;
+            padding: 24px;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            flex-grow: 1;
+            overflow-y: auto;
+        }
+
+        .state-checking {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            text-align: center;
+            gap: 16px;
+            padding: 30px 0;
+        }
+
+        .state-uptodate {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            text-align: center;
+            gap: 14px;
+            padding: 20px 0;
+        }
+
+        .state-update-available {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .state-error {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            text-align: center;
+            gap: 12px;
+            padding: 20px 0;
+        }
+
+        .icon-large {
+            font-size: 48px;
+        }
+
+        .state-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--ide-text-active, #ffffff);
+            margin: 0;
+        }
+
+        .state-desc {
+            font-size: 13px;
+            color: var(--ide-text-muted, #999999);
+            max-width: 420px;
+            line-height: 1.5;
+            margin: 0;
+        }
+
+        .version-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            font-size: 13px;
+            font-weight: 600;
+            font-family: 'JetBrains Mono', monospace;
+            border-radius: 20px;
+            border: 1px solid currentColor;
+        }
+
+        .update-details-box {
+            background: var(--ide-bg-input, rgba(0, 0, 0, 0.2));
+            border: 1px solid var(--ide-border, #333333);
+            border-radius: 6px;
+            padding: 14px;
+            max-height: 160px;
+            overflow-y: auto;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        .update-highlights-list {
+            margin: 8px 0 0 0;
+            padding-left: 20px;
+            color: var(--ide-text-main, #d4d4d4);
+        }
+
+        .update-highlights-list li {
+            margin-bottom: 4px;
+        }
+
+        .update-footer {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-top: 16px;
+            padding-top: 4px;
+        }
+
+        .btn-ide {
+            padding: 6px 14px;
+            font-size: 13px;
+            font-weight: 500;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            border: 1px solid transparent;
+        }
+
+        .btn-ide-primary {
+            background: var(--ide-accent, #007acc);
+            color: #ffffff;
+            border-color: var(--ide-accent, #007acc);
+        }
+
+        .btn-ide-primary:hover {
+            opacity: 0.9;
+        }
+
+        .btn-ide-success {
+            background: #28a745;
+            color: #ffffff;
+            border-color: #28a745;
+        }
+
+        .btn-ide-success:hover {
+            opacity: 0.9;
+        }
+
+        .btn-ide-subtle {
+            background: transparent;
+            color: var(--ide-text-main, #cccccc);
+            border-color: var(--ide-border, #444444);
+        }
+
+        .btn-ide-subtle:hover {
+            background: var(--ide-hover-bg, rgba(255, 255, 255, 0.08));
+            color: var(--ide-text-active, #ffffff);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="update-container">
+        <div class="update-main-card" id="updateCard">
+            <!-- 1. State Checking -->
+            <div class="state-checking" id="viewChecking">
+                <div class="spinner-border text-primary" style="width: 3rem; height: 3rem;" role="status"></div>
+                <h2 class="state-title">Đang kiểm tra bản cập nhật...</h2>
+                <p class="state-desc">Đang kết nối tới máy chủ phát hành để so sánh phiên bản mới nhất.</p>
+            </div>
+
+            <!-- 2. State Up To Date -->
+            <div class="state-uptodate d-none" id="viewUpToDate">
+                <i class="fa-solid fa-circle-check icon-large text-success"></i>
+                <h2 class="state-title">Bạn đang sử dụng phiên bản mới nhất!</h2>
+                <div class="version-badge text-success" id="badgeCurrentVersion">v1.0.0</div>
+                <p class="state-desc" id="uptodateDesc">
+                    Không có bản cập nhật mới nào trên máy chủ. Bạn đang trải nghiệm đầy đủ các tính năng và bản vá ổn định nhất.
+                </p>
+            </div>
+
+            <!-- 3. State Update Available -->
+            <div class="state-update-available d-none" id="viewUpdateAvailable">
+                <div class="d-flex align-items-center gap-3">
+                    <i class="fa-solid fa-cloud-arrow-down icon-large text-warning"></i>
+                    <div>
+                        <h2 class="state-title">Đã có bản cập nhật mới!</h2>
+                        <div class="text-muted mt-1" style="font-size: 13px;">
+                            Phiên bản mới: <span class="fw-bold text-warning" id="lblLatestVersion">v1.1.0</span> (Hiện tại: <span id="lblCurrentVer">v1.0.0</span>)
+                        </div>
+                    </div>
+                </div>
+
+                <div class="update-details-box">
+                    <div class="fw-semibold text-primary mb-1">
+                        <i class="fa-solid fa-bullhorn me-1"></i> Ghi chú phát hành (Release Notes):
+                    </div>
+                    <div id="updateReleaseNotes" class="text-muted mb-2">Bản cập nhật chứa các cải tiến hiệu năng và tính năng mới.</div>
+                    <div class="fw-semibold text-secondary mb-1">Điểm nổi bật:</div>
+                    <ul class="update-highlights-list" id="updateHighlights"></ul>
+                </div>
+            </div>
+
+            <!-- 4. State Error -->
+            <div class="state-error d-none" id="viewError">
+                <i class="fa-solid fa-triangle-exclamation icon-large text-danger"></i>
+                <h2 class="state-title">Không thể kiểm tra cập nhật</h2>
+                <p class="state-desc text-danger" id="errorMessage">Lỗi mạng hoặc không thể kết nối tới máy chủ cập nhật.</p>
+            </div>
+        </div>
+
+        <div class="update-footer">
+            <div class="d-flex gap-2">
+                <button type="button" class="btn-ide btn-ide-primary" id="btnRecheck" style="display: none;">
+                    <i class="fa-solid fa-arrows-rotate"></i>
+                    <span>Kiểm tra lại</span>
+                </button>
+                <button type="button" class="btn-ide btn-ide-success" id="btnDownloadUpdate" style="display: none;">
+                    <i class="fa-solid fa-download"></i>
+                    <span>Tải về bản cập nhật</span>
+                </button>
+            </div>
+            <button type="button" class="btn-ide btn-ide-subtle" id="btnCloseUpdateWindow">
+                <i class="fa-solid fa-xmark"></i>
+                <span>Đóng</span>
+            </button>
+        </div>
+    </div>
+
+    <script>
+        (function () {
+            'use strict';
+
+            let _latestDownloadUrl = 'https://github.com/luongtmu001/IDE_SQL_Lite_Pywebview/releases';
+
+            async function callApi(methodName, ...args) {
+                if (window.pywebview && window.pywebview.api && typeof window.pywebview.api[methodName] === 'function') {
+                    return await window.pywebview.api[methodName](...args);
+                }
+                return null;
+            }
+
+            function showView(viewId) {
+                ['viewChecking', 'viewUpToDate', 'viewUpdateAvailable', 'viewError'].forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) el.classList.toggle('d-none', id !== viewId);
+                });
+
+                const btnRecheck = document.getElementById('btnRecheck');
+                const btnDownload = document.getElementById('btnDownloadUpdate');
+
+                if (viewId === 'viewChecking') {
+                    btnRecheck.style.display = 'none';
+                    btnDownload.style.display = 'none';
+                } else if (viewId === 'viewUpToDate') {
+                    btnRecheck.style.display = 'inline-flex';
+                    btnDownload.style.display = 'none';
+                } else if (viewId === 'viewUpdateAvailable') {
+                    btnRecheck.style.display = 'inline-flex';
+                    btnDownload.style.display = 'inline-flex';
+                } else if (viewId === 'viewError') {
+                    btnRecheck.style.display = 'inline-flex';
+                    btnDownload.style.display = 'none';
+                }
+            }
+
+            async function doCheckUpdates() {
+                showView('viewChecking');
+                try {
+                    // Small visual debounce for pleasant experience
+                    await new Promise(r => setTimeout(r, 400));
+                    const res = await callApi('check_for_updates', true);
+
+                    if (res && res.success && res.data) {
+                        const info = res.data;
+                        _latestDownloadUrl = info.downloadUrl || _latestDownloadUrl;
+
+                        if (info.hasUpdate) {
+                            document.getElementById('lblLatestVersion').textContent = 'v' + info.latestVersion;
+                            document.getElementById('lblCurrentVer').textContent = 'v' + info.currentVersion;
+                            document.getElementById('updateReleaseNotes').textContent = info.releaseNotes || 'Có phiên bản mới hơn trên máy chủ.';
+                            
+                            const hlList = document.getElementById('updateHighlights');
+                            hlList.innerHTML = '';
+                            if (Array.isArray(info.highlights) && info.highlights.length > 0) {
+                                info.highlights.forEach(h => {
+                                    const li = document.createElement('li');
+                                    li.textContent = h;
+                                    hlList.appendChild(li);
+                                });
+                            } else {
+                                const li = document.createElement('li');
+                                li.textContent = 'Bản sửa lỗi và cải tiến tính năng.';
+                                hlList.appendChild(li);
+                            }
+                            showView('viewUpdateAvailable');
+                        } else {
+                            document.getElementById('badgeCurrentVersion').textContent = 'v' + info.currentVersion;
+                            if (info.message) {
+                                document.getElementById('uptodateDesc').textContent = info.message;
+                            }
+                            showView('viewUpToDate');
+                        }
+                    } else {
+                        const errMsg = (res && res.error) ? res.error : (res && res.data && res.data.error) ? res.data.error : 'Không thể kết nối tới máy chủ cập nhật.';
+                        document.getElementById('errorMessage').textContent = errMsg;
+                        showView('viewError');
+                    }
+                } catch (err) {
+                    console.error('[UpdateWindow] Error checking updates:', err);
+                    document.getElementById('errorMessage').textContent = err.message || 'Lỗi không xác định khi kiểm tra cập nhật.';
+                    showView('viewError');
+                }
+            }
+
+            document.getElementById('btnRecheck').addEventListener('click', doCheckUpdates);
+
+            document.getElementById('btnDownloadUpdate').addEventListener('click', async function () {
+                await callApi('open_external_url', _latestDownloadUrl);
+            });
+
+            document.getElementById('btnCloseUpdateWindow').addEventListener('click', async function () {
+                const res = await callApi('close_window');
+                if (!res || !res.success) {
+                    window.close();
+                }
+            });
+
+            window.addEventListener('pywebviewready', doCheckUpdates);
+            window.addEventListener('DOMContentLoaded', function () {
+                if (window.pywebview && window.pywebview.api) {
+                    doCheckUpdates();
+                } else {
+                    // Fallback timer if pywebview takes moment to attach
+                    setTimeout(doCheckUpdates, 300);
+                }
+            });
+        })();
+    </script>
+</body>
+
+</html>

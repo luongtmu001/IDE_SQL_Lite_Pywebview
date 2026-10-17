@@ -1921,7 +1921,7 @@ function initExplorer() {
             icon: 'server',
             iconColor: isActive ? 'var(--ide-success)' : 'var(--ide-text-dim)',
             hasChildren: isActive,
-            loadCallback: isActive ? (ul => fetchDatabases(ul, connId, name, dbType, config)) : null,
+            loadCallback: isActive ? (childUl => fetchDatabases(childUl, connId, name, dbType, config)) : null,
             nodeData: { connId, connName: name, dbType, isActive, database: config ? config.database : null, schema: config ? config.schema : null, config },
             rightEl: rightEl
         });
@@ -2971,10 +2971,22 @@ function initExplorer() {
         const isTrusted = config.trusted_connection === true || config.trusted_connection === 'true';
         const isSqlite = (dbType || config.type || '').toLowerCase() === 'sqlite';
 
-        // Windows Auth or SQLite -> Connect immediately
-        if (isTrusted || isSqlite) {
+        // Windows Auth, SQLite, or Password already supplied -> Connect immediately
+        if (isTrusted || isSqlite || config.password) {
             await doConnect(name, config, onConnected);
             return;
+        }
+
+        // Try getting saved password from AppStorage before showing modal
+        if (window.AppStorage && typeof window.AppStorage.getConnectionPassword === 'function') {
+            try {
+                const pwdRes = await window.AppStorage.getConnectionPassword(config.id || config.name || name);
+                const resolvedPwd = (typeof pwdRes === 'string') ? pwdRes : (pwdRes && pwdRes.password ? pwdRes.password : '');
+                if (resolvedPwd) {
+                    await doConnect(name, { ...config, password: resolvedPwd }, onConnected);
+                    return;
+                }
+            } catch (_) {}
         }
 
         // Check if password exists in RAM cache (Cách 2)
@@ -3226,10 +3238,9 @@ function initExplorer() {
                     }
                 }
             } else if (targetType === 'database' && nd.type === 'database') {
-                if (targetName && String(nd.name).trim().toLowerCase() === targetName) {
+                if (!targetName || (nd.name && String(nd.name).trim().toLowerCase() === targetName)) {
                     if (typeof it._reload === 'function') {
                         await it._reload(true);
-                        return;
                     }
                 }
             } else if (targetType === 'connection' && nd.type === 'connection') {
@@ -3237,6 +3248,28 @@ function initExplorer() {
                     if (typeof it._reload === 'function') {
                         await it._reload(true);
                         return;
+                    }
+                }
+            }
+        }
+
+        // Case E: If refreshing entire database or connection, also reload any open/expanded category group nodes
+        if (targetType === 'database' || targetType === 'connection' || !targetType) {
+            for (const it of items) {
+                const nd = it._nodeData;
+                if (!nd) continue;
+                if (targetConn && nd.connId && nd.connId !== targetConn) continue;
+                if (targetDb && nd.database && nd.database !== targetDb) continue;
+                if (nd.type && nd.type.startsWith('group-')) {
+                    const subUl = it.parentElement?.querySelector('ul');
+                    const isExpanded = it.classList.contains('open') || (subUl && subUl.style.display !== 'none');
+                    if (isExpanded) {
+                        if (typeof it._reload === 'function') {
+                            it._reload(true).catch(() => {});
+                        }
+                        if (typeof it._updateBadge === 'function') {
+                            it._updateBadge(true);
+                        }
                     }
                 }
             }
@@ -3403,11 +3436,17 @@ function initExplorer() {
 
         // 1. Resolve full connection profile from saved connections
         let savedProfile = null;
-        if (typeof getSavedConnections === 'function') {
-            const savedList = getSavedConnections() || [];
+        let savedList = (typeof getSavedConnections === 'function') ? (getSavedConnections() || []) : [];
+        if ((!savedList || savedList.length === 0) && window.AppStorage && typeof window.AppStorage.getSavedConnections === 'function') {
+            try {
+                savedList = await window.AppStorage.getSavedConnections() || [];
+            } catch (_) {}
+        }
+        if (Array.isArray(savedList) && savedList.length > 0) {
+            const cleanLower = String(cleanName || '').trim().toLowerCase();
             savedProfile = savedList.find(s => s && (
-                s.name === cleanName ||
-                s.server === cleanName ||
+                (s.name && s.name.trim().toLowerCase() === cleanLower) ||
+                (s.server && s.server.trim().toLowerCase() === cleanLower) ||
                 (connId && (s.id === connId || s.connection_id === connId))
             ));
         }
@@ -3422,8 +3461,9 @@ function initExplorer() {
             if (window.AppStorage && typeof window.AppStorage.getConnectionPassword === 'function') {
                 try {
                     const pwdRes = await window.AppStorage.getConnectionPassword(targetConfig.id || targetConfig.name || cleanName);
-                    if (pwdRes && pwdRes.success && pwdRes.password) {
-                        targetConfig.password = pwdRes.password;
+                    const resolvedPwd = (typeof pwdRes === 'string') ? pwdRes : (pwdRes && pwdRes.password ? pwdRes.password : '');
+                    if (resolvedPwd) {
+                        targetConfig.password = resolvedPwd;
                     }
                 } catch (_) {}
             }
@@ -3533,6 +3573,349 @@ function initExplorer() {
     window.addEventListener('focus', () => {
         checkConnectionsHealth();
     });
+
+    // ── Cache Management & Refresh ─────────────────────────────────────────────
+    function clearCategoryCache(connId = null, dbName = null, catType = null) {
+        if (!connId) {
+            for (const k of Object.keys(categoryDataCache)) delete categoryDataCache[k];
+            for (const k of Object.keys(categoryPromiseCache)) delete categoryPromiseCache[k];
+        } else {
+            for (const k of Object.keys(categoryDataCache)) {
+                const parts = k.split('::');
+                const [cId, db, schema, type] = parts;
+                if (cId === connId && (!dbName || db === dbName) && (!catType || type === catType)) {
+                    delete categoryDataCache[k];
+                }
+            }
+            for (const k of Object.keys(categoryPromiseCache)) {
+                const parts = k.split('::');
+                const [cId, db, schema, type] = parts;
+                if (cId === connId && (!dbName || db === dbName) && (!catType || type === catType)) {
+                    delete categoryPromiseCache[k];
+                }
+            }
+        }
+        if (window.AppMetadataCache) {
+            if (connId && dbName) {
+                if (typeof window.AppMetadataCache.invalidateDatabase === 'function') {
+                    window.AppMetadataCache.invalidateDatabase(connId, dbName);
+                }
+            } else if (connId) {
+                if (typeof window.AppMetadataCache.invalidateConnection === 'function') {
+                    window.AppMetadataCache.invalidateConnection(connId);
+                }
+            } else {
+                if (typeof window.AppMetadataCache.clearAll === 'function') {
+                    window.AppMetadataCache.clearAll();
+                }
+            }
+        }
+    }
+
+    async function refreshNode(nodeData) {
+        if (!nodeData) {
+            const refreshBtn = document.getElementById('ide-btn-refresh-tree');
+            if (refreshBtn) refreshBtn.click();
+            return;
+        }
+
+        const connId = nodeData.connId || nodeData.connectionId || window.ActiveConnectionId;
+        const dbName = nodeData.database || (nodeData.type === 'database' ? nodeData.name : window.ActiveDatabase);
+        const schema = nodeData.schema;
+        const rawType = nodeData.catType || nodeData.objectType || (nodeData.type && nodeData.type.startsWith('group-') ? nodeData.type.replace('group-', '') : nodeData.type);
+
+        // 1. Invalidate caches
+        clearCategoryCache(connId, dbName, rawType);
+
+        // Also notify backend to invalidate cache
+        try {
+            if (connId) {
+                fetch(`/api/metadata/${connId}/refresh`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ database: dbName, schema: schema, type: rawType })
+                }).catch(() => {});
+            }
+        } catch (_) {}
+
+        // 2. Find target DOM element in tree
+        const treeRoot = document.getElementById('ide-tree-root');
+        if (!treeRoot) return;
+
+        let targetItem = null;
+        if (nodeData instanceof HTMLElement) {
+            targetItem = nodeData.closest('.tree-item');
+        } else if (nodeData.targetEl instanceof HTMLElement) {
+            targetItem = nodeData.targetEl.closest('.tree-item');
+        }
+
+        if (!targetItem) {
+            const allItems = Array.from(treeRoot.querySelectorAll('.tree-item'));
+            // Match group/category
+            if (rawType && (rawType === 'tables' || rawType === 'views' || rawType === 'procedures' || rawType === 'functions' || rawType === 'triggers')) {
+                targetItem = allItems.find(el => {
+                    const d = el._nodeData || {};
+                    return (d.connId === connId || el.dataset.connId === connId) &&
+                           (!dbName || d.database === dbName || el.dataset.database === dbName) &&
+                           (d.catType === rawType || d.objectType === rawType || el.dataset.nodeType === `group-${rawType}`);
+                });
+            }
+            // Match database node
+            if (!targetItem && (nodeData.type === 'database' || (!rawType && dbName))) {
+                targetItem = allItems.find(el => {
+                    const d = el._nodeData || {};
+                    return (d.connId === connId || el.dataset.connId === connId) &&
+                           (d.name === dbName || d.database === dbName || el.dataset.database === dbName) &&
+                           (d.type === 'database' || el.dataset.nodeType === 'database');
+                });
+            }
+            // Match connection node
+            if (!targetItem && (nodeData.type === 'connection' || nodeData.type === 'server')) {
+                targetItem = allItems.find(el => {
+                    const d = el._nodeData || {};
+                    return (d.connId === connId || el.dataset.connId === connId) &&
+                           (d.type === 'connection' || el.dataset.nodeType === 'connection');
+                });
+            }
+        }
+
+        if (targetItem) {
+            if (typeof targetItem._updateBadge === 'function') {
+                targetItem._updateBadge(true);
+            }
+            if (typeof targetItem._reload === 'function') {
+                await targetItem._reload(true);
+            }
+            targetItem.classList.add('tree-node-refreshed');
+            setTimeout(() => targetItem.classList.remove('tree-node-refreshed'), 1000);
+        } else {
+            const refreshBtn = document.getElementById('ide-btn-refresh-tree');
+            if (refreshBtn) refreshBtn.click();
+        }
+    }
+
+    // ── Object Explorer Tree Search / Filter ────────────────────────────────────
+    let treeFilterDebounceTimer = null;
+    function applyTreeFilter(query) {
+        const root = document.getElementById('ide-tree-root');
+        if (!root) return;
+        const q = (query || '').trim().toLowerCase();
+        const clearBtn = document.getElementById('ide-explorer-search-clear');
+        if (clearBtn) {
+            if (q.length > 0) {
+                clearBtn.classList.remove('d-none');
+            } else {
+                clearBtn.classList.add('d-none');
+            }
+        }
+
+        const allLis = Array.from(root.querySelectorAll('li'));
+        if (!q) {
+            allLis.forEach(li => {
+                li.classList.remove('tree-node-filtered-out');
+                const label = li.querySelector(':scope > .tree-item > .tree-label');
+                if (label && label._origText !== undefined) {
+                    label.textContent = label._origText;
+                    delete label._origText;
+                }
+            });
+            return;
+        }
+
+        const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const reg = new RegExp(`(${escapeRegExp(q)})`, 'gi');
+
+        // First pass: mark matching labels and highlight text
+        allLis.forEach(li => {
+            const item = li.querySelector(':scope > .tree-item');
+            const label = item ? item.querySelector(':scope > .tree-label') : null;
+            if (!label) {
+                li.dataset.matched = 'false';
+                return;
+            }
+
+            if (label._origText === undefined) {
+                label._origText = label.textContent;
+            }
+            const orig = label._origText;
+            const matches = orig.toLowerCase().includes(q);
+
+            if (matches) {
+                label.innerHTML = orig.replace(reg, '<mark class="tree-search-highlight">$1</mark>');
+                li.dataset.matched = 'true';
+            } else {
+                label.textContent = orig;
+                li.dataset.matched = 'false';
+            }
+        });
+
+        // Second pass: show matching nodes and their ancestors, hide other branches
+        allLis.forEach(li => {
+            const isSelfMatch = li.dataset.matched === 'true';
+            const hasMatchedDescendant = !!li.querySelector('li[data-matched="true"]');
+            if (isSelfMatch || hasMatchedDescendant) {
+                li.classList.remove('tree-node-filtered-out');
+                const childUl = li.querySelector(':scope > ul.tree-children');
+                if (hasMatchedDescendant && childUl) {
+                    childUl.style.display = 'block';
+                    const toggle = li.querySelector(':scope > .tree-item > .tree-toggle');
+                    if (toggle) {
+                        toggle.classList.replace('fa-caret-right', 'fa-caret-down');
+                    }
+                }
+            } else {
+                li.classList.add('tree-node-filtered-out');
+            }
+        });
+    }
+
+    function initExplorerSearch() {
+        const searchInput = document.getElementById('ide-explorer-search-input');
+        const clearBtn = document.getElementById('ide-explorer-search-clear');
+        if (!searchInput || searchInput._searchInitialized) return;
+        searchInput._searchInitialized = true;
+
+        searchInput.addEventListener('input', (e) => {
+            clearTimeout(treeFilterDebounceTimer);
+            const val = e.target.value;
+            treeFilterDebounceTimer = setTimeout(() => {
+                applyTreeFilter(val);
+            }, 150);
+        });
+
+        searchInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                searchInput.value = '';
+                applyTreeFilter('');
+                searchInput.blur();
+            }
+        });
+
+        if (clearBtn) {
+            clearBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                searchInput.value = '';
+                applyTreeFilter('');
+                searchInput.focus();
+            });
+        }
+    }
+
+    initExplorerSearch();
+
+    // ── Global Refresh Objects & IntelliSense ──────────────────────────────────
+    window.refreshActiveConnectionObjectsAndIntelliSense = async function () {
+        // 0. Resolve active connection, database, and schema from active editor tab first, then globals
+        const tabState = (window.AppTabs && typeof window.AppTabs.getActiveTabState === 'function')
+            ? window.AppTabs.getActiveTabState()
+            : null;
+        const connId = (tabState && tabState.connectionId) || window.ActiveConnectionId || (typeof getActiveConnections === 'function' && getActiveConnections()[0]?.id);
+        const dbName = (tabState && tabState.database) || window.ActiveDatabase;
+        const schema = (tabState && tabState.schema) || window.ActiveSchema;
+
+        // 1. Invalidate frontend Object Explorer category caches
+        clearCategoryCache(connId, dbName);
+
+        // 2. Invalidate Multi-Tier Cache (window.AppMetadataCache)
+        if (window.AppMetadataCache) {
+            if (dbName && typeof window.AppMetadataCache.invalidateDatabase === 'function') {
+                window.AppMetadataCache.invalidateDatabase(connId, dbName);
+            } else if (connId && typeof window.AppMetadataCache.invalidateConnection === 'function') {
+                window.AppMetadataCache.invalidateConnection(connId);
+            } else if (typeof window.AppMetadataCache.invalidateAll === 'function') {
+                window.AppMetadataCache.invalidateAll();
+            }
+        }
+
+        // 3. Invalidate AppIntelliSense and completion caches
+        if (window.AppIntelliSense) {
+            if (dbName && typeof window.AppIntelliSense.invalidateDatabase === 'function') {
+                window.AppIntelliSense.invalidateDatabase(connId, dbName);
+            } else if (connId && typeof window.AppIntelliSense.invalidateConnection === 'function') {
+                window.AppIntelliSense.invalidateConnection(connId);
+            }
+            if (window.AppIntelliSense.dataProvider) {
+                if (dbName && typeof window.AppIntelliSense.dataProvider.invalidateDatabase === 'function') {
+                    window.AppIntelliSense.dataProvider.invalidateDatabase(connId, dbName);
+                } else if (connId && typeof window.AppIntelliSense.dataProvider.invalidateConnection === 'function') {
+                    window.AppIntelliSense.dataProvider.invalidateConnection(connId);
+                }
+                if (typeof window.AppIntelliSense.dataProvider.clearCache === 'function') {
+                    window.AppIntelliSense.dataProvider.clearCache();
+                }
+            }
+            const ctrl = (typeof window.AppIntelliSense.getController === 'function')
+                ? window.AppIntelliSense.getController()
+                : null;
+            if (ctrl) {
+                ctrl.activeCandidates = null;
+                ctrl.rawCandidates = null;
+                ctrl._lastContextCategory = null;
+                if (typeof ctrl.hidePopup === 'function') ctrl.hidePopup();
+            }
+        }
+
+        if (window.CompletionEngine && typeof window.CompletionEngine.invalidate === 'function') {
+            window.CompletionEngine.invalidate(connId, dbName);
+        }
+
+        // 4. Invalidate Backend Metadata Cache (direct pywebview native call + fetch fallback)
+        if (connId) {
+            if (window.pywebview && window.pywebview.api) {
+                if (typeof window.pywebview.api.refresh_metadata === 'function') {
+                    try {
+                        await window.pywebview.api.refresh_metadata(connId, dbName, schema);
+                    } catch (_) {}
+                } else if (typeof window.pywebview.api.invalidate_metadata_cache === 'function') {
+                    try {
+                        await window.pywebview.api.invalidate_metadata_cache(connId, dbName, schema, null);
+                    } catch (_) {}
+                }
+            }
+            try {
+                await fetch(`/api/metadata/${connId}/refresh`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ database: dbName, schema: schema })
+                });
+            } catch (_) {}
+        }
+
+        // 5. Pre-warm fresh objects from database so autocomplete responds immediately
+        if (connId && window.AppIntelliSense && window.AppIntelliSense.dataProvider) {
+            try {
+                await window.AppIntelliSense.dataProvider.fetchObjects(connId, dbName, schema);
+            } catch (_) {}
+        }
+
+        // 6. Refresh Object Explorer tree node (database and category groups)
+        await refreshNode({ connId, database: dbName, type: 'database', name: dbName });
+
+        // 7. Toast notification
+        if (typeof showToast === 'function') {
+            showToast('✓ Đã làm mới danh sách objects và IntelliSense', 'success', 2500);
+        }
+    };
+
+    const menuRefresh = document.getElementById('ide-menu-refresh-objects-intellisense');
+    if (menuRefresh && !menuRefresh._bound) {
+        menuRefresh._bound = true;
+        menuRefresh.addEventListener('click', (e) => {
+            e.preventDefault();
+            window.refreshActiveConnectionObjectsAndIntelliSense();
+        });
+    }
+
+    if (!window._refreshObjectsShortcutBound) {
+        window._refreshObjectsShortcutBound = true;
+        window.addEventListener('keydown', (e) => {
+            if (e.ctrlKey && e.shiftKey && (e.key === 'R' || e.key === 'r')) {
+                e.preventDefault();
+                window.refreshActiveConnectionObjectsAndIntelliSense();
+            }
+        });
+    }
 
     window.promptReconnectPassword = promptReconnectPassword;
     return {

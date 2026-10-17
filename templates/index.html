@@ -46,7 +46,8 @@
         })();
     </script>
     <meta charset="UTF-8">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self'; worker-src 'self' blob:;">
+    <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self'; worker-src 'self' blob:;">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>luoBTool IDE</title>
     <link rel="icon" type="image/png" href="../static/image/logo.png">
@@ -114,7 +115,7 @@
             <ul class="navbar-nav align-items-center">
                 <li class="nav-item dropdown">
                     <a class="nav-link px-2 py-1 dropdown-toggle" href="#" id="menu-file" role="button"
-                        data-bs-toggle="dropdown" aria-expanded="false">File</a>
+                        data-bs-toggle="dropdown" aria-expanded="false">File <i class="fa-solid fa-chevron-down ide-menu-arrow ms-1"></i></a>
                     <ul class="dropdown-menu shadow" aria-labelledby="menu-file"
                         style="min-width: 220px; font-size: 13px;">
                         <li>
@@ -156,7 +157,7 @@
                 </li>
                 <li class="nav-item dropdown">
                     <a class="nav-link px-2 py-1 dropdown-toggle" href="#" id="menu-edit" role="button"
-                        data-bs-toggle="dropdown" aria-expanded="false">Edit</a>
+                        data-bs-toggle="dropdown" aria-expanded="false">Edit <i class="fa-solid fa-chevron-down ide-menu-arrow ms-1"></i></a>
                     <ul class="dropdown-menu shadow" aria-labelledby="menu-edit"
                         style="min-width: 220px; font-size: 13px;">
                         <li>
@@ -180,7 +181,7 @@
                         </li>
                         <li>
                             <a class="dropdown-item d-flex align-items-center justify-content-between" href="#"
-                                id="ide-menu-object-search">
+                                id="ide-menu-object-search" data-action="object-search">
                                 <span><i class="fa-solid fa-magnifying-glass me-2 text-warning"></i>Find in SQL
                                     Objects...</span>
                                 <kbd class="text-muted"
@@ -202,7 +203,7 @@
                 </li>
                 <li class="nav-item dropdown">
                     <a class="nav-link px-2 py-1 dropdown-toggle" href="#" id="menu-format" role="button"
-                        data-bs-toggle="dropdown" aria-expanded="false">Format</a>
+                        data-bs-toggle="dropdown" aria-expanded="false">Format <i class="fa-solid fa-chevron-down ide-menu-arrow ms-1"></i></a>
                     <ul class="dropdown-menu shadow" aria-labelledby="menu-format"
                         style="min-width: 220px; font-size: 13px;">
                         <li>
@@ -229,12 +230,12 @@
                 </li>
                 <li class="nav-item dropdown">
                     <a class="nav-link px-2 py-1 dropdown-toggle" href="#" id="menu-view" role="button"
-                        data-bs-toggle="dropdown" aria-expanded="false">View</a>
+                        data-bs-toggle="dropdown" aria-expanded="false">View <i class="fa-solid fa-chevron-down ide-menu-arrow ms-1"></i></a>
                     <ul class="dropdown-menu shadow" aria-labelledby="menu-view"
                         style="min-width: 220px; font-size: 13px;">
                         <li>
                             <a class="dropdown-item d-flex align-items-center justify-content-between" href="#"
-                                id="ide-menu-object-search">
+                                id="ide-menu-view-object-search" data-action="object-search">
                                 <span><i class="fa-solid fa-magnifying-glass me-2 text-primary"></i>Search Objects
                                     Content...</span>
                                 <kbd class="text-muted"
@@ -265,7 +266,8 @@
                         <li>
                             <a class="dropdown-item d-flex align-items-center justify-content-between" href="#"
                                 id="ide-menu-activity-monitor">
-                                <span><i class="fa-solid fa-heart-pulse me-2 text-danger"></i>Activity Monitor (Phiên & Khóa)</span>
+                                <span><i class="fa-solid fa-heart-pulse me-2 text-danger"></i>Activity Monitor (Phiên &
+                                    Khóa)</span>
                                 <kbd class="text-muted"
                                     style="font-size: 10px; background: transparent; border: 1px solid var(--ide-border, #444);">Ctrl+Alt+A</kbd>
                             </a>
@@ -283,13 +285,15 @@
                 <li class="nav-item"><a class="nav-link px-2 py-1" href="#" id="menu-settings">Settings</a></li>
                 <li class="nav-item dropdown">
                     <a class="nav-link px-2 py-1 dropdown-toggle" href="#" id="menu-help" role="button"
-                        data-bs-toggle="dropdown" aria-expanded="false">Help</a>
+                        data-bs-toggle="dropdown" aria-expanded="false">Help <i
+                            class="fa-solid fa-chevron-down ide-menu-arrow ms-1"></i></a>
                     <ul class="dropdown-menu shadow" aria-labelledby="menu-help"
                         style="min-width: 220px; font-size: 13px;">
                         <li>
                             <a class="dropdown-item d-flex align-items-center justify-content-between" href="#"
                                 id="ide-menu-check-updates">
-                                <span><i class="fa-solid fa-arrows-rotate me-2 text-info"></i>Kiểm tra Cập nhật...</span>
+                                <span><i class="fa-solid fa-arrows-rotate me-2 text-info"></i>Kiểm tra Cập
+                                    nhật...</span>
                             </a>
                         </li>
                         <li>
@@ -298,7 +302,8 @@
                         <li>
                             <a class="dropdown-item d-flex align-items-center justify-content-between" href="#"
                                 id="ide-menu-about">
-                                <span><i class="fa-solid fa-circle-info me-2 text-primary"></i>Thông tin (About)...</span>
+                                <span><i class="fa-solid fa-circle-info me-2 text-primary"></i>Thông tin
+                                    (About)...</span>
                             </a>
                         </li>
                     </ul>
@@ -324,7 +329,8 @@
 
         <!-- Right Actions -->
         <div class="d-flex align-items-center gap-2">
-            <button id="ide-update-btn" class="ide-toolbar-btn d-none text-warning" title="Có bản cập nhật mới! Nhấn để xem">
+            <button id="ide-update-btn" class="ide-toolbar-btn d-none text-warning"
+                title="Có bản cập nhật mới! Nhấn để xem">
                 <i class="fa-solid fa-cloud-arrow-down"></i>
                 <span class="badge bg-danger ms-1" id="ide-update-tag" style="font-size: 10px;">New</span>
             </button>
@@ -334,7 +340,9 @@
             <button id="ide-settings-btn" class="ide-toolbar-btn" title="Cài đặt (Settings)">
                 <i class="fa-solid fa-gear"></i>
             </button>
-            <span id="ide-topbar-env-badge" class="badge bg-primary text-light px-2 py-1 user-select-none font-monospace" title="Môi trường kết nối hiện tại (DEV / TEST / PROD)">DEV</span>
+            <span id="ide-topbar-env-badge"
+                class="badge bg-primary text-light px-2 py-1 user-select-none font-monospace"
+                title="Môi trường kết nối hiện tại (DEV / TEST / PROD)">DEV</span>
         </div>
     </nav>
 
@@ -372,8 +380,11 @@
             <div class="ide-sidebar-search px-2 py-1" id="ide-sidebar-search-container">
                 <div class="ide-search-box position-relative d-flex align-items-center">
                     <i class="fa-solid fa-magnifying-glass ide-search-icon"></i>
-                    <input type="text" class="form-control form-control-sm ide-search-input" id="ide-explorer-search-input" placeholder="Search objects..." autocomplete="off" spellcheck="false" title="Search objects in tree (gõ để lọc object)">
-                    <button class="btn btn-link ide-search-clear-btn d-none" type="button" id="ide-explorer-search-clear" title="Clear filter (Xóa lọc)">
+                    <input type="text" class="form-control form-control-sm ide-search-input"
+                        id="ide-explorer-search-input" placeholder="Search objects..." autocomplete="off"
+                        spellcheck="false" title="Search objects in tree (gõ để lọc object)">
+                    <button class="btn btn-link ide-search-clear-btn d-none" type="button"
+                        id="ide-explorer-search-clear" title="Clear filter (Xóa lọc)">
                         <i class="fa-solid fa-xmark"></i>
                     </button>
                 </div>
@@ -505,13 +516,16 @@
 
                         <!-- Transaction Controls (Mục 5.1) -->
                         <div class="btn-group ide-action-collapsible ms-1" role="group" id="ide-tx-btn-group">
-                            <button id="ide-btn-tx-toggle" type="button" class="ide-action-btn" title="Bắt đầu Transaction tường minh (BEGIN TRAN)">
+                            <button id="ide-btn-tx-toggle" type="button" class="ide-action-btn"
+                                title="Bắt đầu Transaction tường minh (BEGIN TRAN)">
                                 <i class="fa-solid fa-handshake me-1 text-warning"></i><span>Begin TX</span>
                             </button>
-                            <button id="ide-btn-tx-commit" type="button" class="ide-action-btn text-success d-none" title="Xác nhận lưu thay đổi (COMMIT)">
+                            <button id="ide-btn-tx-commit" type="button" class="ide-action-btn text-success d-none"
+                                title="Xác nhận lưu thay đổi (COMMIT)">
                                 <i class="fa-solid fa-check me-1"></i>Commit
                             </button>
-                            <button id="ide-btn-tx-rollback" type="button" class="ide-action-btn text-danger d-none" title="Hoàn tác thay đổi (ROLLBACK)">
+                            <button id="ide-btn-tx-rollback" type="button" class="ide-action-btn text-danger d-none"
+                                title="Hoàn tác thay đổi (ROLLBACK)">
                                 <i class="fa-solid fa-rotate-left me-1"></i>Rollback
                             </button>
                         </div>
@@ -1029,9 +1043,17 @@
 
                     <!-- Environment & Safety Badges (Mục 5.1) -->
                     <div class="d-flex align-items-center gap-1 ms-2" id="ide-safety-badges-wrap">
-                        <span id="ide-status-env" class="badge bg-secondary-subtle text-secondary border border-secondary px-2 py-1 d-none" style="font-size: 10px; font-weight: 700; letter-spacing: 0.5px;">DEV</span>
-                        <span id="ide-status-readonly" class="badge bg-warning-subtle text-warning border border-warning px-2 py-1 d-none" style="font-size: 10px; font-weight: 600;"><i class="fa-solid fa-lock me-1"></i>READ ONLY</span>
-                        <span id="ide-status-tx" class="badge bg-info-subtle text-info border border-info px-2 py-1 d-none" style="font-size: 10px; font-weight: 600;"><i class="fa-solid fa-rotate me-1 fa-spin"></i>TX OPEN</span>
+                        <span id="ide-status-env"
+                            class="badge bg-secondary-subtle text-secondary border border-secondary px-2 py-1 d-none"
+                            style="font-size: 10px; font-weight: 700; letter-spacing: 0.5px;">DEV</span>
+                        <span id="ide-status-readonly"
+                            class="badge bg-warning-subtle text-warning border border-warning px-2 py-1 d-none"
+                            style="font-size: 10px; font-weight: 600;"><i class="fa-solid fa-lock me-1"></i>READ
+                            ONLY</span>
+                        <span id="ide-status-tx"
+                            class="badge bg-info-subtle text-info border border-info px-2 py-1 d-none"
+                            style="font-size: 10px; font-weight: 600;"><i class="fa-solid fa-rotate me-1 fa-spin"></i>TX
+                            OPEN</span>
                     </div>
                 </div>
 
@@ -1242,7 +1264,9 @@
                             <div class="col-5 d-flex align-items-end mb-1">
                                 <div class="form-check">
                                     <input type="checkbox" class="form-check-input" id="connReadOnly">
-                                    <label class="form-check-label text-warning" for="connReadOnly" style="font-size: 11px; font-weight: 600;" title="Chặn tất cả các lệnh ghi (INSERT, UPDATE, DELETE, DDL)">
+                                    <label class="form-check-label text-warning" for="connReadOnly"
+                                        style="font-size: 11px; font-weight: 600;"
+                                        title="Chặn tất cả các lệnh ghi (INSERT, UPDATE, DELETE, DDL)">
                                         <i class="fa-solid fa-lock me-1"></i>Chỉ đọc
                                     </label>
                                 </div>
@@ -1265,8 +1289,10 @@
                                     <span class="small text-muted">File cục bộ hoặc :memory:</span>
                                 </label>
                                 <div class="input-group input-group-sm">
-                                    <input type="text" class="form-control" id="connSqlitePath" placeholder="C:\path\to\database.db hoặc :memory:" autocomplete="off">
-                                    <button type="button" class="btn btn-outline-secondary" id="btnBrowseSqliteFile" title="Chọn file SQLite từ máy tính">
+                                    <input type="text" class="form-control" id="connSqlitePath"
+                                        placeholder="C:\path\to\database.db hoặc :memory:" autocomplete="off">
+                                    <button type="button" class="btn btn-outline-secondary" id="btnBrowseSqliteFile"
+                                        title="Chọn file SQLite từ máy tính">
                                         <i class="fa-solid fa-folder-open me-1"></i>Chọn tệp...
                                     </button>
                                 </div>
@@ -1284,114 +1310,116 @@
                                         placeholder="localhost" autocomplete="off">
                                 </div>
 
-                            <div class="col-4">
-                                <label class="ide-form-label">Port</label>
-                                <input type="number" class="form-control form-control-sm" id="connPort"
-                                    placeholder="1433">
+                                <div class="col-4">
+                                    <label class="ide-form-label">Port</label>
+                                    <input type="number" class="form-control form-control-sm" id="connPort"
+                                        placeholder="1433">
+                                </div>
                             </div>
-                        </div>
 
-                        <div class="row g-2 mb-2">
-                            <div class="col-6">
-                                <label class="ide-form-label d-flex align-items-center justify-content-between">
-                                    <span>Default Database</span>
-                                    <a href="javascript:void(0);" id="btnFetchDbs"
-                                        class="small text-decoration-none text-info" style="font-size: 11px;"
-                                        title="Tải danh sách Database từ server">
-                                        <i class="fa-solid fa-rotate me-1"></i>Load
-                                    </a>
-                                </label>
-                                <input type="text" class="form-control form-control-sm" id="connDb"
-                                    placeholder="(optional)" list="connDbList" autocomplete="off">
-                                <datalist id="connDbList"></datalist>
-                            </div>
-                            <div class="col-6">
-                                <label class="ide-form-label d-flex align-items-center justify-content-between">
-                                    <span>Default Schema</span>
-                                    <a href="javascript:void(0);" id="btnFetchSchemas"
-                                        class="small text-decoration-none text-info" style="font-size: 11px;"
-                                        title="Kết nối server để tải danh sách Schema">
-                                        <i class="fa-solid fa-rotate me-1"></i>Load
-                                    </a>
-                                </label>
-                                <select class="form-select form-select-sm" id="connSchema">
-                                    <option value="">(Tất cả / Mặc định)</option>
-                                </select>
-                            </div>
-                        </div>
-
-                        <div id="connSqlServerOptionsGroup">
                             <div class="row g-2 mb-2">
-                                <div class="col-8">
-                                    <label class="ide-form-label">ODBC Driver</label>
-                                    <select class="form-select form-select-sm" id="connDriver">
-                                        <option value="ODBC Driver 18 for SQL Server">ODBC Driver 18 for SQL Server
-                                        </option>
-                                        <option value="ODBC Driver 17 for SQL Server">ODBC Driver 17 for SQL Server
-                                        </option>
-                                        <option value="SQL Server Native Client 11.0">SQL Server Native Client 11.0
-                                        </option>
-                                        <option value="SQL Server">SQL Server</option>
+                                <div class="col-6">
+                                    <label class="ide-form-label d-flex align-items-center justify-content-between">
+                                        <span>Default Database</span>
+                                        <a href="javascript:void(0);" id="btnFetchDbs"
+                                            class="small text-decoration-none text-info" style="font-size: 11px;"
+                                            title="Tải danh sách Database từ server">
+                                            <i class="fa-solid fa-rotate me-1"></i>Load
+                                        </a>
+                                    </label>
+                                    <input type="text" class="form-control form-control-sm" id="connDb"
+                                        placeholder="(optional)" list="connDbList" autocomplete="off">
+                                    <datalist id="connDbList"></datalist>
+                                </div>
+                                <div class="col-6">
+                                    <label class="ide-form-label d-flex align-items-center justify-content-between">
+                                        <span>Default Schema</span>
+                                        <a href="javascript:void(0);" id="btnFetchSchemas"
+                                            class="small text-decoration-none text-info" style="font-size: 11px;"
+                                            title="Kết nối server để tải danh sách Schema">
+                                            <i class="fa-solid fa-rotate me-1"></i>Load
+                                        </a>
+                                    </label>
+                                    <select class="form-select form-select-sm" id="connSchema">
+                                        <option value="">(Tất cả / Mặc định)</option>
                                     </select>
                                 </div>
-                                <div class="col-4">
-                                    <label class="ide-form-label">Timeout (s)</label>
-                                    <input type="number" class="form-control form-control-sm" id="connTimeout"
-                                        placeholder="30" value="30">
-                                </div>
                             </div>
 
-                            <div class="mb-2 form-check" style="margin-top: 4px;">
-                                <input type="checkbox" class="form-check-input" id="connWinAuth">
-                                <label class="form-check-label" for="connWinAuth" style="font-size: 12px;">Use Windows
-                                    Authentication</label>
-                            </div>
-
-                            <div class="row g-2 mb-2">
-                                <div class="col-6">
-                                    <div class="form-check">
-                                        <input type="checkbox" class="form-check-input" id="connEncrypt">
-                                        <label class="form-check-label" for="connEncrypt" style="font-size: 12px;"
-                                            title="Encrypt connection (SSL/TLS)">Use SSL / Encrypt</label>
+                            <div id="connSqlServerOptionsGroup">
+                                <div class="row g-2 mb-2">
+                                    <div class="col-8">
+                                        <label class="ide-form-label">ODBC Driver</label>
+                                        <select class="form-select form-select-sm" id="connDriver">
+                                            <option value="ODBC Driver 18 for SQL Server">ODBC Driver 18 for SQL Server
+                                            </option>
+                                            <option value="ODBC Driver 17 for SQL Server">ODBC Driver 17 for SQL Server
+                                            </option>
+                                            <option value="SQL Server Native Client 11.0">SQL Server Native Client 11.0
+                                            </option>
+                                            <option value="SQL Server">SQL Server</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-4">
+                                        <label class="ide-form-label">Timeout (s)</label>
+                                        <input type="number" class="form-control form-control-sm" id="connTimeout"
+                                            placeholder="30" value="30">
                                     </div>
                                 </div>
-                                <div class="col-6">
-                                    <div class="form-check">
-                                        <input type="checkbox" class="form-check-input" id="connTrustCert" checked>
-                                        <label class="form-check-label" for="connTrustCert" style="font-size: 12px;"
-                                            title="Trust server certificate without CA validation">Trust
-                                            Certificate</label>
+
+                                <div class="mb-2 form-check" style="margin-top: 4px;">
+                                    <input type="checkbox" class="form-check-input" id="connWinAuth">
+                                    <label class="form-check-label" for="connWinAuth" style="font-size: 12px;">Use
+                                        Windows
+                                        Authentication</label>
+                                </div>
+
+                                <div class="row g-2 mb-2">
+                                    <div class="col-6">
+                                        <div class="form-check">
+                                            <input type="checkbox" class="form-check-input" id="connEncrypt">
+                                            <label class="form-check-label" for="connEncrypt" style="font-size: 12px;"
+                                                title="Encrypt connection (SSL/TLS)">Use SSL / Encrypt</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-6">
+                                        <div class="form-check">
+                                            <input type="checkbox" class="form-check-input" id="connTrustCert" checked>
+                                            <label class="form-check-label" for="connTrustCert" style="font-size: 12px;"
+                                                title="Trust server certificate without CA validation">Trust
+                                                Certificate</label>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
-                        </div>
 
-                        <div id="connCredentialsGroup">
-                            <div class="mb-2">
-                                <label class="ide-form-label">Username</label>
-                                <input type="text" name="username" class="form-control form-control-sm" id="connUser"
-                                    autocomplete="off" data-lpignore="true">
-                            </div>
-                            <div class="mb-1">
-                                <label class="ide-form-label">Password</label>
-                                <div class="input-group input-group-sm">
-                                    <input type="password" name="password" class="form-control form-control-sm"
-                                        id="connPass" autocomplete="new-password" data-lpignore="true"
-                                        spellcheck="false">
-                                    <button class="btn btn-outline-secondary" type="button" id="btnToggleConnPass"
-                                        title="Show/Hide password">
-                                        <i class="fa-solid fa-eye"></i>
-                                    </button>
+                            <div id="connCredentialsGroup">
+                                <div class="mb-2">
+                                    <label class="ide-form-label">Username</label>
+                                    <input type="text" name="username" class="form-control form-control-sm"
+                                        id="connUser" autocomplete="off" data-lpignore="true">
                                 </div>
-                                <div class="form-text small mt-1"
-                                    style="font-size: 11px; color: var(--ide-text-dim, #888); line-height: 1.4;">
-                                    <i class="fa-solid fa-shield-halved me-1 text-info"></i>
-                                    Mật khẩu chỉ được lưu tạm trong bộ nhớ RAM phiên làm việc của server và không lưu
-                                    vĩnh viễn trên ổ cứng vì lý do bảo mật.
+                                <div class="mb-1">
+                                    <label class="ide-form-label">Password</label>
+                                    <div class="input-group input-group-sm">
+                                        <input type="password" name="password" class="form-control form-control-sm"
+                                            id="connPass" autocomplete="new-password" data-lpignore="true"
+                                            spellcheck="false">
+                                        <button class="btn btn-outline-secondary" type="button" id="btnToggleConnPass"
+                                            title="Show/Hide password">
+                                            <i class="fa-solid fa-eye"></i>
+                                        </button>
+                                    </div>
+                                    <div class="form-text small mt-1"
+                                        style="font-size: 11px; color: var(--ide-text-dim, #888); line-height: 1.4;">
+                                        <i class="fa-solid fa-shield-halved me-1 text-info"></i>
+                                        Mật khẩu chỉ được lưu tạm trong bộ nhớ RAM phiên làm việc của server và không
+                                        lưu
+                                        vĩnh viễn trên ổ cứng vì lý do bảo mật.
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                        <!-- End #connServerOptionsGroup -->
+                            <!-- End #connServerOptionsGroup -->
                         </div>
 
                     </div>
@@ -2252,7 +2280,7 @@
                 function openSettingsToCategory(catKey) {
                     try {
                         localStorage.setItem('settings-active-cat', catKey);
-                    } catch (_) {}
+                    } catch (_) { }
                     if (window.pywebview?.api?.open_settings_window) {
                         window.pywebview.api.open_settings_window();
                     } else {
@@ -2261,13 +2289,99 @@
                     }
                 }
 
+                window.openAboutWindow = async function () {
+                    try {
+                        if (window.pywebview && window.pywebview.api && typeof window.pywebview.api.open_about_window === 'function') {
+                            const res = await window.pywebview.api.open_about_window();
+                            if (res && res.success) return;
+                        }
+                    } catch (e) {
+                        console.warn('[About] Native window failed, falling back:', e);
+                    }
+                    var modalEl = document.getElementById('ide-about-modal');
+                    if (modalEl && window.bootstrap && window.bootstrap.Modal) {
+                        var modal = window.bootstrap.Modal.getOrCreateInstance(modalEl);
+                        modal.show();
+                    } else {
+                        openSettingsToCategory('updates');
+                    }
+                };
+
+                window.openUpdateWindow = async function () {
+                    try {
+                        if (window.pywebview && window.pywebview.api && typeof window.pywebview.api.open_update_window === 'function') {
+                            const res = await window.pywebview.api.open_update_window();
+                            if (res && res.success) return;
+                        }
+                    } catch (e) {
+                        console.warn('[Update] Native window failed, falling back:', e);
+                    }
+                    var modalEl = document.getElementById('ide-update-modal');
+                    if (modalEl && window.bootstrap && window.bootstrap.Modal) {
+                        var modal = window.bootstrap.Modal.getOrCreateInstance(modalEl);
+                        modal.show();
+                        if (typeof window.triggerModalCheckUpdates === 'function') {
+                            window.triggerModalCheckUpdates();
+                        }
+                    } else {
+                        openSettingsToCategory('updates');
+                    }
+                };
+
+                window.triggerModalCheckUpdates = async function () {
+                    var titleEl = document.getElementById('ide-update-modal-title');
+                    var msgEl = document.getElementById('ide-update-modal-msg');
+                    var curEl = document.getElementById('ide-update-modal-current');
+                    var latEl = document.getElementById('ide-update-modal-latest');
+                    var iconEl = document.getElementById('ide-update-modal-icon');
+                    var linkEl = document.getElementById('ide-update-modal-link');
+                    if (iconEl) iconEl.className = 'fa-solid fa-arrows-rotate fa-spin text-info';
+                    if (titleEl) titleEl.textContent = 'Đang kiểm tra bản cập nhật...';
+                    if (msgEl) msgEl.textContent = 'Hệ thống đang kết nối đến máy chủ phát hành để kiểm tra phiên bản mới nhất.';
+                    if (linkEl) linkEl.classList.add('d-none');
+                    try {
+                        let res = null;
+                        if (window.pywebview && window.pywebview.api && typeof window.pywebview.api.check_for_updates === 'function') {
+                            res = await window.pywebview.api.check_for_updates();
+                        } else {
+                            const resp = await fetch('/api/app/check-updates');
+                            res = await resp.json();
+                        }
+                        if (res && res.success) {
+                            if (curEl && res.current_version) curEl.textContent = 'v' + res.current_version;
+                            if (latEl && res.latest_version) latEl.textContent = 'v' + res.latest_version;
+                            if (res.has_update) {
+                                if (iconEl) iconEl.className = 'fa-solid fa-circle-exclamation text-warning';
+                                if (titleEl) titleEl.textContent = 'Đã có phiên bản mới!';
+                                if (msgEl) msgEl.textContent = 'Phiên bản mới v' + res.latest_version + ' đã sẵn sàng tải về.';
+                                if (linkEl) {
+                                    linkEl.classList.remove('d-none');
+                                    if (res.release_url) linkEl.href = res.release_url;
+                                }
+                            } else {
+                                if (iconEl) iconEl.className = 'fa-solid fa-circle-check text-success';
+                                if (titleEl) titleEl.textContent = 'Bạn đang dùng phiên bản mới nhất';
+                                if (msgEl) msgEl.textContent = 'Không có bản cập nhật mới nào. IDE SQL Lite đang ở phiên bản tối ưu nhất.';
+                            }
+                        } else {
+                            if (iconEl) iconEl.className = 'fa-solid fa-circle-xmark text-danger';
+                            if (titleEl) titleEl.textContent = 'Kiểm tra thất bại';
+                            if (msgEl) msgEl.textContent = (res && res.error) || 'Không thể kết nối đến máy chủ cập nhật.';
+                        }
+                    } catch (err) {
+                        if (iconEl) iconEl.className = 'fa-solid fa-circle-xmark text-danger';
+                        if (titleEl) titleEl.textContent = 'Lỗi kết nối';
+                        if (msgEl) msgEl.textContent = err.message || 'Không thể kiểm tra cập nhật lúc này.';
+                    }
+                };
+
                 var menuUpdates = document.getElementById('ide-menu-check-updates');
                 if (menuUpdates && !menuUpdates._scBound) {
                     menuUpdates._scBound = true;
                     menuUpdates.addEventListener('click', function (e) {
                         e.preventDefault();
                         e.stopPropagation();
-                        openSettingsToCategory('updates');
+                        window.openUpdateWindow();
                     });
                 }
 
@@ -2277,7 +2391,7 @@
                     menuAbout.addEventListener('click', function (e) {
                         e.preventDefault();
                         e.stopPropagation();
-                        openSettingsToCategory('updates');
+                        window.openAboutWindow();
                     });
                 }
 
@@ -2287,7 +2401,7 @@
                     btnUpdate.addEventListener('click', function (e) {
                         e.preventDefault();
                         e.stopPropagation();
-                        openSettingsToCategory('updates');
+                        window.openUpdateWindow();
                     });
                 }
 
@@ -2340,6 +2454,110 @@
             });
         })();
     </script>
+
+    <!-- About Modal (Browser Fallback) -->
+    <div class="modal fade" id="ide-about-modal" tabindex="-1" aria-labelledby="ideAboutModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered" style="max-width: 480px;">
+            <div class="modal-content"
+                style="background: var(--ide-bg, #1e1e1e); color: var(--ide-text, #cccccc); border: 1px solid var(--ide-border, #3c3c3c); border-radius: 8px;">
+                <div class="modal-header py-2 px-3" style="border-bottom: 1px solid var(--ide-border, #3c3c3c);">
+                    <h6 class="modal-title d-flex align-items-center mb-0 text-white" id="ideAboutModalLabel"
+                        style="font-size: 13px;">
+                        <i class="fa-solid fa-circle-info text-primary me-2"></i>Thông tin phần mềm
+                    </h6>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                        aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-4 text-center">
+                    <div class="mb-3">
+                        <i class="fa-solid fa-database text-primary" style="font-size: 42px;"></i>
+                    </div>
+                    <h5 class="fw-bold mb-1 text-white">IDE SQL Lite</h5>
+                    <div class="mb-3">
+                        <span class="badge bg-primary" id="ide-about-modal-version">v1.0.0</span>
+                        <span class="badge bg-secondary ms-1">Release</span>
+                    </div>
+                    <p class="text-muted small mb-4" style="line-height: 1.5;">
+                        Trình soạn thảo và quản lý cơ sở dữ liệu chuyên nghiệp đa nền tảng, hỗ trợ Microsoft SQL Server,
+                        SQLite, MySQL, PostgreSQL.
+                    </p>
+                    <div class="text-start p-3 rounded mb-3"
+                        style="background: var(--ide-bg-sidebar, #252526); border: 1px solid var(--ide-border, #3c3c3c); font-size: 12px;">
+                        <div class="d-flex justify-content-between py-1 border-bottom"
+                            style="border-color: var(--ide-border, #3c3c3c) !important;">
+                            <span class="text-muted">Nhà phát triển:</span>
+                            <span class="fw-semibold text-white">LuongHT</span>
+                        </div>
+                        <div class="d-flex justify-content-between py-1 border-bottom"
+                            style="border-color: var(--ide-border, #3c3c3c) !important;">
+                            <span class="text-muted">Kiến trúc:</span>
+                            <span class="text-white">PyWebView + Monaco Editor + Flask</span>
+                        </div>
+                        <div class="d-flex justify-content-between py-1">
+                            <span class="text-muted">Bản quyền:</span>
+                            <span class="text-white">&copy; 2026 LuongHT. All rights reserved.</span>
+                        </div>
+                    </div>
+                    <div class="d-flex justify-content-center gap-2">
+                        <a href="https://github.com/luongtmu001/IDE_SQL_Lite_Pywebview" target="_blank"
+                            class="btn btn-sm btn-outline-secondary">
+                            <i class="fa-brands fa-github me-1"></i>GitHub
+                        </a>
+                        <a href="https://github.com/luongtmu001/IDE_SQL_Lite_Pywebview/releases" target="_blank"
+                            class="btn btn-sm btn-outline-primary">
+                            <i class="fa-solid fa-tag me-1"></i>Releases
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Update Modal (Browser Fallback) -->
+    <div class="modal fade" id="ide-update-modal" tabindex="-1" aria-labelledby="ideUpdateModalLabel"
+        aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered" style="max-width: 500px;">
+            <div class="modal-content"
+                style="background: var(--ide-bg, #1e1e1e); color: var(--ide-text, #cccccc); border: 1px solid var(--ide-border, #3c3c3c); border-radius: 8px;">
+                <div class="modal-header py-2 px-3" style="border-bottom: 1px solid var(--ide-border, #3c3c3c);">
+                    <h6 class="modal-title d-flex align-items-center mb-0 text-white" id="ideUpdateModalLabel"
+                        style="font-size: 13px;">
+                        <i class="fa-solid fa-cloud-arrow-down text-info me-2"></i>Kiểm tra Bản cập nhật
+                    </h6>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                        aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-4 text-center">
+                    <div class="mb-3">
+                        <i class="fa-solid fa-arrows-rotate text-info" id="ide-update-modal-icon"
+                            style="font-size: 38px;"></i>
+                    </div>
+                    <h6 class="fw-bold mb-2 text-white" id="ide-update-modal-title">Đang kiểm tra bản cập nhật...</h6>
+                    <p class="text-muted small mb-3" id="ide-update-modal-msg">Hệ thống đang kết nối đến máy chủ phát
+                        hành để kiểm tra phiên bản mới nhất.</p>
+                    <div class="p-3 rounded text-start mb-3"
+                        style="background: var(--ide-bg-sidebar, #252526); border: 1px solid var(--ide-border, #3c3c3c); font-size: 12px;">
+                        <div class="d-flex justify-content-between py-1">
+                            <span class="text-muted">Phiên bản hiện tại:</span>
+                            <span class="fw-bold text-white" id="ide-update-modal-current">v1.0.0</span>
+                        </div>
+                        <div class="d-flex justify-content-between py-1 border-top"
+                            style="border-color: var(--ide-border, #3c3c3c) !important;">
+                            <span class="text-muted">Phiên bản mới nhất:</span>
+                            <span class="fw-bold text-info" id="ide-update-modal-latest">--</span>
+                        </div>
+                    </div>
+                    <div id="ide-update-modal-actions" class="d-flex justify-content-center gap-2">
+                        <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Đóng</button>
+                        <a href="https://github.com/luongtmu001/IDE_SQL_Lite_Pywebview/releases"
+                            id="ide-update-modal-link" target="_blank" class="btn btn-sm btn-primary d-none">
+                            <i class="fa-solid fa-download me-1"></i>Tải bản cập nhật
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- Reusable System Loading Modal -->
     <div class="modal fade" id="appLoadingModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static"

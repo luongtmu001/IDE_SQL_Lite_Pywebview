@@ -153,6 +153,30 @@ function initApp() {
                 }
             }
 
+            if (!connId && window.AppStorage && typeof window.AppStorage.getSavedConnections === 'function') {
+                try {
+                    const saved = window.AppStorage.getSavedConnections() || [];
+                    if (saved.length > 0) {
+                        connId = saved[0].connection_id || saved[0].id;
+                        connName = saved[0].name || saved[0].server || 'Server';
+                        dbType = saved[0].type || 'sqlserver';
+                        database = saved[0].config?.database || database;
+                    }
+                } catch (_) {}
+            }
+
+            if (!connId && window.Api && typeof window.Api.listConnections === 'function') {
+                try {
+                    const data = await window.Api.listConnections();
+                    if (data && data.success && Array.isArray(data.connections) && data.connections.length > 0) {
+                        connId = data.connections[0].connection_id;
+                        connName = data.connections[0].name || data.connections[0].server || 'Server';
+                        dbType = data.connections[0].type || 'sqlserver';
+                        database = data.connections[0].config?.database || database;
+                    }
+                } catch (_) {}
+            }
+
             if (!connId) {
                 try {
                     const res = await fetch('/api/connections');
@@ -176,13 +200,13 @@ function initApp() {
         }
     }
 
-    const menuObjSearchBtn = document.getElementById('ide-menu-object-search');
-    if (menuObjSearchBtn) {
-        menuObjSearchBtn.addEventListener('click', (e) => {
+    // Bind all Object Search triggers (Edit menu, View menu, Toolbar, Overflow)
+    document.querySelectorAll('#ide-menu-object-search, #ide-menu-view-object-search, [data-action="object-search"]').forEach(btn => {
+        btn.addEventListener('click', (e) => {
             e.preventDefault();
             handleObjectSearchTrigger();
         });
-    }
+    });
 
     const actionObjSearchBtn = document.getElementById('ide-btn-object-search');
     if (actionObjSearchBtn) {
@@ -565,11 +589,121 @@ function initApp() {
         reopenBtn.addEventListener('click', expandSidebar);
     }
 
+    // Initialize Navbar Submenu Hover Support
+    initNavbarMenuHover();
+
     // Ensure all DOM, styles, themes, and Monaco editor have completed paint before dismissing splash
     requestAnimationFrame(() => {
         requestAnimationFrame(() => {
             triggerAppReadyNotification();
         });
+    });
+}
+
+// ── Navbar Menu Hover Handler ──────────────────────────────────────────────
+function initNavbarMenuHover() {
+    const navbar = document.querySelector('nav.ide-toolbar');
+    if (!navbar) return;
+
+    const dropdownItems = navbar.querySelectorAll('.navbar-nav .nav-item.dropdown');
+    let isMenuBrowsingActive = false;
+    let hoverTimeout = null;
+    let leaveTimeout = null;
+
+    // Track Bootstrap dropdown open state
+    dropdownItems.forEach(item => {
+        const toggle = item.querySelector('.dropdown-toggle');
+        if (!toggle) return;
+
+        toggle.addEventListener('show.bs.dropdown', () => {
+            isMenuBrowsingActive = true;
+        });
+
+        toggle.addEventListener('hide.bs.dropdown', () => {
+            setTimeout(() => {
+                const anyOpen = navbar.querySelector('.dropdown-menu.show');
+                if (!anyOpen && !navbar.matches(':hover')) {
+                    isMenuBrowsingActive = false;
+                }
+            }, 50);
+        });
+    });
+
+    dropdownItems.forEach(item => {
+        const toggle = item.querySelector('.dropdown-toggle');
+        const menu = item.querySelector('.dropdown-menu');
+        if (!toggle || !menu) return;
+
+        item.addEventListener('mouseenter', () => {
+            if (leaveTimeout) {
+                clearTimeout(leaveTimeout);
+                leaveTimeout = null;
+            }
+            if (hoverTimeout) {
+                clearTimeout(hoverTimeout);
+                hoverTimeout = null;
+            }
+
+            const openMenu = () => {
+                dropdownItems.forEach(other => {
+                    if (other !== item) {
+                        const otherToggle = other.querySelector('.dropdown-toggle');
+                        if (otherToggle && window.bootstrap && window.bootstrap.Dropdown) {
+                            const inst = bootstrap.Dropdown.getInstance(otherToggle);
+                            if (inst) inst.hide();
+                        }
+                    }
+                });
+
+                if (window.bootstrap && window.bootstrap.Dropdown) {
+                    const bsDropdown = bootstrap.Dropdown.getOrCreateInstance(toggle);
+                    bsDropdown.show();
+                    isMenuBrowsingActive = true;
+                }
+            };
+
+            if (isMenuBrowsingActive) {
+                openMenu();
+            } else {
+                hoverTimeout = setTimeout(openMenu, 100);
+            }
+        });
+
+        item.addEventListener('mouseleave', () => {
+            if (hoverTimeout) {
+                clearTimeout(hoverTimeout);
+                hoverTimeout = null;
+            }
+
+            leaveTimeout = setTimeout(() => {
+                if (window.bootstrap && window.bootstrap.Dropdown) {
+                    const bsDropdown = bootstrap.Dropdown.getInstance(toggle);
+                    if (bsDropdown) {
+                        bsDropdown.hide();
+                    }
+                }
+                setTimeout(() => {
+                    const anyOpen = navbar.querySelector('.dropdown-menu.show');
+                    if (!anyOpen) {
+                        isMenuBrowsingActive = false;
+                    }
+                }, 50);
+            }, 180);
+        });
+    });
+
+    // Close all when clicking outside navbar
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('nav.ide-toolbar .navbar-nav')) {
+            isMenuBrowsingActive = false;
+            dropdownItems.forEach(item => {
+                const toggle = item.querySelector('.dropdown-toggle');
+                if (toggle && window.bootstrap && window.bootstrap.Dropdown) {
+                    const inst = bootstrap.Dropdown.getInstance(toggle);
+                    if (inst) inst.hide();
+                }
+            });
+        }
     });
 }
 

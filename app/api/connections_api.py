@@ -130,7 +130,7 @@ class ConnectionsApiMixin:
             if not cfg.get("password") and not cfg.get("trusted_connection") and (cfg.get("type") or "").lower() != "sqlite":
                 saved = _read_json(CONNECTIONS_FILE, [])
                 target = None
-                prof_id = cfg.get("id")
+                prof_id = cfg.get("id") or cfg.get("connection_id")
                 if prof_id:
                     for p in saved:
                         if p.get("id") == prof_id:
@@ -140,7 +140,7 @@ class ConnectionsApiMixin:
                     c_name = str(cfg.get("name")).strip().lower()
                     c_type = str(cfg.get("type", "")).strip().lower()
                     for p in saved:
-                        if str(p.get("name")).strip().lower() == c_name and str(p.get("type", "")).strip().lower() == c_type:
+                        if str(p.get("name")).strip().lower() == c_name and (not c_type or str(p.get("type", "")).strip().lower() == c_type):
                             target = p
                             break
                 if not target and (cfg.get("server") or cfg.get("host")):
@@ -149,7 +149,7 @@ class ConnectionsApiMixin:
                     for p in saved:
                         e_srv = str(p.get("server") or p.get("host") or "").strip().lower()
                         e_port = str(p.get("port") or "")
-                        if e_srv == c_srv and e_port == c_port:
+                        if e_srv == c_srv and (not c_port or e_port == c_port):
                             target = p
                             break
 
@@ -157,10 +157,52 @@ class ConnectionsApiMixin:
                     cfg["password"] = decrypt_password(target["password"])
                 else:
                     return {"success": False, "error": "Mật khẩu là bắt buộc cho kết nối này. Vui lòng nhập mật khẩu."}
+            elif cfg.get("password"):
+                # Always decrypt password if passed in encrypted format (ENC2: or ENC:)
+                try:
+                    cfg["password"] = decrypt_password(cfg["password"])
+                except Exception as dec_err:
+                    logger.warning("[create_connection] Failed to decrypt password: %s", dec_err)
 
             conn, reused = self.cm.create_or_get(self.owner_session_id, cfg)
             return {"success": True, "connection": conn.public_info(), "reused": reused}
         except Exception as exc:
+            return {"success": False, "error": str(exc)}
+
+
+    def reconnect_connection(self, connection_id, password=None):
+        try:
+            # 1. Try active session reconnect in connection manager
+            try:
+                conn = self.cm.get(self.owner_session_id, connection_id)
+                if conn:
+                    reconnected = self.cm.reconnect(self.owner_session_id, connection_id, password=password)
+                    return {"success": True, "connection": reconnected.public_info(), "reused": True}
+            except Exception:
+                pass
+
+            # 2. If not found in active session (stale session id or profile id), lookup profile from connections.json
+            saved = _read_json(CONNECTIONS_FILE, [])
+            target = None
+            for p in saved:
+                if p.get("id") == connection_id or p.get("connection_id") == connection_id:
+                    target = dict(p)
+                    break
+            if not target:
+                clean_target_id = str(connection_id).strip().lower()
+                for p in saved:
+                    if str(p.get("name", "")).strip().lower() == clean_target_id:
+                        target = dict(p)
+                        break
+
+            if target:
+                if password:
+                    target["password"] = password
+                return self.create_connection(target)
+
+            return {"success": False, "error": f"Không tìm thấy cấu hình kết nối cho ID: {connection_id}"}
+        except Exception as exc:
+            logger.error("[reconnect_connection] Error: %s", exc)
             return {"success": False, "error": str(exc)}
 
 

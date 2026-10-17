@@ -434,6 +434,9 @@
                     if (typeof monaco !== 'undefined' && monaco.editor) {
                         monaco.editor.setTheme(mTheme);
                     }
+                    if (ed && typeof ed.updateOptions === 'function') {
+                        ed.updateOptions({ theme: mTheme });
+                    }
                 } else if (opt === 'tabSize') {
                     const m = ed.getModel();
                     if (m) m.updateOptions({ tabSize: Number(val) || 4 });
@@ -1015,6 +1018,21 @@
             contextMenuOrder: 2.5,
             run: () => {
                 if (window.unsplitEditor) window.unsplitEditor();
+            }
+        });
+
+        editor.addAction({
+            id: 'sql-refresh-objects-cache',
+            label: 'Refresh Objects & IntelliSense',
+            keybindings: [
+                monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyR
+            ],
+            contextMenuGroupId: '1_modification',
+            contextMenuOrder: 9.9,
+            run: () => {
+                if (typeof window.refreshActiveConnectionObjectsAndIntelliSense === 'function') {
+                    window.refreshActiveConnectionObjectsAndIntelliSense();
+                }
             }
         });
 
@@ -2282,6 +2300,9 @@
         if (typeof monaco !== 'undefined' && monaco.editor && typeof monaco.editor.setTheme === 'function') {
             monaco.editor.setTheme(activeMonacoTheme);
         }
+        if (_diffEditor && typeof _diffEditor.updateOptions === 'function') {
+            _diffEditor.updateOptions({ theme: activeMonacoTheme });
+        }
 
         const leftEl = document.getElementById('diff-title-left');
         const rightEl = document.getElementById('diff-title-right');
@@ -2356,6 +2377,11 @@
         if (typeof monaco !== 'undefined' && monaco.editor && typeof monaco.editor.setTheme === 'function') {
             monaco.editor.setTheme(activeMonacoTheme);
         }
+        [_primaryEditor, _secondaryEditor].forEach(ed => {
+            if (ed && typeof ed.updateOptions === 'function') {
+                ed.updateOptions({ theme: activeMonacoTheme });
+            }
+        });
     };
 
     window.closeDiffView = function () {
@@ -2390,15 +2416,26 @@
     // ── 6. Listen to Global Theme Changes ─────────────────────────────────────
     document.addEventListener('ide-theme-changed', (e) => {
         const themeName = e.detail?.theme;
-        if (window.AppEditor) {
-            window.AppEditor.setOption('theme', themeName);
-        }
-        if (window.AppEditor2) {
-            window.AppEditor2.setOption('theme', themeName);
-        }
+        const curTheme = themeName || document.documentElement.getAttribute('data-bs-theme') || 'dark';
+        const mTheme = (window.MonacoInit && typeof window.MonacoInit.getMonacoTheme === 'function')
+            ? window.MonacoInit.getMonacoTheme(curTheme)
+            : getCurrentMonacoTheme();
+
         if (typeof monaco !== 'undefined' && monaco.editor && typeof monaco.editor.setTheme === 'function') {
-            const mTheme = getCurrentMonacoTheme();
             monaco.editor.setTheme(mTheme);
+        }
+
+        [_primaryEditor, _secondaryEditor, _diffEditor].forEach(ed => {
+            if (ed && typeof ed.updateOptions === 'function') {
+                ed.updateOptions({ theme: mTheme });
+            }
+        });
+
+        if (window.AppEditor && typeof window.AppEditor.setOption === 'function') {
+            window.AppEditor.setOption('theme', curTheme);
+        }
+        if (window.AppEditor2 && typeof window.AppEditor2.setOption === 'function') {
+            window.AppEditor2.setOption('theme', curTheme);
         }
         remeasureMonacoFonts();
     });

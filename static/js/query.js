@@ -1912,50 +1912,69 @@ function initQuery() {
             }
         }
 
-        // Check if connectionId needs auto-healing from active connections (e.g. after reconnect via context menu)
-        if (tabState && tabState.connectionName && window.AppExplorer && typeof window.AppExplorer.getActiveConnections === 'function') {
+        // Check if connectionId is valid and active in connection manager
+        let isActiveConn = false;
+        if (window.AppExplorer && typeof window.AppExplorer.getActiveConnections === 'function') {
             const activeList = window.AppExplorer.getActiveConnections() || [];
-            const cleanTabConnName = String(tabState.connectionName).replace(/\s*\((SQL Server|PostgreSQL|SQLite)\)$/i, '').trim();
-            const matched = activeList.find(a => (
-                a && (
-                    (a.name && (a.name.toLowerCase() === tabState.connectionName.toLowerCase() || a.name.toLowerCase() === cleanTabConnName.toLowerCase())) ||
-                    (a.server && (a.server.toLowerCase() === tabState.connectionName.toLowerCase() || a.server.toLowerCase() === cleanTabConnName.toLowerCase()))
-                ) && (
-                    !tabState.dbType || !a.type || a.type === tabState.dbType
-                )
-            ));
-            if (matched && matched.connection_id) {
-                if (tabState.connectionId !== matched.connection_id) {
+            if (connId && activeList.some(a => a && a.connection_id === connId)) {
+                isActiveConn = true;
+            } else if (tabState && tabState.connectionName) {
+                const cleanTabConnName = String(tabState.connectionName).replace(/\s*\((SQL Server|PostgreSQL|SQLite)\)$/i, '').trim();
+                const matched = activeList.find(a => (
+                    a && (
+                        (a.name && (a.name.toLowerCase() === tabState.connectionName.toLowerCase() || a.name.toLowerCase() === cleanTabConnName.toLowerCase())) ||
+                        (a.server && (a.server.toLowerCase() === tabState.connectionName.toLowerCase() || a.server.toLowerCase() === cleanTabConnName.toLowerCase()))
+                    ) && (
+                        !tabState.dbType || !a.type || a.type === tabState.dbType
+                    )
+                ));
+                if (matched && matched.connection_id) {
                     tabState.connectionId = matched.connection_id;
                     connId = matched.connection_id;
                     window.ActiveConnectionId = matched.connection_id;
+                    isActiveConn = true;
                     if (window.updateActionBar) window.updateActionBar();
                 }
             }
         }
 
-        if (!connId) {
-            // Check if tab has a connName that can be reconnected
-            if (tabState && tabState.connectionName && window.AppExplorer && typeof window.AppExplorer.reconnect === 'function') {
-                let savedList = window.AppExplorer.getSavedConnections ? window.AppExplorer.getSavedConnections() : [];
-                if ((!savedList || savedList.length === 0) && typeof localStorage !== 'undefined') {
-                    try {
-                        savedList = JSON.parse(localStorage.getItem('ide_saved_connections') || '[]');
-                    } catch (_) {}
-                }
-                const profile = savedList.find(s => s && s.name === tabState.connectionName && s.type === tabState.dbType);
-                if (profile) {
-                    window.AppExplorer.reconnect(tabState.connectionName, tabState.dbType, profile, async (newConn) => {
-                        const newId = newConn.connection_id || newConn.id;
-                        tabState.connectionId = newId;
-                        window.ActiveConnectionId = newId;
-                        if (window.updateActionBar) window.updateActionBar();
-                        executeQuery();
+        // If connection is not active or stale (e.g. after IDE restart), auto-reconnect from saved profile
+        if (!isActiveConn && tabState && tabState.connectionName && window.AppExplorer && typeof window.AppExplorer.reconnect === 'function') {
+            let savedList = window.AppExplorer.getSavedConnections ? window.AppExplorer.getSavedConnections() : [];
+            if ((!savedList || savedList.length === 0) && typeof localStorage !== 'undefined') {
+                try {
+                    savedList = JSON.parse(localStorage.getItem('ide_saved_connections') || '[]');
+                } catch (_) {}
+            }
+            const cleanName = String(tabState.connectionName).replace(/\s*\((SQL Server|PostgreSQL|SQLite)\)$/i, '').trim().toLowerCase();
+            const profile = (savedList || []).find(s => s && (
+                (s.name && s.name.trim().toLowerCase() === cleanName) ||
+                (s.id && s.id === connId)
+            ));
+            if (profile) {
+                showToast(`Đang kết nối lại "${tabState.connectionName}"...`, 'info');
+                await new Promise((resolve) => {
+                    window.AppExplorer.reconnect(tabState.connectionName, tabState.dbType || profile.type, profile, async (newConn) => {
+                        const newId = newConn?.connection_id || newConn?.id;
+                        if (newId) {
+                            tabState.connectionId = newId;
+                            connId = newId;
+                            window.ActiveConnectionId = newId;
+                            isActiveConn = true;
+                            if (window.updateActionBar) window.updateActionBar();
+                        }
+                        resolve();
                     });
+                });
+                if (isActiveConn) {
+                    executeQuery(skipDryRun, forceAll, forceExec, execOptions);
                     return;
                 }
             }
-            showMessage('No connection selected.\nPlease click a database in the Object Explorer first.', 'error');
+        }
+
+        if (!connId || !isActiveConn) {
+            showMessage('No active connection selected.\nPlease click a database in the Object Explorer first.', 'error');
             setResultsTabVisible(false);
             switchResultView('results-messages');
             return;
@@ -2068,6 +2087,19 @@ function initQuery() {
             }
 
             const ms = Math.round(performance.now() - t0);
+
+            // If session expired or was lost, attempt seamless auto-reconnect and retry once
+            if (data && data.error && /not found or expired/i.test(data.error) && !execOptions?.hasRetried) {
+                const tabSt = window.AppTabs ? window.AppTabs.getActiveTabState() : null;
+                const cName = tabSt?.connectionName || window.ActiveConnectionName;
+                if (cName && window.AppExplorer && typeof window.AppExplorer.reconnectConnection === 'function') {
+                    console.warn('[Query] Session expired, auto-reconnecting and retrying query...');
+                    setRunning(false);
+                    await window.AppExplorer.reconnectConnection(connId, cName, tabSt?.dbType, null);
+                    executeQuery(skipDryRun, forceAll, forceExec, { ...(execOptions || {}), hasRetried: true });
+                    return;
+                }
+            }
 
             // If query execution changed the current database (e.g. USE statement executed),
             // update tab state and action bar

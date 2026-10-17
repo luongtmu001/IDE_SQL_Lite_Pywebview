@@ -262,11 +262,32 @@
         }
 
         invalidateConnection(connectionId) {
+            if (this.cache && typeof this.cache.invalidateConnection === 'function') {
+                this.cache.invalidateConnection(connectionId);
+            }
             const prefix = connectionId ? `${connectionId}::` : null;
             const clearMap = (m) => {
                 if (!prefix) { m.clear(); return; }
                 for (const k of Array.from(m.keys())) {
                     if (k.startsWith(prefix)) m.delete(k);
+                }
+            };
+            clearMap(this.objectsCache);
+            clearMap(this.columnsCache);
+            clearMap(this.parametersCache);
+            clearMap(this.foreignKeysCache);
+            clearMap(this.definitionsCache);
+            clearMap(this.dataTypesCache);
+        }
+
+        invalidateDatabase(connectionId, database) {
+            if (this.cache && typeof this.cache.invalidateDatabase === 'function') {
+                this.cache.invalidateDatabase(connectionId, database);
+            }
+            const prefix = `${connectionId}::${database || ''}::`;
+            const clearMap = (m) => {
+                for (const k of Array.from(m.keys())) {
+                    if (k.startsWith(prefix) || k.startsWith(`${connectionId}::${database}::`)) m.delete(k);
                 }
             };
             clearMap(this.objectsCache);
@@ -2081,7 +2102,12 @@
         get triggerController() { return controller.triggerController; },
         get dataProvider() { return dataProvider; },
         invalidateConnection: (connId) => dataProvider.invalidateConnection(connId),
+        invalidateDatabase: (connId, db) => dataProvider.invalidateDatabase(connId, db),
         invalidateAll: () => dataProvider.invalidateConnection(null),
+        invalidate: (connId, db) => {
+            if (db) dataProvider.invalidateDatabase(connId, db);
+            else dataProvider.invalidateConnection(connId);
+        },
         // Phase 6 Signature Help API
         getSignatureHelp: (sql, offset, tabCtx) => {
             if (window.SqlSignatureHelpResolver) {
@@ -2098,6 +2124,9 @@
         },
         getActiveTabContext: () => controller.getActiveTabContext()
     };
+
+    // Compatibility Alias
+    window.IntelliSense = window.AppIntelliSense;
 
     document.addEventListener('DOMContentLoaded', () => {
         init();

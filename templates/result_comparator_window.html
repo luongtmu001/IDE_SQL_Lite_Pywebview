@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="vi" data-bs-theme="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self'; worker-src 'self' blob:;">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>So sánh kết quả truy vấn — luoBTool IDE</title>
+
+    <!-- Immediate Theme & Typography Restore -->
+    <script>
+        (function () {
+            try {
+                var saved = localStorage.getItem('ide-theme');
+                if (saved) {
+                    document.documentElement.setAttribute('data-bs-theme', saved);
+                }
+                var fontFam = localStorage.getItem('ide-ui-font-family');
+                var fontSz = localStorage.getItem('ide-ui-font-size');
+                if (fontFam) {
+                    var stack = fontFam;
+                    if (fontFam === 'Segoe UI') stack = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif";
+                    else if (fontFam === 'Inter') stack = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif";
+                    else if (fontFam === 'Roboto') stack = "'Roboto', 'Segoe UI', Arial, sans-serif";
+                    else if (fontFam === 'Arial') stack = "Arial, 'Helvetica Neue', Helvetica, sans-serif";
+                    else if (fontFam === 'Tahoma') stack = "Tahoma, Verdana, 'Segoe UI', sans-serif";
+                    else if (fontFam === 'System UI') stack = "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+                    document.documentElement.style.setProperty('--ide-ui-font-family', stack);
+                    document.documentElement.style.setProperty('--bs-body-font-family', stack);
+                }
+                if (fontSz) {
+                    var szNum = parseInt(fontSz, 10);
+                    if (!isNaN(szNum) && szNum >= 10 && szNum <= 24) {
+                        document.documentElement.style.setProperty('--ide-ui-font-size', szNum + 'px');
+                        document.documentElement.style.setProperty('--bs-body-font-size', szNum + 'px');
+                    }
+                }
+            } catch (e) { }
+        })();
+    </script>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Roboto:wght@400;500;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
+        rel="stylesheet">
+
+    <!-- Vendor CSS -->
+    <link rel="stylesheet" href="../static/vendor/bootstrap/bootstrap.min.css">
+    <link rel="stylesheet" href="../static/vendor/fontawesome/all.min.css">
+    <link rel="stylesheet" href="../static/vendor/ag-grid/ag-theme-quartz.css">
+
+    <!-- IDE Theme Variables & Comparator Styles -->
+    <link rel="stylesheet" href="../static/css/theme-variables.css">
+    <link rel="stylesheet" href="../static/css/themes.css">
+    <link rel="stylesheet" href="../static/css/editor.css">
+    <link rel="stylesheet" href="../static/css/result-comparator.css">
+</head>
+
+<body class="diff-window-body d-flex flex-column vh-100 overflow-hidden m-0 p-0"
+    style="background: var(--ide-bg-main, #1c1d23); color: var(--ide-text-main, #d4d4d4); font-family: var(--ide-ui-font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif);">
+
+    <!-- Standalone Window Header -->
+    <header class="diff-window-header d-flex align-items-center justify-content-between px-3 py-2 border-bottom user-select-none"
+        style="background: var(--ide-bg-toolbar, #21222c); border-color: var(--ide-border, #333842) !important;">
+        <div class="d-flex align-items-center gap-2">
+            <span class="diff-header-icon rounded d-flex align-items-center justify-content-center"
+                style="width: 28px; height: 28px; background: rgba(0, 122, 204, 0.15); color: var(--ide-accent, #007acc);">
+                <i class="fa-solid fa-code-compare fs-6"></i>
+            </span>
+            <div class="d-flex flex-column">
+                <div class="d-flex align-items-center gap-2">
+                    <h1 class="h6 mb-0 fw-bold text-light" style="font-size: 14px;">So sánh hai tập kết quả truy vấn</h1>
+                    <span class="badge bg-primary-subtle text-primary border border-primary small" style="font-size: 10px;">AG-Grid High Performance</span>
+                </div>
+                <span class="text-secondary small" style="font-size: 11px;">Phân tích sai khác dòng, cột, dữ liệu giữa 2 truy vấn hoặc 2 cơ sở dữ liệu</span>
+            </div>
+        </div>
+
+        <div class="d-flex align-items-center gap-2">
+            <button type="button" class="btn btn-sm btn-outline-info d-flex align-items-center gap-1" id="diff-btn-monaco-view"
+                title="Mở nội dung trong Monaco Side-by-Side Diff Editor">
+                <i class="fa-solid fa-file-lines"></i>
+                <span>Monaco Diff</span>
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1" id="diff-btn-export-csv"
+                title="Xuất bảng kết quả sai khác ra tệp CSV">
+                <i class="fa-solid fa-file-arrow-down"></i>
+                <span>Xuất CSV</span>
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-light d-flex align-items-center gap-1" id="diff-btn-refresh-sources"
+                title="Quét lại các tập kết quả mới nhất từ cửa sổ chính">
+                <i class="fa-solid fa-arrows-rotate"></i>
+                <span>Làm mới</span>
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-danger ms-1" id="diff-btn-close-window" title="Đóng cửa sổ">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- Config Toolbar -->
+    <section class="diff-config-toolbar px-3 py-2 border-bottom"
+        style="background: var(--ide-bg-sidebar, #18191f); border-color: var(--ide-border, #333842) !important;">
+        <div class="row g-2 align-items-start">
+            <!-- Source A -->
+            <div class="col-lg-4 col-md-6">
+                <div class="d-flex align-items-center justify-content-between mb-1">
+                    <label class="form-label mb-0 fw-semibold text-warning d-flex align-items-center gap-1" style="font-size: 12px;">
+                        <i class="fa-solid fa-database text-warning"></i>
+                        <span>Tập kết quả A (Gốc / Đối chiếu)</span>
+                    </label>
+                    <span id="diff-source-a-count-tag" class="badge bg-secondary-subtle text-secondary small font-monospace">0 dòng</span>
+                </div>
+                <select class="form-select form-select-sm bg-dark text-light border-secondary" id="diff-select-source-a" style="font-size: 12px;">
+                    <option value="">Đang tải các tập kết quả...</option>
+                </select>
+                <!-- Connection Info Badge Bar for A -->
+                <div id="diff-conn-info-a" class="diff-conn-badge-bar mt-1 d-flex flex-wrap gap-1 align-items-center">
+                    <span class="diff-conn-badge text-muted small"><i class="fa-solid fa-circle-notch fa-spin me-1"></i>Đang tải thông tin kết nối...</span>
+                </div>
+            </div>
+
+            <!-- Source B -->
+            <div class="col-lg-4 col-md-6">
+                <div class="d-flex align-items-center justify-content-between mb-1">
+                    <label class="form-label mb-0 fw-semibold text-success d-flex align-items-center gap-1" style="font-size: 12px;">
+                        <i class="fa-solid fa-database text-success"></i>
+                        <span>Tập kết quả B (Mới / So sánh)</span>
+                    </label>
+                    <span id="diff-source-b-count-tag" class="badge bg-secondary-subtle text-secondary small font-monospace">0 dòng</span>
+                </div>
+                <select class="form-select form-select-sm bg-dark text-light border-secondary" id="diff-select-source-b" style="font-size: 12px;">
+                    <option value="">Đang tải các tập kết quả...</option>
+                </select>
+                <!-- Connection Info Badge Bar for B -->
+                <div id="diff-conn-info-b" class="diff-conn-badge-bar mt-1 d-flex flex-wrap gap-1 align-items-center">
+                    <span class="diff-conn-badge text-muted small"><i class="fa-solid fa-circle-notch fa-spin me-1"></i>Đang tải thông tin kết nối...</span>
+                </div>
+            </div>
+
+            <!-- Column Selection & Compare Configuration -->
+            <div class="col-lg-3 col-md-8">
+                <div class="d-flex align-items-center justify-content-between mb-1">
+                    <label class="form-label mb-0 fw-semibold text-info d-flex align-items-center gap-1" style="font-size: 12px;">
+                        <i class="fa-solid fa-columns text-info"></i>
+                        <span>Cột so sánh &amp; Khóa</span>
+                    </label>
+                    <span id="diff-col-selected-summary" class="badge bg-info-subtle text-info small">0 cột chọn</span>
+                </div>
+                <div class="dropdown w-100">
+                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle w-100 text-truncate text-start d-flex justify-content-between align-items-center"
+                        type="button" id="diff-key-cols-btn" data-bs-toggle="dropdown" data-bs-auto-close="outside" style="font-size: 12px;">
+                        <span class="text-truncate" id="diff-key-cols-btn-label">Chọn cột so sánh...</span>
+                    </button>
+                    <!-- Custom Dropdown Menu with Search and Lazy List -->
+                    <div class="dropdown-menu dropdown-menu-dark p-2 border-secondary shadow-lg diff-col-picker-menu" id="diff-key-cols-menu-container"
+                        style="width: 360px; max-width: 90vw; background: var(--ide-bg-sidebar, #1f2128);">
+                        <!-- Search Box -->
+                        <div class="input-group input-group-sm mb-2">
+                            <span class="input-group-text bg-dark border-secondary text-secondary"><i class="fa-solid fa-magnifying-glass"></i></span>
+                            <input type="text" class="form-control bg-dark text-light border-secondary" id="diff-col-search-input"
+                                placeholder="Tìm nhanh tên cột..." autocomplete="off" spellcheck="false" style="font-size: 12px;">
+                            <button class="btn btn-outline-secondary" type="button" id="diff-col-search-clear" title="Xóa tìm kiếm"><i class="fa-solid fa-xmark"></i></button>
+                        </div>
+                        <!-- Quick Action Buttons -->
+                        <div class="d-flex align-items-center justify-content-between gap-1 mb-2 pb-1 border-bottom border-secondary">
+                            <button type="button" class="btn btn-xs btn-outline-primary py-0 px-1" id="diff-col-btn-all" style="font-size: 11px;">Chọn tất cả</button>
+                            <button type="button" class="btn btn-xs btn-outline-info py-0 px-1" id="diff-col-btn-common" style="font-size: 11px;">Chỉ cột chung</button>
+                            <button type="button" class="btn btn-xs btn-outline-secondary py-0 px-1" id="diff-col-btn-none" style="font-size: 11px;">Bỏ chọn</button>
+                        </div>
+                        <!-- Scrollable Lazy List -->
+                        <ul class="list-unstyled mb-0 diff-col-scrollable-list" id="diff-key-cols-menu"
+                            style="max-height: 280px; overflow-y: auto; font-size: 12px;">
+                            <li class="text-muted small p-2 text-center">Đang nạp danh sách cột...</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="small text-secondary mt-1 d-flex justify-content-between" style="font-size: 11px;">
+                    <span id="diff-keys-hint">🔑 Khóa khớp: id / PK</span>
+                    <span id="diff-col-union-stats">0 cột gộp</span>
+                </div>
+            </div>
+
+            <!-- Run Button -->
+            <div class="col-lg-1 col-md-4 d-flex align-items-end pt-1">
+                <button class="btn btn-sm btn-primary w-100 fw-bold d-flex align-items-center justify-content-center gap-1 shadow-sm"
+                    id="diff-btn-run-compare" title="Thực hiện so sánh dữ liệu với các cột đã chọn" style="height: 31px; margin-top: 20px;">
+                    <i class="fa-solid fa-play"></i>
+                    <span>So</span>
+                </button>
+            </div>
+        </div>
+    </section>
+
+    <!-- Summary KPI Filter Strip -->
+    <section class="diff-summary-strip px-3 py-2 border-bottom d-flex flex-wrap justify-content-between align-items-center gap-2 user-select-none"
+        style="background: var(--ide-bg-toolbar, #21222c); border-color: var(--ide-border, #333842) !important;">
+        <!-- Filter Tabs -->
+        <div class="btn-group btn-group-sm" role="group" id="diff-filter-group">
+            <button type="button" class="btn btn-outline-secondary active fw-semibold" data-filter="all">
+                Tất cả (<span id="diff-count-total" class="font-monospace">0</span>)
+            </button>
+            <button type="button" class="btn btn-outline-warning fw-semibold" data-filter="diff">
+                <i class="fa-solid fa-circle-exclamation me-1"></i>Chỉ sai khác (<span id="diff-count-diffs" class="font-monospace">0</span>)
+            </button>
+            <button type="button" class="btn btn-outline-warning" data-filter="modified">
+                <i class="fa-solid fa-pen-to-square me-1"></i>Khác giá trị (<span id="diff-count-modified" class="font-monospace">0</span>)
+            </button>
+            <button type="button" class="btn btn-outline-danger" data-filter="only_a">
+                <i class="fa-solid fa-minus me-1"></i>Chỉ ở A (<span id="diff-count-only-a" class="font-monospace">0</span>)
+            </button>
+            <button type="button" class="btn btn-outline-success" data-filter="only_b">
+                <i class="fa-solid fa-plus me-1"></i>Chỉ ở B (<span id="diff-count-only-b" class="font-monospace">0</span>)
+            </button>
+            <button type="button" class="btn btn-outline-secondary" data-filter="equal">
+                <i class="fa-solid fa-check me-1"></i>Khớp hoàn toàn (<span id="diff-count-equal" class="font-monospace">0</span>)
+            </button>
+        </div>
+
+        <!-- Legend and Warnings -->
+        <div class="small d-flex align-items-center gap-3 text-secondary" id="diff-extra-info" style="font-size: 11px;">
+            <span id="diff-cols-warning" class="text-warning d-none">
+                <i class="fa-solid fa-triangle-exclamation me-1"></i><span id="diff-cols-warning-text"></span>
+            </span>
+            <span class="d-flex align-items-center"><span class="badge bg-danger-subtle text-danger border border-danger me-1">-</span>Xóa ở B</span>
+            <span class="d-flex align-items-center"><span class="badge bg-success-subtle text-success border border-success me-1">+</span>Thêm ở B</span>
+            <span class="d-flex align-items-center"><span class="badge bg-warning-subtle text-warning border border-warning me-1">~</span>Đổi giá trị</span>
+        </div>
+    </section>
+
+    <!-- AG-Grid Body Container -->
+    <main class="diff-grid-container flex-grow-1 position-relative w-100"
+        style="background: var(--ide-bg-editor, #1e1e1e); min-height: 200px;">
+        <!-- AG-Grid -->
+        <div id="ide-result-diff-aggrid" class="ag-theme-quartz-dark w-100 h-100"></div>
+
+        <!-- Empty State -->
+        <div id="ide-result-diff-empty" class="position-absolute top-50 start-50 translate-middle text-center text-muted" style="display: none;">
+            <i class="fa-solid fa-code-compare fs-1 mb-2 opacity-50 text-info"></i>
+            <div class="fs-6 fw-semibold text-light">Chưa có kết quả so sánh</div>
+            <div class="small text-secondary mt-1">Vui lòng chọn 2 tập kết quả từ danh sách và nhấn nút <strong>"So"</strong> để phân tích.</div>
+        </div>
+    </main>
+
+    <!-- Status Footer -->
+    <footer class="diff-window-footer py-1 px-3 border-top d-flex justify-content-between align-items-center user-select-none"
+        style="background: var(--ide-bg-toolbar, #21222c); border-color: var(--ide-border, #333842) !important; font-size: 11px;">
+        <div class="d-flex align-items-center gap-2">
+            <span class="badge bg-secondary-subtle text-light font-monospace" id="diff-status-indicator">READY</span>
+            <span id="diff-status-text" class="text-secondary">Sẵn sàng so sánh</span>
+        </div>
+        <div class="d-flex align-items-center gap-3 text-secondary">
+            <span id="diff-timing-stat">0 ms</span>
+            <span class="text-secondary opacity-50">|</span>
+            <span id="diff-cols-stat">0 cột</span>
+            <span class="text-secondary opacity-50">|</span>
+            <span id="diff-rows-stat">0 dòng</span>
+        </div>
+    </footer>
+
+    <!-- Vendor Scripts -->
+    <script src="../static/vendor/bootstrap/bootstrap.bundle.min.js"></script>
+    <script src="../static/vendor/ag-grid/ag-grid-community.min.js"></script>
+
+    <!-- Monaco Loader for Monaco Diff Fallback -->
+    <script src="../static/vendor/monaco/vs/loader.js"></script>
+    <script src="../static/js/monaco-init.js"></script>
+
+    <!-- App Scripts -->
+    <script src="../static/js/utils.js"></script>
+    <script src="../static/js/api.js"></script>
+    <script src="../static/js/clipboard-bridge.js"></script>
+    <script src="../static/js/storage.js"></script>
+    <script src="../static/js/theme-registry.js"></script>
+    <script src="../static/js/theme.js"></script>
+    <script src="../static/js/typography.js"></script>
+    <script src="../static/js/result-comparator.js"></script>
+
+    <!-- Subwindow Bootstrap Init -->
+    <script>
+        (function () {
+            // Apply theme changes broadcast from main window
+            window.onSettingsChanged = function (settings) {
+                try {
+                    var theme = (settings && settings.appearance && settings.appearance.theme) || (settings && settings.theme) || 'dark';
+                    document.documentElement.setAttribute('data-bs-theme', theme);
+                    if (window.ThemeManager) {
+                        window.ThemeManager.applyTheme(theme, false);
+                    }
+                    var agDiv = document.getElementById('ide-result-diff-aggrid');
+                    if (agDiv) {
+                        var isLight = (theme === 'light' || theme === 'win-nt' || theme === 'win-xp');
+                        agDiv.classList.toggle('ag-theme-quartz', isLight);
+                        agDiv.classList.toggle('ag-theme-quartz-dark', !isLight);
+                    }
+                    if (window.TypographyManager && settings && settings.appearance) {
+                        window.TypographyManager.apply({
+                            uiFontFamily: settings.appearance.uiFontFamily,
+                            uiFontSize: settings.appearance.uiFontSize
+                        }, false);
+                    }
+                } catch (e) {
+                    console.warn('[ResultComparatorWindow] onSettingsChanged error:', e);
+                }
+            };
+
+            async function initSubwindow() {
+                var closeBtn = document.getElementById('diff-btn-close-window');
+                if (closeBtn) {
+                    closeBtn.addEventListener('click', function () {
+                        if (window.pywebview && window.pywebview.api && typeof window.pywebview.api.close_window === 'function') {
+                            window.pywebview.api.close_window();
+                        } else {
+                            window.close();
+                        }
+                    });
+                }
+
+                var initialData = null;
+                try {
+                    if (window.pywebview && window.pywebview.api && typeof window.pywebview.api.get_initial_data === 'function') {
+                        initialData = await window.pywebview.api.get_initial_data();
+                    }
+                } catch (err) {
+                    console.warn('[ResultComparatorWindow] Could not retrieve initial data from bridge:', err);
+                }
+
+                if (window.ResultComparator && typeof window.ResultComparator.initStandaloneWindow === 'function') {
+                    window.ResultComparator.initStandaloneWindow(initialData);
+                }
+            }
+
+            if (window.pywebview) {
+                initSubwindow();
+            } else {
+                window.addEventListener('pywebviewready', initSubwindow);
+                document.addEventListener('DOMContentLoaded', function () {
+                    setTimeout(initSubwindow, 300);
+                });
+            }
+        })();
+    </script>
+</body>
+
+</html>

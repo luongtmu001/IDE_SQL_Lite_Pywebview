@@ -1479,7 +1479,11 @@
                 } else if (context.isInsertColumns || context.clause === 'INSERT_COLUMNS') {
                     return;
                 } else if (context.clause === 'FROM' || context.clause === 'JOIN' || context.clause === 'INSERT INTO' || context.clause === 'UPDATE') {
-                    if (!['table', 'view', 'temp_table', 'table_variable', 'synonym', 'foreign_table'].includes(obj.type)) return;
+                    if (context.clause === 'INSERT INTO' || context.clause === 'UPDATE') {
+                        if (!['table', 'view', 'temp_table', 'table_variable', 'synonym', 'foreign_table'].includes(obj.type)) return;
+                    } else {
+                        if (!['table', 'view', 'temp_table', 'table_variable', 'synonym', 'foreign_table', 'function'].includes(obj.type)) return;
+                    }
                 }
 
                 const hasAlias = context.queryTables && context.queryTables.some(

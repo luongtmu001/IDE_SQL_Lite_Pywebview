@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="vi" data-bs-theme="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self'; worker-src 'self' blob:;">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Thông tin phần mềm — luoBTool IDE</title>
+    <link rel="icon" type="image/png" href="../static/image/logo-200x200.png">
+
+    <!-- Immediate Theme & Typography Restore -->
+    <script>
+        (function () {
+            try {
+                var saved = localStorage.getItem('ide-theme');
+                if (saved) {
+                    document.documentElement.setAttribute('data-bs-theme', saved);
+                }
+                var fontFam = localStorage.getItem('ide-ui-font-family');
+                var fontSz = localStorage.getItem('ide-ui-font-size');
+                if (fontFam) {
+                    var stack = fontFam;
+                    if (fontFam === 'Segoe UI') stack = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif";
+                    else if (fontFam === 'Inter') stack = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif";
+                    else if (fontFam === 'Roboto') stack = "'Roboto', 'Segoe UI', Arial, sans-serif";
+                    else if (fontFam === 'Arial') stack = "Arial, 'Helvetica Neue', Helvetica, sans-serif";
+                    else if (fontFam === 'Tahoma') stack = "Tahoma, Verdana, 'Segoe UI', sans-serif";
+                    else if (fontFam === 'System UI') stack = "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+                    document.documentElement.style.setProperty('--ide-ui-font-family', stack);
+                    document.documentElement.style.setProperty('--bs-body-font-family', stack);
+                }
+                if (fontSz) {
+                    var szNum = parseInt(fontSz, 10);
+                    if (!isNaN(szNum) && szNum >= 10 && szNum <= 24) {
+                        document.documentElement.style.setProperty('--ide-ui-font-size', szNum + 'px');
+                        document.documentElement.style.setProperty('--bs-body-font-size', szNum + 'px');
+                    }
+                }
+            } catch (e) { }
+        })();
+    </script>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+
+    <!-- Bootstrap 5 & Font Awesome 6 -->
+    <link href="../static/vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
+    <link href="../static/vendor/fontawesome/all.min.css" rel="stylesheet">
+    <link href="../static/vendor/fonts/jetbrains-mono-local.css" rel="stylesheet">
+
+    <!-- Theme Variables & IDE Themes -->
+    <link rel="stylesheet" href="../static/css/theme-variables.css">
+    <link rel="stylesheet" href="../static/css/themes.css">
+
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: var(--ide-bg-main, #1e1e1e);
+            color: var(--ide-text-main, #d4d4d4);
+            font-family: var(--ide-ui-font-family, 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif);
+            user-select: none;
+        }
+
+        .about-container {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            padding: 24px;
+            box-sizing: border-box;
+            justify-content: space-between;
+        }
+
+        .about-card {
+            background: var(--ide-bg-sidebar, #252526);
+            border: 1px solid var(--ide-border, #3c3c3c);
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+        }
+
+        .about-header {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 16px;
+            border-bottom: 1px solid var(--ide-border, #3c3c3c);
+            padding-bottom: 16px;
+        }
+
+        .about-logo {
+            width: 56px;
+            height: 56px;
+            object-fit: contain;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.05);
+            padding: 4px;
+            border: 1px solid var(--ide-border, #3c3c3c);
+        }
+
+        .about-title {
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--ide-text-active, #ffffff);
+            margin: 0;
+            letter-spacing: 0.3px;
+        }
+
+        .about-tagline {
+            font-size: 13px;
+            color: var(--ide-text-muted, #858585);
+            margin-top: 2px;
+        }
+
+        .about-info-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            margin-top: 12px;
+        }
+
+        .info-pill {
+            background: var(--ide-bg-input, rgba(0, 0, 0, 0.2));
+            border: 1px solid var(--ide-border, #333333);
+            border-radius: 6px;
+            padding: 8px 12px;
+        }
+
+        .info-pill-label {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--ide-text-muted, #888888);
+            margin-bottom: 2px;
+        }
+
+        .info-pill-val {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--ide-text-active, #ffffff);
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .about-copyright {
+            margin-top: 14px;
+            padding: 8px 12px;
+            background: rgba(13, 110, 253, 0.08);
+            border: 1px solid rgba(13, 110, 253, 0.25);
+            border-radius: 6px;
+            font-size: 12px;
+            color: var(--ide-accent, #4daafc);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .about-footer {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-top: 16px;
+        }
+
+        .btn-ide {
+            padding: 6px 14px;
+            font-size: 13px;
+            font-weight: 500;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            border: 1px solid transparent;
+        }
+
+        .btn-ide-primary {
+            background: var(--ide-accent, #007acc);
+            color: #ffffff;
+            border-color: var(--ide-accent, #007acc);
+        }
+
+        .btn-ide-primary:hover {
+            opacity: 0.9;
+        }
+
+        .btn-ide-subtle {
+            background: transparent;
+            color: var(--ide-text-main, #cccccc);
+            border-color: var(--ide-border, #444444);
+        }
+
+        .btn-ide-subtle:hover {
+            background: var(--ide-hover-bg, rgba(255, 255, 255, 0.08));
+            color: var(--ide-text-active, #ffffff);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="about-container">
+        <div class="about-card">
+            <div class="about-header">
+                <img src="../static/image/logo.png" alt="Logo" class="about-logo" id="aboutAppLogo">
+                <div>
+                    <h1 class="about-title" id="aboutAppName">luoBTool IDE</h1>
+                    <div class="about-tagline" id="aboutAppDesc">Modern SQL Database IDE & Developer Suite</div>
+                </div>
+            </div>
+
+            <div class="about-info-grid">
+                <div class="info-pill">
+                    <div class="info-pill-label">Phiên bản (Version)</div>
+                    <div class="info-pill-val text-primary" id="aboutVersion">v1.0.0</div>
+                </div>
+                <div class="info-pill">
+                    <div class="info-pill-label">Chế độ hoạt động</div>
+                    <div class="info-pill-val" id="aboutMode">Standard (%APPDATA%)</div>
+                </div>
+                <div class="info-pill">
+                    <div class="info-pill-label">Nền tảng (Platform)</div>
+                    <div class="info-pill-val" id="aboutPlatform">Windows</div>
+                </div>
+                <div class="info-pill">
+                    <div class="info-pill-label">Python Runtime</div>
+                    <div class="info-pill-val" id="aboutPython">Python 3.x</div>
+                </div>
+            </div>
+
+            <div class="about-copyright">
+                <i class="fa-regular fa-copyright"></i>
+                <span id="aboutCopyrightText">@Copyright 2026 luonght. All rights reserved.</span>
+            </div>
+        </div>
+
+        <div class="about-footer">
+            <div class="d-flex gap-2">
+                <button type="button" class="btn-ide btn-ide-primary" id="btnCheckUpdateFromAbout">
+                    <i class="fa-solid fa-arrows-rotate"></i>
+                    <span>Kiểm tra Cập nhật</span>
+                </button>
+                <button type="button" class="btn-ide btn-ide-subtle" id="btnOpenGitHub">
+                    <i class="fa-brands fa-github"></i>
+                    <span>GitHub Repo</span>
+                </button>
+            </div>
+            <button type="button" class="btn-ide btn-ide-subtle" id="btnCloseAboutWindow">
+                <i class="fa-solid fa-xmark"></i>
+                <span>Đóng</span>
+            </button>
+        </div>
+    </div>
+
+    <script>
+        (function () {
+            'use strict';
+
+            async function callApi(methodName, ...args) {
+                if (window.pywebview && window.pywebview.api && typeof window.pywebview.api[methodName] === 'function') {
+                    return await window.pywebview.api[methodName](...args);
+                }
+                return null;
+            }
+
+            async function initAbout() {
+                try {
+                    const res = await callApi('get_app_version');
+                    if (res && res.success && res.data) {
+                        const info = res.data;
+                        document.getElementById('aboutAppName').textContent = info.appName || 'luoBTool IDE';
+                        document.getElementById('aboutVersion').textContent = 'v' + (info.version || '1.0.0');
+                        document.getElementById('aboutMode').textContent = info.isPortable ? 'Portable Mode' : 'Standard (%APPDATA%)';
+                        document.getElementById('aboutPlatform').textContent = info.platform || 'Windows';
+                        document.getElementById('aboutPython').textContent = 'Python ' + (info.pythonVersion || '3.x');
+                        if (info.description) {
+                            document.getElementById('aboutAppDesc').textContent = info.description;
+                        }
+                    }
+                } catch (err) {
+                    console.error('[About] Error loading app info:', err);
+                }
+            }
+
+            document.getElementById('btnCheckUpdateFromAbout').addEventListener('click', async function () {
+                const res = await callApi('open_update_window');
+                if (!res || !res.success) {
+                    // Fallback if already focused or direct check
+                    alert('Đang mở cửa sổ kiểm tra cập nhật...');
+                }
+            });
+
+            document.getElementById('btnOpenGitHub').addEventListener('click', async function () {
+                await callApi('open_external_url', 'https://github.com/luongtmu001/IDE_SQL_Lite_Pywebview');
+            });
+
+            document.getElementById('btnCloseAboutWindow').addEventListener('click', async function () {
+                const res = await callApi('close_window');
+                if (!res || !res.success) {
+                    window.close();
+                }
+            });
+
+            window.addEventListener('pywebviewready', initAbout);
+            window.addEventListener('DOMContentLoaded', initAbout);
+        })();
+    </script>
+</body>
+
+</html>
