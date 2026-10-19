@@ -1,17 +1,18 @@
 {
-  "version": "1.0.1",
-  "releaseDate": "2026-10-17",
+  "version": "1.0.3",
+  "releaseDate": "2026-10-19",
   "minSupportedVersion": "1.0.0",
-  "title": "LLTool IDE v1.0.1",
+  "title": "LLTool IDE v1.0.3",
   "downloadUrl": "https://github.com/luongtmu001/IDE_SQL_Lite_Pywebview/archive/refs/heads/main.zip",
-  "fileName": "LLTool_v1.0.1.zip",
-  "fileSize": 6500000,
-  "releaseNotes": "Bản phát hành v1.0.1 chính thức tích hợp tính năng tự động kiểm tra và tải trực tiếp bản cập nhật mới, hiển thị tiến trình % màu xanh trực quan.",
+  "fileName": "LLTool_v1.0.3.zip",
+  "fileSize": 6560000,
+  "releaseNotes": "Bản phát hành v1.0.3 khắc phục triệt để lỗi không lưu phiên làm việc và trạng thái kết nối trên bản đóng gói executable, tối ưu hoá tắt ứng dụng tức thì không bị treo, và nâng cấp giao diện chọn Nhóm kết nối & Database sang Custom Combobox hiện đại.",
   "highlights": [
-    "Tự động tải trực tiếp bản cập nhật vào máy với thanh tiến trình % màu xanh trực quan",
-    "Hỗ trợ mở trực tiếp file cài đặt và mở thư mục chứa file đã tải",
-    "Tích hợp tính năng Check for Update tự động từ GitHub Releases",
-    "Thêm cửa sổ Thông tin phần mềm (About dialog) và Kiểm tra Cập nhật trực quan",
-    "Tối ưu hoá giao diện tab editor với đường viền bo theo màu theme"
+    "Khắc phục triệt để lỗi không lưu phiên làm việc và ngữ cảnh kết nối trên bản đóng gói (packaged build)",
+    "Kích hoạt Persistent Storage (UserDataFolder) cho WebView2 Desktop Native, bảo toàn trọn vẹn workspace",
+    "Tự động khôi phục hoàn chỉnh danh sách tab truy vấn, nội dung SQL, vị trí con trỏ và CSDL từ session.json",
+    "Tối ưu hoá quy trình tắt ứng dụng mượt mà, loại bỏ hiện tượng đơ/treo khi đóng cửa sổ",
+    "Thay thế datalist mặc định bằng Custom Combobox đồng bộ theme IDE khi chọn Nhóm & Database",
+    "Tìm kiếm và lọc tức thì với tính năng highlight từ khóa và đầy đủ phím tắt bàn phím (Lên/Xuống, Enter, Esc)"
   ]
 }
