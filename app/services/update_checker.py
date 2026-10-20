@@ -637,6 +637,64 @@ def apply_update(file_path: Optional[str] = None, new_version: Optional[str] = N
     except Exception as exc:
         logger.warning("[UpdateChecker] Could not persist to version.json: %s", exc)
 
+    # Auto-extract downloaded zip archive into installation directory if applicable
+    archive_path = file_path
+    if not archive_path:
+        with _download_lock:
+            archive_path = _download_state.get("savedPath")
+
+    if archive_path and os.path.exists(archive_path) and str(archive_path).lower().endswith(".zip"):
+        try:
+            import zipfile
+            import shutil
+            from app.utils.paths import get_app_dir
+            app_d = get_app_dir()
+            logger.info("[UpdateChecker] Auto-extracting update archive %s into %s", archive_path, app_d)
+            with zipfile.ZipFile(archive_path, "r") as zf:
+                # Detect if archive has a single top-level folder (e.g. IDE_SQL_Lite_Pywebview-main/)
+                namelist = zf.namelist()
+                top_prefixes = set()
+                for name in namelist:
+                    parts = name.split("/")
+                    if len(parts) > 1 and parts[0]:
+                        top_prefixes.add(parts[0])
+                single_prefix = (list(top_prefixes)[0] + "/") if len(top_prefixes) == 1 else ""
+
+                for member in zf.infolist():
+                    rel_name = member.filename
+                    if single_prefix and rel_name.startswith(single_prefix):
+                        rel_name = rel_name[len(single_prefix):]
+                    if not rel_name or rel_name.endswith("/"):
+                        continue
+
+                    # Targets: static and templates need to go to both app_dir and app_dir/_internal
+                    target_destinations = [app_d / rel_name]
+                    if rel_name.startswith("static/") or rel_name.startswith("templates/"):
+                        target_destinations.append(app_d / "_internal" / rel_name)
+                    elif rel_name == "version.json":
+                        target_destinations.append(app_d / "_internal" / "version.json")
+                    elif rel_name.startswith("app/"):
+                        target_destinations.append(app_d / "_internal" / rel_name)
+
+                    for dest_path in target_destinations:
+                        try:
+                            # Protect against path traversal
+                            resolved = dest_path.resolve()
+                            if not str(resolved).startswith(str(app_d.resolve())):
+                                continue
+                            dest_path.parent.mkdir(parents=True, exist_ok=True)
+                            with zf.open(member) as src, open(dest_path, "wb") as dst:
+                                shutil.copyfileobj(src, dst)
+                        except PermissionError:
+                            # Skip locked files like running executables
+                            pass
+                        except Exception as write_err:
+                            logger.debug("[UpdateChecker] Extract skip %s: %s", dest_path, write_err)
+
+            logger.info("[UpdateChecker] Auto-extraction completed successfully.")
+        except Exception as zip_err:
+            logger.warning("[UpdateChecker] Could not auto-extract update zip: %s", zip_err)
+
     return {
         "success": True,
         "version": target_ver,
