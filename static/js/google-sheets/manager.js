@@ -17,53 +17,70 @@ window.GoogleSheetsManager = (function () {
   }
 
   function _bindGlobalTriggers() {
-    // Toolbar button trigger
-    const navBtn = document.getElementById('ide-google-sheets-btn');
-    if (navBtn) {
-      navBtn.addEventListener('click', (e) => {
-        e.preventDefault();
-        openManager();
-      });
-    }
+    const bind = () => {
+      // Toolbar button trigger
+      const navBtn = document.getElementById('ide-google-sheets-btn');
+      if (navBtn && !navBtn._gsBound) {
+        navBtn._gsBound = true;
+        navBtn.addEventListener('click', (e) => {
+          e.preventDefault();
+          openManager();
+        });
+      }
 
-    // View menu trigger
-    const menuBtn = document.getElementById('ide-menu-google-sheets');
-    if (menuBtn) {
-      menuBtn.addEventListener('click', (e) => {
-        e.preventDefault();
-        openManager();
-      });
-    }
+      // View menu trigger
+      const menuBtn = document.getElementById('ide-menu-google-sheets');
+      if (menuBtn && !menuBtn._gsBound) {
+        menuBtn._gsBound = true;
+        menuBtn.addEventListener('click', (e) => {
+          e.preventDefault();
+          openManager();
+        });
+      }
 
-    // Subwindow standalone refresh button
-    const refreshBtn = document.getElementById('gs-btn-refresh-workspace');
-    if (refreshBtn) {
-      refreshBtn.addEventListener('click', (e) => {
-        e.preventDefault();
-        refresh();
-      });
+      // Subwindow standalone refresh button
+      const refreshBtn = document.getElementById('gs-btn-refresh-workspace');
+      if (refreshBtn && !refreshBtn._gsBound) {
+        refreshBtn._gsBound = true;
+        refreshBtn.addEventListener('click', (e) => {
+          e.preventDefault();
+          refresh();
+        });
+      }
+    };
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', bind);
+    } else {
+      bind();
     }
 
     // Keyboard shortcut Ctrl+Alt+G
-    window.addEventListener('keydown', (e) => {
-      if (e.ctrlKey && e.altKey && (e.key === 'g' || e.key === 'G')) {
-        e.preventDefault();
-        openManager();
-      }
-    });
+    if (!window._gsKeydownBound) {
+      window._gsKeydownBound = true;
+      window.addEventListener('keydown', (e) => {
+        if ((e.ctrlKey || e.metaKey) && e.altKey && (e.key === 'g' || e.key === 'G')) {
+          e.preventDefault();
+          openManager();
+        }
+      });
+    }
   }
 
   async function openManager() {
-    // 1. In native PyWebView desktop environment: open a new dedicated subwindow
-    if (window.pywebview && window.pywebview.api && typeof window.pywebview.api.gs_open_manager_window === 'function') {
-      try {
+    if (window.AppLoader) window.AppLoader.show('Đang mở Google Sheets Manager...');
+    try {
+      // 1. In native PyWebView desktop environment: open a new dedicated subwindow
+      if (window.pywebview && window.pywebview.api && typeof window.pywebview.api.gs_open_manager_window === 'function') {
         const res = await window.pywebview.api.gs_open_manager_window();
         if (res && res.success) {
           return;
         }
-      } catch (err) {
-        console.warn('[GSManager] gs_open_manager_window error:', err);
       }
+    } catch (err) {
+      console.warn('[GSManager] gs_open_manager_window error:', err);
+    } finally {
+      setTimeout(() => { if (window.AppLoader) window.AppLoader.hide(); }, 600);
     }
 
     // 2. Fallback: only if pywebview native subwindow manager is unavailable

@@ -492,6 +492,7 @@ window.GoogleSheetsView = (function () {
       _activeTagFilter = null;
     }
 
+    if (!_dom.tagFilterBar) return;
     _dom.tagFilterBar.innerHTML = '';
 
     // "Tất cả" chip
@@ -530,6 +531,8 @@ window.GoogleSheetsView = (function () {
     if (_expandedProjectIds.size === 0 && _cachedProjects.length > 0) {
       _cachedProjects.forEach((p) => _expandedProjectIds.add(p.id));
     }
+
+    if (!_dom.appContainer) return;
 
     renderTagFilterBar(_cachedProjects);
     applyFiltersAndRenderTree();

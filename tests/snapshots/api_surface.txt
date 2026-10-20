@@ -114,7 +114,7 @@ CLASS BravoApi (109 public methods):
   - validate_table_row(self, connection_id, database=None, schema=None, table=None, values=None, keys=None, is_new=True, target_column=None)
   - validate_table_rows(self, connection_id, database=None, schema=None, table=None, rows=None)
 
-CLASS MainApi (179 public methods):
+CLASS MainApi (201 public methods):
   - activity_cancel_session(self, connection_id: str, session_id: int) -> Dict[str, Any]
   - activity_get_current_spid(self, connection_id: str) -> Dict[str, Any]
   - activity_get_sessions(self, connection_id: str, database: str | None = None, active_only: bool = False) -> Dict[str, Any]
@@ -181,6 +181,28 @@ CLASS MainApi (179 public methods):
   - get_tables(self, connection_id, database=None, schema=None, search=None)
   - grid_open_in_excel(self, columns=None, rows=None)
   - grid_save_results_as(self, columns=None, rows=None, default_filename=None)
+  - gs_add_sheet(self, project_id: str, title: str, url: str, tags: List[str] | None = None, notes: str | None = None, favorite: bool = False) -> Dict[str, Any]
+  - gs_close_sheet_window(self, sheet_id: str) -> Dict[str, Any]
+  - gs_create_project(self, name: str, description: str = '', color: str = '#3B82F6') -> Dict[str, Any]
+  - gs_delete_project(self, project_id: str) -> Dict[str, Any]
+  - gs_fetch_sheet_data(self, project_id: str, sheet_id: str) -> Dict[str, Any]
+  - gs_get_open_sheet_ids(self) -> Dict[str, Any]
+  - gs_get_project(self, project_id: str) -> Dict[str, Any]
+  - gs_get_workspace(self) -> Dict[str, Any]
+  - gs_list_projects(self) -> Dict[str, Any]
+  - gs_move_sheet(self, source_project_id: str, target_project_id: str, sheet_id: str) -> Dict[str, Any]
+  - gs_open_in_browser(self, url: str) -> Dict[str, Any]
+  - gs_open_manager_window(self) -> Dict[str, Any]
+  - gs_open_sheet_window(self, project_id: str, sheet_id: str) -> Dict[str, Any]
+  - gs_remove_sheet(self, project_id: str, sheet_id: str) -> Dict[str, Any]
+  - gs_reorder_projects(self, project_ids: List[str]) -> Dict[str, Any]
+  - gs_save_sheet_grid(self, project_id: str, sheet_id: str, grid_data: List[List[str]]) -> Dict[str, Any]
+  - gs_save_workspace(self, last_project_id: str | None = None, last_opened_sheet_id: str | None = None) -> Dict[str, Any]
+  - gs_search_sheets(self, query: str = '', tag: str | None = None, favorite_only: bool = False) -> Dict[str, Any]
+  - gs_toggle_favorite(self, project_id: str, sheet_id: str) -> Dict[str, Any]
+  - gs_update_project(self, project_id: str, name: str | None = None, description: str | None = None, color: str | None = None) -> Dict[str, Any]
+  - gs_update_sheet(self, project_id: str, sheet_id: str, title: str | None = None, url: str | None = None, tags: List[str] | None = None, notes: str | None = None, favorite: bool | None = None) -> Dict[str, Any]
+  - gs_validate_url(self, raw_url: str) -> Dict[str, Any]
   - history_add_entry_tag(self, entry_id, tag_name, color=None)
   - history_clear_all(self, keep_favorites=False)
   - history_compact(self)

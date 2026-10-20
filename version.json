@@ -5,7 +5,7 @@
   "title": "LLTool IDE v1.0.5",
   "downloadUrl": "https://github.com/luongtmu001/IDE_SQL_Lite_Pywebview/archive/refs/heads/main.zip",
   "fileName": "LLTool_v1.0.5.zip",
-  "fileSize": 25184180,
+  "fileSize": 83292085,
   "releaseNotes": "Bản phát hành v1.0.5 chính thức tích hợp Trình quản lý & Soạn thảo Google Sheets trực tiếp trong IDE, công cụ So sánh Bravo Layout XML, mở So sánh Schema dạng Tab từ Object Explorer, sửa lỗi dropdown zoom % bị che khuất, bo viền accent tab kết quả và khôi phục hoàn chỉnh bộ quản lý Tab.",
   "highlights": [
     "Tích hợp Google Sheets Manager & Inline Editor: mở, quản lý và chỉnh sửa trực tiếp bảng tính Google Sheets trong IDE với điều hướng tab mượt mà",

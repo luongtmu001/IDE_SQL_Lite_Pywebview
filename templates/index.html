@@ -72,15 +72,15 @@
 
 
     <!-- Original CSS Modular Structure -->
-    <link rel="stylesheet" href="../static/css/theme-variables.css">
-    <link rel="stylesheet" href="../static/css/themes.css">
-    <link rel="stylesheet" href="../static/css/settings.css">
-    <link rel="stylesheet" href="../static/css/app.css">
-    <link rel="stylesheet" href="../static/css/explorer.css">
-    <link rel="stylesheet" href="../static/css/editor.css">
-    <link rel="stylesheet" href="../static/css/context-menu.css">
-    <link rel="stylesheet" href="../static/css/table-designer.css">
-    <link rel="stylesheet" href="../static/css/table-data-editor.css">
+    <link rel="stylesheet" href="../static/css/theme-variables.css?v=1.0.5">
+    <link rel="stylesheet" href="../static/css/themes.css?v=1.0.5">
+    <link rel="stylesheet" href="../static/css/settings.css?v=1.0.5">
+    <link rel="stylesheet" href="../static/css/app.css?v=1.0.5">
+    <link rel="stylesheet" href="../static/css/explorer.css?v=1.0.5">
+    <link rel="stylesheet" href="../static/css/editor.css?v=1.0.5">
+    <link rel="stylesheet" href="../static/css/context-menu.css?v=1.0.5">
+    <link rel="stylesheet" href="../static/css/table-designer.css?v=1.0.5">
+    <link rel="stylesheet" href="../static/css/table-data-editor.css?v=1.0.5">
     <!-- CodeMirror (for Table Designer SQL preview, live diff, and triggers) -->
     <link rel="stylesheet" href="../static/vendor/codemirror/codemirror.min.css">
     <link rel="stylesheet" href="../static/vendor/codemirror/darcula.min.css">
@@ -89,18 +89,18 @@
     <!-- AG Grid Community CSS -->
     <link rel="stylesheet" href="../static/vendor/ag-grid/ag-grid.css">
     <link rel="stylesheet" href="../static/vendor/ag-grid/ag-theme-quartz.css">
-    <link rel="stylesheet" href="../static/css/bravo.css">
-    <link rel="stylesheet" href="../static/css/sql-protection.css">
-    <link rel="stylesheet" href="../static/css/file-history-sidebar.css">
-    <link rel="stylesheet" href="../static/css/dependency-graph.css">
-    <link rel="stylesheet" href="../static/css/object-search.css">
-    <link rel="stylesheet" href="../static/css/sql-style.css">
-    <link rel="stylesheet" href="../static/css/sql-visualization.css">
-    <link rel="stylesheet" href="../static/css/structured-data-viewer.css">
-    <link rel="stylesheet" href="../static/css/result-comparator.css">
-    <link rel="stylesheet" href="../static/css/activity-monitor.css">
-    <link rel="stylesheet" href="../static/css/schema-compare.css">
-    <link rel="stylesheet" href="../static/css/google-sheets/google-sheets.css">
+    <link rel="stylesheet" href="../static/css/bravo.css?v=1.0.5">
+    <link rel="stylesheet" href="../static/css/sql-protection.css?v=1.0.5">
+    <link rel="stylesheet" href="../static/css/file-history-sidebar.css?v=1.0.5">
+    <link rel="stylesheet" href="../static/css/dependency-graph.css?v=1.0.5">
+    <link rel="stylesheet" href="../static/css/object-search.css?v=1.0.5">
+    <link rel="stylesheet" href="../static/css/sql-style.css?v=1.0.5">
+    <link rel="stylesheet" href="../static/css/sql-visualization.css?v=1.0.5">
+    <link rel="stylesheet" href="../static/css/structured-data-viewer.css?v=1.0.5">
+    <link rel="stylesheet" href="../static/css/result-comparator.css?v=1.0.5">
+    <link rel="stylesheet" href="../static/css/activity-monitor.css?v=1.0.5">
+    <link rel="stylesheet" href="../static/css/schema-compare.css?v=1.0.5">
+    <link rel="stylesheet" href="../static/css/google-sheets/google-sheets.css?v=1.0.5">
 </head>
 
 <body class="overflow-hidden vh-100 d-flex flex-column m-0 p-0" style="background-color: var(--ide-bg-main, #1C1D23);">
@@ -1915,9 +1915,9 @@
     </script>
 
     <!-- Google Sheets Manager Modules -->
-    <script src="../static/js/google-sheets/tabs.js"></script>
-    <script src="../static/js/google-sheets/view.js"></script>
-    <script src="../static/js/google-sheets/manager.js"></script>
+    <script src="../static/js/google-sheets/tabs.js?v=1.0.5"></script>
+    <script src="../static/js/google-sheets/view.js?v=1.0.5"></script>
+    <script src="../static/js/google-sheets/manager.js?v=1.0.5"></script>
     <!-- Custom Popup Dialog for Settings Modal Notifications -->
     <div class="settings-popup-backdrop d-none" id="settingsPopupBackdrop">
         <div class="settings-popup-card" id="settingsPopupCard">
@@ -2446,6 +2446,44 @@
                     });
                 }
 
+                var btnSheets = document.getElementById('ide-google-sheets-btn');
+                if (btnSheets && !btnSheets._scBound) {
+                    btnSheets._scBound = true;
+                    btnSheets.addEventListener('click', function (e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        triggerGoogleSheets();
+                    });
+                }
+
+                var menuSheets = document.getElementById('ide-menu-google-sheets');
+                if (menuSheets && !menuSheets._scBound) {
+                    menuSheets._scBound = true;
+                    menuSheets.addEventListener('click', function (e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        triggerGoogleSheets();
+                    });
+                }
+
+                window.triggerGoogleSheets = async function () {
+                    if (window.AppLoader) window.AppLoader.show('Đang mở Google Sheets Manager...');
+                    try {
+                        if (window.pywebview && window.pywebview.api && typeof window.pywebview.api.gs_open_manager_window === 'function') {
+                            const res = await window.pywebview.api.gs_open_manager_window();
+                            if (res && res.success) return;
+                        }
+                        if (window.GoogleSheetsManager && typeof window.GoogleSheetsManager.openManager === 'function') {
+                            await window.GoogleSheetsManager.openManager();
+                            return;
+                        }
+                    } catch (e) {
+                        console.warn('[GoogleSheets] Bridge open failed:', e);
+                    } finally {
+                        setTimeout(function () { if (window.AppLoader) window.AppLoader.hide(); }, 600);
+                    }
+                };
+
                 window.onAppUpdateAvailable = function (info) {
                     if (!info || !info.hasUpdate) return;
                     var btn = document.getElementById('ide-update-btn');
@@ -2486,6 +2524,12 @@
                     triggerActivityMonitor();
                     return;
                 }
+                var gsBtn = e.target.closest('#ide-menu-google-sheets, #ide-google-sheets-btn');
+                if (gsBtn && !gsBtn._scBound) {
+                    e.preventDefault();
+                    triggerGoogleSheets();
+                    return;
+                }
             });
 
             window.addEventListener('keydown', function (e) {
@@ -2498,6 +2542,9 @@
                 } else if ((e.ctrlKey || e.metaKey) && e.altKey && (e.key === 'c' || e.key === 'C')) {
                     e.preventDefault();
                     triggerSchemaCompare();
+                } else if ((e.ctrlKey || e.metaKey) && e.altKey && (e.key === 'g' || e.key === 'G')) {
+                    e.preventDefault();
+                    triggerGoogleSheets();
                 }
             });
         })();
