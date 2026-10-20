@@ -28,6 +28,11 @@ body.schema-compare-body {
     font-size: var(--ide-ui-font-size, 13px);
 }
 
+#schema-compare-container {
+    position: relative;
+    z-index: 1;
+}
+
 .schema-compare-root,
 .schema-compare-container {
     display: flex;
@@ -42,6 +47,7 @@ body.schema-compare-body {
     font-size: var(--ide-ui-font-size, 13px);
     overflow: hidden;
     position: relative;
+    z-index: 1;
     user-select: none;
 }
 
@@ -938,6 +944,12 @@ body.schema-compare-body {
     background-color: rgba(111, 66, 193, 0.18);
     color: #a370f7;
     border: 1px solid rgba(111, 66, 193, 0.35);
+}
+
+.sc-obj-tag-layout {
+    background-color: rgba(99, 102, 241, 0.18);
+    color: #818cf8;
+    border: 1px solid rgba(99, 102, 241, 0.35);
 }
 
 /* Status Badges */

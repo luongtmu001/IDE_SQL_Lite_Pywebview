@@ -5,7 +5,7 @@ Exposes database schema comparison, snapshotting, and DDL migration script gener
 to pywebview desktop bridges and frontend API dispatchers.
 """
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 from app.services.schema_compare_service import SchemaCompareService
 
 logger = logging.getLogger("luobtool.api.schema_compare")
@@ -451,3 +451,201 @@ class SchemaCompareApiMixin:
         except Exception as exc:
             logger.exception("Error opening schema compare window: %s", exc)
             return {"success": False, "error": str(exc)}
+
+    def schema_compare_bravo_layout_list(
+        self,
+        connection_id: str,
+        database: Optional[str] = None,
+        platform: str = "Win",
+        version: str = "Bravo 10",
+        search_term: str = "",
+    ) -> Dict[str, Any]:
+        """
+        Retrieves Bravo Layout metadata grouped by FormName for Schema Compare window.
+        """
+        try:
+            conn = self._resolve_connection(connection_id)
+            if not conn:
+                return {"success": False, "error": f"Không tìm thấy kết nối: {connection_id}"}
+
+            from app.services.bravo_layout_compare_service import BravoLayoutCompareService
+            return BravoLayoutCompareService.get_layout_list(
+                conn=conn,
+                database=database,
+                platform=platform,
+                version=version,
+                search_term=search_term,
+            )
+        except Exception as exc:
+            logger.exception("Error in schema_compare_bravo_layout_list: %s", exc)
+            return {"success": False, "error": str(exc)}
+
+    def schema_compare_bravo_layout_compare(
+        self,
+        source_connection_id: str,
+        target_connection_id: str,
+        source_database: Optional[str] = None,
+        target_database: Optional[str] = None,
+        platform: str = "Win",
+        version: str = "Bravo 10",
+        search_term: str = "",
+    ) -> Dict[str, Any]:
+        """
+        Compares Bravo Layouts between Source and Target databases.
+        """
+        try:
+            s_conn = self._resolve_connection(source_connection_id)
+            if not s_conn:
+                return {"success": False, "error": f"Không tìm thấy kết nối Nguồn: {source_connection_id}"}
+
+            t_conn = self._resolve_connection(target_connection_id)
+            if not t_conn:
+                return {"success": False, "error": f"Không tìm thấy kết nối Đích: {target_connection_id}"}
+
+            from app.services.bravo_layout_compare_service import BravoLayoutCompareService
+            return BravoLayoutCompareService.compare_layout_metadata(
+                source_conn=s_conn,
+                target_conn=t_conn,
+                source_database=source_database,
+                target_database=target_database,
+                platform=platform,
+                version=version,
+                search_term=search_term,
+            )
+        except Exception as exc:
+            logger.exception("Error in schema_compare_bravo_layout_compare: %s", exc)
+            return {"success": False, "error": str(exc)}
+
+    def schema_compare_bravo_layout_pair_detail(
+        self,
+        source_connection_id: Optional[str] = None,
+        target_connection_id: Optional[str] = None,
+        source_layout_id: Optional[Union[int, str]] = None,
+        target_layout_id: Optional[Union[int, str]] = None,
+        source_database: Optional[str] = None,
+        target_database: Optional[str] = None,
+        platform: str = "Win",
+        version: str = "Bravo 10",
+    ) -> Dict[str, Any]:
+        """
+        Retrieves XML payloads from both Source and Target databases for side-by-side comparison.
+        """
+        try:
+            s_conn = self._resolve_connection(source_connection_id) if source_connection_id else None
+            t_conn = self._resolve_connection(target_connection_id) if target_connection_id else None
+
+            from app.services.bravo_layout_compare_service import BravoLayoutCompareService
+            return BravoLayoutCompareService.get_layout_pair_detail(
+                source_conn=s_conn,
+                target_conn=t_conn,
+                source_layout_id=source_layout_id,
+                target_layout_id=target_layout_id,
+                source_database=source_database,
+                target_database=target_database,
+                platform=platform,
+                version=version,
+            )
+        except Exception as exc:
+            logger.exception("Error in schema_compare_bravo_layout_pair_detail: %s", exc)
+            return {"success": False, "error": str(exc)}
+
+    def schema_compare_bravo_layout_detail(
+        self,
+        connection_id: str,
+        layout_id: Union[int, str],
+        database: Optional[str] = None,
+        platform: str = "Win",
+        version: str = "Bravo 10",
+    ) -> Dict[str, Any]:
+        """
+        Retrieves and decodes LayoutData and LastLayoutData for a specific Layout Id.
+        """
+        try:
+            conn = self._resolve_connection(connection_id)
+            if not conn:
+                return {"success": False, "error": f"Không tìm thấy kết nối: {connection_id}"}
+
+            from app.services.bravo_layout_compare_service import BravoLayoutCompareService
+            return BravoLayoutCompareService.get_layout_detail(
+                conn=conn,
+                layout_id=layout_id,
+                database=database,
+                platform=platform,
+                version=version,
+            )
+        except Exception as exc:
+            logger.exception("Error in schema_compare_bravo_layout_detail: %s", exc)
+            return {"success": False, "error": str(exc)}
+
+    def schema_compare_bravo_layout_generate_script(
+        self,
+        connection_id: str,
+        layout_id: Union[int, str],
+        layout_xml: str,
+        draft_layout_xml: Optional[str] = None,
+        expected_modified_at: Optional[str] = None,
+        form_name: str = "",
+        layout_name: str = "",
+        platform: str = "Win",
+        version: str = "Bravo 10",
+        database: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Generates an atomic transactional SQL UPDATE script adhering to the reference script's rules.
+        """
+        try:
+            conn = self._resolve_connection(connection_id)
+            if not conn:
+                return {"success": False, "error": f"Không tìm thấy kết nối: {connection_id}"}
+
+            from app.services.bravo_layout_compare_service import BravoLayoutCompareService
+            return BravoLayoutCompareService.generate_update_script(
+                db_type_or_conn=conn,
+                layout_id=layout_id,
+                layout_xml=layout_xml,
+                draft_layout_xml=draft_layout_xml,
+                expected_modified_at=expected_modified_at,
+                form_name=form_name,
+                layout_name=layout_name,
+                platform=platform,
+                version=version,
+                database=database,
+            )
+        except Exception as exc:
+            logger.exception("Error in schema_compare_bravo_layout_generate_script: %s", exc)
+            return {"success": False, "error": str(exc)}
+
+    def schema_compare_bravo_layout_apply_update(
+        self,
+        connection_id: str,
+        layout_id: Union[int, str],
+        layout_xml: str,
+        draft_layout_xml: Optional[str] = None,
+        expected_modified_at: Optional[str] = None,
+        database: Optional[str] = None,
+        platform: str = "Win",
+        version: str = "Bravo 10",
+    ) -> Dict[str, Any]:
+        """
+        Executes atomic per-layout database update within a single transaction with concurrency checks.
+        """
+        try:
+            conn = self._resolve_connection(connection_id)
+            if not conn:
+                return {"success": False, "error": f"Không tìm thấy kết nối: {connection_id}"}
+
+            from app.services.bravo_layout_compare_service import BravoLayoutCompareService
+            return BravoLayoutCompareService.apply_update_layout(
+                conn=conn,
+                layout_id=layout_id,
+                layout_xml=layout_xml,
+                draft_layout_xml=draft_layout_xml,
+                expected_modified_at=expected_modified_at,
+                database=database,
+                platform=platform,
+                version=version,
+            )
+        except Exception as exc:
+            logger.exception("Error in schema_compare_bravo_layout_apply_update: %s", exc)
+            return {"success": False, "error": str(exc)}
+

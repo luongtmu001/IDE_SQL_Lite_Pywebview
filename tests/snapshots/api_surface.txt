@@ -114,7 +114,7 @@ CLASS BravoApi (109 public methods):
   - validate_table_row(self, connection_id, database=None, schema=None, table=None, values=None, keys=None, is_new=True, target_column=None)
   - validate_table_rows(self, connection_id, database=None, schema=None, table=None, rows=None)
 
-CLASS MainApi (173 public methods):
+CLASS MainApi (179 public methods):
   - activity_cancel_session(self, connection_id: str, session_id: int) -> Dict[str, Any]
   - activity_get_current_spid(self, connection_id: str) -> Dict[str, Any]
   - activity_get_sessions(self, connection_id: str, database: str | None = None, active_only: bool = False) -> Dict[str, Any]
@@ -258,6 +258,12 @@ CLASS MainApi (173 public methods):
   - save_program_list(self, programs)
   - save_settings(self, settings)
   - save_snippets(self, snippets)
+  - schema_compare_bravo_layout_apply_update(self, connection_id: str, layout_id: int | str, layout_xml: str, draft_layout_xml: str | None = None, expected_modified_at: str | None = None, database: str | None = None, platform: str = 'Win', version: str = 'Bravo 10') -> Dict[str, Any]
+  - schema_compare_bravo_layout_compare(self, source_connection_id: str, target_connection_id: str, source_database: str | None = None, target_database: str | None = None, platform: str = 'Win', version: str = 'Bravo 10', search_term: str = '') -> Dict[str, Any]
+  - schema_compare_bravo_layout_detail(self, connection_id: str, layout_id: int | str, database: str | None = None, platform: str = 'Win', version: str = 'Bravo 10') -> Dict[str, Any]
+  - schema_compare_bravo_layout_generate_script(self, connection_id: str, layout_id: int | str, layout_xml: str, draft_layout_xml: str | None = None, expected_modified_at: str | None = None, form_name: str = '', layout_name: str = '', platform: str = 'Win', version: str = 'Bravo 10', database: str | None = None) -> Dict[str, Any]
+  - schema_compare_bravo_layout_list(self, connection_id: str, database: str | None = None, platform: str = 'Win', version: str = 'Bravo 10', search_term: str = '') -> Dict[str, Any]
+  - schema_compare_bravo_layout_pair_detail(self, source_connection_id: str | None = None, target_connection_id: str | None = None, source_layout_id: int | str | None = None, target_layout_id: int | str | None = None, source_database: str | None = None, target_database: str | None = None, platform: str = 'Win', version: str = 'Bravo 10') -> Dict[str, Any]
   - schema_compare_cancel(self) -> Dict[str, Any]
   - schema_compare_connect_direct(self, config: Dict[str, Any]) -> Dict[str, Any]
   - schema_compare_generate_script(self, diff_data: Dict[str, Any], selected_tables: List[str] | None = None, options: Dict[str, Any] | None = None) -> Dict[str, Any]

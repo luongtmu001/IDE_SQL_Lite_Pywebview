@@ -92,10 +92,15 @@ class BravoApiMixin:
                     continue
                 item = dict(p)
                 if item.get("password"):
-                    item["password"] = decrypt_password(item["password"])
+                    try:
+                        item["password"] = decrypt_password(item["password"])
+                    except Exception as err:
+                        logger.warning("Could not decrypt password for program '%s': %s", item.get("name"), err)
+                        item["password"] = ""
                 res.append(item)
             return {"success": True, "programs": res}
         except Exception as exc:
+            logger.exception("Error loading program list: %s", exc)
             return {"success": False, "error": str(exc), "programs": []}
 
 

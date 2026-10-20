@@ -13,11 +13,13 @@ from app.api.settings_api import SettingsApiMixin
 from app.api.table_editor_api import TableEditorApiMixin
 from app.api.activity_api import ActivityApiMixin
 from app.api.schema_compare_api import SchemaCompareApiMixin
+from app.api.google_sheets_api import GoogleSheetsApiMixin
 
 __all__ = [
     "ActivityApiMixin",
     "ConnectionsApiMixin",
     "DesignerApiMixin",
+    "GoogleSheetsApiMixin",
     "HistoryApiMixin",
     "MetadataApiMixin",
     "MainMetadataApiMixin",

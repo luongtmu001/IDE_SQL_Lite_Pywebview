@@ -303,3 +303,149 @@ html[data-bs-theme="dark"] .btn-close { filter: invert(0.8); }
   box-shadow: 0 16px 36px rgba(0, 0, 0, 0.5) !important;
 }
 
+/* =============================================================================
+   CUSTOM COMBOBOX (Autocomplete / Select dropdown)
+   Used for Connection Group and Default Database in Connection Modal
+   Replaces ugly native browser datalist popup
+   ============================================================================= */
+.custom-combobox {
+    position: relative;
+    width: 100%;
+}
+
+.custom-combobox.is-open {
+    z-index: 1060;
+}
+
+.custom-combobox input.form-control {
+    padding-right: 28px !important;
+}
+
+.custom-combobox-toggle {
+    position: absolute;
+    top: 1px;
+    bottom: 1px;
+    right: 1px;
+    width: 26px;
+    background: transparent;
+    border: none;
+    outline: none !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--ide-text-muted, #888);
+    cursor: pointer;
+    border-radius: 0 3px 3px 0;
+    transition: color 0.15s ease, background-color 0.15s ease;
+    z-index: 5;
+    padding: 0;
+}
+
+.custom-combobox-toggle:hover {
+    color: var(--ide-text-main, #fff);
+    background: var(--ide-hover-bg, rgba(255, 255, 255, 0.08));
+}
+
+.custom-combobox-toggle i {
+    font-size: 10px;
+    transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.custom-combobox.is-open .custom-combobox-toggle i {
+    transform: rotate(180deg);
+}
+
+.custom-combobox-menu {
+    position: absolute;
+    top: calc(100% + 3px);
+    left: 0;
+    width: 100%;
+    min-width: 100%;
+    max-height: 200px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    background: var(--ide-bg-dropdown, var(--ide-bg-modal, #202228));
+    border: 1px solid var(--ide-border, #3c3f41);
+    border-radius: 4px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45), 0 2px 6px rgba(0, 0, 0, 0.25);
+    z-index: 1065;
+    padding: 3px 0;
+    margin: 0;
+    list-style: none;
+}
+
+.custom-combobox-menu::-webkit-scrollbar {
+    width: 6px;
+}
+.custom-combobox-menu::-webkit-scrollbar-track {
+    background: transparent;
+}
+.custom-combobox-menu::-webkit-scrollbar-thumb {
+    background: var(--ide-border, rgba(128, 128, 128, 0.3));
+    border-radius: 3px;
+}
+.custom-combobox-menu::-webkit-scrollbar-thumb:hover {
+    background: var(--ide-text-dim, rgba(128, 128, 128, 0.6));
+}
+
+.custom-combobox-item {
+    display: flex;
+    align-items: center;
+    padding: 5px 10px;
+    font-size: 12px;
+    line-height: 1.35;
+    color: var(--ide-text-main, #c7cfcf);
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.12s ease, color 0.12s ease;
+    gap: 8px;
+    white-space: nowrap;
+}
+
+.custom-combobox-item:hover,
+.custom-combobox-item.is-focused {
+    background: var(--ide-hover-bg, rgba(204, 120, 50, 0.18));
+    color: var(--ide-text-active, #fff);
+}
+
+.custom-combobox-item.is-selected {
+    font-weight: 600;
+    color: var(--ide-accent, #CC7832);
+    background: var(--ide-accent-subtle, rgba(204, 120, 50, 0.12));
+}
+
+.custom-combobox-item i.item-icon {
+    font-size: 12px;
+    flex-shrink: 0;
+    width: 14px;
+    text-align: center;
+}
+
+.custom-combobox-item .item-text {
+    flex-grow: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.custom-combobox-item .item-check {
+    font-size: 11px;
+    margin-left: auto;
+    color: var(--ide-accent, #CC7832);
+    flex-shrink: 0;
+}
+
+.custom-combobox-match {
+    color: var(--ide-accent, #CC7832);
+    font-weight: 700;
+}
+
+.custom-combobox-empty {
+    padding: 8px 12px;
+    font-size: 11px;
+    color: var(--ide-text-muted, #888);
+    text-align: center;
+    user-select: none;
+}
+
+

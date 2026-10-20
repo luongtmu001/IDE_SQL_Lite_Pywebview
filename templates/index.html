@@ -100,6 +100,7 @@
     <link rel="stylesheet" href="../static/css/result-comparator.css">
     <link rel="stylesheet" href="../static/css/activity-monitor.css">
     <link rel="stylesheet" href="../static/css/schema-compare.css">
+    <link rel="stylesheet" href="../static/css/google-sheets/google-sheets.css">
 </head>
 
 <body class="overflow-hidden vh-100 d-flex flex-column m-0 p-0" style="background-color: var(--ide-bg-main, #1C1D23);">
@@ -280,6 +281,17 @@
                                     style="font-size: 10px; background: transparent; border: 1px solid var(--ide-border, #444);">Ctrl+Alt+C</kbd>
                             </a>
                         </li>
+                        <li>
+                            <hr class="dropdown-divider my-1">
+                        </li>
+                        <li>
+                            <a class="dropdown-item d-flex align-items-center justify-content-between" href="#"
+                                id="ide-menu-google-sheets">
+                                <span><i class="fa-solid fa-table-cells me-2 text-success"></i>Google Sheets Manager...</span>
+                                <kbd class="text-muted"
+                                    style="font-size: 10px; background: transparent; border: 1px solid var(--ide-border, #444);">Ctrl+Alt+G</kbd>
+                            </a>
+                        </li>
                     </ul>
                 </li>
                 <li class="nav-item"><a class="nav-link px-2 py-1" href="#" id="menu-settings">Settings</a></li>
@@ -312,6 +324,12 @@
                     <button id="ide-snippets-btn" class="nav-link px-2 py-1 border-0 bg-transparent fw-semibold"
                         title="Quản lý SQL Snippets (Ctrl+Alt+S)">
                         <i class="fa-solid fa-code me-1 text-info"></i>Snippets
+                    </button>
+                </li>
+                <li class="nav-item ms-1">
+                    <button id="ide-google-sheets-btn" class="nav-link px-2 py-1 border-0 bg-transparent fw-semibold"
+                        title="Quản lý Google Sheets (Ctrl+Alt+G)">
+                        <i class="fa-solid fa-table-cells me-1 text-success"></i>Sheets
                     </button>
                 </li>
 
@@ -1246,9 +1264,15 @@
 
                         <div class="mb-2">
                             <label class="ide-form-label">Connection Group</label>
-                            <input type="text" list="connGroupList" class="form-control form-control-sm" id="connGroup"
-                                placeholder="e.g. Production (optional)" autocomplete="off">
-                            <datalist id="connGroupList"></datalist>
+                            <div class="custom-combobox position-relative" id="connGroupCombobox">
+                                <input type="text" class="form-control form-control-sm" id="connGroup"
+                                    placeholder="e.g. Production (optional)" autocomplete="off">
+                                <button type="button" class="custom-combobox-toggle" id="btnToggleConnGroup" tabindex="-1" title="Chọn nhóm kết nối">
+                                    <i class="fa-solid fa-chevron-down"></i>
+                                </button>
+                                <ul class="custom-combobox-menu d-none" id="connGroupMenu"></ul>
+                            </div>
+                            <datalist id="connGroupList" class="d-none"></datalist>
                         </div>
 
                         <div class="row g-2 mb-2">
@@ -1327,9 +1351,15 @@
                                             <i class="fa-solid fa-rotate me-1"></i>Load
                                         </a>
                                     </label>
-                                    <input type="text" class="form-control form-control-sm" id="connDb"
-                                        placeholder="(optional)" list="connDbList" autocomplete="off">
-                                    <datalist id="connDbList"></datalist>
+                                    <div class="custom-combobox position-relative" id="connDbCombobox">
+                                        <input type="text" class="form-control form-control-sm" id="connDb"
+                                            placeholder="(optional)" autocomplete="off">
+                                        <button type="button" class="custom-combobox-toggle" id="btnToggleConnDb" tabindex="-1" title="Chọn database">
+                                            <i class="fa-solid fa-chevron-down"></i>
+                                        </button>
+                                        <ul class="custom-combobox-menu d-none" id="connDbMenu"></ul>
+                                    </div>
+                                    <datalist id="connDbList" class="d-none"></datalist>
                                 </div>
                                 <div class="col-6">
                                     <label class="ide-form-label d-flex align-items-center justify-content-between">
@@ -1883,6 +1913,11 @@
             initBravoLauncher();
         }
     </script>
+
+    <!-- Google Sheets Manager Modules -->
+    <script src="../static/js/google-sheets/tabs.js"></script>
+    <script src="../static/js/google-sheets/view.js"></script>
+    <script src="../static/js/google-sheets/manager.js"></script>
     <!-- Custom Popup Dialog for Settings Modal Notifications -->
     <div class="settings-popup-backdrop d-none" id="settingsPopupBackdrop">
         <div class="settings-popup-card" id="settingsPopupCard">
@@ -2347,26 +2382,32 @@
                             const resp = await fetch('/api/app/check-updates');
                             res = await resp.json();
                         }
-                        if (res && res.success) {
-                            if (curEl && res.current_version) curEl.textContent = 'v' + res.current_version;
-                            if (latEl && res.latest_version) latEl.textContent = 'v' + res.latest_version;
-                            if (res.has_update) {
+                        if (res && (res.success || (res.data && res.data.success))) {
+                            const info = (res.data && typeof res.data === 'object') ? res.data : res;
+                            const curVer = info.currentVersion || info.current_version || '';
+                            const latVer = info.latestVersion || info.latest_version || '';
+                            const hasUp = Boolean(info.hasUpdate ?? info.has_update);
+                            const downloadUrl = info.downloadUrl || info.release_url || '';
+
+                            if (curEl && curVer) curEl.textContent = 'v' + curVer;
+                            if (latEl && latVer) latEl.textContent = 'v' + latVer;
+                            if (hasUp) {
                                 if (iconEl) iconEl.className = 'fa-solid fa-circle-exclamation text-warning';
-                                if (titleEl) titleEl.textContent = 'Đã có phiên bản mới!';
-                                if (msgEl) msgEl.textContent = 'Phiên bản mới v' + res.latest_version + ' đã sẵn sàng tải về.';
+                                if (titleEl) titleEl.textContent = 'Đã có phiên bản mới: v' + latVer + '!';
+                                if (msgEl) msgEl.textContent = info.releaseNotes || ('Phiên bản mới v' + latVer + ' đã sẵn sàng tải về.');
                                 if (linkEl) {
                                     linkEl.classList.remove('d-none');
-                                    if (res.release_url) linkEl.href = res.release_url;
+                                    if (downloadUrl) linkEl.href = downloadUrl;
                                 }
                             } else {
                                 if (iconEl) iconEl.className = 'fa-solid fa-circle-check text-success';
                                 if (titleEl) titleEl.textContent = 'Bạn đang dùng phiên bản mới nhất';
-                                if (msgEl) msgEl.textContent = 'Không có bản cập nhật mới nào. IDE SQL Lite đang ở phiên bản tối ưu nhất.';
+                                if (msgEl) msgEl.textContent = info.message || 'Không có bản cập nhật mới nào. IDE SQL Lite đang ở phiên bản tối ưu nhất.';
                             }
                         } else {
                             if (iconEl) iconEl.className = 'fa-solid fa-circle-xmark text-danger';
                             if (titleEl) titleEl.textContent = 'Kiểm tra thất bại';
-                            if (msgEl) msgEl.textContent = (res && res.error) || 'Không thể kết nối đến máy chủ cập nhật.';
+                            if (msgEl) msgEl.textContent = (res && res.error) || (res && res.data && res.data.error) || 'Không thể kết nối đến máy chủ cập nhật.';
                         }
                     } catch (err) {
                         if (iconEl) iconEl.className = 'fa-solid fa-circle-xmark text-danger';

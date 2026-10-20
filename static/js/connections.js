@@ -38,9 +38,251 @@ function initConnections() {
     const fSqlitePath = document.getElementById("connSqlitePath");
     const btnBrowseSqlite = document.getElementById("btnBrowseSqliteFile");
     
-    // Helper to refresh group datalist safely
+    // ── Custom Combobox Implementation for Connection Group & Default Database ──
+    function createCustomCombobox({
+        input,
+        toggleBtn,
+        menu,
+        wrapper,
+        type = 'group', // 'group' or 'db'
+        iconClass = 'fa-solid fa-folder text-warning',
+        emptyMessage = 'Không có mục nào',
+        onSelect = null
+    }) {
+        if (!input || !menu) return null;
+        let items = [];
+        let focusedIndex = -1;
+
+        function safeHtml(str) {
+            if (typeof window.escapeHtml === 'function') return window.escapeHtml(str);
+            return String(str || '').replace(/[&<>"']/g, c => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+            }[c]));
+        }
+
+        function highlightMatch(text, query) {
+            const escaped = safeHtml(text);
+            const trimmedQ = (query || '').trim();
+            if (!trimmedQ) return escaped;
+            const q = trimmedQ.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            try {
+                const regex = new RegExp(`(${q})`, 'gi');
+                return escaped.replace(regex, '<span class="custom-combobox-match">$1</span>');
+            } catch (_) {
+                return escaped;
+            }
+        }
+
+        function getFilteredItems() {
+            const val = (input.value || '').trim().toLowerCase();
+            if (!val) return items;
+            return items.filter(it => String(it).toLowerCase().includes(val));
+        }
+
+        function render() {
+            menu.innerHTML = '';
+            focusedIndex = -1;
+
+            if (items.length === 0) {
+                const emptyEl = document.createElement('div');
+                emptyEl.className = 'custom-combobox-empty';
+                if (type === 'db') {
+                    emptyEl.innerHTML = `
+                        <div class="mb-1 text-muted" style="font-size: 11px;">
+                            <i class="fa-solid fa-circle-info me-1 text-info"></i>Chưa tải danh sách database
+                        </div>
+                        <button type="button" class="btn btn-xs btn-outline-info py-0 px-2 mt-1" style="font-size: 11px;">
+                            <i class="fa-solid fa-rotate me-1"></i>Tải từ server ngay
+                        </button>
+                    `;
+                    const btn = emptyEl.querySelector('button');
+                    if (btn && btnFetchDbs) {
+                        btn.addEventListener('click', (e) => {
+                            e.stopPropagation();
+                            btnFetchDbs.click();
+                        });
+                    }
+                } else {
+                    emptyEl.innerHTML = `<i class="fa-solid fa-circle-info me-1 text-muted"></i>Chưa có nhóm nào (nhập tên để tạo mới)`;
+                }
+                menu.appendChild(emptyEl);
+                return;
+            }
+
+            const filtered = getFilteredItems();
+            const currentVal = (input.value || '').trim();
+
+            if (filtered.length === 0) {
+                const noMatchEl = document.createElement('div');
+                noMatchEl.className = 'custom-combobox-empty';
+                noMatchEl.innerHTML = `<i class="fa-solid fa-circle-info me-1 text-muted"></i>Không tìm thấy kết quả phù hợp`;
+                menu.appendChild(noMatchEl);
+                return;
+            }
+
+            filtered.forEach((itemText, idx) => {
+                const isSelected = itemText.toLowerCase() === currentVal.toLowerCase();
+                const li = document.createElement('li');
+                li.className = `custom-combobox-item${isSelected ? ' is-selected' : ''}`;
+                li.dataset.index = idx;
+                li.dataset.value = itemText;
+                li.title = itemText;
+
+                const highlighted = highlightMatch(itemText, input.value);
+                li.innerHTML = `
+                    <i class="${iconClass} item-icon"></i>
+                    <span class="item-text">${highlighted}</span>
+                    ${isSelected ? '<i class="fa-solid fa-check item-check"></i>' : ''}
+                `;
+
+                li.addEventListener('pointerdown', (e) => {
+                    e.preventDefault(); // Keep focus on input while clicking item
+                });
+
+                li.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    selectItem(itemText);
+                });
+
+                menu.appendChild(li);
+            });
+        }
+
+        function selectItem(val) {
+            input.value = val;
+            close();
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+            input.dispatchEvent(new Event('change', { bubbles: true }));
+            if (typeof onSelect === 'function') onSelect(val);
+        }
+
+        function open() {
+            render();
+            menu.classList.remove('d-none');
+            if (wrapper) wrapper.classList.add('is-open');
+        }
+
+        function close() {
+            menu.classList.add('d-none');
+            if (wrapper) wrapper.classList.remove('is-open');
+            focusedIndex = -1;
+        }
+
+        function isOpen() {
+            return !menu.classList.contains('d-none');
+        }
+
+        function updateFocus(renderedItems) {
+            renderedItems.forEach((el, i) => {
+                if (i === focusedIndex) {
+                    el.classList.add('is-focused');
+                    el.scrollIntoView({ block: 'nearest' });
+                } else {
+                    el.classList.remove('is-focused');
+                }
+            });
+        }
+
+        if (toggleBtn) {
+            toggleBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (isOpen()) {
+                    close();
+                } else {
+                    input.focus();
+                    open();
+                }
+            });
+        }
+
+        input.addEventListener('focus', () => {
+            open();
+        });
+
+        input.addEventListener('click', () => {
+            if (!isOpen()) open();
+        });
+
+        input.addEventListener('input', () => {
+            open();
+        });
+
+        input.addEventListener('keydown', (e) => {
+            if (!isOpen()) {
+                if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    open();
+                    return;
+                }
+                return;
+            }
+
+            const renderedItems = menu.querySelectorAll('.custom-combobox-item');
+            if (renderedItems.length === 0) {
+                if (e.key === 'Escape') close();
+                return;
+            }
+
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                focusedIndex = (focusedIndex + 1) % renderedItems.length;
+                updateFocus(renderedItems);
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                focusedIndex = (focusedIndex - 1 + renderedItems.length) % renderedItems.length;
+                updateFocus(renderedItems);
+            } else if (e.key === 'Enter') {
+                if (focusedIndex >= 0 && focusedIndex < renderedItems.length) {
+                    e.preventDefault();
+                    const selVal = renderedItems[focusedIndex].dataset.value;
+                    selectItem(selVal);
+                }
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                e.stopPropagation();
+                close();
+            } else if (e.key === 'Tab') {
+                close();
+            }
+        });
+
+        return {
+            setItems(newItems) {
+                items = Array.isArray(newItems) ? [...new Set(newItems.filter(Boolean).map(x => String(x).trim()))] : [];
+                if (isOpen()) render();
+            },
+            getItems() {
+                return items;
+            },
+            open,
+            close,
+            isOpen
+        };
+    }
+
+    const groupCombobox = createCustomCombobox({
+        input: fGroup,
+        toggleBtn: document.getElementById("btnToggleConnGroup"),
+        menu: document.getElementById("connGroupMenu"),
+        wrapper: document.getElementById("connGroupCombobox"),
+        type: 'group',
+        iconClass: 'fa-solid fa-folder text-warning',
+        emptyMessage: 'Chưa có nhóm nào (nhập tên để tạo mới)'
+    });
+
+    const dbCombobox = createCustomCombobox({
+        input: fDb,
+        toggleBtn: document.getElementById("btnToggleConnDb"),
+        menu: document.getElementById("connDbMenu"),
+        wrapper: document.getElementById("connDbCombobox"),
+        type: 'db',
+        iconClass: 'fa-solid fa-database text-info',
+        emptyMessage: 'Chưa tải danh sách database'
+    });
+
+    // Helper to refresh group list safely
     async function refreshGroupList() {
-        if (!fGroupList || !window.AppStorage || typeof window.AppStorage.getSavedConnections !== 'function') return;
+        if (!window.AppStorage || typeof window.AppStorage.getSavedConnections !== 'function') return;
         try {
             const saved = await window.AppStorage.getSavedConnections() || [];
             const groups = [...new Set(
@@ -49,7 +291,12 @@ function initConnections() {
                     .map(c => String(c.group).trim())
                     .filter(Boolean)
             )];
-            fGroupList.innerHTML = groups.map(g => `<option value="${g}">`).join('');
+            if (fGroupList) {
+                fGroupList.innerHTML = groups.map(g => `<option value="${g}">`).join('');
+            }
+            if (groupCombobox) {
+                groupCombobox.setItems(groups);
+            }
         } catch (e) {
             console.warn('[connections.js] refreshGroupList error:', e);
         }
@@ -67,6 +314,12 @@ function initConnections() {
         fHost.value = data.server || data.host || "localhost";
         fPort.value = data.port || "";
         fDb.value = data.database || "";
+        if (dbCombobox && data.database) {
+            const currentDbs = dbCombobox.getItems();
+            if (!currentDbs.includes(data.database)) {
+                dbCombobox.setItems([data.database, ...currentDbs]);
+            }
+        }
         if (fSchema) {
             fSchema.innerHTML = '<option value="">(Tất cả / Mặc định)</option>';
             if (data.schema) {
@@ -180,6 +433,12 @@ function initConnections() {
                 if (fSqlitePath && (data.type === 'sqlite' || data.type === 'sqlite3')) {
                     fSqlitePath.value = data.database || data.file_path || "";
                 }
+                if (dbCombobox && data.database) {
+                    const currentDbs = dbCombobox.getItems();
+                    if (!currentDbs.includes(data.database)) {
+                        dbCombobox.setItems([data.database, ...currentDbs]);
+                    }
+                }
                 fUser.value = data.username || "";
                 fPass.value = ""; 
             } catch (e) {
@@ -192,6 +451,7 @@ function initConnections() {
             fHost.value = "localhost";
             fPort.value = "";
             fDb.value = "";
+            if (dbCombobox) dbCombobox.setItems([]);
             if (fSqlitePath) fSqlitePath.value = "";
             if (fSchema) {
                 fSchema.innerHTML = '<option value="">(Tất cả / Mặc định)</option>';
@@ -325,9 +585,17 @@ function initConnections() {
             const data = await res.json();
 
             if (res.ok && data.success) {
-                // 1. Populate Databases datalist
-                if (Array.isArray(data.databases) && connDbList) {
-                    connDbList.innerHTML = data.databases.map(d => `<option value="${d}">`).join('');
+                // 1. Populate Databases datalist & combobox
+                if (Array.isArray(data.databases)) {
+                    if (connDbList) {
+                        connDbList.innerHTML = data.databases.map(d => `<option value="${d}">`).join('');
+                    }
+                    if (dbCombobox) {
+                        dbCombobox.setItems(data.databases);
+                        if (trigger === 'dbs') {
+                            dbCombobox.open();
+                        }
+                    }
                 }
 
                 // 2. Populate Schemas dropdown
@@ -479,6 +747,20 @@ function initConnections() {
 
     syncAuthUI(); // apply on load
     syncTypeUI();
+
+    if (modalEl) {
+        modalEl.addEventListener('hidden.bs.modal', () => {
+            if (groupCombobox) groupCombobox.close();
+            if (dbCombobox) dbCombobox.close();
+        });
+    }
+
+    document.addEventListener('pointerdown', (e) => {
+        if (!e.target.closest('.custom-combobox')) {
+            if (groupCombobox) groupCombobox.close();
+            if (dbCombobox) dbCombobox.close();
+        }
+    });
 
     // Open Modal
     if (connectBtn && bsModal) {

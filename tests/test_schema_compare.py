@@ -986,3 +986,128 @@ def test_schema_compare_snapshot_bulk_and_fallback():
     assert snap["views"]["ViewA"]["definition"] == "DEFINITION_OF_ViewA"
     assert snap["views"]["ViewB"]["definition"] == "DEFINITION_OF_ViewB"
 
+
+def test_schema_compare_bravo_layout_option_in_js():
+    """
+    Verifies that schema-compare.js:
+    1. Contains the 'Layout' option in #scSelectObjType with id 'scOptLayout'.
+    2. Preserves all standard Schema Compare options (all, tables, views, procedures, functions, triggers).
+    3. Implements checkBravoExtensionStatus to dynamically toggle visibility based on addons.bravo_tool.enabled.
+    4. Handles 'layout' in getSelectedObjectTypes and onObjectTypeSelectionChanged.
+    """
+    from pathlib import Path
+    js_path = Path(__file__).resolve().parent.parent / "static" / "js" / "schema-compare.js"
+    assert js_path.exists(), f"File not found: {js_path}"
+    content = js_path.read_text(encoding="utf-8")
+
+    # 1. Option tag
+    assert '<option value="layout" id="scOptLayout" class="d-none">Layout</option>' in content
+
+    # 2. Standard options intact
+    assert '<option value="all">Tất cả các loại</option>' in content
+    assert '<option value="tables">Bảng (Tables)</option>' in content
+    assert '<option value="views">Views</option>' in content
+    assert '<option value="procedures">Procedures</option>' in content
+    assert '<option value="functions">Functions</option>' in content
+    assert '<option value="triggers">Triggers</option>' in content
+
+    # 3. Extension check implementation
+    assert "checkBravoExtensionStatus" in content
+    assert "bravo_tool" in content
+    assert "isBravoExtensionEnabled" in content
+
+    # 4. Handler support
+    assert "typeNames" in content and "'layout': 'Layout'" in content
+    assert "if (val === 'layout')" in content
+
+
+def test_schema_compare_bravo_layout_ui_and_actions_in_js():
+    """
+    Verifies that schema-compare.js and schema-compare.css implement:
+    1. Action button: scBtnPreviewLayoutScript (and removal of external xml / save buttons per user request).
+    2. Methods: toggleLayoutModeControls, runBravoLayoutCompare, renderBravoLayoutList,
+       onBravoLayoutRowClick, renderBravoLayoutDiff, previewBravoLayoutScript.
+    3. CSS class .sc-obj-tag-layout in schema-compare.css.
+    4. Object filter menu item #scFilterItemOptLayout for filtering Layout objects.
+    """
+    from pathlib import Path
+    root_dir = Path(__file__).resolve().parent.parent
+    js_path = root_dir / "static" / "js" / "schema-compare.js"
+    css_path = root_dir / "static" / "css" / "schema-compare.css"
+
+    js_content = js_path.read_text(encoding="utf-8")
+    css_content = css_path.read_text(encoding="utf-8")
+
+    # 1. UI Buttons
+    assert 'id="scBtnPreviewLayoutScript"' in js_content
+    assert 'id="scBtnOpenExternalXml"' not in js_content
+    assert 'id="scBtnSaveLayout"' not in js_content
+    assert 'id="scLayoutFileInput"' not in js_content
+    assert 'id="scFilterItemOptLayout"' in js_content
+
+    # 2. Methods
+    assert "toggleLayoutModeControls(isLayout)" in js_content
+    assert "async runBravoLayoutCompare()" in js_content
+    assert "renderBravoLayoutList()" in js_content
+    assert "async onBravoLayoutRowClick(layoutId)" in js_content
+    assert "renderBravoLayoutDiff()" in js_content
+    assert "async previewBravoLayoutScript()" in js_content
+
+    # 3. CSS tag class
+    assert ".sc-obj-tag-layout" in css_content
+
+
+def test_schema_compare_js_syntax_integrity():
+    """
+    Verifies that schema-compare.js has no duplicate const declarations in the same scope
+    and exports window.SchemaCompare correctly without syntax errors.
+    """
+    import re
+    from pathlib import Path
+    root_dir = Path(__file__).resolve().parent.parent
+    js_path = root_dir / "static" / "js" / "schema-compare.js"
+    js_content = js_path.read_text(encoding="utf-8")
+
+    # Verify runCompare method body does not redeclare const objectTypes
+    run_compare_match = re.search(r'async runCompare\(\)\s*\{([\s\S]*?)\n\s*this\.showLoadingModal', js_content)
+    assert run_compare_match is not None, "runCompare method not found"
+    body = run_compare_match.group(1)
+    decl_count = len(re.findall(r'\b(?:const|let|var)\s+objectTypes\b', body))
+    assert decl_count == 1, f"Expected exactly 1 declaration of objectTypes in runCompare, found {decl_count}"
+
+    # Verify global export
+    assert "global.SchemaCompare = new SchemaCompareComponent();" in js_content
+
+
+def test_schema_compare_bravo_layout_pywebview_compatibility():
+    """
+    Verifies that pywebview can inspect and expose all Bravo layout API methods
+    without raising 'unsupported callable' (e.g., due to unimported type hints in Python 3.14).
+    """
+    import inspect
+    from app.api.schema_compare_api import SchemaCompareApiMixin
+    from app.desktop.windows import SchemaCompareSubwindowApi
+    from main import MainApi
+
+    methods = [
+        "schema_compare_bravo_layout_list",
+        "schema_compare_bravo_layout_detail",
+        "schema_compare_bravo_layout_generate_script",
+        "schema_compare_bravo_layout_apply_update",
+    ]
+
+    for m in methods:
+        # 1. SchemaCompareApiMixin
+        assert hasattr(SchemaCompareApiMixin, m), f"SchemaCompareApiMixin missing {m}"
+        spec = inspect.getfullargspec(getattr(SchemaCompareApiMixin, m))
+        assert spec.args[0] == "self"
+
+        # 2. MainApi
+        assert hasattr(MainApi, m), f"MainApi missing {m}"
+        spec_main = inspect.getfullargspec(getattr(MainApi, m))
+        assert spec_main.args[0] == "self"
+
+        # 3. SchemaCompareSubwindowApi
+        assert hasattr(SchemaCompareSubwindowApi, m), f"SchemaCompareSubwindowApi missing {m}"
+        spec_sub = inspect.getfullargspec(getattr(SchemaCompareSubwindowApi, m))
+        assert spec_sub.args[0] == "self"

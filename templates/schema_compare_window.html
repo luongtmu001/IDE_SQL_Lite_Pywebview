@@ -98,6 +98,9 @@
                 if (window.SchemaCompare && typeof window.SchemaCompare.applyTypography === 'function') {
                     window.SchemaCompare.applyTypography();
                 }
+                if (window.SchemaCompare && typeof window.SchemaCompare.checkBravoExtensionStatus === 'function') {
+                    window.SchemaCompare.checkBravoExtensionStatus();
+                }
             } catch (e) { }
         };
 

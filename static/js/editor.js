@@ -1194,6 +1194,9 @@
                     state.content = val;
                 }
             }
+            if (window.AppSession && typeof window.AppSession.scheduleAutoSave === 'function') {
+                window.AppSession.scheduleAutoSave(800);
+            }
             if (window.AppTabs && typeof window.AppTabs.syncDiffTabsWithSourceTab === 'function') {
                 const curTabId = (window.AppTabs.getActiveTabId ? window.AppTabs.getActiveTabId() : null);
                 if (curTabId) {

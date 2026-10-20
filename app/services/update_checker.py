@@ -6,11 +6,15 @@ and compares semantic versioning in a non-blocking background thread.
 """
 import json
 import logging
+import os
+import sys
 import threading
 import time
 import urllib.request
 import urllib.error
+import urllib.parse
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Callable, Dict, Optional
 
 from app.version import (
@@ -112,82 +116,177 @@ def check_for_updates(
             "error": None,
         }
 
-        try:
-            req = urllib.request.Request(
-                url,
-                headers={
-                    "User-Agent": f"luoBTool-IDE/{current_ver} (Desktop Native)",
-                    "Accept": "application/json",
-                },
-            )
-            with urllib.request.urlopen(req, timeout=timeout) as resp:
-                status_code = getattr(resp, "status", 200)
-                if status_code in (200, None):
-                    raw_data = resp.read().decode("utf-8")
-                    data = json.loads(raw_data)
+        # Support local file:// URLs or direct file paths for custom_url
+        is_local_file = False
+        local_file_path = None
+        if url.startswith("file://"):
+            clean_url = urllib.parse.unquote(url[7:])
+            if os.name == "nt" and clean_url.startswith("/") and len(clean_url) > 2 and clean_url[2] == ":":
+                clean_url = clean_url[1:]
+            cand_p = Path(clean_url)
+            if cand_p.exists():
+                local_file_path = cand_p
+                is_local_file = True
+        elif not (url.startswith("http://") or url.startswith("https://")):
+            cand_p = Path(url)
+            if cand_p.exists():
+                local_file_path = cand_p
+                is_local_file = True
 
-                    remote_ver = str(data.get("version", "")).strip()
-                    if remote_ver:
-                        result["latestVersion"] = remote_ver
-                        result["releaseDate"] = str(data.get("releaseDate", ""))
-                        result["downloadUrl"] = str(data.get("downloadUrl", __release_url__))
-                        result["releaseNotes"] = str(data.get("releaseNotes", ""))
-                        result["highlights"] = list(data.get("highlights", []))
-                        result["fileName"] = str(data.get("fileName", ""))
-                        try:
-                            result["fileSize"] = int(data.get("fileSize", 0))
-                        except Exception:
-                            result["fileSize"] = 0
-                        result["success"] = True
-
-                        # Compare versions (remote > current)
-                        cmp = compare_versions(remote_ver, current_ver)
-                        if cmp > 0:
-                            result["hasUpdate"] = True
-                            logger.info(
-                                "[UpdateChecker] Newer version available: %s (current: %s)",
-                                remote_ver,
-                                current_ver,
-                            )
-                        else:
-                            result["hasUpdate"] = False
-                            logger.debug(
-                                "[UpdateChecker] Application is up-to-date (version: %s)",
-                                current_ver,
-                            )
-                    else:
-                        result["error"] = "Invalid remote payload: missing 'version' field."
+        if is_local_file and local_file_path:
+            try:
+                with open(local_file_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                remote_ver = str(data.get("version", "")).strip()
+                if remote_ver:
+                    result["latestVersion"] = remote_ver
+                    result["releaseDate"] = str(data.get("releaseDate", ""))
+                    result["downloadUrl"] = str(data.get("downloadUrl", __release_url__))
+                    result["releaseNotes"] = str(data.get("releaseNotes", ""))
+                    result["highlights"] = list(data.get("highlights", []))
+                    result["fileName"] = str(data.get("fileName", f"LLTool_v{remote_ver}.zip"))
+                    try:
+                        result["fileSize"] = int(data.get("fileSize", 0))
+                    except Exception:
+                        result["fileSize"] = 0
+                    result["success"] = True
+                    result["hasUpdate"] = compare_versions(remote_ver, current_ver) > 0
+                    result["error"] = None
                 else:
-                    result["error"] = f"HTTP error {resp.status}"
-
-        except urllib.error.HTTPError as http_err:
-            if http_err.code == 404:
-                # 404 indicates remote version file/release is not yet published on server.
-                # Current local build is up-to-date.
-                result["success"] = True
-                result["hasUpdate"] = False
-                result["isUpToDate"] = True
-                result["latestVersion"] = current_ver
-                result["message"] = f"Bạn đang sử dụng phiên bản mới nhất (v{current_ver}). Máy chủ phát hành chưa có bản cập nhật mới."
-                logger.info(
-                    "[UpdateChecker] Remote version.json returned 404. Current version %s is latest.",
-                    current_ver,
+                    result["error"] = "Invalid local manifest: missing 'version' field."
+            except Exception as read_err:
+                result["error"] = f"Lỗi đọc file cấu hình cập nhật cục bộ: {read_err}"
+        else:
+            try:
+                req = urllib.request.Request(
+                    url,
+                    headers={
+                        "User-Agent": f"luoBTool-IDE/{current_ver} (Desktop Native)",
+                        "Accept": "application/json",
+                    },
                 )
-            else:
-                result["error"] = f"HTTP {http_err.code}: {http_err.reason}"
-                logger.debug("[UpdateChecker] HTTP error %s checking updates: %s", http_err.code, http_err)
-        except urllib.error.URLError as url_err:
-            result["error"] = f"Lỗi kết nối mạng: Không thể kết nối tới máy chủ cập nhật ({url_err.reason})"
-            logger.debug("[UpdateChecker] Network check failed: %s", url_err)
-        except TimeoutError:
-            result["error"] = f"Hết thời gian chờ kết nối (Timeout sau {timeout}s)"
-            logger.debug("[UpdateChecker] Check timed out")
-        except json.JSONDecodeError as json_err:
-            result["error"] = f"Phản hồi không hợp lệ từ máy chủ: {json_err}"
-            logger.debug("[UpdateChecker] JSON parse error: %s", json_err)
-        except Exception as exc:
-            result["error"] = str(exc)
-            logger.warning("[UpdateChecker] Unexpected error: %s", exc)
+                with urllib.request.urlopen(req, timeout=timeout) as resp:
+                    status_code = getattr(resp, "status", 200)
+                    if status_code in (200, None):
+                        raw_data = resp.read().decode("utf-8")
+                        data = json.loads(raw_data)
+
+                        remote_ver = str(data.get("version", "")).strip()
+                        if remote_ver:
+                            result["latestVersion"] = remote_ver
+                            result["releaseDate"] = str(data.get("releaseDate", ""))
+                            result["downloadUrl"] = str(data.get("downloadUrl", __release_url__))
+                            result["releaseNotes"] = str(data.get("releaseNotes", ""))
+                            result["highlights"] = list(data.get("highlights", []))
+                            result["fileName"] = str(data.get("fileName", ""))
+                            try:
+                                result["fileSize"] = int(data.get("fileSize", 0))
+                            except Exception:
+                                result["fileSize"] = 0
+                            result["success"] = True
+
+                            # Compare versions (remote > current)
+                            cmp = compare_versions(remote_ver, current_ver)
+                            if cmp > 0:
+                                result["hasUpdate"] = True
+                                logger.info(
+                                    "[UpdateChecker] Newer version available: %s (current: %s)",
+                                    remote_ver,
+                                    current_ver,
+                                )
+                            else:
+                                result["hasUpdate"] = False
+                                logger.debug(
+                                    "[UpdateChecker] Application is up-to-date (version: %s)",
+                                    current_ver,
+                                )
+                        else:
+                            result["error"] = "Invalid remote payload: missing 'version' field."
+                    else:
+                        result["error"] = f"HTTP error {resp.status}"
+
+            except urllib.error.HTTPError as http_err:
+                if http_err.code == 404:
+                    # 404 indicates remote version file/release is not yet published on server.
+                    # Current local build is up-to-date.
+                    result["success"] = True
+                    result["hasUpdate"] = False
+                    result["isUpToDate"] = True
+                    result["latestVersion"] = current_ver
+                    result["message"] = f"Bạn đang sử dụng phiên bản mới nhất (v{current_ver}). Máy chủ phát hành chưa có bản cập nhật mới."
+                    logger.info(
+                        "[UpdateChecker] Remote version.json returned 404. Current version %s is latest.",
+                        current_ver,
+                    )
+                else:
+                    result["error"] = f"HTTP {http_err.code}: {http_err.reason}"
+                    logger.debug("[UpdateChecker] HTTP error %s checking updates: %s", http_err.code, http_err)
+            except urllib.error.URLError as url_err:
+                result["error"] = f"Lỗi kết nối mạng: Không thể kết nối tới máy chủ cập nhật ({url_err.reason})"
+                logger.debug("[UpdateChecker] Network check failed: %s", url_err)
+            except TimeoutError:
+                result["error"] = f"Hết thời gian chờ kết nối (Timeout sau {timeout}s)"
+                logger.debug("[UpdateChecker] Check timed out")
+            except json.JSONDecodeError as json_err:
+                result["error"] = f"Phản hồi không hợp lệ từ máy chủ: {json_err}"
+                logger.debug("[UpdateChecker] JSON parse error: %s", json_err)
+            except Exception as exc:
+                result["error"] = str(exc)
+                logger.warning("[UpdateChecker] Unexpected error: %s", exc)
+
+        # Fallback check for local version.json candidates:
+        # If no update found yet (e.g. remote GitHub repository not yet pushed, or offline/staging):
+        # Scan candidate local version.json files so users and developers can test and preview
+        # new releases on both dev and packaged builds.
+        if not custom_url and not result.get("hasUpdate"):
+            try:
+                from app.utils.paths import get_app_dir, get_user_data_dir
+                app_dir = get_app_dir()
+                user_data_dir = get_user_data_dir()
+                candidates = [
+                    user_data_dir / "version.json",
+                    app_dir / "version.json",
+                    app_dir / "_internal" / "version.json",
+                    app_dir.parent / "version.json",
+                    app_dir.parent.parent / "version.json",
+                    Path.cwd() / "version.json",
+                ]
+                seen_paths = set()
+                best_data = None
+                best_ver = current_ver
+
+                for cand in candidates:
+                    try:
+                        r_cand = cand.resolve()
+                        if r_cand in seen_paths:
+                            continue
+                        seen_paths.add(r_cand)
+                        if r_cand.exists() and r_cand.is_file():
+                            with open(r_cand, "r", encoding="utf-8") as f:
+                                l_data = json.load(f)
+                            l_ver = str(l_data.get("version", "")).strip()
+                            if l_ver and compare_versions(l_ver, best_ver) > 0:
+                                best_ver = l_ver
+                                best_data = l_data
+                    except Exception:
+                        continue
+
+                if best_data and compare_versions(best_ver, current_ver) > 0:
+                    result["success"] = True
+                    result["hasUpdate"] = True
+                    result["latestVersion"] = best_ver
+                    result["releaseDate"] = str(best_data.get("releaseDate", ""))
+                    result["downloadUrl"] = str(best_data.get("downloadUrl", __release_url__))
+                    result["releaseNotes"] = str(best_data.get("releaseNotes", ""))
+                    result["highlights"] = list(best_data.get("highlights", []))
+                    result["fileName"] = str(best_data.get("fileName", f"LLTool_v{best_ver}.zip"))
+                    try:
+                        result["fileSize"] = int(best_data.get("fileSize", 0))
+                    except Exception:
+                        result["fileSize"] = 0
+                    result["error"] = None
+            except Exception as fallback_err:
+                logger.debug("[UpdateChecker] Local fallback scan warning: %s", fallback_err)
 
         _latest_check_result = result
         return result
@@ -486,7 +585,7 @@ def apply_update(file_path: Optional[str] = None, new_version: Optional[str] = N
             if m:
                 target_ver = m.group(1)
     if not target_ver:
-        target_ver = "1.0.1"
+        target_ver = get_version()
 
     target_ver = str(target_ver).strip().lstrip("vV")
 

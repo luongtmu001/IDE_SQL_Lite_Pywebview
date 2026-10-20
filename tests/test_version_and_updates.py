@@ -28,9 +28,8 @@ from app.api.settings_api import SettingsApiMixin
 
 def test_version_metadata():
     """Verify version string, tuple, and get_version() consistency."""
-    assert __version__ == "1.0.1"
-    assert __version_tuple__ == (1, 0, 1)
-    assert get_version() == "1.0.1"
+    current = get_version()
+    assert __version__ == current
     assert "luoBTool" in __app_name__
 
 
@@ -187,9 +186,11 @@ def test_download_update_flow(tmp_path):
         assert (tmp_path / "test_update.zip").read_bytes() == content
 
     # Test open_downloaded_file with mock
-    with patch("os.startfile") as mock_startfile:
+    with patch("os.startfile") as mock_startfile, \
+         patch("app.services.update_checker.apply_update", return_value={"success": True}) as mock_apply:
         op_res = open_downloaded_file(str(tmp_path / "test_update.zip"))
         assert op_res["success"] is True
+        mock_apply.assert_called_once_with(file_path=str(tmp_path / "test_update.zip"))
         mock_startfile.assert_called_once_with(str(tmp_path / "test_update.zip"))
 
     # Test open_containing_folder with mock
@@ -215,10 +216,10 @@ def test_apply_update_and_dismiss_indicator(tmp_path):
              patch("app.services.settings_store.save_settings_file") as mock_save, \
              patch("pathlib.Path.exists", return_value=False):
             # Call apply_update with a new target version
-            res = apply_update(new_version="1.0.2")
+            res = apply_update(new_version="1.0.4")
             assert res["success"] is True
-            assert res["version"] == "1.0.2"
-            assert get_version() == "1.0.2"
+            assert res["version"] == "1.0.4"
+            assert get_version() == "1.0.4"
             mock_save.assert_called_once()
 
         # Verify UpdateSubwindowApi open_downloaded_file dismisses main window indicator

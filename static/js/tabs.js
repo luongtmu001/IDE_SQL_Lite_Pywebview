@@ -172,7 +172,7 @@ function initTabs() {
         const sessionData = serializeSession();
         window.AppSession.setOpenTabs(sessionData.tabs);
         if (typeof window.AppSession.scheduleAutoSave === 'function') {
-            window.AppSession.scheduleAutoSave(3000);
+            window.AppSession.scheduleAutoSave(800);
         }
     }
 
@@ -190,14 +190,20 @@ function initTabs() {
 
     function createTab(opts = {}) {
         tabCounter++;
-        const tabId = `tab-${tabCounter}`;
+        const tabId = (opts.id && !tabsData.has(opts.id)) ? opts.id : `tab-${tabCounter}`;
+        const idNum = parseInt(String(tabId).replace(/^tab-/, ''), 10);
+        if (!isNaN(idNum) && idNum >= tabCounter) {
+            tabCounter = idNum;
+        }
         const tabType = opts.tabType || 'query';
         const existingTabTitles = [];
         for (const t of tabsData.values()) {
             if (t && t.title) existingTabTitles.push(t.title);
         }
         let tabTitle = opts.title || `Query ${tabCounter}`;
-        tabTitle = getUniqueFileName(tabTitle, existingTabTitles);
+        if (!opts.title) {
+            tabTitle = getUniqueFileName(tabTitle, existingTabTitles);
+        }
         const icon = opts.icon || (tabType === 'designer' ? 'fa-drafting-compass' : (tabType === 'dependency-graph' ? 'fa-diagram-project' : (tabType === 'object-search' ? 'fa-magnifying-glass' : (tabType === 'query-designer' ? 'fa-diagram-project' : (tabType === 'activity-monitor' ? 'fa-heart-pulse' : 'fa-table-list')))));
 
         // Prefer explicit options, then last focused tree node context, then current global context, then saved defaultContext
@@ -316,6 +322,9 @@ function initTabs() {
                 tabData.monacoModel = monaco.editor.createModel(tabData.content || '', tabData.language || 'sql');
                 tabData.monacoModel.onDidChangeContent(() => {
                     tabData.content = tabData.monacoModel.getValue();
+                    if (window.AppSession && typeof window.AppSession.scheduleAutoSave === 'function') {
+                        window.AppSession.scheduleAutoSave(800);
+                    }
                 });
             } catch (_) {}
         }
@@ -500,6 +509,12 @@ function initTabs() {
         const queryControls = document.querySelector('.ide-action-bar .d-flex.align-items-center.gap-1.flex-shrink-0');
         const ideStatusbar = document.querySelector('.ide-statusbar');
 
+        // Always hide schema-compare container and restore main statusbar when switching to any non-schema-compare tab
+        if (!state || state.tabType !== 'schema-compare') {
+            if (scContainer) scContainer.classList.add('d-none');
+            if (ideStatusbar) ideStatusbar.classList.remove('d-none');
+        }
+
         if (state && state.tabType === 'designer') {
             if (typeof window.hideDiffView === 'function') window.hideDiffView();
             if (editorWrap) editorWrap.classList.add('d-none');
@@ -635,8 +650,6 @@ function initTabs() {
                         sourceDb: state.database,
                         sourceSchema: state.schema
                     });
-                } else if (state && state.connectionId && typeof window.SchemaCompare.setSourceContext === 'function') {
-                    window.SchemaCompare.setSourceContext(state.connectionId, state.database, state.schema, state.dbType);
                 }
                 window.SchemaCompare.activateTab(tabId);
             }
@@ -700,6 +713,9 @@ function initTabs() {
                         state.monacoModel = monaco.editor.createModel(nextVal, lang);
                         state.monacoModel.onDidChangeContent(() => {
                             state.content = state.monacoModel.getValue();
+                            if (window.AppSession && typeof window.AppSession.scheduleAutoSave === 'function') {
+                                window.AppSession.scheduleAutoSave(800);
+                            }
                         });
                     } else if (state.monacoModel.getValue() !== nextVal) {
                         state.monacoModel.setValue(nextVal);
@@ -925,6 +941,10 @@ function initTabs() {
             window.SqlVisualizer.closeTab(tabId);
         } else if (state && state.tabType === 'activity-monitor' && window.ActivityMonitor) {
             window.ActivityMonitor.stopAutoRefresh();
+        } else if (state && state.tabType === 'schema-compare' && window.SchemaCompare) {
+            if (typeof window.SchemaCompare.closeTab === 'function') {
+                window.SchemaCompare.closeTab(tabId);
+            }
         } else if (state && state.tabType === 'diff') {
             if (typeof window.closeDiffView === 'function') {
                 window.closeDiffView();
@@ -1985,6 +2005,7 @@ function initTabs() {
         if (typeof window.updateActionBar === 'function') {
             window.updateActionBar();
         }
+        syncTabsSession();
     }
 
     function updateTabsConnectionId(connName, newConnId, oldConnId = null) {
@@ -2797,7 +2818,78 @@ function initTabs() {
     // Tải và khôi phục sâu từ Backend session.json (nếu có nội dung hoặc cursor bổ sung)
     if (window.AppSession && typeof window.AppSession.loadSession === 'function') {
         window.AppSession.loadSession().then(session => {
-            if (session && Array.isArray(session.tabs) && session.tabs.length > 0) {
+            if (!session || !Array.isArray(session.tabs) || session.tabs.length === 0) {
+                return;
+            }
+
+            // Khôi phục default connection context nếu có
+            if (session.defaultContext && typeof session.defaultContext === 'object' && session.defaultContext.connectionId) {
+                if (typeof updateActiveTabContext === 'function') {
+                    updateActiveTabContext(session.defaultContext);
+                } else {
+                    setDefaultContext(session.defaultContext);
+                }
+            }
+
+            // Kiểm tra xem hiện tại có phải chỉ là 1 tab rỗng tạo mặc định do localStorage chưa có không
+            const currentTabEntries = Array.from(tabsData.entries());
+            const hasOnlyInitialBlankTab = !restoredAny || (
+                currentTabEntries.length === 1 &&
+                currentTabEntries[0][1].isDirty === false &&
+                (!currentTabEntries[0][1].connectionId || currentTabEntries[0][1].connectionName === 'No connection')
+            );
+
+            if (hasOnlyInitialBlankTab) {
+                // Xóa tab rỗng tạm thời
+                if (currentTabEntries.length === 1) {
+                    const initialTabId = currentTabEntries[0][0];
+                    tabsData.delete(initialTabId);
+                    const initialEl = tabsBar ? tabsBar.querySelector(`.ide-tab[data-tab-id="${initialTabId}"]`) : null;
+                    if (initialEl) initialEl.remove();
+                }
+
+                // Tái tạo toàn bộ tabs từ session.json
+                session.tabs.forEach(st => {
+                    if (st && (st.title || st.id)) {
+                        const tabObj = createTab({
+                            id: st.id,
+                            title: st.title || 'Query',
+                            tabType: st.tabType || 'query',
+                            docId: st.docId,
+                            filePath: st.filePath,
+                            connectionId: st.connectionLost ? null : st.connectionId,
+                            connectionName: st.connectionLost ? null : st.connectionName,
+                            database: st.database,
+                            schema: st.schema,
+                            dbType: st.dbType,
+                            environment: st.environment || '',
+                            read_only: Boolean(st.read_only),
+                            savedCursorPosition: st.cursor || { lineNumber: 1, column: 1 },
+                            viewState: st.viewState || null,
+                            content: st.content !== undefined ? st.content : undefined
+                        });
+                        const tId = typeof tabObj === 'string' ? tabObj : (tabObj ? tabObj.id : null);
+                        if (tId && st.isPinned) {
+                            pinTab(tId);
+                        }
+                        if (tId && st.isDirty) {
+                            const tState = tabsData.get(tId);
+                            if (tState) tState.isDirty = true;
+                            const closeBtn = document.querySelector(`.ide-tab[data-tab-id="${tId}"] .ide-tab-close`);
+                            if (closeBtn) closeBtn.classList.add('dirty');
+                        }
+                    }
+                });
+
+                const targetActiveId = session.activeTabId;
+                if (targetActiveId && tabsData.has(targetActiveId)) {
+                    switchTab(targetActiveId);
+                } else if (tabsData.size > 0) {
+                    switchTab(Array.from(tabsData.keys())[0]);
+                }
+                restoredAny = true;
+            } else {
+                // Các tabs đã được nạp từ cache trước đó, cập nhật bổ sung nội dung & trạng thái
                 session.tabs.forEach(st => {
                     if (st && st.id && tabsData.has(st.id)) {
                         const tabState = tabsData.get(st.id);
@@ -2807,15 +2899,35 @@ function initTabs() {
                         if (st.connectionLost) {
                             tabState.connectionId = null;
                             tabState.connectionName = null;
+                        } else {
+                            if (st.connectionId && !tabState.connectionId) tabState.connectionId = st.connectionId;
+                            if (st.connectionName && !tabState.connectionName) tabState.connectionName = st.connectionName;
+                            if (st.database && !tabState.database) tabState.database = st.database;
+                            if (st.schema && !tabState.schema) tabState.schema = st.schema;
+                            if (st.dbType && !tabState.dbType) tabState.dbType = st.dbType;
                         }
-                        if (st.content !== undefined && !tabState.content) {
+                        if (st.content !== undefined && (!tabState.content || tabState.content.startsWith('-- Write your SQL query here'))) {
                             tabState.content = st.content;
+                            if (activeTabId === st.id && window.monacoEditor) {
+                                window.monacoEditor.setValue(st.content);
+                            }
                         }
                     }
                 });
                 if (session.activeTabId && tabsData.has(session.activeTabId)) {
                     switchTab(session.activeTabId);
                 }
+            }
+
+            // Khôi phục kích thước layout sidebar & kết quả nếu có
+            if (session.sidebarWidth && window.AppSession?.setSidebarWidth) {
+                window.AppSession.setSidebarWidth(session.sidebarWidth);
+            }
+            if (session.sidebarCollapsed !== undefined && window.AppSession?.setSidebarCollapsed) {
+                window.AppSession.setSidebarCollapsed(session.sidebarCollapsed);
+            }
+            if (session.resultsHeight && window.AppSession?.setResultsHeight) {
+                window.AppSession.setResultsHeight(session.resultsHeight);
             }
         }).catch(err => {
             console.warn('[Tabs] Async backend session restore error:', err);

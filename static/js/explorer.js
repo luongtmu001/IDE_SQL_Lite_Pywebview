@@ -142,11 +142,11 @@ function initExplorer() {
     }
 
     // ── Global context tracking ───────────────────────────────────────────────
-    window.ActiveConnectionId   = null;
-    window.ActiveConnectionName = null;
-    window.ActiveDatabase       = null;
-    window.ActiveSchema         = null;
-    window.ActiveDbType         = null;
+    window.ActiveConnectionId   = window.ActiveConnectionId !== undefined ? window.ActiveConnectionId : null;
+    window.ActiveConnectionName = window.ActiveConnectionName !== undefined ? window.ActiveConnectionName : null;
+    window.ActiveDatabase       = window.ActiveDatabase !== undefined ? window.ActiveDatabase : null;
+    window.ActiveSchema         = window.ActiveSchema !== undefined ? window.ActiveSchema : null;
+    window.ActiveDbType         = window.ActiveDbType !== undefined ? window.ActiveDbType : null;
 
     // ── Filter state: keyed by `connId::db::objectType` ──────────────────────
     const filterState = {};

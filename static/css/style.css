@@ -1195,7 +1195,7 @@ html[data-bs-theme="dark"] .btn-close { filter: invert(0.8); }
     background: var(--ide-tab-inactive-bg, #202228);
     color: var(--ide-text-muted);
     border: 1px solid var(--ide-border, #3c3f41);
-    border-bottom: none;
+    border-bottom: 1px solid var(--ide-accent, #CC7832) !important;
     border-top-left-radius: 4px;
     border-top-right-radius: 4px;
     margin-right: 4px;
@@ -1212,6 +1212,14 @@ html[data-bs-theme="dark"] .btn-close { filter: invert(0.8); }
     background: var(--ide-hover-bg);
     color: var(--ide-text-main);
     border-color: var(--ide-border-active, #555);
+}
+
+.ide-result-tab:not(.active) {
+    border-bottom: 1px solid var(--ide-accent, #CC7832) !important;
+}
+
+.ide-result-tab:hover:not(.active) {
+    border-bottom: 1px solid var(--ide-accent, #CC7832) !important;
 }
 
 .ide-result-tab.active {
@@ -1243,6 +1251,48 @@ html[data-bs-theme="dark"] .btn-close { filter: invert(0.8); }
     color: var(--ide-text-muted);
 }
 
+/* ── Editor Status Bar (SSMS Style) ────────────────────────────────────────── */
+.ide-editor-status-bar {
+    position: relative;
+    z-index: 1050;
+    overflow: visible !important;
+    background: var(--ide-bg-toolbar, var(--ide-bg-panel, #252830));
+    border-top: 1px solid var(--ide-border);
+    border-bottom: 1px solid var(--ide-border);
+    height: 25px;
+    min-height: 25px;
+    max-height: 25px;
+    flex-shrink: 0;
+    font-size: 11px;
+    color: var(--ide-text-muted, #9da5b4);
+    box-sizing: border-box;
+}
+
+.ide-editor-zoom-wrap {
+    display: inline-flex;
+    align-items: center;
+    position: relative;
+    z-index: 1055;
+    overflow: visible !important;
+}
+
+.ide-editor-zoom-box {
+    display: inline-flex;
+    align-items: center;
+    height: 20px;
+    position: relative;
+}
+
+.ide-sb-zoom-menu {
+    background: var(--ide-bg-panel, #252830) !important;
+    border: 1px solid var(--ide-border, #3c3f41) !important;
+    padding: 3px 0 !important;
+    border-radius: 4px !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35) !important;
+    min-width: 85px !important;
+    z-index: 1060 !important;
+}
+
 #ide-result-panel,
 .ide-result-panel {
     background: var(--ide-bg-result);
@@ -1253,8 +1303,8 @@ html[data-bs-theme="dark"] .btn-close { filter: invert(0.8); }
 
 .ide-result-tabs-bar {
     background: var(--ide-bg-toolbar);
-    border-bottom: 1px solid var(--ide-border);
-    height: 30px;
+    border-bottom: 1px solid var(--ide-accent, #CC7832) !important;
+    height: 31px;
     flex-shrink: 0;
 }
 

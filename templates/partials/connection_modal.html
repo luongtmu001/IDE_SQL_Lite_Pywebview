@@ -25,6 +25,18 @@
                         <input type="text" class="form-control form-control-sm" id="connName" placeholder="e.g. Dev Server" autocomplete="off">
                     </div>
 
+                    <div class="mb-2">
+                        <label class="ide-form-label">Connection Group</label>
+                        <div class="custom-combobox position-relative" id="connGroupCombobox">
+                            <input type="text" class="form-control form-control-sm" id="connGroup" placeholder="e.g. Production (optional)" autocomplete="off">
+                            <button type="button" class="custom-combobox-toggle" id="btnToggleConnGroup" tabindex="-1" title="Chọn nhóm kết nối">
+                                <i class="fa-solid fa-chevron-down"></i>
+                            </button>
+                            <ul class="custom-combobox-menu d-none" id="connGroupMenu"></ul>
+                        </div>
+                        <datalist id="connGroupList" class="d-none"></datalist>
+                    </div>
+
                     <div class="row g-2 mb-2">
                         <div class="col-7">
                             <label class="ide-form-label">Môi trường (Environment)</label>
@@ -93,8 +105,14 @@
                                     <i class="fa-solid fa-rotate me-1"></i>Load
                                 </a>
                             </label>
-                            <input type="text" class="form-control form-control-sm" id="connDb" placeholder="(optional)" list="connDbList" autocomplete="off">
-                            <datalist id="connDbList"></datalist>
+                            <div class="custom-combobox position-relative" id="connDbCombobox">
+                                <input type="text" class="form-control form-control-sm" id="connDb" placeholder="(optional)" autocomplete="off">
+                                <button type="button" class="custom-combobox-toggle" id="btnToggleConnDb" tabindex="-1" title="Chọn database">
+                                    <i class="fa-solid fa-chevron-down"></i>
+                                </button>
+                                <ul class="custom-combobox-menu d-none" id="connDbMenu"></ul>
+                            </div>
+                            <datalist id="connDbList" class="d-none"></datalist>
                         </div>
                         <div class="col-6">
                             <label class="ide-form-label d-flex align-items-center justify-content-between">

@@ -39,6 +39,10 @@ def read_json(file_path: Path, default: Any = None) -> Any:
                 alt_app = APP_DIR / "data" / file_path.name
                 if alt_app.exists():
                     file_path = alt_app
+                else:
+                    alt_backup = APP_DIR / ".data_backup_phase0" / file_path.name
+                    if alt_backup.exists():
+                        file_path = alt_backup
         if file_path.exists():
             with open(file_path, "r", encoding="utf-8-sig") as f:
                 return json.load(f)

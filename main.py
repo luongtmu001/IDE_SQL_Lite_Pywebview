@@ -62,6 +62,7 @@ from app.api.history_api import HistoryApiMixin as _HistoryApiMixin
 from app.api.session_api import SessionApiMixin as _SessionApiMixin
 from app.api.activity_api import ActivityApiMixin as _ActivityApiMixin
 from app.api.schema_compare_api import SchemaCompareApiMixin as _SchemaCompareApiMixin
+from app.api.google_sheets_api import GoogleSheetsApiMixin as _GoogleSheetsApiMixin
 
 logger = logging.getLogger("luobtool.main")
 connection_manager = ConnectionManager()
@@ -103,6 +104,7 @@ class MainApi(
     _MainMetadataApiMixin,
     _ActivityApiMixin,
     _SchemaCompareApiMixin,
+    _GoogleSheetsApiMixin,
     BravoApi,
 ):
     def __init__(self, cm: ConnectionManager = connection_manager):
@@ -325,6 +327,8 @@ def main():
 
     window.events.loaded += on_main_loaded
 
+
+
     def on_main_closed():
         try:
             closed = connection_manager.close_all_sessions()
@@ -345,7 +349,7 @@ def main():
     threading.Timer(10.0, on_fallback).start()
 
     print(f"[App] Starting Desktop pywebview with active theme: {cur_theme}")
-    webview.start(gui="edgechromium", storage_path=str(cache_dir.resolve()), debug=False)
+    webview.start(gui="edgechromium", storage_path=str(cache_dir.resolve()), private_mode=False, debug=False)
 
 
 if __name__ == "__main__":

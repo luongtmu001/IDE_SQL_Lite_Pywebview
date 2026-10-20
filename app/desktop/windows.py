@@ -544,6 +544,155 @@ class ActivityMonitorSubwindowApi:
         return self._main_api.get_clipboard_text()
 
 
+class GoogleSheetsSubwindowApi:
+    """JS Bridge for standalone Google Sheets Workspace subwindow."""
+
+    def __init__(self, main_api):
+        self._main_api = main_api
+        self._window = None
+        self._editor_host = None
+
+    def set_window(self, win):
+        self._window = win
+        if self._editor_host:
+            self._editor_host.set_window(win)
+
+    def get_editor_host(self):
+        if self._editor_host is None:
+            try:
+                from app.services.google_sheets.editor_host import GoogleSheetsEditorHost
+                self._editor_host = GoogleSheetsEditorHost(window=self._window)
+            except Exception as e:
+                logger.exception("Error initializing GoogleSheetsEditorHost: %s", e)
+        elif self._window and self._editor_host._window != self._window:
+            self._editor_host.set_window(self._window)
+        return self._editor_host
+
+    def gs_editor_host_init(self):
+        host = self.get_editor_host()
+        if host:
+            return host.initialize(self._window)
+        return {"success": False, "error": "Editor host unavailable"}
+
+    def gs_editor_host_navigate(self, url: str):
+        host = self.get_editor_host()
+        if host:
+            return host.navigate(url)
+        return {"success": False, "error": "Editor host unavailable"}
+
+    def gs_editor_host_set_bounds(self, x: int, y: int, width: int, height: int, visible: bool = True, dpr=None):
+        host = self.get_editor_host()
+        if host:
+            return host.set_bounds(x, y, width, height, visible, dpr)
+        return {"success": False, "error": "Editor host unavailable"}
+
+    def gs_editor_host_set_visible(self, visible: bool):
+        host = self.get_editor_host()
+        if host:
+            return host.set_visible(visible)
+        return {"success": False, "error": "Editor host unavailable"}
+
+    def gs_editor_host_get_state(self):
+        host = self.get_editor_host()
+        if host:
+            return host.get_state()
+        return {"success": False, "error": "Editor host unavailable"}
+
+    def gs_editor_host_dispose(self):
+        if self._editor_host:
+            res = self._editor_host.dispose()
+            self._editor_host = None
+            return res
+        return {"success": True, "status": "already_disposed"}
+
+    def close_window(self):
+        self.gs_editor_host_dispose()
+        if self._window:
+            try:
+                self._window.destroy()
+            except Exception:
+                pass
+        return {"success": True}
+
+    def apply_titlebar_theme(self, bg_hex=None, text_hex=None, border_hex=None, is_dark=None):
+        return self._main_api.apply_titlebar_theme(bg_hex, text_hex, border_hex, is_dark)
+
+    def get_settings(self):
+        return self._main_api.get_settings()
+
+    def get_theme(self):
+        settings = _load_settings_file()
+        return settings.get("theme") or settings.get("appearance", {}).get("theme", "dark")
+
+    # ─── Explicitly declared methods for pywebview JS API reflection ──────────
+    def gs_validate_url(self, raw_url: str):
+        return self._main_api.gs_validate_url(raw_url)
+
+    def gs_list_projects(self):
+        return self._main_api.gs_list_projects()
+
+    def gs_get_project(self, project_id: str):
+        return self._main_api.gs_get_project(project_id)
+
+    def gs_create_project(self, name: str, description: str = "", color: str = "#3B82F6"):
+        return self._main_api.gs_create_project(name, description=description, color=color)
+
+    def gs_update_project(self, project_id: str, name=None, description=None, color=None):
+        return self._main_api.gs_update_project(project_id, name=name, description=description, color=color)
+
+    def gs_delete_project(self, project_id: str):
+        return self._main_api.gs_delete_project(project_id)
+
+    def gs_add_sheet(self, project_id: str, title: str, url: str, tags=None, notes: str = "", favorite: bool = False):
+        return self._main_api.gs_add_sheet(project_id, title=title, url=url, tags=tags, notes=notes, favorite=favorite)
+
+    def gs_update_sheet(self, project_id: str, sheet_id: str, title=None, url=None, tags=None, notes=None):
+        return self._main_api.gs_update_sheet(project_id, sheet_id, title=title, url=url, tags=tags, notes=notes)
+
+    def gs_save_sheet_grid(self, project_id: str, sheet_id: str, grid_data=None):
+        return self._main_api.gs_save_sheet_grid(project_id, sheet_id, grid_data=grid_data)
+
+    def gs_fetch_sheet_data(self, project_id: str, sheet_id: str):
+        return self._main_api.gs_fetch_sheet_data(project_id, sheet_id)
+
+    def gs_remove_sheet(self, project_id: str, sheet_id: str):
+        return self._main_api.gs_remove_sheet(project_id, sheet_id)
+
+    def gs_toggle_favorite(self, project_id: str, sheet_id: str):
+        return self._main_api.gs_toggle_favorite(project_id, sheet_id)
+
+    def gs_move_sheet(self, source_project_id: str, target_project_id: str, sheet_id: str):
+        return self._main_api.gs_move_sheet(source_project_id, target_project_id, sheet_id)
+
+    def gs_search_sheets(self, query: str = "", tag=None, favorite_only: bool = False):
+        return self._main_api.gs_search_sheets(query=query, tag=tag, favorite_only=favorite_only)
+
+    def gs_get_workspace(self):
+        return self._main_api.gs_get_workspace()
+
+    def gs_save_workspace(self, last_project_id=None, last_opened_sheet_id=None):
+        return self._main_api.gs_save_workspace(last_project_id=last_project_id, last_opened_sheet_id=last_opened_sheet_id)
+
+    def gs_open_sheet_window(self, project_id: str, sheet_id: str):
+        return self._main_api.gs_open_sheet_window(project_id, sheet_id)
+
+    def gs_close_sheet_window(self, sheet_id: str):
+        return self._main_api.gs_close_sheet_window(sheet_id)
+
+    def gs_open_in_browser(self, url: str):
+        return self._main_api.gs_open_in_browser(url)
+
+    def gs_get_open_sheet_ids(self):
+        return self._main_api.gs_get_open_sheet_ids()
+
+    def gs_open_manager_window(self):
+        return self._main_api.gs_open_manager_window()
+
+    def __getattr__(self, name):
+        """Fallback for any future or unlisted methods."""
+        return getattr(self._main_api, name)
+
+
 class SchemaCompareSubwindowApi:
     """JS Bridge for standalone Pop-out Schema Compare subwindows."""
 
@@ -613,6 +762,27 @@ class SchemaCompareSubwindowApi:
         if hasattr(self._main_api, 'show_open_file_dialog'):
             return self._main_api.show_open_file_dialog(title=title, filters=filters)
         return None
+
+    def schema_compare_bravo_layout_list(self, connection_id, database=None, platform="Win", version="Bravo 10", search_term=""):
+        return self._main_api.schema_compare_bravo_layout_list(
+            connection_id, database=database, platform=platform, version=version, search_term=search_term
+        )
+
+    def schema_compare_bravo_layout_detail(self, connection_id, layout_id, database=None, platform="Win", version="Bravo 10"):
+        return self._main_api.schema_compare_bravo_layout_detail(
+            connection_id, layout_id, database=database, platform=platform, version=version
+        )
+
+    def schema_compare_bravo_layout_generate_script(self, connection_id, layout_id, layout_xml, draft_layout_xml=None, expected_modified_at=None, form_name="", layout_name="", platform="Win", version="Bravo 10", database=None):
+        return self._main_api.schema_compare_bravo_layout_generate_script(
+            connection_id, layout_id, layout_xml, draft_layout_xml=draft_layout_xml, expected_modified_at=expected_modified_at, form_name=form_name, layout_name=layout_name, platform=platform, version=version, database=database
+        )
+
+    def schema_compare_bravo_layout_apply_update(self, connection_id, layout_id, layout_xml, draft_layout_xml=None, expected_modified_at=None, database=None, platform="Win", version="Bravo 10"):
+        return self._main_api.schema_compare_bravo_layout_apply_update(
+            connection_id, layout_id, layout_xml, draft_layout_xml=draft_layout_xml, expected_modified_at=expected_modified_at, database=database, platform=platform, version=version
+        )
+
 
 
 # ── Titlebar Synchronization & IPC Broadcast ──────────────────────────
@@ -757,6 +927,34 @@ def apply_titlebar_theme_to_windows(api: Any, bg_hex: Optional[str] = None, text
                     title="So sánh kết quả truy vấn (Result Comparator) — luoBTool IDE",
                 )
 
+        # 10. Google Sheets Workspace Window
+        if getattr(api, "_google_sheets_manager_window", None):
+            apply_dwm_titlebar_theme(
+                api._google_sheets_manager_window,
+                bg=bg_hex,
+                text=text_hex,
+                border=border_hex,
+                is_dark=is_dark,
+                title="Google Sheets Workspace — luoBTool IDE",
+            )
+
+        # 11. Google Sheets Companion Windows
+        try:
+            from app.services.google_sheets.webview_host import get_window_manager
+            wm = get_window_manager()
+            if wm:
+                for comp_win in wm.get_open_windows():
+                    if comp_win:
+                        apply_dwm_titlebar_theme(
+                            comp_win,
+                            bg=bg_hex,
+                            text=text_hex,
+                            border=border_hex,
+                            is_dark=is_dark,
+                        )
+        except Exception as exc:
+            logger.debug("[Windows] Error updating companion windows theme: %s", exc)
+
         return {"success": True}
     except Exception as exc:
         return {"success": False, "error": str(exc)}
@@ -802,6 +1000,9 @@ def broadcast_settings(api: Any, settings: Dict[str, Any]) -> None:
             if getattr(api, "_history_window", None):
                 if api._history_window not in targets:
                     targets.append(api._history_window)
+            if getattr(api, "_google_sheets_manager_window", None):
+                if api._google_sheets_manager_window not in targets:
+                    targets.append(api._google_sheets_manager_window)
 
             for w in getattr(webview, "windows", []):
                 if w and w not in targets:
@@ -1719,5 +1920,104 @@ def open_result_comparator_window(
     except Exception as exc:
         logger.exception("Error opening result comparator window: %s", exc)
         return {"success": False, "error": str(exc)}
+
+
+def open_google_sheets_window(api: Any, base_dir: Optional[Path] = None) -> Dict[str, Any]:
+    """Open or focus the dedicated Google Sheets Workspace subwindow."""
+    if base_dir is None:
+        base_dir = get_bundle_dir()
+
+    try:
+        candidate_paths = [
+            base_dir / "templates" / "google_sheets_window.html",
+            base_dir / "_internal" / "templates" / "google_sheets_window.html",
+            Path(__file__).resolve().parent.parent.parent / "templates" / "google_sheets_window.html"
+        ]
+        chosen_path = None
+        for cand in candidate_paths:
+            if cand.exists():
+                chosen_path = cand
+                break
+        if not chosen_path:
+            chosen_path = candidate_paths[0]
+        html_path = chosen_path.resolve().as_uri()
+
+        settings = _load_settings_file()
+        cur_theme = settings.get("theme") or settings.get("appearance", {}).get("theme", "dark")
+
+        w, h = 1320, 840
+        cx, cy, target_screen = calculate_centered_coordinates(w, h, api)
+
+        if hasattr(api, "_google_sheets_manager_window") and api._google_sheets_manager_window:
+            try:
+                try:
+                    api._google_sheets_manager_window.move(cx, cy)
+                except Exception:
+                    pass
+                api._google_sheets_manager_window.show()
+                api._google_sheets_manager_window.focus()
+                return {"success": True}
+            except Exception:
+                api._google_sheets_manager_window = None
+
+        win_title = "Google Sheets Workspace — luoBTool IDE"
+        sub_api = GoogleSheetsSubwindowApi(api)
+        sub_win = webview.create_window(
+            title=win_title,
+            url=html_path,
+            js_api=sub_api,
+            width=w,
+            height=h,
+            x=cx,
+            y=cy,
+            screen=target_screen,
+            min_size=(960, 600),
+            text_select=True,
+        )
+        sub_api.set_window(sub_win)
+        api._google_sheets_manager_window = sub_win
+
+        def _center_on_shown():
+            try:
+                sub_win.move(cx, cy)
+            except Exception:
+                pass
+
+        def _apply_theme_on_loaded():
+            try:
+                sub_win.evaluate_js(
+                    f"if (window.ThemeManager) {{ window.ThemeManager.applyTheme('{cur_theme}', false); }} "
+                    f"else {{ document.documentElement.setAttribute('data-bs-theme', '{cur_theme}'); }}"
+                )
+            except Exception:
+                pass
+
+        sub_win.events.shown += _center_on_shown
+        sub_win.events.loaded += _apply_theme_on_loaded
+
+        if getattr(api, "_current_titlebar_theme", None):
+            t = api._current_titlebar_theme
+            apply_dwm_titlebar_theme(sub_win, bg=t.get("bg"), text=t.get("text"), border=t.get("border"), is_dark=t.get("is_dark"), title=win_title)
+        else:
+            apply_dwm_titlebar_theme(sub_win, bg=cur_theme, title=win_title)
+
+        def on_closed():
+            try:
+                sub_api.gs_editor_host_dispose()
+            except Exception:
+                pass
+            api._google_sheets_manager_window = None
+            try:
+                if sub_win in webview.windows:
+                    webview.windows.remove(sub_win)
+            except Exception:
+                pass
+
+        sub_win.events.closed += on_closed
+        return {"success": True}
+    except Exception as exc:
+        logger.exception("Error opening google sheets window: %s", exc)
+        return {"success": False, "error": str(exc)}
+
 
 

@@ -7,8 +7,8 @@ import sys
 from typing import Any, Dict, Tuple
 
 
-__version__ = "1.0.1"
-__version_tuple__: Tuple[int, int, int] = (1, 0, 1)
+__version__ = "1.0.4"
+__version_tuple__: Tuple[int, int, int] = (1, 0, 4)
 __app_name__ = "luoBTool IDE"
 __app_title__ = "luoBTool IDE / LLTool Desktop"
 __author__ = "luonght"
@@ -29,54 +29,39 @@ def set_runtime_version(new_version: str) -> None:
 
 def get_version() -> str:
     """
-    Return the current version string.
-    Checks in order:
-    1. Active runtime version (if updated in current session)
-    2. User settings (installedVersion)
-    3. Local version.json
-    4. Static build version (__version__)
+    Return the current version string of the running application.
+    Resolves among:
+    1. Active runtime version (if set in current session)
+    2. User settings (installedVersion from an applied update)
+    3. Static build version (__version__)
     """
     global _runtime_version
     if _runtime_version:
         return _runtime_version
 
+    resolved_version = __version__
+
     try:
         import json
-        from pathlib import Path
+        from app.utils.paths import get_user_data_dir
 
-        # 1. Check user data settings
+        # Check user data settings if an in-place update was applied
         try:
-            from app.utils.paths import get_user_data_dir, get_app_dir
             user_settings = get_user_data_dir() / "settings.json"
             if user_settings.exists():
                 with open(user_settings, "r", encoding="utf-8") as f:
                     s = json.load(f)
                     inst_ver = s.get("updates", {}).get("installedVersion") or s.get("installedVersion")
-                    if inst_ver:
-                        _runtime_version = str(inst_ver).strip()
-                        return _runtime_version
+                    if inst_ver and compare_versions(str(inst_ver), resolved_version) > 0:
+                        resolved_version = str(inst_ver).strip()
         except Exception:
             pass
 
-        # 2. Check candidate version.json files
-        candidates = []
-        try:
-            candidates.append(get_app_dir() / "version.json")
-            candidates.append(get_app_dir() / "_internal" / "version.json")
-        except Exception:
-            pass
-
-        for cand in candidates:
-            if cand.exists():
-                with open(cand, "r", encoding="utf-8") as f:
-                    v_data = json.load(f)
-                    if v_data.get("version"):
-                        _runtime_version = str(v_data["version"]).strip()
-                        return _runtime_version
     except Exception:
         pass
 
-    return __version__
+    _runtime_version = resolved_version
+    return _runtime_version
 
 
 

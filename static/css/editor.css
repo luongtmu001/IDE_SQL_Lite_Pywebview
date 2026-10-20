@@ -11,10 +11,16 @@
     border-top: 1px solid var(--ide-border);
     border-bottom: 1px solid var(--ide-border);
     transition: height 0.12s ease;
+    position: relative;
+    z-index: 100;
+    pointer-events: auto;
 }
 
 #ide-tabs-bar {
     overflow: visible !important;
+    position: relative;
+    z-index: 101;
+    pointer-events: auto;
 }
 
 .ide-tabs-container:has(.ide-tab),
@@ -675,7 +681,7 @@
     background: var(--ide-tab-inactive-bg, #202228);
     color: var(--ide-text-muted);
     border: 1px solid var(--ide-border, #3c3f41);
-    border-bottom: none;
+    border-bottom: 1px solid var(--ide-accent, #CC7832) !important;
     border-top-left-radius: 4px;
     border-top-right-radius: 4px;
     margin-right: 4px;
@@ -693,6 +699,14 @@
     background: var(--ide-hover-bg);
     color: var(--ide-text-main);
     border-color: var(--ide-border-active, #555);
+}
+
+.ide-result-tab:not(.active) {
+    border-bottom: 1px solid var(--ide-accent, #CC7832) !important;
+}
+
+.ide-result-tab:hover:not(.active) {
+    border-bottom: 1px solid var(--ide-accent, #CC7832) !important;
 }
 
 .ide-result-tab.active {
@@ -763,6 +777,9 @@
 
 /* ── Editor Status Bar (SSMS Style) ────────────────────────────────────────── */
 .ide-editor-status-bar {
+    position: relative;
+    z-index: 1050;
+    overflow: visible !important;
     background: var(--ide-bg-toolbar, var(--ide-bg-panel, #252830));
     border-top: 1px solid var(--ide-border);
     border-bottom: 1px solid var(--ide-border);
@@ -774,18 +791,21 @@
     font-size: calc(var(--ide-ui-font-size, 13px) - 2px);
     color: var(--ide-text-muted, #9da5b4);
     box-sizing: border-box;
-    z-index: 10;
 }
 
 .ide-editor-zoom-wrap {
     display: inline-flex;
     align-items: center;
+    position: relative;
+    z-index: 1055;
+    overflow: visible !important;
 }
 
 .ide-editor-zoom-box {
     display: inline-flex;
     align-items: center;
     height: 20px;
+    position: relative;
 }
 
 .ide-sb-zoom-input {
@@ -914,8 +934,8 @@
 
 .ide-result-tabs-bar {
     background: var(--ide-bg-toolbar);
-    border-bottom: 1px solid var(--ide-border);
-    height: 30px;
+    border-bottom: 1px solid var(--ide-accent, #CC7832) !important;
+    height: 31px;
     flex-shrink: 0;
 }
 

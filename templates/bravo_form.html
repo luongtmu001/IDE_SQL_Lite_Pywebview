@@ -183,8 +183,14 @@
                                     <i class="fa-solid fa-rotate me-1"></i>Load
                                 </a>
                             </label>
-                            <input type="text" class="form-control form-control-sm" id="connDb" placeholder="(optional)" list="connDbList" autocomplete="off">
-                            <datalist id="connDbList"></datalist>
+                            <div class="custom-combobox position-relative" id="connDbCombobox">
+                                <input type="text" class="form-control form-control-sm" id="connDb" placeholder="(optional)" autocomplete="off">
+                                <button type="button" class="custom-combobox-toggle" id="btnToggleConnDb" tabindex="-1" title="Chọn database">
+                                    <i class="fa-solid fa-chevron-down"></i>
+                                </button>
+                                <ul class="custom-combobox-menu d-none" id="connDbMenu"></ul>
+                            </div>
+                            <datalist id="connDbList" class="d-none"></datalist>
                         </div>
                         <div class="col-6">
                             <label class="ide-form-label d-flex align-items-center justify-content-between">

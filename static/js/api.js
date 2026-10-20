@@ -1284,6 +1284,39 @@
                 verifyNativeMethod(api, 'get_log_info');
                 return await api.get_log_info();
             }
+        },
+        // =========================================================================
+        // Session Save & Restore
+        // =========================================================================
+        {
+            id: 'session:save',
+            method: 'POST',
+            pattern: '/api/session/save',
+            targetMethods: ['session_save'],
+            handler: async (api, ctx) => {
+                verifyNativeMethod(api, 'session_save');
+                return await api.session_save(ctx.body);
+            }
+        },
+        {
+            id: 'session:load',
+            method: 'GET',
+            pattern: '/api/session/load',
+            targetMethods: ['session_load'],
+            handler: async (api) => {
+                verifyNativeMethod(api, 'session_load');
+                return await api.session_load();
+            }
+        },
+        {
+            id: 'session:clear',
+            method: 'POST',
+            pattern: '/api/session/clear',
+            targetMethods: ['session_clear'],
+            handler: async (api) => {
+                verifyNativeMethod(api, 'session_clear');
+                return await api.session_clear();
+            }
         }
     ];
 

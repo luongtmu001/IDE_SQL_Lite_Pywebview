@@ -633,8 +633,9 @@
                 const scSchema = nodeData.schema || (nodeData.type === 'schema' ? nodeData.name : undefined);
 
                 // Requirement: Object explorer context menu opens schema compare in a new TAB
-                if (window.openSchemaCompareTab) {
-                    window.openSchemaCompareTab({
+                const openScTabFn = window.openSchemaCompareTab || (window.AppTabs && typeof window.AppTabs.openSchemaCompareTab === 'function' ? window.AppTabs.openSchemaCompareTab : null);
+                if (typeof openScTabFn === 'function') {
+                    openScTabFn({
                         connectionId: scTargetConn,
                         connectionName: nodeData.name || nodeData.connName,
                         dbType: scTargetType,

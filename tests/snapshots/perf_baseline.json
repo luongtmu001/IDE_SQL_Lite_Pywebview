@@ -1,7 +1,7 @@
 {
-  "analyze_10kb_ms": 46.9,
-  "analyze_54kb_ms": 100,
-  "analyze_218kb_ms": 630.2,
-  "completions_600_columns_ms": 74.5,
-  "completions_20k_objects_ms": 244.4
+  "analyze_10kb_ms": 34.9,
+  "analyze_54kb_ms": 83,
+  "analyze_218kb_ms": 403.2,
+  "completions_600_columns_ms": 36.4,
+  "completions_20k_objects_ms": 105.6
 }

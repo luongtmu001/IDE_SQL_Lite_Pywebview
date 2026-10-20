@@ -33,6 +33,53 @@ function initQuery() {
     const tabColumnWidths = {};
     const tabGridContainers = {}; // tabId -> DOM container for rendered results grid
 
+    function getActiveTabId() {
+        if (typeof window.getActiveExecutingTabId === 'function') {
+            const id = window.getActiveExecutingTabId();
+            if (id) return id;
+        }
+        if (window.AppTabs && typeof window.AppTabs.getActiveTabId === 'function') {
+            const id = window.AppTabs.getActiveTabId();
+            if (id) return id;
+        }
+        if (typeof window.getActiveTabId === 'function') {
+            const id = window.getActiveTabId();
+            if (id) return id;
+        }
+        return 'default';
+    }
+
+    function cleanupTabGrid(tabId) {
+        const effectiveId = tabId || getActiveTabId();
+        const idsToClean = new Set([effectiveId, tabId, 'default'].filter(Boolean));
+        idsToClean.forEach(id => {
+            if (tabGridContainers[id]) {
+                const oldTables = tabGridContainers[id].querySelectorAll('table.ide-results-table');
+                oldTables.forEach(tbl => {
+                    const inst = window.GridResultManager ? window.GridResultManager.getInstance(tbl) : null;
+                    if (inst) inst.destroy();
+                });
+                try { tabGridContainers[id].remove(); } catch (_) {}
+                delete tabGridContainers[id];
+            }
+        });
+
+        if (tableWrap) {
+            const selector = tabId
+                ? `.ide-tab-grid-wrap[data-tab-id="${tabId}"], .ide-tab-grid-wrap[data-tab-id="${effectiveId}"], .ide-tab-grid-wrap:not([data-tab-id])`
+                : '.ide-tab-grid-wrap';
+            const matchingContainers = tableWrap.querySelectorAll(selector);
+            matchingContainers.forEach(container => {
+                const oldTables = container.querySelectorAll('table.ide-results-table');
+                oldTables.forEach(tbl => {
+                    const inst = window.GridResultManager ? window.GridResultManager.getInstance(tbl) : null;
+                    if (inst) inst.destroy();
+                });
+                try { container.remove(); } catch (_) {}
+            });
+        }
+    }
+
     // Clean up cached grid when a tab is closed
     document.addEventListener('ide-tab-closed', (e) => {
         const tabId = e.detail && e.detail.tabId;
@@ -53,6 +100,7 @@ function initQuery() {
             tabGridContainers[tabId].remove();
             delete tabGridContainers[tabId];
         }
+        cleanupTabGrid(tabId);
     });
 
     // ── Result panel state ────────────────────────────────────────────────────
@@ -967,7 +1015,7 @@ function initQuery() {
 
     // ── Restore Tab Results ───────────────────────────────────────────────────
     function restoreTabResults(state) {
-        const tabId = window.AppTabs ? window.AppTabs.getActiveTabId() : null;
+        const tabId = getActiveTabId();
 
         if (!state) {
             clearResults();
@@ -1004,6 +1052,11 @@ function initQuery() {
                         tabGridContainers[id].classList.toggle('d-none', id !== tabId);
                     }
                 });
+                if (tableWrap) {
+                    tableWrap.querySelectorAll('.ide-tab-grid-wrap').forEach(el => {
+                        el.classList.toggle('d-none', el.dataset.tabId !== tabId);
+                    });
+                }
                 footer.classList.remove('d-none');
                 footer.classList.add('d-flex');
                 if (window.updateResultFooter) window.updateResultFooter();
@@ -1466,7 +1519,7 @@ function initQuery() {
             return;
         }
 
-        const tabId = window.AppTabs ? window.AppTabs.getActiveTabId() : null;
+        const tabId = getActiveTabId();
         if (!tabColumnWidths[tabId]) tabColumnWidths[tabId] = {};
         const savedWidths = tabColumnWidths[tabId];
 
@@ -1481,23 +1534,13 @@ function initQuery() {
                 if (tabGridContainers[id]) tabGridContainers[id].classList.add('d-none');
             });
 
-            // Clean up old container for this tab if any
-            if (tabId && tabGridContainers[tabId]) {
-                const oldTables = tabGridContainers[tabId].querySelectorAll('table.ide-results-table');
-                oldTables.forEach(tbl => {
-                    const inst = window.GridResultManager ? window.GridResultManager.getInstance(tbl) : null;
-                    if (inst) inst.destroy();
-                });
-                tabGridContainers[tabId].remove();
-                delete tabGridContainers[tabId];
-            }
+            // Clean up old container for this tab if any (both dictionary and DOM)
+            cleanupTabGrid(tabId);
 
             const tabContainer = document.createElement('div');
             tabContainer.className = 'ide-tab-grid-wrap w-100 h-100 d-flex flex-column';
-            if (tabId) {
-                tabContainer.dataset.tabId = tabId;
-                tabGridContainers[tabId] = tabContainer;
-            }
+            tabContainer.dataset.tabId = tabId;
+            tabGridContainers[tabId] = tabContainer;
             tableWrap.appendChild(tabContainer);
 
             currentStreamingData = {
@@ -1982,7 +2025,7 @@ function initQuery() {
 
         // UI: running state
         setRunning(true);
-        clearResults();
+        clearResults(true);
         setStatus('Running…');
 
         currentExecutingConnId = connId;
@@ -2428,7 +2471,7 @@ function initQuery() {
 
         // UI: running debug state
         setRunning(true);
-        clearResults();
+        clearResults(true);
         setStatus(`🐞 Debugging (${debugSessionId})…`);
 
         // Phase 2: Asynchronous Query History Logging
@@ -2796,7 +2839,7 @@ function initQuery() {
 
     // ── Render grid (SSMS-like multi-table layout with resizers) ───────────────
     function renderGrid(data, ms) {
-        const tabId = window.AppTabs ? window.AppTabs.getActiveTabId() : null;
+        const tabId = getActiveTabId();
         if (!tabColumnWidths[tabId]) tabColumnWidths[tabId] = {};
         const savedWidths = tabColumnWidths[tabId];
 
@@ -2808,23 +2851,13 @@ function initQuery() {
             if (tabGridContainers[id]) tabGridContainers[id].classList.add('d-none');
         });
 
-        // Remove old container for this tab if any
-        if (tabId && tabGridContainers[tabId]) {
-            const oldTables = tabGridContainers[tabId].querySelectorAll('table.ide-results-table');
-            oldTables.forEach(tbl => {
-                const inst = window.GridResultManager ? window.GridResultManager.getInstance(tbl) : null;
-                if (inst) inst.destroy();
-            });
-            tabGridContainers[tabId].remove();
-            delete tabGridContainers[tabId];
-        }
+        // Clean up old container for this tab if any (both tracked and orphaned DOM in tableWrap)
+        cleanupTabGrid(tabId);
 
         const tabContainer = document.createElement('div');
         tabContainer.className = 'ide-tab-grid-wrap w-100 h-100 d-flex flex-column';
-        if (tabId) {
-            tabContainer.dataset.tabId = tabId;
-            tabGridContainers[tabId] = tabContainer;
-        }
+        tabContainer.dataset.tabId = tabId;
+        tabGridContainers[tabId] = tabContainer;
         tableWrap.appendChild(tabContainer);
 
         const resultsList = (data.results || []).filter(r => r.columns && r.columns.length > 0);
@@ -2954,9 +2987,11 @@ function initQuery() {
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
-    function clearResults() {
-        const tabId = window.AppTabs ? window.AppTabs.getActiveTabId() : null;
-        if (tabId && tabGridContainers[tabId]) {
+    function clearResults(cleanDom = false) {
+        const tabId = getActiveTabId();
+        if (cleanDom) {
+            cleanupTabGrid(tabId);
+        } else if (tabId && tabGridContainers[tabId]) {
             tabGridContainers[tabId].classList.add('d-none');
         }
         if (window.StructuredDataViewer && typeof window.StructuredDataViewer.onQueryExecuted === 'function') {

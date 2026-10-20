@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="vi" data-bs-theme="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https:; frame-src 'self' https://docs.google.com https://*.google.com https://drive.google.com; worker-src 'self' blob:;">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Google Sheets Workspace — luoBTool IDE</title>
+    <link rel="icon" type="image/png" href="../static/image/logo-200x200.png">
+
+    <!-- Immediate Theme & Typography Restore: Đồng bộ chuẩn xác Theme IDE ngay trước khi render -->
+    <script>
+        (function () {
+            try {
+                var urlParams = new URLSearchParams(window.location.search);
+                var urlTheme = urlParams.get('theme');
+                var saved = urlTheme || localStorage.getItem('ide-theme');
+                if (!saved) {
+                    var stRaw = localStorage.getItem('ide-settings');
+                    if (stRaw) {
+                        try {
+                            var stObj = JSON.parse(stRaw);
+                            saved = stObj.appearance?.theme || stObj.theme;
+                        } catch (_) {}
+                    }
+                }
+                if (saved) {
+                    document.documentElement.setAttribute('data-bs-theme', saved);
+                    try { localStorage.setItem('ide-theme', saved); } catch (_) {}
+                    var isDark = (saved !== 'light' && saved !== 'win-nt' && saved !== 'win-xp' && !saved.toLowerCase().includes('light'));
+                    document.documentElement.setAttribute('data-theme-mode', isDark ? 'dark' : 'light');
+                }
+                var fontFam = localStorage.getItem('ide-ui-font-family') || 'Inter';
+                var fontSz = localStorage.getItem('ide-ui-font-size') || '14';
+                if (fontFam) {
+                    var stack = fontFam;
+                    if (fontFam === 'Segoe UI') stack = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif";
+                    else if (fontFam === 'Inter') stack = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif";
+                    else if (fontFam === 'Roboto') stack = "'Roboto', 'Segoe UI', Arial, sans-serif";
+                    else if (fontFam === 'Arial') stack = "Arial, 'Helvetica Neue', Helvetica, sans-serif";
+                    else if (fontFam === 'Tahoma') stack = "Tahoma, Verdana, 'Segoe UI', sans-serif";
+                    else if (fontFam === 'System UI') stack = "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+                    document.documentElement.style.setProperty('--ide-ui-font-family', stack);
+                    document.documentElement.style.setProperty('--bs-body-font-family', stack);
+                }
+                if (fontSz) {
+                    var szNum = parseInt(fontSz, 10);
+                    if (!isNaN(szNum) && szNum >= 10 && szNum <= 24) {
+                        document.documentElement.style.setProperty('--ide-ui-font-size', szNum + 'px');
+                        document.documentElement.style.setProperty('--bs-body-font-size', szNum + 'px');
+                    }
+                }
+            } catch (e) { }
+        })();
+    </script>
+
+    <!-- Google Fonts for Inter & Roboto -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+
+    <!-- Bootstrap 5 CSS -->
+    <link href="../static/vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
+
+    <!-- Font Awesome 6 -->
+    <link href="../static/vendor/fontawesome/all.min.css" rel="stylesheet">
+
+    <!-- JetBrains Mono Font -->
+    <link href="../static/vendor/fonts/jetbrains-mono-local.css" rel="stylesheet">
+
+    <!-- Theme Color Variables Registry (Đồng bộ biến màu sắc tập trung của IDE) -->
+    <link rel="stylesheet" href="../static/css/theme-variables.css">
+
+    <!-- IDE Themes CSS (Hỗ trợ Dark, Light, Darcula, Monokai, Nord...) -->
+    <link rel="stylesheet" href="../static/css/themes.css">
+
+    <!-- Google Sheets Workspace CSS -->
+    <link rel="stylesheet" href="../static/css/google-sheets/google-sheets.css">
+</head>
+
+<body class="m-0 p-0 overflow-hidden" style="background-color: var(--ide-bg-main, #1c1d23); color: var(--ide-text-main, #c7cfcf); font-family: var(--ide-ui-font-family, 'Segoe UI', Arial, sans-serif);">
+    <div class="gs-window" id="gs-app-container">
+        <!-- 3-Pane Body -->
+        <div class="gs-body" id="gs-body-container">
+            <!-- Left Resizable Panel: Grouped Projects & Sheets Sidebar -->
+            <div class="gs-left-panel" id="gs-left-panel">
+                <aside class="gs-sidebar" id="gs-sidebar">
+                    <!-- Sidebar Header: Title & Actions -->
+                    <div class="gs-sidebar-header">
+                        <span class="gs-sidebar-title">Dự án</span>
+                        <div class="gs-sidebar-actions" style="display: flex; align-items: center; gap: 4px;">
+                            <button class="gs-btn gs-btn-secondary gs-btn-icon" id="gs-btn-toggle-sidebar" title="Ẩn danh sách kết nối & Sheet (Ctrl+B)">
+                                <i class="fa-solid fa-bars"></i>
+                            </button>
+                            <button class="gs-btn gs-btn-secondary gs-btn-icon" id="gs-btn-add-project" title="Tạo dự án mới">
+                                <i class="fa-solid fa-plus"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Search Box directly under Project Title -->
+                    <div class="gs-sidebar-search-wrap">
+                        <div class="gs-search-wrap">
+                            <i class="fa-solid fa-magnifying-glass gs-search-icon"></i>
+                            <input type="text" class="gs-search-input" id="gs-search-input" placeholder="Tìm kiếm Sheet, dự án, thẻ..." />
+                            <button class="gs-search-clear-btn" id="gs-search-clear-btn" title="Xóa tìm kiếm" style="display: none;">
+                                <i class="fa-solid fa-xmark"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Tag Filter Chips Bar -->
+                    <div class="gs-tag-filter-bar" id="gs-tag-filter-bar"></div>
+
+                    <!-- Grouped Project Tree List -->
+                    <div class="gs-project-tree" id="gs-project-tree"></div>
+                </aside>
+            </div>
+
+            <!-- Resizer Splitter Bar (Kéo thả co dãn danh sách) -->
+            <div class="gs-resizer" id="gs-resizer" title="Kéo chuột để co dãn danh sách kết nối"></div>
+
+            <!-- Pane 2: Live Direct View & Edit Area with Independent Sheet Tabs -->
+            <main class="gs-editor-pane" id="gs-editor-pane">
+                <!-- Independent Google Sheet Tabs Bar -->
+                <div class="gs-sheet-tabs-bar" id="gs-sheet-tabs-bar" style="display: none;">
+                    <div class="gs-sheet-tabs-scroll" id="gs-sheet-tabs-scroll"></div>
+                    <div class="gs-sheet-tabs-actions">
+                        <button class="gs-btn gs-btn-secondary gs-btn-icon" id="gs-btn-tabs-add" title="Thêm nhanh Google Sheet mới">
+                            <i class="fa-solid fa-plus"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Empty state default -->
+                <div class="gs-empty-state" id="gs-pane-empty">
+                    <button class="gs-btn gs-btn-secondary gs-btn-icon gs-uncollapse-btn gs-empty-uncollapse" id="gs-btn-uncollapse-sidebar-empty" title="Hiện danh sách kết nối & Sheet (Ctrl+B)">
+                        <i class="fa-solid fa-bars"></i>
+                    </button>
+                    <div class="gs-empty-icon"><i class="fa-solid fa-table-cells"></i></div>
+                    <div class="gs-empty-title">Chưa chọn Google Sheet</div>
+                    <div class="gs-empty-desc">
+                        Nhấn vào một Sheet ở danh sách bên trái để <b>xem và chỉnh sửa trực tiếp</b> nội dung file ngay tại đây.
+                        <br><br>
+                        Khi cần mở cửa sổ riêng biệt để đối chiếu song song với code SQL, hãy nhấn nút <b>"Mở Cửa Sổ Mới"</b>.
+                    </div>
+                </div>
+
+                <!-- Active Sheet Viewer Container -->
+                <div id="gs-pane-active-content" style="display: none; flex-direction: column; flex: 1; min-height: 0; overflow: hidden;">
+                    <!-- Top bar: Sheet Meta & Window Launch Actions -->
+                    <div class="gs-pane-topbar">
+                        <button class="gs-btn gs-btn-secondary gs-btn-icon gs-uncollapse-btn me-2" id="gs-btn-uncollapse-sidebar" title="Hiện danh sách kết nối & Sheet (Ctrl+B)">
+                            <i class="fa-solid fa-bars"></i>
+                        </button>
+                        <div class="gs-pane-sheet-heading">
+                            <div class="gs-pane-big-icon" id="gs-active-sheet-icon"><i class="fa-solid fa-table-cells"></i></div>
+                            <div class="gs-pane-title-group">
+                                <div class="gs-pane-title">
+                                    <span id="gs-active-sheet-title">Tên Tài Liệu</span>
+                                    <span id="gs-active-sheet-type-badge" class="gs-type-badge gs-type-sheet">Sheet</span>
+                                    <span id="gs-active-sheet-open-badge" class="gs-sheet-nav-open-tag" style="display: none;">Đang mở cửa sổ</span>
+                                </div>
+                                <div class="gs-pane-meta">
+                                    <span id="gs-active-sheet-project" class="badge bg-secondary" style="font-size: 10px;">Dự án</span>
+                                    <span id="gs-active-sheet-id" title="ID Tài Liệu"><i class="fa-solid fa-fingerprint me-1"></i>--</span>
+                                    <div id="gs-active-sheet-tags" style="display: flex; gap: 4px;"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Prominent Actions: Open New Window ONLY when user requests -->
+                        <div class="gs-pane-actions">
+                            <button class="gs-btn-open-window" id="gs-btn-open-companion-win" title="Mở Sheet trong cửa sổ WebView2 độc lập (tiện đối chiếu đa màn hình)">
+                                <i class="fa-solid fa-arrow-up-right-from-square"></i>
+                                <span>Mở Cửa Sổ Mới</span>
+                            </button>
+                            <button class="gs-btn gs-btn-secondary" id="gs-btn-open-browser" title="Mở bằng trình duyệt ngoài của hệ thống (Chrome/Edge)">
+                                <i class="fa-solid fa-globe"></i>
+                                <span>Trình duyệt</span>
+                            </button>
+                            <button class="gs-btn gs-btn-secondary gs-btn-icon" id="gs-btn-edit-sheet-meta" title="Chỉnh sửa thông tin sheet">
+                                <i class="fa-solid fa-pen"></i>
+                            </button>
+                            <button class="gs-btn gs-btn-danger gs-btn-icon" id="gs-btn-delete-sheet" title="Xóa sheet khỏi dự án">
+                                <i class="fa-solid fa-trash-can"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- View Mode Switcher Bar -->
+                    <div class="gs-view-switcher-bar">
+                        <div class="gs-view-tabs">
+                            <button class="gs-view-tab gs-active" id="gs-tab-view-editor" title="Chỉnh sửa trực tiếp file Google Sheets bằng giao diện /edit chính thức">
+                                <i class="fa-solid fa-file-pen me-1"></i> Chỉnh Sửa Trực Tiếp (/edit)
+                            </button>
+                            <button class="gs-view-tab" id="gs-tab-view-live" title="Xem tĩnh Google Sheets (Chế độ dự phòng Preview Web)">
+                                <i class="fa-solid fa-eye me-1"></i> Xem Tĩnh (Preview Web)
+                            </button>
+                        </div>
+                        <div class="gs-view-actions">
+                            <button class="gs-btn gs-btn-secondary gs-btn-icon" id="gs-btn-reload-embed" title="Tải lại nội dung Sheet">
+                                <i class="fa-solid fa-rotate-right"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- View Container 0: Native Google Sheets Editor Host (Chỉnh sửa trực tiếp /edit qua WebView2) -->
+                    <div class="gs-native-editor-wrap" id="gs-native-editor-wrap">
+                        <div class="gs-embed-loading" id="gs-editor-loading">
+                            <i class="fa-solid fa-circle-notch fa-spin"></i>
+                            <span id="gs-editor-loading-msg">Đang nạp giao diện chỉnh sửa Google Sheets...</span>
+                        </div>
+                        <div class="gs-editor-anchor" id="gs-editor-anchor"></div>
+                    </div>
+
+                    <!-- View Container 1: Live Embed Google Sheets (Hiển thị đúng 100% nội dung file Google Sheet thật) -->
+                    <div class="gs-embed-wrap" id="gs-embed-wrap" style="display: none;">
+                        <div class="gs-embed-loading" id="gs-embed-loading">
+                            <i class="fa-solid fa-circle-notch fa-spin"></i>
+                            <span>Đang nạp trực tiếp nội dung Google Sheets...</span>
+                        </div>
+                        <iframe id="gs-live-frame" class="gs-live-frame" frameborder="0" sandbox="allow-scripts allow-same-origin allow-popups allow-forms"></iframe>
+                    </div>
+
+                    <!-- Footer Status -->
+                    <div class="gs-pane-footer">
+                        <div class="gs-pane-footer-left">
+                            <span class="gs-status-badge">
+                                <span class="gs-status-dot"></span>
+                                <span id="gs-grid-save-status">Chế độ xem & chỉnh trực tiếp trong IDE</span>
+                            </span>
+                        </div>
+                        <div class="gs-pane-footer-right">
+                            <span id="gs-grid-cell-count">Google Sheets Engine</span>
+                            <span>UTF-8</span>
+                            <span title="Dữ liệu lưu trữ cục bộ tại google_sheets.json">Lưu trữ: IDE Registry</span>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+
+        <!-- Floating Context Menu for Project 3-dots -->
+        <div class="gs-dropdown-menu" id="gs-project-dropdown-menu" style="display: none;">
+            <div class="gs-dropdown-item" id="gs-menu-edit-project">
+                <i class="fa-solid fa-pen"></i> Chỉnh sửa dự án
+            </div>
+            <div class="gs-dropdown-item" id="gs-menu-add-sheet-to-project">
+                <i class="fa-solid fa-plus"></i> Thêm Sheet vào dự án này
+            </div>
+            <div class="gs-dropdown-divider"></div>
+            <div class="gs-dropdown-item gs-dropdown-item-danger" id="gs-menu-delete-project">
+                <i class="fa-solid fa-trash-can"></i> Xóa dự án
+            </div>
+        </div>
+
+        <!-- Subdialog: Add/Edit Project -->
+        <div class="gs-subdialog-overlay" id="gs-dialog-project-overlay">
+            <div class="gs-subdialog">
+                <h4 style="margin: 0; font-size: 14px; font-weight: 600; color: var(--ide-text, #fff);" id="gs-dialog-project-title">Thêm Dự Án Mới</h4>
+                <div class="gs-form-group">
+                    <label class="gs-form-label">Tên dự án *</label>
+                    <input type="text" class="gs-form-input" id="gs-input-project-name" placeholder="Ví dụ: ERP Bravo, Báo cáo tài chính..." />
+                </div>
+                <div class="gs-form-group">
+                    <label class="gs-form-label">Màu nhận diện</label>
+                    <input type="color" class="gs-form-input" id="gs-input-project-color" value="#3B82F6" style="height: 38px; padding: 2px 6px; cursor: pointer;" />
+                </div>
+                <div class="gs-form-group">
+                    <label class="gs-form-label">Mô tả (tùy chọn)</label>
+                    <textarea class="gs-form-textarea" id="gs-input-project-desc" rows="2" placeholder="Ghi chú về dự án..."></textarea>
+                </div>
+                <div class="gs-dialog-actions">
+                    <button class="gs-btn gs-btn-secondary" id="gs-btn-cancel-project">Hủy</button>
+                    <button class="gs-btn gs-btn-primary" id="gs-btn-save-project">Lưu dự án</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Subdialog: Add/Edit Sheet / Google Workspace Item -->
+        <div class="gs-subdialog-overlay" id="gs-dialog-sheet-overlay">
+            <div class="gs-subdialog">
+                <h4 style="margin: 0; font-size: 14px; font-weight: 600; color: var(--ide-text, #fff);" id="gs-dialog-sheet-title">Thêm Google Sheet / Tài Liệu</h4>
+                <div class="gs-form-group">
+                    <label class="gs-form-label">Tiêu đề tài liệu *</label>
+                    <input type="text" class="gs-form-input" id="gs-input-sheet-title" placeholder="Ví dụ: Tài liệu nghiệp vụ, Mapping dữ liệu, Báo cáo slide..." />
+                </div>
+                <div class="gs-form-group">
+                    <label class="gs-form-label">URL Google Workspace (Sheet, Docs, Slide, Drive PDF, Tasks) *</label>
+                    <input type="url" class="gs-form-input" id="gs-input-sheet-url" placeholder="Dán link docs.google.com/..., drive.google.com/file/..., hoặc link PDF" />
+                    <div class="gs-validation-msg" id="gs-sheet-url-validation"></div>
+                </div>
+                <div class="gs-form-group">
+                    <label class="gs-form-label">Thẻ / Phân loại (ngăn cách bằng dấu phẩy)</label>
+                    <input type="text" class="gs-form-input" id="gs-input-sheet-tags" placeholder="mapping, tai-chinh, bao-cao, 2026" />
+                </div>
+                <div class="gs-form-group">
+                    <label class="gs-form-label">Ghi chú</label>
+                    <textarea class="gs-form-textarea" id="gs-input-sheet-notes" rows="2" placeholder="Mục đích sử dụng tài liệu..."></textarea>
+                </div>
+                <div class="gs-dialog-actions">
+                    <button class="gs-btn gs-btn-secondary" id="gs-btn-cancel-sheet">Hủy</button>
+                    <button class="gs-btn gs-btn-primary" id="gs-btn-save-sheet">Lưu tài liệu</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="../static/js/utils.js"></script>
+    <script src="../static/js/storage.js"></script>
+    <script src="../static/js/theme-registry.js"></script>
+    <script src="../static/js/theme.js"></script>
+    <script src="../static/js/google-sheets/sheet-tabs.js"></script>
+    <script src="../static/js/google-sheets/tabs.js"></script>
+    <script src="../static/js/google-sheets/view.js"></script>
+    <script src="../static/js/google-sheets/manager.js"></script>
+    <script>
+        window.addEventListener('pywebviewready', async function () {
+            try {
+                if (window.pywebview && window.pywebview.api && typeof window.pywebview.api.get_theme === 'function') {
+                    var th = await window.pywebview.api.get_theme();
+                    if (th && window.ThemeManager) {
+                        window.ThemeManager.applyTheme(th, false);
+                    }
+                }
+            } catch (_) {}
+        });
+    </script>
+</body>
+
+</html>

@@ -1,18 +1,17 @@
 {
-  "version": "1.0.3",
-  "releaseDate": "2026-10-19",
+  "version": "1.0.4",
+  "releaseDate": "2026-10-20",
   "minSupportedVersion": "1.0.0",
-  "title": "LLTool IDE v1.0.3",
+  "title": "LLTool IDE v1.0.4",
   "downloadUrl": "https://github.com/luongtmu001/IDE_SQL_Lite_Pywebview/archive/refs/heads/main.zip",
-  "fileName": "LLTool_v1.0.3.zip",
-  "fileSize": 6560000,
-  "releaseNotes": "Bản phát hành v1.0.3 khắc phục triệt để lỗi không lưu phiên làm việc và trạng thái kết nối trên bản đóng gói executable, tối ưu hoá tắt ứng dụng tức thì không bị treo, và nâng cấp giao diện chọn Nhóm kết nối & Database sang Custom Combobox hiện đại.",
+  "fileName": "LLTool_v1.0.4.zip",
+  "fileSize": 25183982,
+  "releaseNotes": "Bản phát hành v1.0.4 sửa lỗi dropdown tỷ lệ zoom SQL Editor bị che bởi Result Grid, tinh chỉnh viền tab kết quả bo liền mạch đè chân các tab khác, khôi phục hoàn toàn tính năng thêm mới tab / New Query / Search Object, và mở So sánh Schema từ Object Explorer trực tiếp dưới dạng tab mới.",
   "highlights": [
-    "Khắc phục triệt để lỗi không lưu phiên làm việc và ngữ cảnh kết nối trên bản đóng gói (packaged build)",
-    "Kích hoạt Persistent Storage (UserDataFolder) cho WebView2 Desktop Native, bảo toàn trọn vẹn workspace",
-    "Tự động khôi phục hoàn chỉnh danh sách tab truy vấn, nội dung SQL, vị trí con trỏ và CSDL từ session.json",
-    "Tối ưu hoá quy trình tắt ứng dụng mượt mà, loại bỏ hiện tượng đơ/treo khi đóng cửa sổ",
-    "Thay thế datalist mặc định bằng Custom Combobox đồng bộ theme IDE khi chọn Nhóm & Database",
-    "Tìm kiếm và lọc tức thì với tính năng highlight từ khóa và đầy đủ phím tắt bàn phím (Lên/Xuống, Enter, Esc)"
+    "Sửa lỗi menu chọn tỷ lệ % zoom tại thanh trạng thái SQL Editor bị ẩn dưới Result Grid, đảm bảo menu luôn nổi lên trên",
+    "Tinh chỉnh đường viền bo chân (border-bottom) màu accent của tab kết quả (Result/Messages/Plan) chạy liền mạch đè lên chân các tab lân cận",
+    "Khôi phục hoàn toàn bộ quản lý Tab: sửa lỗi cú pháp createTab, mở lại khả năng thêm tab mới qua nút (+), phím tắt và New Query từ Object Explorer",
+    "Khôi phục tính năng Tìm kiếm đối tượng (Search Object) từ menu chính và menu ngữ cảnh Object Explorer",
+    "Chuẩn hoá tính năng So sánh Schema khi mở từ Object Explorer sẽ hiển thị trực tiếp dưới dạng Tab mới trong cửa sổ chính"
   ]
 }

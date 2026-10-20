@@ -108,21 +108,17 @@ def ensure_data_dir_migrated(app_dir: Optional[Path] = None) -> Path:
     """
     target_dir = get_user_data_dir()
     migration_flag = target_dir / ".migrated"
-
-    if migration_flag.exists():
-        return target_dir
-
     source_dir = (app_dir or get_app_dir()) / "data"
 
     if source_dir.resolve() == target_dir.resolve():
         try:
-            migration_flag.write_text("migrated=portable\n", encoding="utf-8")
+            if not migration_flag.exists():
+                migration_flag.write_text("migrated=portable\n", encoding="utf-8")
         except Exception:
             pass
         return target_dir
 
     if source_dir.exists() and source_dir.is_dir():
-        logger.info("[Paths] First-run migration: copying existing data from %s to %s", source_dir, target_dir)
         try:
             for item in source_dir.iterdir():
                 if item.name.startswith(".webview_cache") or item.name == "logs":
@@ -131,16 +127,17 @@ def ensure_data_dir_migrated(app_dir: Optional[Path] = None) -> Path:
                 if not target_item.exists():
                     if item.is_file():
                         shutil.copy2(item, target_item)
-                        logger.info("[Paths] Migrated file: %s", item.name)
+                        logger.info("[Paths] Migrated/Copied missing file: %s", item.name)
                     elif item.is_dir():
                         shutil.copytree(item, target_item)
-                        logger.info("[Paths] Migrated directory: %s", item.name)
+                        logger.info("[Paths] Migrated/Copied missing directory: %s", item.name)
         except Exception as exc:
             logger.warning("[Paths] Migration encountered error: %s", exc)
 
-    try:
-        migration_flag.write_text("migrated=true\n", encoding="utf-8")
-    except Exception as exc:
-        logger.warning("[Paths] Could not write migration flag: %s", exc)
+    if not migration_flag.exists():
+        try:
+            migration_flag.write_text("migrated=true\n", encoding="utf-8")
+        except Exception as exc:
+            logger.warning("[Paths] Could not write migration flag: %s", exc)
 
     return target_dir

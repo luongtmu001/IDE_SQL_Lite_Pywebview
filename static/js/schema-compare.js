@@ -72,10 +72,19 @@
             // Splitter dragging state
             this.isDraggingSplitter = false;
             this.collapsedGroups = new Set();
+
+            // Bravo Layout comparison state
+            this.isLayoutMode = false;
+            this.bravoLayoutForms = [];
+            this.totalBravoLayouts = 0;
+            this.activeBravoLayout = null;
+            this.externalXmlContent = null;
+            this.externalXmlFileName = null;
         }
 
         async init(options) {
             options = options || {};
+            this.initialOptions = Object.assign({}, options);
             const containerId = options.containerId || 'schema-compare-container';
             this.container = document.getElementById(containerId);
             if (!this.container) {
@@ -89,6 +98,7 @@
             this.applyTypography();
             this.initMonacoEditors();
             this.observeThemeChanges();
+            await this.checkBravoExtensionStatus();
 
             await this.loadConnections(options);
         }
@@ -366,6 +376,7 @@
                                     <option value="procedures">Procedures</option>
                                     <option value="functions">Functions</option>
                                     <option value="triggers">Triggers</option>
+                                    <option value="layout" id="scOptLayout" class="d-none">Layout</option>
                                 </select>
                                 <button type="button" class="sc-btn sc-btn-primary ms-1" id="scBtnRunCompare" title="Tiến hành so sánh 2 cơ sở dữ liệu">
                                     <i class="fa-solid fa-arrows-rotate"></i> So sánh
@@ -432,6 +443,7 @@
                                         <li><a class="dropdown-item" href="#" data-obj-filter="procedure"><i class="fa-solid fa-terminal me-2 text-info"></i><span class="sc-filter-item-label">Stored Procedures</span><span class="sc-filter-item-count badge bg-secondary ms-auto me-2 d-none">0</span><i class="fa-solid fa-check text-primary sc-filter-check d-none"></i></a></li>
                                         <li><a class="dropdown-item" href="#" data-obj-filter="function"><i class="fa-solid fa-code me-2 text-success"></i><span class="sc-filter-item-label">Functions</span><span class="sc-filter-item-count badge bg-secondary ms-auto me-2 d-none">0</span><i class="fa-solid fa-check text-primary sc-filter-check d-none"></i></a></li>
                                         <li><a class="dropdown-item" href="#" data-obj-filter="trigger"><i class="fa-solid fa-bolt me-2 text-danger"></i><span class="sc-filter-item-label">Triggers</span><span class="sc-filter-item-count badge bg-secondary ms-auto me-2 d-none">0</span><i class="fa-solid fa-check text-primary sc-filter-check d-none"></i></a></li>
+                                        <li id="scFilterItemOptLayout" class="d-none"><a class="dropdown-item" href="#" data-obj-filter="layout"><i class="fa-solid fa-layer-group me-2 text-info"></i><span class="sc-filter-item-label">Layouts</span><span class="sc-filter-item-count badge bg-secondary ms-auto me-2 d-none">0</span><i class="fa-solid fa-check text-primary sc-filter-check d-none"></i></a></li>
                                     </ul>
                                 </div>
                             </div>
@@ -458,6 +470,9 @@
                                     </button>
                                     <button type="button" class="sc-btn sc-btn-secondary" id="scBtnToggleScriptMode">
                                         <i class="fa-solid fa-file-code"></i> Script Migration DDL
+                                    </button>
+                                    <button type="button" class="sc-btn sc-btn-secondary d-none" id="scBtnPreviewLayoutScript" title="Xem trước script UPDATE">
+                                        <i class="fa-solid fa-code"></i> Script UPDATE
                                     </button>
                                     <button type="button" class="sc-btn sc-btn-secondary" id="scBtnCopyActive" title="Sao chép nội dung">
                                         <i class="fa-regular fa-copy"></i> Sao chép
@@ -720,6 +735,12 @@
             document.getElementById('scBtnOpenActive')?.addEventListener('click', () => {
                 this.openActiveInEditor();
             });
+            document.getElementById('scBtnPreviewLayoutScript')?.addEventListener('click', () => {
+                this.setViewMode('script');
+                if (this.isLayoutMode && this.activeBravoLayout) {
+                    this.previewBravoLayoutScript();
+                }
+            });
 
             // Pop-out Window
             document.getElementById('scBtnPopout')?.addEventListener('click', () => {
@@ -848,7 +869,8 @@
                 view: 'Views',
                 procedure: 'Stored Procedures',
                 function: 'Functions',
-                trigger: 'Triggers'
+                trigger: 'Triggers',
+                layout: 'Layouts'
             };
 
             if (btn) {
@@ -977,7 +999,11 @@
                 btnDiff?.classList.add('sc-btn-secondary');
                 btnScript?.classList.remove('sc-btn-secondary');
                 btnScript?.classList.add('sc-btn-primary');
-                if (this.activeTable && this.diffData) {
+                if (this.isLayoutMode) {
+                    if (this.activeBravoLayout) {
+                        this.previewBravoLayoutScript();
+                    }
+                } else if (this.activeTable && this.diffData) {
                     const normType = (this.activeObjType || 'table').toLowerCase().replace(/s$/, '');
                     const t = (this.diffData.tables || []).find(x => (x.table === this.activeTable || x.name === this.activeTable) && (!this.activeObjType || (x.object_type || 'table').toLowerCase().replace(/s$/, '') === normType));
                     if (t) {
@@ -1000,7 +1026,7 @@
                     }
                 }
                 if (this.scriptEditor) {
-                    setTimeout(() => this.scriptEditor.layout(), 30);
+                    requestAnimationFrame(() => this.scriptEditor?.layout());
                 }
             } else {
                 scriptBox?.classList.add('d-none');
@@ -1010,7 +1036,7 @@
                 btnDiff?.classList.remove('sc-btn-secondary');
                 btnDiff?.classList.add('sc-btn-primary');
                 if (this.diffEditor) {
-                    setTimeout(() => this.diffEditor.layout(), 30);
+                    requestAnimationFrame(() => this.diffEditor?.layout());
                 }
             }
         }
@@ -1165,8 +1191,23 @@
         }
 
         updateConnectionSubbarHint() {
+            const sel = document.getElementById('scSelectObjType');
+            const isLayoutMode = (sel && sel.value === 'layout');
+
             const srcConn = this.connections.find(c => c.id === this.sourceConnId);
             const tgtConn = this.connections.find(c => c.id === this.targetConnId);
+
+            if (isLayoutMode) {
+                if (!srcConn) {
+                    this.setKpiNoticeText('warning', 'Vui lòng chọn kết nối CSDL Nguồn để so sánh Layout.');
+                    this.setCompareMsg('warning', 'Chưa chọn kết nối CSDL.');
+                    return;
+                }
+                const srcStr = `[${formatEngineLabel(srcConn.db_type)}] ${srcConn.name} › ${this.sourceDb || '—'}`;
+                this.setKpiNoticeText('info', `CSDL Layout: <strong>${srcStr}</strong> &nbsp; (So sánh Chính thức ↔ Bản nháp)`);
+                this.setCompareMsg('info', 'Sẵn sàng so sánh Layout. Vui lòng bấm "So sánh".');
+                return;
+            }
 
             if (!srcConn && !tgtConn) {
                 this.setKpiNoticeText('muted', 'Vui lòng chọn kết nối Nguồn và Đích để tiến hành so sánh.');
@@ -1262,8 +1303,11 @@
         }
 
         layoutMonaco() {
-            if (this.diffEditor) this.diffEditor.layout();
-            if (this.scriptEditor) this.scriptEditor.layout();
+            if (this.activeViewMode === 'script') {
+                if (this.scriptEditor) this.scriptEditor.layout();
+            } else {
+                if (this.diffEditor) this.diffEditor.layout();
+            }
         }
 
         observeThemeChanges() {
@@ -1272,20 +1316,23 @@
                 if (window.MonacoInit && typeof monaco !== 'undefined' && monaco.editor) {
                     monaco.editor.setTheme(window.MonacoInit.getMonacoTheme(curTheme));
                 }
-                this.applyTypography();
             });
-            observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-bs-theme', 'style'] });
+            observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-bs-theme'] });
 
             // Listen for typography change events from TypographyManager and SettingsManager
             window.addEventListener('ide-typography-changed', () => {
                 this.applyTypography();
             });
-            window.addEventListener('ide-settings-updated', () => {
+            const onSettingsUpdated = () => {
                 this.applyTypography();
-            });
+                this.checkBravoExtensionStatus();
+            };
+            window.addEventListener('ide-settings-updated', onSettingsUpdated);
+            document.addEventListener('ide-settings-updated', onSettingsUpdated);
             window.addEventListener('storage', (e) => {
                 if (!e.key || e.key.includes('font') || e.key.includes('appearance') || e.key.includes('editor') || e.key.includes('theme') || e.key.includes('settings')) {
                     this.applyTypography();
+                    this.checkBravoExtensionStatus();
                 }
             });
         }
@@ -1311,20 +1358,20 @@
                     db_type: normalizeEngineType(c.db_type || c.type)
                 }));
 
-                // Requirement 6: For In-Tab mode, ALWAYS lock Source connection to current active editor connection!
-                let lockedSourceId = null;
-                let lockedDb = null;
-                let lockedSchema = null;
+                // Prioritize explicit options passed in to prevent tab switching from polluting lockedSourceId
+                let lockedSourceId = options.sourceConnId || this.initialOptions?.sourceConnId || null;
+                let lockedDb = options.sourceDb || this.initialOptions?.sourceDb || null;
+                let lockedSchema = options.sourceSchema || this.initialOptions?.sourceSchema || null;
 
-                if (!this.isPopout) {
-                    const tab = window.AppTabs ? window.AppTabs.getActiveTabState() : null;
-                    lockedSourceId = options.sourceConnId || (tab && tab.connectionId) || window.ActiveConnectionId || (this.connections[0] ? this.connections[0].id : null);
-                    lockedDb = options.sourceDb || (tab && tab.database) || window.ActiveDatabase;
-                    lockedSchema = options.sourceSchema || (tab && tab.schema) || window.ActiveSchema;
-                } else {
-                    lockedSourceId = options.sourceConnId || (this.connections[0] ? this.connections[0].id : null);
-                    lockedDb = options.sourceDb;
-                    lockedSchema = options.sourceSchema;
+                if (!lockedSourceId) {
+                    if (!this.isPopout) {
+                        const tab = window.AppTabs ? window.AppTabs.getActiveTabState() : null;
+                        lockedSourceId = (tab && tab.connectionId) || window.ActiveConnectionId || (this.connections[0] ? this.connections[0].id : null);
+                        lockedDb = lockedDb || (tab && tab.database) || window.ActiveDatabase;
+                        lockedSchema = lockedSchema || (tab && tab.schema) || window.ActiveSchema;
+                    } else {
+                        lockedSourceId = (this.connections[0] ? this.connections[0].id : null);
+                    }
                 }
 
                 const preferredSrc = lockedSourceId || (this.connections[0] ? this.connections[0].id : null);
@@ -1361,9 +1408,18 @@
         }
 
         setSourceContext(connId, db, schema, dbType) {
-            if (connId) {
-                this.onConnectionChanged('source', connId, db, schema);
+            if (!connId) return;
+            const cleanId = String(connId).replace(/\s*\([^)]*\)$/, '').trim().toLowerCase();
+            const sameConn = this.sourceConnId === connId || 
+                (this.sourceConnId && String(this.sourceConnId).toLowerCase() === cleanId);
+            const sameDb = !db || this.sourceDb === db || (this.sourceDb && String(this.sourceDb).toLowerCase() === String(db).toLowerCase());
+            const sameSchema = !schema || this.sourceSchema === schema || (this.sourceSchema && String(this.sourceSchema).toLowerCase() === String(schema).toLowerCase());
+
+            // If source context is already loaded and identical, DO NOT wipe and re-query the database!
+            if (sameConn && sameDb && sameSchema && (this.sourceDatabases || []).length > 0) {
+                return;
             }
+            this.onConnectionChanged('source', connId, db, schema);
         }
 
         populateConnectionSelects(lockedSourceId) {
@@ -2013,6 +2069,82 @@
             }
         }
 
+        async _getApi() {
+            if (window.pywebview && window.pywebview.api) {
+                return window.pywebview.api;
+            }
+            if (typeof window.waitForPywebview === 'function') {
+                try {
+                    const api = await window.waitForPywebview();
+                    if (api) return api;
+                } catch (_) {}
+            }
+            if (window.pywebview && window.pywebview.api) {
+                return window.pywebview.api;
+            }
+            return null;
+        }
+
+        async checkBravoExtensionStatus() {
+            try {
+                let enabled = false;
+                const api = await this._getApi();
+                if (api && typeof api.get_settings === 'function') {
+                    const res = await api.get_settings();
+                    const s = (res && res.settings) ? res.settings : res;
+                    enabled = !!(s?.addons?.bravo_tool?.enabled);
+                } else if (window.AppStorage && typeof window.AppStorage.getSettings === 'function') {
+                    const s = await window.AppStorage.getSettings();
+                    enabled = !!(s?.addons?.bravo_tool?.enabled);
+                } else if (window.StorageManager && typeof window.StorageManager.getSettings === 'function') {
+                    const s = window.StorageManager.getSettings();
+                    enabled = !!(s?.addons?.bravo_tool?.enabled);
+                } else {
+                    try {
+                        const res = await fetch('/api/bravo/config');
+                        const data = await res.json();
+                        enabled = !!(data && data.success && data.enabled);
+                    } catch (_) {}
+                }
+
+                // Fallback: check localStorage ide-settings if enabled is still false
+                if (!enabled) {
+                    try {
+                        const raw = localStorage.getItem('ide-settings');
+                        if (raw) {
+                            const parsed = JSON.parse(raw);
+                            const s = parsed?.settings || parsed;
+                            if (s?.addons?.bravo_tool?.enabled) {
+                                enabled = true;
+                            }
+                        }
+                    } catch (_) {}
+                }
+
+                this.isBravoExtensionEnabled = enabled;
+            } catch (_) {
+                this.isBravoExtensionEnabled = false;
+            }
+
+            const optLayout = document.getElementById('scOptLayout');
+            if (optLayout) {
+                if (this.isBravoExtensionEnabled) {
+                    optLayout.classList.remove('d-none');
+                } else {
+                    optLayout.classList.add('d-none');
+                    const sel = document.getElementById('scSelectObjType');
+                    if (sel && sel.value === 'layout') {
+                        sel.value = 'all';
+                        this.onObjectTypeSelectionChanged('all');
+                    }
+                }
+            }
+            const filterItemOptLayout = document.getElementById('scFilterItemOptLayout');
+            if (filterItemOptLayout) {
+                filterItemOptLayout.classList.toggle('d-none', !this.isBravoExtensionEnabled);
+            }
+        }
+
         onObjectTypeSelectionChanged(typeVal) {
             const typeNames = {
                 'all': 'Tất cả các loại đối tượng',
@@ -2020,15 +2152,26 @@
                 'views': 'Views',
                 'procedures': 'Procedures (Thủ tục)',
                 'functions': 'Functions (Hàm)',
-                'triggers': 'Triggers'
+                'triggers': 'Triggers',
+                'layout': 'Layout'
             };
             const label = typeNames[typeVal] || typeVal;
-            this.setCompareMsg('info', `Đã chọn: [${label}]. Vui lòng bấm nút "So sánh" để tiến hành.`);
+            if (typeVal === 'layout') {
+                this.setCompareMsg('info', 'Đã chọn: [Layout]. So sánh LayoutData (Chính thức) và LastLayoutData (Bản nháp). Bấm "So sánh" để tải danh sách.');
+                this.toggleLayoutModeControls(true);
+            } else {
+                this.setCompareMsg('info', `Đã chọn: [${label}]. Vui lòng bấm nút "So sánh" để tiến hành.`);
+                this.toggleLayoutModeControls(false);
+            }
+            this.updateConnectionSubbarHint();
         }
 
         getSelectedObjectTypes() {
             const sel = document.getElementById('scSelectObjType');
             const val = sel ? sel.value : 'all';
+            if (val === 'layout') {
+                return ['layout'];
+            }
             if (!val || val === 'all') {
                 return ['tables', 'views', 'procedures', 'functions', 'triggers'];
             }
@@ -2036,6 +2179,13 @@
         }
 
         async runCompare() {
+            const objectTypes = this.getSelectedObjectTypes();
+            if (objectTypes.includes('layout')) {
+                return this.runBravoLayoutCompare();
+            }
+            this.isLayoutMode = false;
+            this.toggleLayoutModeControls(false);
+
             if (!this.sourceConnId) {
                 this.setCompareMsg('danger', 'Vui lòng chọn kết nối Nguồn.');
                 this.setKpiNoticeText('danger', 'Vui lòng chọn kết nối Nguồn.');
@@ -2054,7 +2204,6 @@
                 return;
             }
 
-            const objectTypes = this.getSelectedObjectTypes();
             if (objectTypes.length === 0) {
                 this.setCompareMsg('warning', 'Vui lòng chọn ít nhất một loại đối tượng để so sánh!');
                 this.setKpiNoticeText('warning', 'Vui lòng chọn ít nhất một loại đối tượng để so sánh!');
@@ -2081,6 +2230,7 @@
 
             try {
                 this._compareCancelled = false;
+                this._isComparing = true;
                 const api = await (window.waitForPywebview ? window.waitForPywebview() : null);
                 if (!api || typeof api.schema_compare_run !== 'function') {
                     throw new Error('API schema_compare_run không khả dụng.');
@@ -2180,6 +2330,7 @@
                 this.setCompareMsg('danger', `Lỗi so sánh: ${err.message}`);
                 this.setKpiNoticeText('danger', `Lỗi: ${err.message}`);
             } finally {
+                this._isComparing = false;
                 this.hideLoadingModal();
                 if (btn) btn.disabled = false;
             }
@@ -2225,6 +2376,11 @@
         applyFilterAndRender() {
             const listContainer = document.getElementById('scTableList');
             if (!listContainer) return;
+
+            if (this.isLayoutMode) {
+                this.renderBravoLayoutList();
+                return;
+            }
 
             if (!this.diffData || !this.diffData.tables || this.diffData.tables.length === 0) {
                 listContainer.innerHTML = `
@@ -2514,6 +2670,649 @@
             }
         }
 
+        toggleLayoutModeControls(isLayout) {
+            this.isLayoutMode = !!isLayout;
+            const btnPreviewScript = document.getElementById('scBtnPreviewLayoutScript');
+            const btnToggleScript = document.getElementById('scBtnToggleScriptMode');
+            const btnToggleDiff = document.getElementById('scBtnToggleDiffMode');
+
+            if (isLayout) {
+                btnPreviewScript?.classList.remove('d-none');
+                if (btnToggleScript) btnToggleScript.title = "Xem script UPDATE cho Layout đang chọn";
+                if (btnToggleDiff) btnToggleDiff.innerHTML = '<i class="fa-solid fa-code-compare"></i> So sánh Layout';
+                if (this.diffEditor) {
+                    this.diffEditor.updateOptions({
+                        readOnly: true,
+                        originalEditable: false
+                    });
+                }
+            } else {
+                btnPreviewScript?.classList.add('d-none');
+                if (btnToggleScript) btnToggleScript.title = "Script Migration DDL";
+                if (btnToggleDiff) btnToggleDiff.innerHTML = '<i class="fa-solid fa-code-compare"></i> So sánh Diff [Đích ↔ Nguồn]';
+                if (this.diffEditor) {
+                    this.diffEditor.updateOptions({
+                        readOnly: true,
+                        originalEditable: false
+                    });
+                }
+            }
+        }
+
+        async runBravoLayoutCompare() {
+            const hasSource = Boolean(this.sourceConnId);
+            const hasTarget = Boolean(this.targetConnId);
+
+            if (!hasSource && !hasTarget) {
+                this.setCompareMsg('danger', 'Vui lòng chọn kết nối CSDL (Nguồn hoặc Đích) chứa bảng B00Layout.');
+                this.setKpiNoticeText('danger', 'Vui lòng chọn kết nối CSDL chứa bảng B00Layout.');
+                return;
+            }
+
+            const isTwoDb = hasSource && hasTarget;
+            this.isTwoDbLayoutMode = isTwoDb;
+
+            const btn = document.getElementById('scBtnRunCompare');
+            const statusEl = document.getElementById('scStatusMessage');
+            if (btn) btn.disabled = true;
+
+            const loadMsg = isTwoDb
+                ? 'Đang nạp và so sánh Layout giữa CSDL Nguồn và Đích...'
+                : 'Đang nạp danh sách Bravo Layout từ cơ sở dữ liệu...';
+            this.showLoadingModal(loadMsg);
+            this.setCompareMsg('info', 'Đang truy vấn bảng B00Layout và B00LayoutData...');
+            if (statusEl) statusEl.textContent = 'Đang tải danh sách Bravo Layout...';
+
+            try {
+                this._compareCancelled = false;
+                this._isComparing = true;
+                const api = await this._getApi();
+                if (!api) {
+                    throw new Error('API pywebview không khả dụng.');
+                }
+
+                let res;
+                if (isTwoDb) {
+                    if (typeof api.schema_compare_bravo_layout_compare !== 'function') {
+                        throw new Error('API schema_compare_bravo_layout_compare không khả dụng.');
+                    }
+                    res = await api.schema_compare_bravo_layout_compare(
+                        this.sourceConnId,
+                        this.targetConnId,
+                        this.sourceDb,
+                        this.targetDb,
+                        'Win',
+                        'Bravo 10',
+                        this.searchQuery || ''
+                    );
+                } else {
+                    if (typeof api.schema_compare_bravo_layout_list !== 'function') {
+                        throw new Error('API schema_compare_bravo_layout_list không khả dụng.');
+                    }
+                    const connId = this.sourceConnId || this.targetConnId;
+                    const db = this.sourceDb || this.targetDb || null;
+                    res = await api.schema_compare_bravo_layout_list(connId, db, 'Win', 'Bravo 10', this.searchQuery || '');
+                }
+
+                if (!res.success) {
+                    throw new Error(res.error || 'Không thể truy vấn danh sách Layout.');
+                }
+
+                this.isLayoutMode = true;
+                this.bravoLayoutForms = res.forms || [];
+                this.totalBravoLayouts = res.total_layouts || 0;
+                this.toggleLayoutModeControls(true);
+
+                let diffCount = res.different_count || 0;
+                let identicalCount = res.identical_count || 0;
+                let missingCount = res.missing_in_target_count || 0;
+                let extraCount = res.extra_in_target_count || 0;
+
+                if (!isTwoDb) {
+                    diffCount = 0;
+                    identicalCount = 0;
+                    (this.bravoLayoutForms || []).forEach(f => {
+                        (f.layouts || []).forEach(l => {
+                            if (l.hasDraft) diffCount++;
+                            else identicalCount++;
+                        });
+                    });
+                }
+
+                // Update status pills KPI
+                this.updateKPIs({
+                    total_count: this.totalBravoLayouts,
+                    different_count: diffCount,
+                    missing_in_target_count: missingCount,
+                    extra_in_target_count: extraCount,
+                    identical_count: identicalCount
+                });
+
+                // Update filter dropdown items visibility and counts
+                this.updateObjectTypeMenuCounts({ layout: this.totalBravoLayouts });
+                document.querySelectorAll('#scObjFilterMenu [data-obj-filter]').forEach(item => {
+                    const filterVal = item.dataset.objFilter;
+                    const li = item.closest('li');
+                    if (!li) return;
+                    if (filterVal === 'all' || filterVal === 'layout') {
+                        li.classList.remove('d-none');
+                    } else {
+                        li.classList.add('d-none');
+                    }
+                });
+
+                // Render layout list in tree
+                this.renderBravoLayoutList();
+
+                const modeDesc = isTwoDb ? 'giữa Nguồn và Đích' : '';
+                this.setCompareMsg('success', `Đã nạp thành công ${this.totalBravoLayouts} Layouts thuộc ${this.bravoLayoutForms.length} Forms ${modeDesc}.`);
+                this.setKpiNoticeText('info', `Tổng số: ${this.totalBravoLayouts} Layouts (${this.bravoLayoutForms.length} Forms)`);
+                if (statusEl) statusEl.textContent = `Sẵn sàng. Đã nạp ${this.totalBravoLayouts} Layouts.`;
+
+                // Select first layout automatically
+                if (this.bravoLayoutForms.length > 0 && this.bravoLayoutForms[0].layouts.length > 0) {
+                    const firstLayout = this.bravoLayoutForms[0].layouts[0];
+                    this.onBravoLayoutRowClick(firstLayout.id, firstLayout.formName, firstLayout.layoutName);
+                }
+            } catch (err) {
+                console.error('[SchemaCompare] Bravo Layout compare error:', err);
+                this.setCompareMsg('danger', `Lỗi: ${err.message || 'Không thể nạp danh sách Layout.'}`);
+                this.setKpiNoticeText('danger', err.message || 'Lỗi nạp Layout.');
+                if (statusEl) statusEl.textContent = 'Lỗi nạp danh sách Layout.';
+            } finally {
+                this.hideLoadingModal();
+                this._isComparing = false;
+                if (btn) btn.disabled = false;
+            }
+        }
+
+        renderBravoLayoutList() {
+            const listContainer = document.getElementById('scTableList');
+            if (!listContainer) return;
+
+            if (!this.bravoLayoutForms || this.bravoLayoutForms.length === 0) {
+                listContainer.innerHTML = `
+                    <div class="sc-empty-state">
+                        <i class="fa-solid fa-layer-group"></i>
+                        <span>Không tìm thấy Layout nào trong cơ sở dữ liệu.</span>
+                    </div>
+                `;
+                return;
+            }
+
+            if (this.filterObjectType !== 'all' && this.filterObjectType !== 'layout') {
+                listContainer.innerHTML = `
+                    <div class="sc-empty-state">
+                        <i class="fa-solid fa-filter"></i>
+                        <span>Không có đối tượng nào khớp với bộ lọc loại [${this.filterObjectType}]</span>
+                    </div>
+                `;
+                return;
+            }
+
+            const query = (this.searchQuery || '').trim().toLowerCase();
+            const filter = this.filterStatus;
+
+            let html = '';
+            let visibleLayoutCount = 0;
+
+            this.bravoLayoutForms.forEach(form => {
+                const fName = form.formName || '(Không xác định)';
+                const filteredLayouts = (form.layouts || []).filter(layout => {
+                    const lName = (layout.layoutName || '').toLowerCase();
+                    const formNameLower = fName.toLowerCase();
+                    if (query && !lName.includes(query) && !formNameLower.includes(query)) {
+                        return false;
+                    }
+                    if (this.isTwoDbLayoutMode) {
+                        if (filter === 'different' && layout.status !== 'different') return false;
+                        if (filter === 'identical' && layout.status !== 'identical') return false;
+                        if (filter === 'missing' && layout.status !== 'missing_in_target') return false;
+                        if (filter === 'extra' && layout.status !== 'extra_in_target') return false;
+                    } else {
+                        if (filter === 'different' && !layout.hasDraft) return false;
+                        if (filter === 'identical' && layout.hasDraft) return false;
+                    }
+                    return true;
+                });
+
+                if (filteredLayouts.length === 0) return;
+                visibleLayoutCount += filteredLayouts.length;
+
+                const isCollapsed = this.collapsedGroups && this.collapsedGroups.has(`layout_form_${fName}`);
+
+                html += `
+                    <div class="sc-group-box ${isCollapsed ? 'collapsed' : ''}" data-group="layout_form_${encodeURIComponent(fName)}">
+                        <div class="sc-group-header" data-layout-form-header="${encodeURIComponent(fName)}">
+                            <i class="fa-solid fa-chevron-down sc-group-chevron"></i>
+                            <span class="sc-group-name">
+                                <i class="fa-solid fa-folder text-warning me-1"></i> Form: <strong>${fName}</strong>
+                            </span>
+                            <span class="sc-group-count">(${filteredLayouts.length})</span>
+                        </div>
+                        <div class="sc-group-items" data-layout-form-items="${encodeURIComponent(fName)}">
+                `;
+
+                filteredLayouts.forEach(layout => {
+                    const isActive = this.activeBravoLayout &&
+                        ((this.activeBravoLayout.id && this.activeBravoLayout.id === layout.id) ||
+                         (this.activeBravoLayout.formName === fName && this.activeBravoLayout.layoutName === layout.layoutName));
+
+                    let badgeClass = 'sc-badge-identical';
+                    let badgeText = 'Trùng khớp';
+                    let badgeTitle = 'Trùng khớp';
+
+                    if (this.isTwoDbLayoutMode) {
+                        if (layout.status === 'different') {
+                            badgeClass = 'sc-badge-different';
+                            badgeText = '~ Khác nhau';
+                            badgeTitle = 'Layout khác nhau giữa CSDL Nguồn và CSDL Đích';
+                        } else if (layout.status === 'missing_in_target') {
+                            badgeClass = 'sc-badge-missing';
+                            badgeText = '+ Chưa có ở Đích';
+                            badgeTitle = 'Chỉ tồn tại trên CSDL Nguồn (CSDL Đích chưa có)';
+                        } else if (layout.status === 'extra_in_target') {
+                            badgeClass = 'sc-badge-extra';
+                            badgeText = '- Chỉ có ở Đích';
+                            badgeTitle = 'Chỉ tồn tại trên CSDL Đích (CSDL Nguồn không có)';
+                        } else {
+                            badgeClass = 'sc-badge-identical';
+                            badgeText = '✓ Trùng khớp';
+                            badgeTitle = 'Trùng khớp hoàn toàn giữa Nguồn và Đích';
+                        }
+                    } else {
+                        badgeClass = layout.hasDraft ? 'sc-badge-different' : 'sc-badge-identical';
+                        badgeText = layout.hasDraft ? '~ Có bản nháp' : 'Chính thức';
+                        badgeTitle = layout.hasDraft ? 'Có dữ liệu trong LastLayoutData (Bản nháp)' : 'LastLayoutData IS NULL';
+                    }
+
+                    html += `
+                        <div class="sc-table-row ${isActive ? 'active' : ''}"
+                             data-layout-id="${layout.id}"
+                             data-form-name="${encodeURIComponent(fName)}"
+                             data-layout-name="${encodeURIComponent(layout.layoutName || '')}">
+                            <div class="sc-table-main" data-layout-click="${layout.id}">
+                                <span class="sc-obj-tag sc-obj-tag-layout">XML</span>
+                                <span class="sc-table-name" title="${layout.layoutName || ''} (Form: ${fName})">
+                                    ${layout.layoutName || '(Mặc định)'}
+                                </span>
+                                <span class="sc-badge ${badgeClass}" title="${badgeTitle}">${badgeText}</span>
+                            </div>
+                        </div>
+                    `;
+                });
+
+                html += `
+                        </div>
+                    </div>
+                `;
+            });
+
+            if (visibleLayoutCount === 0) {
+                listContainer.innerHTML = `
+                    <div class="sc-empty-state">
+                        <i class="fa-solid fa-filter"></i>
+                        <span>Không có Layout nào khớp với bộ lọc hiện tại</span>
+                    </div>
+                `;
+                return;
+            }
+
+            listContainer.innerHTML = html;
+
+            // Wire events
+            listContainer.querySelectorAll('[data-layout-form-header]').forEach(header => {
+                header.addEventListener('click', () => {
+                    const formNameEnc = header.dataset.layoutFormHeader;
+                    const groupKey = `layout_form_${decodeURIComponent(formNameEnc)}`;
+                    const groupBox = header.closest('.sc-group-box');
+                    if (groupBox) {
+                        groupBox.classList.toggle('collapsed');
+                        if (groupBox.classList.contains('collapsed')) {
+                            this.collapsedGroups.add(groupKey);
+                        } else {
+                            this.collapsedGroups.delete(groupKey);
+                        }
+                    }
+                });
+            });
+
+            listContainer.querySelectorAll('[data-layout-click]').forEach(row => {
+                row.addEventListener('click', () => {
+                    const layoutId = row.dataset.layoutClick;
+                    const rowEl = row.closest('.sc-table-row');
+                    const formName = rowEl ? decodeURIComponent(rowEl.dataset.formName || '') : '';
+                    const layoutName = rowEl ? decodeURIComponent(rowEl.dataset.layoutName || '') : '';
+                    this.onBravoLayoutRowClick(layoutId, formName, layoutName);
+                });
+            });
+        }
+
+        async onBravoLayoutRowClick(layoutId) {
+            const formName = arguments[1] || '';
+            const layoutName = arguments[2] || '';
+            // Find layout item in bravoLayoutForms
+            let targetLayout = null;
+            if (formName && layoutName !== undefined) {
+                for (const f of (this.bravoLayoutForms || [])) {
+                    if (f.formName === formName) {
+                        targetLayout = (f.layouts || []).find(l => (l.layoutName || '') === layoutName);
+                        if (targetLayout) break;
+                    }
+                }
+            }
+            if (!targetLayout) {
+                for (const f of (this.bravoLayoutForms || [])) {
+                    targetLayout = (f.layouts || []).find(l => String(l.id) === String(layoutId));
+                    if (targetLayout) break;
+                }
+            }
+
+            document.querySelectorAll('#scTableList .sc-table-row').forEach(r => {
+                const rId = r.dataset.layoutId;
+                const rFn = decodeURIComponent(r.dataset.formName || '');
+                const rLn = decodeURIComponent(r.dataset.layoutName || '');
+                if (targetLayout && rFn === targetLayout.formName && rLn === (targetLayout.layoutName || '')) {
+                    r.classList.add('active');
+                } else if (rId == layoutId) {
+                    r.classList.add('active');
+                } else {
+                    r.classList.remove('active');
+                }
+            });
+
+            const titleEl = document.getElementById('scDiffTargetTitle');
+            const displayName = targetLayout?.layoutName || layoutName || `#${layoutId}`;
+            const displayForm = targetLayout?.formName || formName || '';
+            if (titleEl) {
+                titleEl.innerHTML = `<i class="fa-solid fa-spinner fa-spin text-primary me-1"></i> Đang tải XML Layout <strong>${displayName}</strong> (${displayForm})...`;
+            }
+
+            try {
+                const api = await this._getApi();
+                if (!api) throw new Error('API pywebview không khả dụng.');
+
+                if (this.isTwoDbLayoutMode) {
+                    if (typeof api.schema_compare_bravo_layout_pair_detail !== 'function') {
+                        throw new Error('API schema_compare_bravo_layout_pair_detail không khả dụng.');
+                    }
+                    const sId = targetLayout ? targetLayout.sourceId : layoutId;
+                    const tId = targetLayout ? targetLayout.targetId : null;
+
+                    const res = await api.schema_compare_bravo_layout_pair_detail(
+                        this.sourceConnId,
+                        this.targetConnId,
+                        sId,
+                        tId,
+                        this.sourceDb,
+                        this.targetDb,
+                        'Win',
+                        'Bravo 10'
+                    );
+
+                    if (!res.success) {
+                        throw new Error(res.error || `Không thể tải chi tiết Layout ${displayName}`);
+                    }
+
+                    this.activeBravoLayout = Object.assign({}, targetLayout, res, {
+                        id: layoutId,
+                        formName: targetLayout?.formName || res.formName || formName,
+                        layoutName: targetLayout?.layoutName || res.layoutName || layoutName,
+                        sourceId: sId,
+                        targetId: tId,
+                        isPairMode: true,
+                        status: res.isIdentical ? 'identical' : (targetLayout?.status || 'different')
+                    });
+                } else {
+                    if (typeof api.schema_compare_bravo_layout_detail !== 'function') {
+                        throw new Error('API schema_compare_bravo_layout_detail không khả dụng.');
+                    }
+                    const connId = this.sourceConnId || this.targetConnId;
+                    const db = this.sourceDb || this.targetDb || null;
+                    const lid = parseInt(layoutId, 10);
+
+                    const res = await api.schema_compare_bravo_layout_detail(connId, lid, db, 'Win', 'Bravo 10');
+                    if (!res.success) {
+                        throw new Error(res.error || `Không thể tải chi tiết Layout #${lid}`);
+                    }
+
+                    this.activeBravoLayout = Object.assign({}, targetLayout, res, {
+                        isPairMode: false,
+                        formName: targetLayout?.formName || res.formName || formName,
+                        layoutName: targetLayout?.layoutName || res.layoutName || layoutName,
+                    });
+                }
+
+                this.renderBravoLayoutDiff();
+            } catch (err) {
+                console.error('[SchemaCompare] Error loading layout detail:', err);
+                if (titleEl) {
+                    titleEl.innerHTML = `<i class="fa-solid fa-triangle-exclamation text-danger me-1"></i> Lỗi: ${err.message}`;
+                }
+                if (typeof showToast === 'function') {
+                    showToast(`Lỗi tải Layout: ${err.message}`, 'error');
+                }
+            }
+        }
+
+        renderBravoLayoutDiff() {
+            if (!this.activeBravoLayout) return;
+            const layout = this.activeBravoLayout;
+            const titleEl = document.getElementById('scDiffTargetTitle');
+
+            if (titleEl) {
+                if (layout.isPairMode) {
+                    let badgeHtml = '';
+                    if (layout.isIdentical || layout.status === 'identical') {
+                        badgeHtml = '<span class="sc-badge sc-badge-identical">✓ Trùng khớp</span>';
+                    } else if (layout.status === 'missing_in_target') {
+                        badgeHtml = '<span class="sc-badge sc-badge-missing">+ Chưa có ở Đích</span>';
+                    } else if (layout.status === 'extra_in_target') {
+                        badgeHtml = '<span class="sc-badge sc-badge-extra">- Chỉ có ở Đích</span>';
+                    } else {
+                        badgeHtml = '<span class="sc-badge sc-badge-different">~ Khác nhau</span>';
+                    }
+
+                    const targetLabel = this.targetDb || this.targetConnName || 'Đích';
+                    const sourceLabel = this.sourceDb || this.sourceConnName || 'Nguồn';
+                    titleEl.innerHTML = `<i class="fa-solid fa-code-compare text-primary me-1"></i> [Đích: <strong>${targetLabel}</strong>] ↔ [Nguồn: <strong>${sourceLabel}</strong>]: <strong>${layout.layoutName || '(Mặc định)'}</strong> (Form: ${layout.formName || ''}) — ${badgeHtml}`;
+                } else {
+                    const hasDraft = layout.hasDraft;
+                    const statusDraft = hasDraft
+                        ? '<span class="text-warning font-weight-bold">Có bản nháp (Draft)</span>'
+                        : '<span class="text-secondary">Chưa có bản nháp (LastLayoutData IS NULL)</span>';
+                    titleEl.innerHTML = `<i class="fa-solid fa-layer-group text-primary me-1"></i> [Bản Nháp / LastLayoutData] ↔ [Chính Thức / LayoutData]: <strong>${layout.layoutName || '(Mặc định)'}</strong> (Form: ${layout.formName || ''}) — ${statusDraft}`;
+                }
+            }
+
+            if (this.diffEditor && typeof monaco !== 'undefined') {
+                let originalText = '';
+                let modifiedText = '';
+
+                if (layout.isPairMode) {
+                    // CSDL ĐÍCH (Target) nằm bên trái (Original)
+                    originalText = layout.targetXml || '';
+                    // CSDL NGUỒN (Source) nằm bên phải (Modified)
+                    modifiedText = layout.sourceXml || '';
+                } else {
+                    // Chế độ 1 CSDL: Bản Nháp (Original) ↔ Bản Chính thức (Modified)
+                    // TUYỆT ĐỐI không chèn bất kỳ comment nào tự động vào XML
+                    originalText = layout.draftXml || '';
+                    modifiedText = layout.xml || '';
+                }
+
+                if (this._diffOriginalModel) this._diffOriginalModel.dispose();
+                if (this._diffModifiedModel) this._diffModifiedModel.dispose();
+
+                this._diffOriginalModel = monaco.editor.createModel(originalText, 'xml');
+                this._diffModifiedModel = monaco.editor.createModel(modifiedText, 'xml');
+
+                this.diffEditor.setModel({
+                    original: this._diffOriginalModel,
+                    modified: this._diffModifiedModel
+                });
+
+                this.diffEditor.updateOptions({
+                    readOnly: true,
+                    originalEditable: false
+                });
+
+                requestAnimationFrame(() => {
+                    if (this.activeViewMode === 'diff') {
+                        this.diffEditor?.layout();
+                    }
+                });
+            }
+
+            if (this.scriptEditor && this.activeViewMode === 'script') {
+                this.previewBravoLayoutScript();
+            }
+        }
+
+        async previewBravoLayoutScript() {
+            if (!this.activeBravoLayout) {
+                if (typeof showToast === 'function') {
+                    showToast('Vui lòng chọn một Layout để xem script UPDATE.', 'warning');
+                }
+                return;
+            }
+
+            if (this._isPreviewingScript) return;
+            this._isPreviewingScript = true;
+
+            const layout = this.activeBravoLayout;
+
+            // Xử lý chế độ so sánh 2 CSDL (Nguồn ↔ Đích)
+            if (layout.isPairMode) {
+                if (layout.isIdentical || layout.status === 'identical') {
+                    if (this.scriptEditor) {
+                        this.scriptEditor.setValue(
+                            `-- ==============================================================================\n` +
+                            `-- LAYOUT: [Form: ${layout.formName}] ${layout.layoutName || '(Mặc định)'} (TRÙNG KHỚP HOÀN TOÀN)\n` +
+                            `-- Không có thay đổi nào giữa CSDL Đích [${this.targetDb || ''}] và CSDL Nguồn [${this.sourceDb || ''}].\n` +
+                            `-- ==============================================================================`
+                        );
+                        if (this.activeViewMode === 'script') this.scriptEditor.layout();
+                    }
+                    this._isPreviewingScript = false;
+                    return;
+                }
+
+                if (layout.status === 'missing_in_target') {
+                    if (this.scriptEditor) {
+                        this.scriptEditor.setValue(
+                            `-- ==============================================================================\n` +
+                            `-- LAYOUT: [Form: ${layout.formName}] ${layout.layoutName || '(Mặc định)'} (CHƯA CÓ TRÊN CSDL ĐÍCH)\n` +
+                            `-- Layout này chỉ tồn tại trên CSDL Nguồn [${this.sourceDb || ''}].\n` +
+                            `-- Cần thêm mới (INSERT) Layout này vào CSDL Đích [${this.targetDb || ''}].\n` +
+                            `-- ==============================================================================`
+                        );
+                        if (this.activeViewMode === 'script') this.scriptEditor.layout();
+                    }
+                    this._isPreviewingScript = false;
+                    return;
+                }
+
+                if (!this.targetConnId || !layout.targetId) {
+                    if (this.scriptEditor) {
+                        this.scriptEditor.setValue(`-- Không tìm thấy Layout tương ứng trên CSDL Đích để cập nhật.`);
+                    }
+                    this._isPreviewingScript = false;
+                    return;
+                }
+
+                const targetConnId = this.targetConnId;
+                const targetDb = this.targetDb || null;
+                const sourceXml = layout.sourceXml || (this._diffModifiedModel ? this._diffModifiedModel.getValue() : '');
+
+                try {
+                    const api = await this._getApi();
+                    if (!api || typeof api.schema_compare_bravo_layout_generate_script !== 'function') {
+                        throw new Error('API schema_compare_bravo_layout_generate_script không khả dụng.');
+                    }
+
+                    const res = await api.schema_compare_bravo_layout_generate_script(
+                        targetConnId,
+                        layout.targetId,
+                        sourceXml,
+                        null,
+                        layout.targetModifiedAt,
+                        layout.formName,
+                        layout.layoutName,
+                        'Win',
+                        'Bravo 10',
+                        targetDb
+                    );
+
+                    if (!res.success) {
+                        throw new Error(res.error || 'Không thể sinh script UPDATE.');
+                    }
+
+                    if (this.scriptEditor) {
+                        this.scriptEditor.setValue(res.sql || '-- Script rỗng.');
+                        if (this.activeViewMode === 'script') {
+                            this.scriptEditor.layout();
+                        }
+                    }
+                } catch (err) {
+                    console.error('[SchemaCompare] Preview layout script error:', err);
+                    if (typeof showToast === 'function') {
+                        showToast(`Lỗi sinh script: ${err.message}`, 'error');
+                    }
+                } finally {
+                    this._isPreviewingScript = false;
+                }
+                return;
+            }
+
+            // Xử lý chế độ 1 CSDL nội bộ
+            const connId = this.sourceConnId || this.targetConnId;
+            const db = this.sourceDb || this.targetDb || null;
+
+            let currentXml = layout.xml;
+            if (this._diffModifiedModel) {
+                currentXml = this._diffModifiedModel.getValue();
+            }
+
+            try {
+                const api = await this._getApi();
+                if (!api || typeof api.schema_compare_bravo_layout_generate_script !== 'function') {
+                    throw new Error('API schema_compare_bravo_layout_generate_script không khả dụng.');
+                }
+
+                const res = await api.schema_compare_bravo_layout_generate_script(
+                    connId,
+                    layout.id,
+                    currentXml,
+                    currentXml,
+                    layout.modifiedAt,
+                    layout.formName,
+                    layout.layoutName,
+                    'Win',
+                    'Bravo 10',
+                    db
+                );
+
+                if (!res.success) {
+                    throw new Error(res.error || 'Không thể sinh script UPDATE.');
+                }
+
+                if (this.scriptEditor) {
+                    this.scriptEditor.setValue(res.sql || '-- Script rỗng.');
+                    if (this.activeViewMode === 'script') {
+                        this.scriptEditor.layout();
+                    }
+                }
+            } catch (err) {
+                console.error('[SchemaCompare] Preview layout script error:', err);
+                if (typeof showToast === 'function') {
+                    showToast(`Lỗi sinh script: ${err.message}`, 'error');
+                }
+            } finally {
+                this._isPreviewingScript = false;
+            }
+        }
+
         toggleGroupSelection(groupType, isChecked) {
             if (!this.diffData || !this.diffData.tables) return;
             const items = this.diffData.tables.filter(t => {
@@ -2638,7 +3437,13 @@
 
         async copyActiveContent() {
             let sql = '';
-            if (this.activeViewMode === 'script' && this.scriptEditor) {
+            if (this.isLayoutMode) {
+                if (this.activeViewMode === 'script' && this.scriptEditor) {
+                    sql = this.scriptEditor.getValue();
+                } else if (this._diffModifiedModel) {
+                    sql = this._diffModifiedModel.getValue();
+                }
+            } else if (this.activeViewMode === 'script' && this.scriptEditor) {
                 sql = this.scriptEditor.getValue();
             } else if (this.activeTable && this.diffData) {
                 const t = (this.diffData.tables || []).find(x => x.table === this.activeTable);
@@ -2664,7 +3469,16 @@
 
         async openActiveInEditor() {
             let sql = '';
-            if (this.activeViewMode === 'script' && this.scriptEditor) {
+            let title = 'Migration Script';
+            if (this.isLayoutMode) {
+                if (this.activeViewMode === 'script' && this.scriptEditor) {
+                    sql = this.scriptEditor.getValue();
+                    title = `Update_${this.activeBravoLayout?.layoutName || 'Layout'}.sql`;
+                } else if (this._diffModifiedModel) {
+                    sql = this._diffModifiedModel.getValue();
+                    title = `${this.activeBravoLayout?.layoutName || 'Layout'}.xml`;
+                }
+            } else if (this.activeViewMode === 'script' && this.scriptEditor) {
                 sql = this.scriptEditor.getValue();
             } else if (this.activeTable && this.diffData) {
                 const t = (this.diffData.tables || []).find(x => x.table === this.activeTable);
@@ -2678,11 +3492,11 @@
             try {
                 if (window.AppTabs && typeof window.AppTabs.createTab === 'function') {
                     window.AppTabs.createTab({
-                        title: 'Migration Script',
+                        title: title,
                         content: sql,
-                        connectionId: this.targetConnId,
-                        database: this.targetDb,
-                        schema: this.targetSchema
+                        connectionId: this.sourceConnId || this.targetConnId,
+                        database: this.sourceDb || this.targetDb,
+                        schema: this.sourceSchema || this.targetSchema
                     });
                     this.setSubbarText('info', 'Đã mở script trong Tab Query Editor mới.');
                 }
@@ -3091,10 +3905,20 @@
         }
 
         activateTab() {
-            this.applyTypography();
-            setTimeout(() => {
+            requestAnimationFrame(() => {
                 this.layoutMonaco();
-            }, 50);
+            });
+        }
+
+        closeTab(tabId) {
+            if (this._isComparing) {
+                this.cancelCompare();
+            }
+            this.diffData = null;
+            this.selectedTables.clear();
+            if (this.container) {
+                this.container.classList.add('d-none');
+            }
         }
     }
 

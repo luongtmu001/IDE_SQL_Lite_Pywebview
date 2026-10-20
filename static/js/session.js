@@ -167,8 +167,12 @@
 
             // 2. Ghi ra Backend file data/session.json
             try {
-                if (window.pywebview?.api?.session_save) {
-                    const res = await window.pywebview.api.session_save(sessionData);
+                let api = window.pywebview?.api;
+                if (!api && typeof window.waitForPywebview === 'function') {
+                    api = await window.waitForPywebview();
+                }
+                if (api && typeof api.session_save === 'function') {
+                    const res = await api.session_save(sessionData);
                     return res && res.success;
                 }
                 const resp = await fetch('/api/session/save', {
@@ -190,23 +194,48 @@
          * Tải session từ Backend hoặc fallback sang localStorage
          */
         async loadSession() {
-            // 1. Thử tải từ Backend trước
+            // 1. Thử tải từ Backend trước (session.json)
             try {
-                if (window.pywebview?.api?.session_load) {
-                    const res = await window.pywebview.api.session_load();
+                let api = window.pywebview?.api;
+                if (!api && typeof window.waitForPywebview === 'function') {
+                    api = await window.waitForPywebview();
+                }
+                let sessionResult = null;
+                if (api && typeof api.session_load === 'function') {
+                    const res = await api.session_load();
                     if (res && res.disabled) return null;
                     if (res && res.success && res.session) {
-                        return res.session;
+                        sessionResult = res.session;
                     }
-                } else {
+                }
+                if (!sessionResult) {
                     const resp = await fetch('/api/session/load');
                     if (resp && resp.ok) {
                         const res = await resp.json();
                         if (res && res.disabled) return null;
                         if (res && res.success && res.session) {
-                            return res.session;
+                            sessionResult = res.session;
                         }
                     }
+                }
+                if (sessionResult) {
+                    // Đồng bộ dữ liệu mới nhất từ Backend sang localStorage làm cache fallback
+                    try {
+                        if (sessionResult.activeTabId) this.setActiveTabId(sessionResult.activeTabId);
+                        if (Array.isArray(sessionResult.tabs)) {
+                            this.setOpenTabs(sessionResult.tabs);
+                            sessionResult.tabs.forEach(t => {
+                                if (t && t.id && t.content !== undefined) {
+                                    this.setTabDraft(t.id, t.content);
+                                }
+                            });
+                        }
+                        if (sessionResult.sidebarWidth) this.setSidebarWidth(sessionResult.sidebarWidth);
+                        if (sessionResult.sidebarCollapsed !== undefined) this.setSidebarCollapsed(sessionResult.sidebarCollapsed);
+                        if (sessionResult.resultsHeight) this.setResultsHeight(sessionResult.resultsHeight);
+                        if (sessionResult.defaultContext) this.setDefaultConnectionContext(sessionResult.defaultContext);
+                    } catch (_) {}
+                    return sessionResult;
                 }
             } catch (e) {
                 console.warn('[Session] Backend session load warning:', e);
@@ -245,8 +274,12 @@
          */
         async clearSession() {
             try {
-                if (window.pywebview?.api?.session_clear) {
-                    await window.pywebview.api.session_clear();
+                let api = window.pywebview?.api;
+                if (!api && typeof window.waitForPywebview === 'function') {
+                    api = await window.waitForPywebview();
+                }
+                if (api && typeof api.session_clear === 'function') {
+                    await api.session_clear();
                 } else {
                     await fetch('/api/session/clear', { method: 'POST' });
                 }
@@ -265,7 +298,7 @@
         /**
          * Lên lịch tự động lưu (debounced)
          */
-        scheduleAutoSave(delayMs = 3000) {
+        scheduleAutoSave(delayMs = 800) {
             if (_autoSaveTimer) {
                 clearTimeout(_autoSaveTimer);
             }
@@ -291,6 +324,15 @@
                                 AppSession.setTabDraft(t.id, t.content);
                             }
                         });
+                    }
+                    if (sessionData.sidebarWidth) AppSession.setSidebarWidth(sessionData.sidebarWidth);
+                    if (sessionData.sidebarCollapsed !== undefined) AppSession.setSidebarCollapsed(sessionData.sidebarCollapsed);
+                    if (sessionData.resultsHeight) AppSession.setResultsHeight(sessionData.resultsHeight);
+                    if (sessionData.defaultContext) AppSession.setDefaultConnectionContext(sessionData.defaultContext);
+
+                    // Lưu trực tiếp qua pywebview api nếu có
+                    if (window.pywebview?.api?.session_save) {
+                        window.pywebview.api.session_save(sessionData);
                     }
                     // Bắn beacon nếu trình duyệt hỗ trợ
                     if (navigator.sendBeacon) {
