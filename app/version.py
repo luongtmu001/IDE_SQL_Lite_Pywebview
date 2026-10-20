@@ -7,8 +7,8 @@ import sys
 from typing import Any, Dict, Tuple
 
 
-__version__ = "1.0.4"
-__version_tuple__: Tuple[int, int, int] = (1, 0, 4)
+__version__ = "1.0.5"
+__version_tuple__: Tuple[int, int, int] = (1, 0, 5)
 __app_name__ = "luoBTool IDE"
 __app_title__ = "luoBTool IDE / LLTool Desktop"
 __author__ = "luonght"

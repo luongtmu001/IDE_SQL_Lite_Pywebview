@@ -216,10 +216,10 @@ def test_apply_update_and_dismiss_indicator(tmp_path):
              patch("app.services.settings_store.save_settings_file") as mock_save, \
              patch("pathlib.Path.exists", return_value=False):
             # Call apply_update with a new target version
-            res = apply_update(new_version="1.0.4")
+            res = apply_update(new_version="1.0.5")
             assert res["success"] is True
-            assert res["version"] == "1.0.4"
-            assert get_version() == "1.0.4"
+            assert res["version"] == "1.0.5"
+            assert get_version() == "1.0.5"
             mock_save.assert_called_once()
 
         # Verify UpdateSubwindowApi open_downloaded_file dismisses main window indicator

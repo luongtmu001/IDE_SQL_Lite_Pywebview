@@ -1,17 +1,18 @@
 {
-  "version": "1.0.4",
+  "version": "1.0.5",
   "releaseDate": "2026-10-20",
   "minSupportedVersion": "1.0.0",
-  "title": "LLTool IDE v1.0.4",
+  "title": "LLTool IDE v1.0.5",
   "downloadUrl": "https://github.com/luongtmu001/IDE_SQL_Lite_Pywebview/archive/refs/heads/main.zip",
-  "fileName": "LLTool_v1.0.4.zip",
-  "fileSize": 25183982,
-  "releaseNotes": "Bản phát hành v1.0.4 sửa lỗi dropdown tỷ lệ zoom SQL Editor bị che bởi Result Grid, tinh chỉnh viền tab kết quả bo liền mạch đè chân các tab khác, khôi phục hoàn toàn tính năng thêm mới tab / New Query / Search Object, và mở So sánh Schema từ Object Explorer trực tiếp dưới dạng tab mới.",
+  "fileName": "LLTool_v1.0.5.zip",
+  "fileSize": 25184180,
+  "releaseNotes": "Bản phát hành v1.0.5 chính thức tích hợp Trình quản lý & Soạn thảo Google Sheets trực tiếp trong IDE, công cụ So sánh Bravo Layout XML, mở So sánh Schema dạng Tab từ Object Explorer, sửa lỗi dropdown zoom % bị che khuất, bo viền accent tab kết quả và khôi phục hoàn chỉnh bộ quản lý Tab.",
   "highlights": [
-    "Sửa lỗi menu chọn tỷ lệ % zoom tại thanh trạng thái SQL Editor bị ẩn dưới Result Grid, đảm bảo menu luôn nổi lên trên",
+    "Tích hợp Google Sheets Manager & Inline Editor: mở, quản lý và chỉnh sửa trực tiếp bảng tính Google Sheets trong IDE với điều hướng tab mượt mà",
+    "Tích hợp công cụ So sánh Bravo Layout XML: phân tích và so sánh trực quan cấu trúc giao diện Form/Layout",
+    "Mở So sánh Schema từ Object Explorer trực tiếp dưới dạng Tab mới trong cửa sổ chính",
+    "Sửa lỗi dropdown tỷ lệ % zoom tại thanh trạng thái SQL Editor bị ẩn dưới Result Grid, đảm bảo menu luôn nổi lên trên",
     "Tinh chỉnh đường viền bo chân (border-bottom) màu accent của tab kết quả (Result/Messages/Plan) chạy liền mạch đè lên chân các tab lân cận",
-    "Khôi phục hoàn toàn bộ quản lý Tab: sửa lỗi cú pháp createTab, mở lại khả năng thêm tab mới qua nút (+), phím tắt và New Query từ Object Explorer",
-    "Khôi phục tính năng Tìm kiếm đối tượng (Search Object) từ menu chính và menu ngữ cảnh Object Explorer",
-    "Chuẩn hoá tính năng So sánh Schema khi mở từ Object Explorer sẽ hiển thị trực tiếp dưới dạng Tab mới trong cửa sổ chính"
+    "Khôi phục hoàn toàn bộ quản lý Tab: sửa lỗi hàm createTab, mở lại tạo tab mới (+), phím tắt, New Query và Search Object"
   ]
 }
