@@ -1154,9 +1154,237 @@ class TestTableDataEditor(unittest.TestCase):
         self.assertIn("container.dataset.activeTabId = session.tabId;", js)
         self.assertIn("!force && startVirtual === this.startVirtual && endVirtual === this.endVirtual", js)
 
+    def test_submit_changes_computed_columns_case_insensitive(self):
+        """Verify computed column is excluded from UPDATE SET clause regardless of case."""
+        mock_adapter = MagicMock()
+        mock_adapter.db_type = 'sqlserver'
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_cursor.rowcount = 1
+        mock_conn.cursor.return_value = mock_cursor
+        mock_adapter.connection = mock_conn
+
+        with patch.object(TableDataEditorService, 'get_metadata') as mock_meta:
+            mock_meta.return_value = {
+                "columns": [
+                    {"name": "Id", "type": "int", "is_pk": True},
+                    {"name": "Price", "type": "decimal"},
+                    {"name": "TotalAmount", "type": "decimal", "is_computed": True}
+                ],
+                "pk_columns": ["Id"],
+                "computed_columns": ["TotalAmount"],
+                "identity_columns": []
+            }
+
+            changes = {
+                "updates": [
+                    {
+                        "keys": {"Id": 1},
+                        "original_data": {"Id": 1, "Price": 10.0, "totalamount": 100.0},
+                        "modified_data": {"Price": 12.0, "TOTALAMOUNT": 120.0}
+                    }
+                ]
+            }
+
+            res = TableDataEditorService.submit_changes(
+                adapter=mock_adapter,
+                database="testdb",
+                schema="dbo",
+                table="Orders",
+                changes=changes,
+                concurrency_mode="optimistic"
+            )
+
+            self.assertTrue(res["success"])
+            self.assertEqual(res["updated"], 1)
+
+            # Check executed SQL
+            executed_sql = mock_cursor.execute.call_args[0][0]
+            self.assertIn("UPDATE [testdb].[dbo].[Orders] SET [Price] = ?", executed_sql)
+            self.assertNotIn("TOTALAMOUNT", executed_sql)
+            self.assertNotIn("TotalAmount", executed_sql)
+
+    def test_submit_changes_excludes_uncomparable_lob_types_from_where(self):
+        """Verify text, ntext, image, xml, json columns are excluded from optimistic WHERE clause."""
+        mock_adapter = MagicMock()
+        mock_adapter.db_type = 'sqlserver'
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_cursor.rowcount = 1
+        mock_conn.cursor.return_value = mock_cursor
+        mock_adapter.connection = mock_conn
+
+        with patch.object(TableDataEditorService, 'get_metadata') as mock_meta:
+            mock_meta.return_value = {
+                "columns": [
+                    {"name": "Id", "type": "int", "is_pk": True},
+                    {"name": "Title", "type": "nvarchar"},
+                    {"name": "Description", "type": "text"},
+                    {"name": "ConfigXml", "type": "xml"}
+                ],
+                "pk_columns": ["Id"],
+                "computed_columns": [],
+                "identity_columns": []
+            }
+
+            changes = {
+                "updates": [
+                    {
+                        "keys": {"Id": 10},
+                        "original_data": {
+                            "Id": 10,
+                            "Title": "Old Title",
+                            "Description": "Long text content...",
+                            "ConfigXml": "<root/>"
+                        },
+                        "modified_data": {"Title": "New Title"}
+                    }
+                ]
+            }
+
+            res = TableDataEditorService.submit_changes(
+                adapter=mock_adapter,
+                database="testdb",
+                schema="dbo",
+                table="Articles",
+                changes=changes,
+                concurrency_mode="optimistic"
+            )
+
+            self.assertTrue(res["success"])
+            executed_sql = mock_cursor.execute.call_args[0][0]
+            self.assertIn("[Id] = ?", executed_sql)
+            self.assertIn("[Title] = ?", executed_sql)
+            self.assertNotIn("[Description]", executed_sql)
+            self.assertNotIn("[ConfigXml]", executed_sql)
+
+    def test_submit_changes_normalizes_bit_values(self):
+        """Verify string boolean values ('True', 'false') are normalized to 1 / 0 for bit columns."""
+        mock_adapter = MagicMock()
+        mock_adapter.db_type = 'sqlserver'
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_cursor.rowcount = 1
+        mock_conn.cursor.return_value = mock_cursor
+        mock_adapter.connection = mock_conn
+
+        with patch.object(TableDataEditorService, 'get_metadata') as mock_meta:
+            mock_meta.return_value = {
+                "columns": [
+                    {"name": "Id", "type": "int", "is_pk": True},
+                    {"name": "IsActive", "type": "bit"}
+                ],
+                "pk_columns": ["Id"],
+                "computed_columns": [],
+                "identity_columns": []
+            }
+
+            changes = {
+                "updates": [
+                    {
+                        "keys": {"Id": 1},
+                        "original_data": {"Id": 1, "IsActive": 0},
+                        "modified_data": {"IsActive": "True"}
+                    }
+                ]
+            }
+
+            res = TableDataEditorService.submit_changes(
+                adapter=mock_adapter,
+                database="testdb",
+                schema="dbo",
+                table="Users",
+                changes=changes,
+                concurrency_mode="optimistic"
+            )
+
+            self.assertTrue(res["success"])
+            params = mock_cursor.execute.call_args[0][1]
+            # First param is SET IsActive = ?, which must be 1 (not string 'True')
+            self.assertEqual(params[0], 1)
+
+    def test_sqlite_uses_rowid_included_in_fetch_data(self):
+        """Verify SQLite tables without explicit PK append rowid to select_cols in fetch_data."""
+        mock_adapter = MagicMock()
+        mock_adapter.db_type = 'sqlite'
+        mock_adapter.execute.return_value = {
+            "success": True,
+            "columns": ["name", "age", "rowid"],
+            "rows": [["Alice", 30, 1]],
+            "row_count": 1
+        }
+
+        with patch.object(TableDataEditorService, 'get_metadata') as mock_meta:
+            mock_meta.return_value = {
+                "columns": [{"name": "name", "type": "text"}, {"name": "age", "type": "int"}],
+                "pk_columns": ["rowid"],
+                "uses_rowid": True
+            }
+
+            res = TableDataEditorService.fetch_data(
+                adapter=mock_adapter,
+                database=None,
+                schema="main",
+                table="People"
+            )
+
+            self.assertIn('"rowid"', res["sql"])
+
+    def test_find_column_index_case_insensitive_in_js(self):
+        """Verify findColumnIndex helper exists and handles case-insensitive column lookups in JS."""
+        js_path = Path(__file__).resolve().parent.parent / 'static' / 'js' / 'table-data-editor.js'
+        js = js_path.read_text(encoding='utf-8')
+        self.assertIn("function findColumnIndex(session, colName)", js)
+        self.assertIn("findColumnIndex(session, col)", js)
+        self.assertIn("findColumnIndex(session, c)", js)
+        self.assertIn("findColumnIndex(session, f)", js)
+
+    def test_fast_boolean_toggle_and_badges(self):
+        """Verify Fast Boolean Toggle (Spacebar, double-click) and .tde-bool-badge formatting exist in JS and CSS."""
+        js_path = Path(__file__).resolve().parent.parent / 'static' / 'js' / 'table-data-editor.js'
+        css_path = Path(__file__).resolve().parent.parent / 'static' / 'css' / 'table-data-editor.css'
+        js = js_path.read_text(encoding='utf-8')
+        css = css_path.read_text(encoding='utf-8')
+
+        # 1. Detection & toggling helper
+        self.assertIn("function isBooleanColumn(session, colName)", js)
+        self.assertIn("function toggleBooleanCell(session, td)", js)
+
+        # 2. Grid rendering badge
+        self.assertIn("tde-bool-badge tde-bool-true", js)
+        self.assertIn("tde-bool-badge tde-bool-false", js)
+
+        # 3. CSS badge classes
+        self.assertIn(".tde-bool-badge", css)
+        self.assertIn(".tde-bool-badge.tde-bool-true", css)
+        self.assertIn(".tde-bool-badge.tde-bool-false", css)
+
+        # 4. Keyboard Spacebar toggle & double click toggle
+        self.assertIn("e.key === ' '", js)
+        self.assertIn("toggleBooleanCell(session, td)", js)
+
+    def test_enhanced_value_inspector_features(self):
+        """Verify F4 shortcut, Gán NULL button, and keyboard shortcuts in Value Inspector."""
+        js_path = Path(__file__).resolve().parent.parent / 'static' / 'js' / 'table-data-editor.js'
+        js = js_path.read_text(encoding='utf-8')
+
+        # 1. F4 shortcut in container and cell input
+        self.assertIn("e.key === 'F4'", js)
+        self.assertIn("showValueInspector(session, session.activeRowIndex, session.activeColIndex)", js)
+
+        # 2. Gán NULL button
+        self.assertIn("id=\"tde-insp-btn-null\"", js)
+        self.assertIn("Gán NULL", js)
+
+        # 3. Ctrl+Enter to apply and Escape to close
+        self.assertIn("(e.ctrlKey || e.metaKey) && e.key === 'Enter'", js)
+        self.assertIn("e.key === 'Escape'", js)
+
 
 if __name__ == '__main__':
     unittest.main()
+
+
 
 
 

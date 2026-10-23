@@ -1,0 +1,287 @@
+/* ==========================================================================
+   User & Role Permissions Viewer Stylesheet
+   Theme-aware using IDE variables (Zero inline styling)
+   ========================================================================== */
+
+.user-permissions-root {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    width: 100%;
+    background-color: var(--ide-bg, #1e1e1e);
+    color: var(--ide-text, #cccccc);
+    font-family: inherit;
+    font-size: 12px;
+    overflow: hidden;
+}
+
+/* Header & Banner */
+.up-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 16px;
+    background-color: var(--ide-bg-panel, #252526);
+    border-bottom: 1px solid var(--ide-border, #3c3c3c);
+    flex-shrink: 0;
+}
+
+.up-header-title-wrap {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+}
+
+.up-header-icon {
+    font-size: 20px;
+    color: var(--ide-accent, #61afef);
+}
+
+.up-principal-name {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--ide-text-bright, #ffffff);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.up-header-meta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: 8px;
+}
+
+.up-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+/* Tab Bar */
+.up-nav-tabs {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 0 16px;
+    background-color: var(--ide-bg-sidebar, #181818);
+    border-bottom: 1px solid var(--ide-border, #3c3c3c);
+    flex-shrink: 0;
+}
+
+.up-tab-btn {
+    padding: 8px 14px;
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: var(--ide-text-muted, #888888);
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.15s ease;
+}
+
+.up-tab-btn:hover {
+    color: var(--ide-text-bright, #ffffff);
+    background-color: rgba(255, 255, 255, 0.03);
+}
+
+.up-tab-btn.active {
+    color: var(--ide-accent, #61afef);
+    border-bottom-color: var(--ide-accent, #61afef);
+    font-weight: 600;
+}
+
+.up-tab-badge {
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 10px;
+    background-color: rgba(255, 255, 255, 0.1);
+    color: var(--ide-text, #cccccc);
+}
+
+.up-tab-btn.active .up-tab-badge {
+    background-color: rgba(97, 175, 239, 0.2);
+    color: var(--ide-accent, #61afef);
+}
+
+/* Content Area */
+.up-tab-content-wrap {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+    position: relative;
+}
+
+/* Warning & Notice Banner */
+.up-notice-banner {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border-radius: 4px;
+    margin-bottom: 14px;
+    font-size: 12px;
+    background-color: rgba(229, 192, 123, 0.1);
+    border: 1px solid rgba(229, 192, 123, 0.3);
+    color: #e5c07b;
+}
+
+/* Overview Cards */
+.up-cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.up-prop-card {
+    background-color: var(--ide-bg-panel, #252526);
+    border: 1px solid var(--ide-border, #3c3c3c);
+    border-radius: 6px;
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.up-prop-label {
+    font-size: 11px;
+    color: var(--ide-text-muted, #888888);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.up-prop-value {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--ide-text-bright, #ffffff);
+    word-break: break-all;
+}
+
+/* Tables / Data Grid */
+.up-table-container {
+    background-color: var(--ide-bg-panel, #252526);
+    border: 1px solid var(--ide-border, #3c3c3c);
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.up-table-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    background-color: rgba(255, 255, 255, 0.02);
+    border-bottom: 1px solid var(--ide-border, #3c3c3c);
+}
+
+.up-search-input {
+    max-width: 260px;
+    height: 26px;
+    font-size: 11px;
+    background-color: var(--ide-bg, #1e1e1e);
+    border: 1px solid var(--ide-border, #3c3c3c);
+    color: var(--ide-text, #cccccc);
+    border-radius: 4px;
+    padding: 0 8px;
+}
+
+.up-search-input:focus {
+    border-color: var(--ide-accent, #61afef);
+    outline: none;
+}
+
+.up-data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    text-align: left;
+}
+
+.up-data-table th {
+    background-color: var(--ide-bg-sidebar, #181818);
+    color: var(--ide-text-muted, #888888);
+    font-weight: 600;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--ide-border, #3c3c3c);
+    white-space: nowrap;
+}
+
+.up-data-table td {
+    padding: 7px 12px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    color: var(--ide-text, #cccccc);
+}
+
+.up-data-table tr:hover td {
+    background-color: rgba(255, 255, 255, 0.03);
+}
+
+/* State & Source Badges */
+.up-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.up-badge-grant {
+    background-color: rgba(152, 195, 121, 0.15);
+    color: #98c379;
+    border: 1px solid rgba(152, 195, 121, 0.3);
+}
+
+.up-badge-deny {
+    background-color: rgba(224, 108, 117, 0.15);
+    color: #e06c75;
+    border: 1px solid rgba(224, 108, 117, 0.3);
+}
+
+.up-badge-source-direct {
+    background-color: rgba(97, 175, 239, 0.15);
+    color: #61afef;
+    border: 1px solid rgba(97, 175, 239, 0.3);
+}
+
+.up-badge-source-role {
+    background-color: rgba(198, 120, 221, 0.15);
+    color: #c678dd;
+    border: 1px solid rgba(198, 120, 221, 0.3);
+}
+
+/* Empty & Loading States */
+.up-empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 20px;
+    color: var(--ide-text-muted, #888888);
+    text-align: center;
+}
+
+.up-empty-icon {
+    font-size: 32px;
+    margin-bottom: 8px;
+    opacity: 0.6;
+}
+
+.up-loading-overlay {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: var(--ide-text-muted, #888888);
+    gap: 10px;
+}

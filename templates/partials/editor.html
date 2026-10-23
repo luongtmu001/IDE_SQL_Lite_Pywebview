@@ -122,6 +122,9 @@
             <button id="ide-btn-compare" class="ide-action-btn ide-action-collapsible" title="Compare / Diff Files...">
                 <i class="fa-solid fa-code-compare me-1 text-warning"></i>Compare
             </button>
+            <button id="ide-btn-syntax-reference" class="ide-action-btn ide-action-collapsible" title="Tra cứu cú pháp PostgreSQL & SQL Server (Syntax Reference)">
+                <i class="fa-solid fa-circle-question me-1 text-info"></i>Reference
+            </button>
             <button id="ide-btn-history" class="ide-action-btn ide-action-collapsible" title="Query History (Ctrl+Alt+H)">
                 <i class="fa-solid fa-clock-rotate-left me-1 text-warning"></i>History
             </button>
@@ -145,6 +148,7 @@
                     <li><a class="dropdown-item d-flex align-items-center gap-2" href="#" id="ide-overflow-btn-format"><i class="fa-solid fa-align-left text-primary"></i> Format <span class="ms-auto text-muted small">Ctrl+K,D</span></a></li>
                     <li><a class="dropdown-item d-flex align-items-center gap-2" href="#" id="ide-overflow-btn-plan"><i class="fa-solid fa-diagram-project"></i> Execution Plan</a></li>
                     <li><hr class="dropdown-divider my-1"></li>
+                    <li><a class="dropdown-item d-flex align-items-center gap-2" href="#" id="ide-overflow-btn-syntax-reference"><i class="fa-solid fa-circle-question text-info"></i> Syntax Reference</a></li>
                     <li><a class="dropdown-item d-flex align-items-center gap-2" href="#" id="ide-overflow-btn-history"><i class="fa-solid fa-clock-rotate-left text-warning"></i> Query History <span class="ms-auto text-muted small">Ctrl+Alt+H</span></a></li>
                     <li><a class="dropdown-item d-flex align-items-center gap-2" href="#" id="ide-overflow-btn-file-history"><i class="fa-solid fa-file-waveform text-info"></i> File Log <span class="ms-auto text-muted small">Ctrl+Shift+H</span></a></li>
                     <li><a class="dropdown-item d-flex align-items-center gap-2" href="#" id="ide-overflow-btn-import"><i class="fa-solid fa-file-import"></i> Import File... <span class="ms-auto text-muted small">Ctrl+O</span></a></li>
@@ -158,14 +162,20 @@
     </div>
     <!-- Editor Tabs -->
     <div class="ide-tabs-container d-flex align-items-end px-1 position-relative">
+        <!-- Syntax Reference Button pinned at beginning of tab strip -->
+        <div id="ide-tab-reference-btn-wrap" class="ide-tab-ref-wrap">
+            <button id="ide-btn-tab-syntax-reference" class="ide-tab-ref-btn" type="button" title="Tra cứu cú pháp (Syntax Reference - PostgreSQL & SQL Server)">
+                <i class="fa-solid fa-circle-question"></i>
+            </button>
+        </div>
         <ul id="ide-tabs-bar" class="nav nav-tabs border-0 m-0 p-0 flex-nowrap" style="overflow: hidden;">
             <!-- Tabs will be injected here by tabs.js -->
+            <li id="ide-new-tab-li" class="list-unstyled d-flex align-items-center ms-1 mb-0 flex-shrink-0">
+                <button id="ide-new-tab-btn" class="ide-toolbar-btn" title="New Query Tab (Ctrl+T, Ctrl+N)">
+                    <i class="fa-solid fa-plus"></i>
+                </button>
+            </li>
         </ul>
-        <li id="ide-new-tab-li" class="list-unstyled d-flex align-items-center ms-1 mb-0 flex-shrink-0">
-            <button id="ide-new-tab-btn" class="ide-toolbar-btn" title="New Query Tab (Ctrl+T, Ctrl+N)">
-                <i class="fa-solid fa-plus"></i>
-            </button>
-        </li>
         <div id="ide-tab-overflow-wrap" class="ms-auto d-flex align-items-center mb-0 flex-shrink-0">
             <button id="ide-tabs-overflow-btn" class="ide-toolbar-btn" title="More Tabs (...)">
                 <i class="fa-solid fa-ellipsis"></i>

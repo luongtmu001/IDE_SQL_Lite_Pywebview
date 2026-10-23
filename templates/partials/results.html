@@ -77,11 +77,32 @@
 
     </div>
 
-    <!-- Footer bar: row count + timing -->
-    <div id="ide-result-footer" class="d-none align-items-center px-3 gap-3 ide-result-footer">
-        <span id="ide-footer-rows"></span>
-        <span class="ide-vdivider" style="height: 12px;"></span>
-        <span id="ide-footer-time"></span>
+    <!-- Footer bar: execution statistics bar (Sprint 1 - F3) -->
+    <div id="ide-result-footer" class="d-none align-items-center px-3 ide-result-footer grid-execution-stats-bar" title="Thống kê thực thi truy vấn (Click để sao chép JSON metrics)">
+        <div class="d-flex align-items-center gap-2 flex-grow-1 overflow-hidden" id="ide-footer-stats-left">
+            <span id="ide-footer-rows" class="ide-stat-item ide-stat-rows"></span>
+            <span class="ide-vdivider" style="height: 12px;"></span>
+            <span id="ide-footer-time-badge" class="ide-stat-badge speed-fast" title="Thời gian thực thi">
+                <i class="fa-regular fa-clock me-1"></i><span id="ide-footer-time">0 ms</span>
+            </span>
+            <span class="ide-vdivider" style="height: 12px;"></span>
+            <span id="ide-footer-size" class="ide-stat-item ide-stat-size" title="Dung lượng dữ liệu kết quả">
+                <i class="fa-solid fa-database me-1 text-muted"></i><span id="ide-footer-size-val">0 B</span>
+            </span>
+            <span class="ide-vdivider" style="height: 12px;"></span>
+            <span id="ide-footer-conn" class="ide-stat-item ide-stat-conn text-truncate" title="Kết nối & Cơ sở dữ liệu">
+                <i class="fa-solid fa-link me-1 text-muted"></i><span id="ide-footer-conn-val"></span>
+            </span>
+        </div>
+        <div class="d-flex align-items-center gap-2 ms-auto flex-shrink-0" id="ide-footer-stats-right">
+            <div id="ide-footer-sparkline-wrap" class="ide-stat-sparkline-wrap d-flex align-items-center" title="Xu hướng thời gian 5 lần chạy gần nhất">
+                <span class="text-muted me-1" style="font-size: 10px;">Trend:</span>
+                <svg id="ide-footer-sparkline" class="ide-stat-sparkline" width="60" height="15" viewBox="0 0 60 15"></svg>
+            </div>
+            <button type="button" class="btn btn-xs btn-link text-decoration-none ide-btn-copy-stats p-0 ms-1 text-muted" id="ide-btn-copy-stats" title="Sao chép JSON metrics (Copy Execution Stats)">
+                <i class="fa-solid fa-copy"></i>
+            </button>
+        </div>
     </div>
 
 </div>

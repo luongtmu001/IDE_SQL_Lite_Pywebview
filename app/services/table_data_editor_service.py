@@ -395,6 +395,8 @@ class TableDataEditorService:
                     try:
                         meta = cls.get_metadata(adapter, database, schema, table, lock=None)
                         select_cols = [c["name"] for c in meta.get("columns", [])]
+                        if meta.get("uses_rowid") and "rowid" not in [str(c).lower() for c in select_cols]:
+                            select_cols.append("rowid")
                     except Exception as ex:
                         logger.debug("Metadata fetch for select_cols in fetch_data failed: %s", ex)
                 sql = cls.build_select_sql(
@@ -646,6 +648,31 @@ class TableDataEditorService:
         default_cols_lower = {str(c.get("name")).strip().lower() for c in meta.get("columns", []) if c.get("default_value")}
         skip_cols_lower = identity_cols_lower | computed_cols_lower
 
+        UNCOMPARABLE_TYPES = {"text", "ntext", "image", "xml", "json", "geometry", "geography"}
+        uncomparable_cols_lower = {
+            str(c.get("name")).strip().lower()
+            for c in meta.get("columns", [])
+            if str(c.get("type_name") or c.get("type") or "").strip().lower() in UNCOMPARABLE_TYPES
+        }
+        bit_cols_lower = {
+            str(c.get("name")).strip().lower()
+            for c in meta.get("columns", [])
+            if str(c.get("type_name") or c.get("type") or "").strip().lower() in {"bit", "boolean", "bool"}
+        }
+
+        def _normalize_val(col_name: str, val: Any) -> Any:
+            if val is not None and str(col_name).strip().lower() in bit_cols_lower:
+                if isinstance(val, bool):
+                    return True if engine == "postgresql" else (1 if val else 0)
+                if isinstance(val, (int, float)):
+                    return True if (engine == "postgresql" and val != 0) else (1 if val != 0 else 0)
+                s = str(val).strip().lower()
+                if s in ("true", "1", "t", "yes", "y"):
+                    return True if engine == "postgresql" else 1
+                if s in ("false", "0", "f", "no", "n"):
+                    return False if engine == "postgresql" else 0
+            return val
+
         inserts = changes.get("inserts", []) or []
         updates = changes.get("updates", []) or []
         deletes = changes.get("deletes", []) or []
@@ -717,7 +744,7 @@ class TableDataEditorService:
                     cursor.execute(f"INSERT INTO {full_table} DEFAULT VALUES;")
                 else:
                     cols = list(ins_data.keys())
-                    params = [ins_data[c] for c in cols]
+                    params = [_normalize_val(c, ins_data[c]) for c in cols]
                     cols_str = ", ".join(_quote_ident(c, engine) for c in cols)
                     placeholders_str = ", ".join(placeholder for _ in cols)
                     sql = f"INSERT INTO {full_table} ({cols_str}) VALUES ({placeholders_str});"
@@ -753,8 +780,8 @@ class TableDataEditorService:
                 orig_data = upd.get("original_data", {})
                 mod_data = upd.get("modified_data", {})
 
-                # Exclude computed columns from modifications
-                mod_data = {k: v for k, v in mod_data.items() if k not in computed_columns}
+                # Exclude computed columns from modifications (case-insensitive)
+                mod_data = {k: v for k, v in mod_data.items() if k.strip().lower() not in computed_cols_lower}
                 if not mod_data:
                     continue
 
@@ -762,10 +789,11 @@ class TableDataEditorService:
                 set_params = []
                 for c, v in mod_data.items():
                     set_clauses.append(f"{_quote_ident(c, engine)} = {placeholder}")
-                    set_params.append(v)
+                    set_params.append(_normalize_val(c, v))
 
                 where_clauses = []
                 where_params = []
+                keys_lower = {str(k).strip().lower() for k in keys}
 
                 if keys:
                     for c, v in keys.items():
@@ -773,28 +801,30 @@ class TableDataEditorService:
                             where_clauses.append(f"{_quote_ident(c, engine)} IS NULL")
                         else:
                             where_clauses.append(f"{_quote_ident(c, engine)} = {placeholder}")
-                            where_params.append(v)
+                            where_params.append(_normalize_val(c, v))
 
-                # Optimistic locking: also compare original values
+                # Optimistic locking: also compare original values (skip computed, keys, and uncomparable LOBs)
                 if concurrency_mode == "optimistic" and orig_data:
                     for c, v in orig_data.items():
-                        if c in keys or c in computed_columns:
+                        c_lower = str(c).strip().lower()
+                        if c_lower in keys_lower or c_lower in computed_cols_lower or c_lower in uncomparable_cols_lower:
                             continue
                         if v is None:
                             where_clauses.append(f"{_quote_ident(c, engine)} IS NULL")
                         else:
                             where_clauses.append(f"{_quote_ident(c, engine)} = {placeholder}")
-                            where_params.append(v)
+                            where_params.append(_normalize_val(c, v))
                 elif not keys and orig_data:
                     # Heap table fallback (no PK)
                     for c, v in orig_data.items():
-                        if c in computed_columns:
+                        c_lower = str(c).strip().lower()
+                        if c_lower in computed_cols_lower or c_lower in uncomparable_cols_lower:
                             continue
                         if v is None:
                             where_clauses.append(f"{_quote_ident(c, engine)} IS NULL")
                         else:
                             where_clauses.append(f"{_quote_ident(c, engine)} = {placeholder}")
-                            where_params.append(v)
+                            where_params.append(_normalize_val(c, v))
 
                 if not where_clauses:
                     raise ValueError(f"Không thể cập nhật dòng dữ liệu do thiếu điều kiện định danh khóa hoặc giá trị gốc: {upd}")
@@ -821,6 +851,7 @@ class TableDataEditorService:
 
                 where_clauses = []
                 where_params = []
+                keys_lower = {str(k).strip().lower() for k in keys}
 
                 if keys:
                     for c, v in keys.items():
@@ -828,27 +859,29 @@ class TableDataEditorService:
                             where_clauses.append(f"{_quote_ident(c, engine)} IS NULL")
                         else:
                             where_clauses.append(f"{_quote_ident(c, engine)} = {placeholder}")
-                            where_params.append(v)
+                            where_params.append(_normalize_val(c, v))
 
                 if concurrency_mode == "optimistic" and orig_data:
                     for c, v in orig_data.items():
-                        if c in keys or c in computed_columns:
+                        c_lower = str(c).strip().lower()
+                        if c_lower in keys_lower or c_lower in computed_cols_lower or c_lower in uncomparable_cols_lower:
                             continue
                         if v is None:
                             where_clauses.append(f"{_quote_ident(c, engine)} IS NULL")
                         else:
                             where_clauses.append(f"{_quote_ident(c, engine)} = {placeholder}")
-                            where_params.append(v)
+                            where_params.append(_normalize_val(c, v))
                 elif not keys and orig_data:
                     # Heap table fallback
                     for c, v in orig_data.items():
-                        if c in computed_columns:
+                        c_lower = str(c).strip().lower()
+                        if c_lower in computed_cols_lower or c_lower in uncomparable_cols_lower:
                             continue
                         if v is None:
                             where_clauses.append(f"{_quote_ident(c, engine)} IS NULL")
                         else:
                             where_clauses.append(f"{_quote_ident(c, engine)} = {placeholder}")
-                            where_params.append(v)
+                            where_params.append(_normalize_val(c, v))
 
                 if not where_clauses:
                     raise ValueError(f"Không thể xóa dòng dữ liệu do thiếu điều kiện định danh khóa hoặc giá trị gốc: {d}")

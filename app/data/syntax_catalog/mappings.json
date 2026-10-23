@@ -1,0 +1,740 @@
+[
+    {
+        "id": "map_lateral_outer_apply",
+        "concept_id": "concept_lateral_subquery_join",
+        "source_syntax_ids": [
+            "pg_left_join_lateral"
+        ],
+        "target_syntax_ids": [
+            "ms_outer_apply"
+        ],
+        "equivalence_level": "conditional",
+        "conditions": "Cả hai cấu trúc đều giữ lại toàn bộ dòng của bảng bên trái và đánh giá subquery tương quan cho từng dòng. Trong PostgreSQL, cú pháp bắt buộc phải có 'ON TRUE' sau subquery. Trong SQL Server, OUTER APPLY không sử dụng mệnh đề ON. Nếu subquery có phân trang/giới hạn, PostgreSQL dùng LIMIT còn SQL Server dùng TOP.",
+        "limitations": "Không thể thay thế trực tiếp dạng tìm/đổi chuỗi văn bản (regex replace). Phải điều chỉnh vị trí mệnh đề giới hạn dòng và xóa/thêm mệnh đề 'ON TRUE'.",
+        "notes": "OUTER APPLY ra đời từ SQL Server 2005. PostgreSQL bổ sung LATERAL từ phiên bản 9.3.",
+        "verification_status": "verified",
+        "verified_by": "LLTool Architecture Team",
+        "verified_at": "2026-10-22",
+        "source_ids": [
+            "src_pg_queries_lateral",
+            "src_ms_from_apply"
+        ],
+        "comparison_examples": [
+            {
+                "postgresql": "SELECT c.id, c.name, o.id AS order_id, o.amount\nFROM customers c\nLEFT JOIN LATERAL (\n    SELECT o.id, o.amount\n    FROM orders o\n    WHERE o.customer_id = c.id\n    ORDER BY o.order_date DESC\n    LIMIT 3\n) o ON TRUE;",
+                "sqlserver": "SELECT c.id, c.name, o.id AS order_id, o.amount\nFROM customers c\nOUTER APPLY (\n    SELECT TOP (3) o.id, o.amount\n    FROM orders o\n    WHERE o.customer_id = c.id\n    ORDER BY o.order_date DESC\n) o;",
+                "notes": "Lưu ý sự khác nhau giữa 'LIMIT 3' (cuối subquery) và 'TOP (3)' (sau SELECT), cũng như sự có mặt của 'ON TRUE' ở PostgreSQL."
+            }
+        ]
+    },
+    {
+        "id": "map_lateral_cross_apply",
+        "concept_id": "concept_lateral_subquery_join",
+        "source_syntax_ids": [
+            "pg_cross_join_lateral"
+        ],
+        "target_syntax_ids": [
+            "ms_cross_apply"
+        ],
+        "equivalence_level": "equivalent",
+        "conditions": "Cả hai đều thực hiện Inner Join với subquery/function tương quan: dòng bên trái sẽ bị loại bỏ nếu subquery vế phải không trả về dòng nào. Cả hai đều không yêu cầu mệnh đề ON.",
+        "limitations": "Nếu bên trong subquery có hàm đặc thù của engine (ví dụ: jsonb_array_elements_text vs STRING_SPLIT), cần chuyển đổi cả hàm tương ứng.",
+        "notes": "Hành vi tối ưu hóa query execution plan giữa PostgreSQL và SQL Server có thể khác nhau tùy thuộc chỉ mục trên các cột tương quan.",
+        "verification_status": "verified",
+        "verified_by": "LLTool Architecture Team",
+        "verified_at": "2026-10-22",
+        "source_ids": [
+            "src_pg_queries_lateral",
+            "src_ms_from_apply"
+        ],
+        "comparison_examples": [
+            {
+                "postgresql": "SELECT u.id, act.action_name, act.action_time\nFROM users u\nCROSS JOIN LATERAL (\n    SELECT a.action_name, a.action_time\n    FROM user_actions a\n    WHERE a.user_id = u.id\n    ORDER BY a.action_time DESC\n    LIMIT 1\n) act;",
+                "sqlserver": "SELECT u.id, act.action_name, act.action_time\nFROM users u\nCROSS APPLY (\n    SELECT TOP (1) a.action_name, a.action_time\n    FROM user_actions a\n    WHERE a.user_id = u.id\n    ORDER BY a.action_time DESC\n) act;",
+                "notes": "Cả hai đều lọc bỏ những user chưa có bất kỳ action nào."
+            }
+        ]
+    },
+    {
+        "id": "map_pg_like_tilde",
+        "concept_id": "concept_case_sensitive_pattern_matching",
+        "source_syntax_ids": [
+            "pg_like"
+        ],
+        "target_syntax_ids": [
+            "pg_tilde_tilde"
+        ],
+        "equivalence_level": "equivalent",
+        "conditions": "Toán tử ~~ là bí danh nội bộ chính thức của từ khóa LIKE trong PostgreSQL, hoàn toàn hoán đổi được cho nhau.",
+        "limitations": "Toán tử ~~ ít phổ biến hơn và có thể giảm tính đọc hiểu đối với các lập trình viên quen chuẩn ANSI SQL.",
+        "notes": "Được định nghĩa trong PostgreSQL catalog pg_operator.",
+        "verification_status": "verified",
+        "verified_by": "LLTool Architecture Team",
+        "verified_at": "2026-10-22",
+        "source_ids": [
+            "src_pg_pattern_matching"
+        ],
+        "comparison_examples": [
+            {
+                "postgresql": "-- Cách viết 1:\nSELECT * FROM items WHERE code LIKE 'ABC%';\n\n-- Cách viết 2:\nSELECT * FROM items WHERE code ~~ 'ABC%';",
+                "sqlserver": "-- SQL Server không hỗ trợ toán tử ~~, chỉ hỗ trợ LIKE:\nSELECT * FROM items WHERE code LIKE 'ABC%';",
+                "notes": "Cả hai cách viết trên PostgreSQL đều được trình tối ưu hóa biên dịch thành cùng một biểu thức toán tử."
+            }
+        ]
+    },
+    {
+        "id": "map_pg_ilike_tilde_star",
+        "concept_id": "concept_case_insensitive_pattern_matching",
+        "source_syntax_ids": [
+            "pg_ilike"
+        ],
+        "target_syntax_ids": [
+            "pg_tilde_tilde_star"
+        ],
+        "equivalence_level": "equivalent",
+        "conditions": "Toán tử ~~* là bí danh nội bộ chính thức của từ khóa ILIKE trong PostgreSQL, hoàn toàn hoán đổi được cho nhau.",
+        "limitations": "Không có.",
+        "notes": "PostgreSQL internal operator for case-insensitive LIKE.",
+        "verification_status": "verified",
+        "verified_by": "LLTool Architecture Team",
+        "verified_at": "2026-10-22",
+        "source_ids": [
+            "src_pg_pattern_matching"
+        ],
+        "comparison_examples": [
+            {
+                "postgresql": "-- Cách viết 1:\nSELECT * FROM users WHERE email ILIKE '%@domain.com';\n\n-- Cách viết 2:\nSELECT * FROM users WHERE email ~~* '%@domain.com';",
+                "sqlserver": "-- SQL Server tương ứng:\nSELECT * FROM users WHERE email LIKE '%@domain.com' COLLATE Latin1_General_CI_AS;",
+                "notes": "Đều là so khớp không phân biệt hoa thường."
+            }
+        ]
+    },
+    {
+        "id": "map_ilike_to_sqlserver_like",
+        "concept_id": "concept_case_insensitive_pattern_matching",
+        "source_syntax_ids": [
+            "pg_ilike",
+            "pg_tilde_tilde_star"
+        ],
+        "target_syntax_ids": [
+            "ms_like"
+        ],
+        "equivalence_level": "conditional",
+        "conditions": "SQL Server không có từ khóa ILIKE. Hành vi không phân biệt hoa thường của LIKE trên SQL Server phụ thuộc vào Collation của cột hoặc cơ sở dữ liệu. Nếu Collation hiện tại là Case-Sensitive (ví dụ: _CS_AS hoặc Binary), phải thêm mệnh đề COLLATE chỉ định một Collation Case-Insensitive (ví dụ: Latin1_General_CI_AS) hoặc bọc bằng LOWER().",
+        "limitations": "Việc dùng LOWER(column) LIKE LOWER(pattern) trên SQL Server có thể khiến truy vấn không tận dụng được Index Seek (non-SARGable), dẫn đến Index Scan hoặc Table Scan.",
+        "notes": "PostgreSQL có thể tối ưu ILIKE bằng chỉ mục pg_trgm (GIN/GiST).",
+        "verification_status": "verified",
+        "verified_by": "LLTool Architecture Team",
+        "verified_at": "2026-10-22",
+        "source_ids": [
+            "src_pg_pattern_matching",
+            "src_ms_like_operator"
+        ],
+        "comparison_examples": [
+            {
+                "postgresql": "SELECT * FROM products WHERE name ILIKE '%laptop%';",
+                "sqlserver": "-- Cách 1: Sử dụng Collation Case-Insensitive tường minh\nSELECT * FROM products WHERE name LIKE '%laptop%' COLLATE Latin1_General_CI_AS;\n\n-- Cách 2: Dùng LOWER() (lưu ý ảnh hưởng SARGable)\nSELECT * FROM products WHERE LOWER(name) LIKE '%laptop%';",
+                "notes": "Không được coi LIKE mặc định trên SQL Server là tương đương hoàn toàn với ILIKE nếu chưa kiểm tra Collation của cột."
+            }
+        ]
+    },
+    {
+        "id": "map_paging_ansi_offset_fetch",
+        "concept_id": "concept_paging_offset_fetch",
+        "source_syntax_ids": [
+            "pg_offset_fetch"
+        ],
+        "target_syntax_ids": [
+            "ms_offset_fetch"
+        ],
+        "equivalence_level": "equivalent",
+        "conditions": "Cả hai đều tuân theo chuẩn ANSI SQL:2008. Bắt buộc câu lệnh phải có mệnh đề ORDER BY trong SQL Server (nếu không SQL Server sẽ báo lỗi cú pháp).",
+        "limitations": "PostgreSQL cho phép chạy OFFSET ... FETCH mà không cần ORDER BY (dù thứ tự dòng trả về là bất định), trong khi SQL Server từ chối thực thi nếu không có ORDER BY.",
+        "notes": "Được khuyến nghị sử dụng thay cho LIMIT hoặc TOP khi viết mã SQL cần tính tương thích cao giữa các DBMS.",
+        "verification_status": "verified",
+        "verified_by": "LLTool Architecture Team",
+        "verified_at": "2026-10-22",
+        "source_ids": [
+            "src_pg_limit_offset",
+            "src_ms_offset_fetch"
+        ],
+        "comparison_examples": [
+            {
+                "postgresql": "SELECT id, name, price\nFROM products\nORDER BY price DESC\nOFFSET 20 ROWS FETCH NEXT 10 ROWS ONLY;",
+                "sqlserver": "SELECT id, name, price\nFROM products\nORDER BY price DESC\nOFFSET 20 ROWS FETCH NEXT 10 ROWS ONLY;",
+                "notes": "Cú pháp và ngữ nghĩa hoàn toàn trùng khớp 100% giữa hai hệ thống."
+            }
+        ]
+    },
+    {
+        "id": "map_paging_limit_to_top",
+        "concept_id": "concept_paging_offset_fetch",
+        "source_syntax_ids": [
+            "pg_limit_offset"
+        ],
+        "target_syntax_ids": [
+            "ms_top"
+        ],
+        "equivalence_level": "conditional",
+        "conditions": "Chỉ tương đương khi chỉ định LIMIT n mà KHÔNG có OFFSET (hoặc OFFSET = 0). Cú pháp TOP (n) của SQL Server không hỗ trợ bỏ qua dòng (skip rows).",
+        "limitations": "Vị trí trong câu truy vấn khác nhau hoàn toàn: TOP (n) đứng ngay sau từ khóa SELECT, trong khi LIMIT n nằm ở cuối câu lệnh. Khi câu lệnh PostgreSQL có OFFSET > 0, SQL Server bắt buộc phải chuyển sang dùng OFFSET ... FETCH hoặc CTE với ROW_NUMBER().",
+        "notes": "TOP của SQL Server hỗ trợ thêm tùy chọn PERCENT và WITH TIES.",
+        "verification_status": "verified",
+        "verified_by": "LLTool Architecture Team",
+        "verified_at": "2026-10-22",
+        "source_ids": [
+            "src_pg_limit_offset",
+            "src_ms_top_clause"
+        ],
+        "comparison_examples": [
+            {
+                "postgresql": "SELECT id, name FROM employees ORDER BY hire_date DESC LIMIT 5;",
+                "sqlserver": "SELECT TOP (5) id, name FROM employees ORDER BY hire_date DESC;",
+                "notes": "Chỉ áp dụng khi không có OFFSET."
+            }
+        ]
+    },
+    {
+        "id": "map_string_agg",
+        "concept_id": "concept_string_aggregation",
+        "source_syntax_ids": [
+            "pg_string_agg"
+        ],
+        "target_syntax_ids": [
+            "ms_string_agg"
+        ],
+        "equivalence_level": "conditional",
+        "conditions": "Cả hai đều gom nhóm và nối chuỗi bằng ký tự phân cách (delimiter). Tuy nhiên cú pháp sắp xếp thứ tự nối khác nhau: PostgreSQL viết ORDER BY trực tiếp trong hàm, còn SQL Server viết mệnh đề WITHIN GROUP (ORDER BY ...).",
+        "limitations": "SQL Server chỉ hỗ trợ hàm STRING_AGG từ phiên bản 2017 trở lên. Trước 2017 phải viết lại bằng kỹ thuật FOR XML PATH(''). Ngoài ra, PostgreSQL cho phép tham số biểu thức là kiểu bytea còn SQL Server chỉ nhận chuỗi.",
+        "notes": "Kiểu dữ liệu chuỗi trong SQL Server nếu quá dài cần ép kiểu về VARCHAR(MAX) hoặc NVARCHAR(MAX) để tránh lỗi tràn bộ đệm 8000 bytes.",
+        "verification_status": "verified",
+        "verified_by": "LLTool Architecture Team",
+        "verified_at": "2026-10-22",
+        "source_ids": [
+            "src_pg_string_agg",
+            "src_ms_string_agg"
+        ],
+        "comparison_examples": [
+            {
+                "postgresql": "SELECT department_id, string_agg(employee_name, '; ' ORDER BY hire_date ASC) AS emp_list\nFROM employees\nGROUP BY department_id;",
+                "sqlserver": "SELECT department_id, STRING_AGG(employee_name, '; ') WITHIN GROUP (ORDER BY hire_date ASC) AS emp_list\nFROM employees\nGROUP BY department_id;",
+                "notes": "Để ý cấu trúc 'WITHIN GROUP (ORDER BY ...)' của SQL Server đối chiếu với 'ORDER BY' bên trong hàm của PostgreSQL."
+            }
+        ]
+    },
+    {
+        "id": "map_coalesce_ansi",
+        "concept_id": "concept_null_fallback_coalesce",
+        "source_syntax_ids": [
+            "pg_coalesce"
+        ],
+        "target_syntax_ids": [
+            "ms_coalesce"
+        ],
+        "equivalence_level": "equivalent",
+        "conditions": "Hàm COALESCE ở cả hai hệ quản trị đều tuân theo chuẩn ANSI SQL, nhận 2 hoặc nhiều đối số và trả về đối số đầu tiên khác NULL.",
+        "limitations": "Quy tắc xác định kiểu dữ liệu trả về giữa các kiểu dữ liệu đặc thù của từng engine có thể khác nhau đôi chút.",
+        "notes": "SQL Server còn có thêm hàm ISNULL(a, b) nhận đúng 2 tham số, khác COALESCE ở chỗ kiểu dữ liệu trả về bị cố định theo tham số thứ nhất.",
+        "verification_status": "verified",
+        "verified_by": "LLTool Architecture Team",
+        "verified_at": "2026-10-22",
+        "source_ids": [
+            "src_pg_conditional_coalesce",
+            "src_ms_isnull_coalesce"
+        ],
+        "comparison_examples": [
+            {
+                "postgresql": "SELECT COALESCE(work_phone, home_phone, mobile_phone, 'N/A') AS contact FROM contacts;",
+                "sqlserver": "SELECT COALESCE(work_phone, home_phone, mobile_phone, 'N/A') AS contact FROM contacts;",
+                "notes": "Cú pháp và logic trả về giống nhau hoàn toàn."
+            }
+        ]
+    },
+    {
+        "id": "map_json_extract_scalar",
+        "concept_id": "concept_json_scalar_extract",
+        "source_syntax_ids": [
+            "pg_json_arrow_text"
+        ],
+        "target_syntax_ids": [
+            "ms_json_value"
+        ],
+        "equivalence_level": "conditional",
+        "conditions": "Trích xuất giá trị vô hướng dạng chuỗi text từ đối tượng JSON. PostgreSQL sử dụng toán tử '->>' (hoặc '#>>' cho đường dẫn mảng/lồng nhau). SQL Server sử dụng hàm JSON_VALUE(json, path) với đường dẫn JSONPath.",
+        "limitations": "Đường dẫn JSONPath trong SQL Server bắt buộc bắt đầu bằng ký tự '$'. Nếu thuộc tính JSON chứa mảng hoặc đối tượng con, JSON_VALUE của SQL Server sẽ trả về NULL (muốn lấy đối tượng con trong SQL Server phải dùng JSON_QUERY), trong khi PostgreSQL dùng toán tử '->' để lấy JSON object/array và '->>' để lấy scalar text.",
+        "notes": "PostgreSQL hỗ trợ kiểu dữ liệu JSONB nhị phân có index GIN, còn SQL Server lưu JSON dưới dạng NVARCHAR với hàm kiểm tra ISJSON.",
+        "verification_status": "verified",
+        "verified_by": "LLTool Architecture Team",
+        "verified_at": "2026-10-22",
+        "source_ids": [
+            "src_pg_json_ops",
+            "src_ms_json_value_query"
+        ],
+        "comparison_examples": [
+            {
+                "postgresql": "SELECT id, payload ->> 'customer_code' AS cust_code\nFROM orders\nWHERE payload ->> 'status' = 'COMPLETED';",
+                "sqlserver": "SELECT id, JSON_VALUE(payload, '$.customer_code') AS cust_code\nFROM orders\nWHERE JSON_VALUE(payload, '$.status') = 'COMPLETED';",
+                "notes": "Toán tử '->>' của PostgreSQL đối chiếu với hàm 'JSON_VALUE(..., ''$.key'')' của SQL Server."
+            }
+        ]
+    },
+    {
+        "id": "map_datetime_current_timestamp",
+        "concept_id": "concept_current_timestamp",
+        "source_syntax_ids": [
+            "pg_current_timestamp"
+        ],
+        "target_syntax_ids": [
+            "ms_getdate"
+        ],
+        "equivalence_level": "conditional",
+        "conditions": "Lấy ngày giờ hiện tại của hệ thống. CURRENT_TIMESTAMP trong PostgreSQL trả về kiểu 'timestamp with time zone' tại thời điểm bắt đầu transaction. GETDATE() trong SQL Server trả về ngày giờ máy chủ dưới dạng 'datetime' (không có múi giờ). SQL Server cũng hỗ trợ từ khóa chuẩn ANSI CURRENT_TIMESTAMP tương đương với GETDATE().",
+        "limitations": "GETDATE() không có thông tin múi giờ. Nếu cần múi giờ trong SQL Server, phải dùng SYSDATETIMEOFFSET(). Ngoài ra trong PostgreSQL, hàm now() và CURRENT_TIMESTAMP bị cố định ở thời điểm bắt đầu transaction, nếu cần thời gian nhảy theo từng dòng phải dùng clock_timestamp().",
+        "notes": "Cả hai hệ quản trị đều hỗ trợ từ khóa chuẩn ANSI CURRENT_TIMESTAMP.",
+        "verification_status": "verified",
+        "verified_by": "LLTool Architecture Team",
+        "verified_at": "2026-10-22",
+        "source_ids": [
+            "src_pg_datetime_now",
+            "src_ms_datetime_getdate"
+        ],
+        "comparison_examples": [
+            {
+                "postgresql": "SELECT CURRENT_TIMESTAMP, now();",
+                "sqlserver": "SELECT GETDATE() AS cur_time, CURRENT_TIMESTAMP AS ansi_cur_time;",
+                "notes": "PostgreSQL trả về timestamp with time zone; SQL Server GETDATE() trả về datetime không có múi giờ."
+            }
+        ]
+    },
+    {
+        "id": "map_isnull_to_coalesce",
+        "concept_id": "concept_null_fallback_coalesce",
+        "source_syntax_ids": [
+            "ms_isnull"
+        ],
+        "target_syntax_ids": [
+            "pg_coalesce"
+        ],
+        "equivalence_level": "conditional",
+        "conditions": "Hàm ISNULL(a, b) trong SQL Server nhận đúng 2 tham số và kiểu dữ liệu trả về bị gán theo kiểu dữ liệu của tham số a. Khi chuyển sang PostgreSQL, sử dụng COALESCE(a, b).",
+        "limitations": "ISNULL chỉ nhận đúng 2 tham số; COALESCE trong PostgreSQL nhận 2 hoặc nhiều tham số. Trong SQL Server, ISNULL(a, b) trả về kiểu của a (có thể gây cắt bớt chuỗi nếu b dài hơn a), còn COALESCE chọn kiểu có mức ưu tiên cao nhất theo quy tắc data type precedence.",
+        "notes": "Hàm COALESCE được khuyến nghị trong cả hai hệ quản trị vì chuẩn ANSI SQL.",
+        "verification_status": "verified",
+        "verified_by": "LLTool Architecture Team",
+        "verified_at": "2026-10-22",
+        "source_ids": [
+            "src_pg_conditional_coalesce",
+            "src_ms_isnull_coalesce"
+        ],
+        "comparison_examples": [
+            {
+                "postgresql": "SELECT id, COALESCE(phone, 'N/A') AS phone FROM contacts;",
+                "sqlserver": "SELECT id, ISNULL(phone, 'N/A') AS phone FROM contacts;",
+                "notes": "ISNULL(a, b) trong SQL Server được chuyển thành COALESCE(a, b) trong PostgreSQL."
+            }
+        ]
+    },
+    {
+        "id": "map_string_concat_operator",
+        "concept_id": "concept_string_concat",
+        "source_syntax_ids": [
+            "pg_concat_operator"
+        ],
+        "target_syntax_ids": [
+            "ms_concat_operator",
+            "ms_concat_func"
+        ],
+        "equivalence_level": "conditional",
+        "conditions": "Cả hai hệ quản trị đều xử lý 'a' +/|| NULL thành NULL theo mặc định. Tuy nhiên trong SQL Server, dấu + với số sẽ cố gắng ép kiểu số. Để tương đương an toàn nhất, nên dùng hàm CONCAT() ở cả hai bên.",
+        "limitations": "SQL Server dấu + dễ gây lỗi Type Conversion Error khi một toán hạng là số.",
+        "notes": "PostgreSQL dùng toán tử ||, SQL Server dùng toán tử + hoặc hàm CONCAT().",
+        "source_ids": [
+            "src_pg_string_concat",
+            "src_ms_string_concat"
+        ],
+        "verification_status": "verified",
+        "updated_at": "2026-10-22"
+    },
+    {
+        "id": "map_string_substring",
+        "concept_id": "concept_string_substring",
+        "source_syntax_ids": [
+            "pg_substr"
+        ],
+        "target_syntax_ids": [
+            "ms_substring"
+        ],
+        "equivalence_level": "conditional",
+        "conditions": "Khi câu lệnh PostgreSQL có đủ 3 tham số (str, start, length), cú pháp SUBSTRING hoàn toàn tương đương. Nếu PostgreSQL bỏ qua tham số length, SQL Server bắt buộc phải truyền LEN(str) vào tham số thứ 3.",
+        "limitations": "SQL Server không hỗ trợ từ khóa SUBSTR và không cho phép bỏ qua tham số thứ 3.",
+        "notes": "Chuyển SUBSTR thành SUBSTRING khi chuyển đổi từ PostgreSQL sang SQL Server.",
+        "source_ids": [
+            "src_pg_string_substr",
+            "src_ms_string_substring"
+        ],
+        "verification_status": "verified",
+        "updated_at": "2026-10-22"
+    },
+    {
+        "id": "map_string_length",
+        "concept_id": "concept_string_length",
+        "source_syntax_ids": [
+            "pg_length"
+        ],
+        "target_syntax_ids": [
+            "ms_len",
+            "ms_datalength"
+        ],
+        "equivalence_level": "conditional",
+        "conditions": "Tương đương hoàn toàn nếu chuỗi không có khoảng trắng thừa ở cuối. Nếu chuỗi có khoảng trắng ở cuối, SQL Server LEN() sẽ bỏ qua, cần dùng DATALENGTH()/2 để đo chính xác.",
+        "limitations": "SQL Server LEN('abc   ') = 3, trong khi PostgreSQL LENGTH('abc   ') = 6.",
+        "notes": "Lưu ý chí tử về Trailing Blanks giữa SQL Server LEN và PostgreSQL LENGTH.",
+        "source_ids": [
+            "src_pg_string_length",
+            "src_ms_string_len_datalength"
+        ],
+        "verification_status": "verified",
+        "updated_at": "2026-10-22"
+    },
+    {
+        "id": "map_datetime_dateadd",
+        "concept_id": "concept_datetime_dateadd",
+        "source_syntax_ids": [
+            "pg_interval_add"
+        ],
+        "target_syntax_ids": [
+            "ms_dateadd"
+        ],
+        "equivalence_level": "conditional",
+        "conditions": "Cần viết lại cú pháp biểu thức từ date + INTERVAL 'N unit' sang hàm DATEADD(unit, N, date).",
+        "limitations": "SQL Server không hỗ trợ cú pháp từ khóa INTERVAL.",
+        "notes": "Chuyển toán tử + INTERVAL thành hàm gọi DATEADD(part, count, col).",
+        "source_ids": [
+            "src_pg_datetime_interval_math",
+            "src_ms_datetime_dateadd"
+        ],
+        "verification_status": "verified",
+        "updated_at": "2026-10-22"
+    },
+    {
+        "id": "map_datetime_datetrunc",
+        "concept_id": "concept_datetime_datetrunc",
+        "source_syntax_ids": [
+            "pg_date_trunc"
+        ],
+        "target_syntax_ids": [
+            "ms_datetrunc"
+        ],
+        "equivalence_level": "conditional",
+        "conditions": "Tương đương trên SQL Server 2022+ khi bỏ dấu nháy đơn quanh tên datepart: date_trunc('month', d) => DATETRUNC(month, d). Trên SQL Server 2019 trở về trước, phải dùng công thức DATEADD/DATEDIFF.",
+        "limitations": "DATETRUNC chỉ có từ SQL Server 2022.",
+        "notes": "Chú ý bỏ dấu nháy đơn quanh datepart trong SQL Server.",
+        "source_ids": [
+            "src_pg_datetime_datetrunc",
+            "src_ms_datetime_datetrunc"
+        ],
+        "verification_status": "verified",
+        "updated_at": "2026-10-22"
+    },
+    {
+        "id": "map_type_casting",
+        "concept_id": "concept_type_casting",
+        "source_syntax_ids": [
+            "pg_cast_double_colon"
+        ],
+        "target_syntax_ids": [
+            "ms_try_cast",
+            "ms_convert_func"
+        ],
+        "equivalence_level": "conditional",
+        "conditions": "Cần viết lại col::type thành CAST(col AS type) hoặc TRY_CAST(col AS type) trong SQL Server.",
+        "limitations": "Toán tử :: không tồn tại trong SQL Server.",
+        "notes": "Dùng TRY_CAST trong SQL Server để an toàn không làm crash transaction khi gặp chuỗi lỗi.",
+        "source_ids": [
+            "src_pg_type_casting",
+            "src_ms_type_casting"
+        ],
+        "verification_status": "verified",
+        "updated_at": "2026-10-22"
+    },
+    {
+        "id": "map_dml_returning_output",
+        "concept_id": "concept_dml_returning_output",
+        "source_syntax_ids": [
+            "pg_dml_returning"
+        ],
+        "target_syntax_ids": [
+            "ms_dml_output"
+        ],
+        "equivalence_level": "conditional",
+        "conditions": "Phải thay đổi vị trí đặt mệnh đề: PostgreSQL RETURNING ở cuối cùng, SQL Server OUTPUT đặt trước VALUES hoặc trước WHERE, đồng thời phải thêm tiền tố inserted. hoặc deleted.",
+        "limitations": "Khác biệt hoàn toàn về vị trí mệnh đề và cách tham chiếu qua bảng ảo.",
+        "notes": "Trong SQL Server INSERT dùng OUTPUT inserted.col, DELETE dùng OUTPUT deleted.col, UPDATE có thể dùng cả hai.",
+        "source_ids": [
+            "src_pg_dml_returning",
+            "src_ms_dml_output"
+        ],
+        "verification_status": "verified",
+        "updated_at": "2026-10-22"
+    },
+    {
+        "id": "map_conditional_iif",
+        "concept_id": "concept_conditional_iif",
+        "source_syntax_ids": [
+            "ms_iif"
+        ],
+        "target_syntax_ids": [
+            "pg_coalesce"
+        ],
+        "equivalence_level": "conditional",
+        "conditions": "IIF(cond, a, b) trong SQL Server tương đương chính xác với CASE WHEN cond THEN a ELSE b END trong cả hai hệ quản trị.",
+        "limitations": "PostgreSQL không có hàm IIF.",
+        "notes": "Chuyển IIF thành CASE WHEN khi migrate từ SQL Server sang PostgreSQL.",
+        "source_ids": [
+            "src_ms_conditional_iif"
+        ],
+        "verification_status": "verified",
+        "updated_at": "2026-10-22"
+    },
+    {
+        "id": "map_random_number",
+        "concept_id": "concept_random_number",
+        "source_syntax_ids": [
+            "pg_random"
+        ],
+        "target_syntax_ids": [
+            "ms_rand"
+        ],
+        "equivalence_level": "conditional",
+        "conditions": "PostgreSQL random() tính theo từng dòng. Trong SQL Server nếu muốn sắp xếp ngẫu nhiên hoặc tạo số ngẫu nhiên theo từng dòng, BẮT BUỘC phải dùng NEWID() hoặc CHECKSUM(NEWID()) thay cho RAND().",
+        "limitations": "SQL Server RAND() chỉ đánh giá 1 lần cho toàn bộ câu truy vấn SELECT.",
+        "notes": "ORDER BY random() trong PG tương đương ORDER BY NEWID() trong SQL Server.",
+        "source_ids": [
+            "src_pg_numeric_random",
+            "src_ms_numeric_rand"
+        ],
+        "verification_status": "verified",
+        "updated_at": "2026-10-22"
+    },
+    {
+        "id": "map_regex_matching",
+        "concept_id": "concept_regex_matching",
+        "source_syntax_ids": [
+            "pg_regex_match"
+        ],
+        "target_syntax_ids": [
+            "ms_like"
+        ],
+        "equivalence_level": "no_direct_equivalent",
+        "conditions": "SQL Server không hỗ trợ toán tử POSIX regex. Chỉ có thể dùng LIKE với tập ký tự [a-z0-9] đơn giản hoặc phải cài đặt CLR Regular Expressions.",
+        "limitations": "Không có tương đương trực tiếp native trong T-SQL.",
+        "notes": "Các biểu thức regex phức tạp (~, ~*) cần chuyển sang CLR function hoặc kiểm tra ở tầng ứng dụng (application layer).",
+        "source_ids": [
+            "src_pg_string_posix_regex",
+            "src_ms_like_operator"
+        ],
+        "verification_status": "verified",
+        "updated_at": "2026-10-22"
+    },
+    {
+        "id": "map_generate_series_cte",
+        "concept_id": "concept_generate_series",
+        "source_syntax_ids": [
+            "pg_generate_series"
+        ],
+        "target_syntax_ids": [
+            "ms_select_into_temp"
+        ],
+        "equivalence_level": "conditional",
+        "conditions": "PostgreSQL cung cấp hàm generate_series() có sẵn để sinh dòng. Trong SQL Server, cần dùng Recursive CTE hoặc bảng số.",
+        "limitations": "Recursive CTE trong SQL Server mặc định giới hạn 100 lần lặp, cần thêm OPTION (MAXRECURSION 0) nếu sinh dãy số lớn.",
+        "notes": "PostgreSQL tối ưu bộ nhớ hơn nhờ streaming generator.",
+        "verification_status": "verified",
+        "verified_by": "LLTool Architecture Team",
+        "verified_at": "2026-10-22",
+        "source_ids": [
+            "src_pg_generate_series",
+            "src_pgt_generate_series",
+            "src_ai_pg_exclusive_guide"
+        ],
+        "comparison_examples": [
+            {
+                "postgresql": "SELECT date_val::date\nFROM generate_series('2026-10-01'::timestamp, '2026-10-31'::timestamp, INTERVAL '1 day') AS date_val;",
+                "sqlserver": "WITH Calendar AS (\n    SELECT CAST('2026-10-01' AS DATE) AS date_val\n    UNION ALL\n    SELECT DATEADD(day, 1, date_val)\n    FROM Calendar\n    WHERE date_val < '2026-10-31'\n)\nSELECT date_val FROM Calendar OPTION (MAXRECURSION 0);",
+                "notes": "So sánh giữa generate_series nguyên bản của PostgreSQL và Recursive CTE mô phỏng trên SQL Server."
+            }
+        ]
+    },
+    {
+        "id": "map_upsert_on_conflict_merge",
+        "concept_id": "concept_upsert_atomic",
+        "source_syntax_ids": [
+            "pg_on_conflict_upsert"
+        ],
+        "target_syntax_ids": [
+            "ms_merge_statement"
+        ],
+        "equivalence_level": "conditional",
+        "conditions": "Cả hai đều thực hiện Upsert (thêm hoặc cập nhật). ON CONFLICT của PostgreSQL phụ thuộc vào Unique Index/PK. MERGE của SQL Server tổng quát hơn nhưng cần chú ý khóa HOLDLOCK.",
+        "limitations": "MERGE của SQL Server hỗ trợ cả DELETE, trong khi ON CONFLICT của PostgreSQL chỉ hỗ trợ DO UPDATE hoặc DO NOTHING.",
+        "notes": "ON CONFLICT an toàn luồng và ít bị deadlock hơn MERGE trong môi trường ghi dữ liệu cao độ.",
+        "verification_status": "verified",
+        "verified_by": "LLTool Architecture Team",
+        "verified_at": "2026-10-22",
+        "source_ids": [
+            "src_pg_insert_on_conflict",
+            "src_ms_merge",
+            "src_ai_upsert_strategy"
+        ],
+        "comparison_examples": [
+            {
+                "postgresql": "INSERT INTO users (id, name, updated_at)\nVALUES (1, 'Alice', NOW())\nON CONFLICT (id) DO UPDATE\nSET name = EXCLUDED.name, updated_at = NOW();",
+                "sqlserver": "MERGE INTO users AS target\nUSING (VALUES (1, 'Alice')) AS source (id, name)\nON (target.id = source.id)\nWHEN MATCHED THEN\n    UPDATE SET name = source.name, updated_at = GETDATE()\nWHEN NOT MATCHED THEN\n    INSERT (id, name, updated_at) VALUES (source.id, source.name, GETDATE());",
+                "notes": "Đối chiếu trực tiếp giữa cú pháp ON CONFLICT (PostgreSQL) và MERGE INTO (SQL Server)."
+            }
+        ]
+    },
+    {
+        "id": "map_distinct_on_rownum",
+        "concept_id": "concept_distinct_on_group",
+        "source_syntax_ids": [
+            "pg_distinct_on"
+        ],
+        "target_syntax_ids": [
+            "ms_select_into_temp"
+        ],
+        "equivalence_level": "rewrite_required",
+        "conditions": "PostgreSQL sử dụng cú pháp ngắn gọn DISTINCT ON. SQL Server sử dụng Window Function ROW_NUMBER() OVER (PARTITION BY ... ORDER BY ...).",
+        "limitations": "SQL Server cần thêm CTE hoặc subquery để lọc WHERE rn = 1.",
+        "notes": "DISTINCT ON dễ viết hơn nhưng ROW_NUMBER() của SQL Server tuân thủ chuẩn ANSI SQL.",
+        "verification_status": "verified",
+        "verified_by": "LLTool Architecture Team",
+        "verified_at": "2026-10-22",
+        "source_ids": [
+            "src_pg_distinct_on",
+            "src_pgt_distinct",
+            "src_ai_pg_exclusive_guide"
+        ],
+        "comparison_examples": [
+            {
+                "postgresql": "SELECT DISTINCT ON (customer_id) customer_id, order_id, order_date\nFROM orders\nORDER BY customer_id, order_date DESC;",
+                "sqlserver": "WITH RankedOrders AS (\n    SELECT customer_id, order_id, order_date,\n           ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY order_date DESC) AS rn\n    FROM orders\n)\nSELECT customer_id, order_id, order_date\nFROM RankedOrders\nWHERE rn = 1;",
+                "notes": "Lấy đơn hàng mới nhất của từng khách hàng trên 2 hệ CSDL."
+            }
+        ]
+    },
+    {
+        "id": "map_temp_tables",
+        "concept_id": "concept_temp_tables_select_into",
+        "source_syntax_ids": [
+            "pg_generate_series"
+        ],
+        "target_syntax_ids": [
+            "ms_select_into_temp"
+        ],
+        "equivalence_level": "conditional",
+        "conditions": "SQL Server dùng tiền tố # (SELECT INTO #temp). PostgreSQL dùng lệnh CREATE TEMP TABLE ... AS SELECT.",
+        "limitations": "Cả hai đều tự động hủy khi session kết thúc, nhưng SQL Server lưu trong database TempDB dùng chung.",
+        "notes": "SQL Server #temp cho phép tạo chỉ mục clustered index ngay sau khi tạo.",
+        "verification_status": "verified",
+        "verified_by": "LLTool Architecture Team",
+        "verified_at": "2026-10-22",
+        "source_ids": [
+            "src_ms_select_into",
+            "src_w3s_select_into",
+            "src_ai_ms_exclusive_guide"
+        ],
+        "comparison_examples": [
+            {
+                "postgresql": "CREATE TEMP TABLE TempEmployees AS\nSELECT id, name, salary\nFROM employees WHERE salary > 50000;",
+                "sqlserver": "SELECT id, name, salary\nINTO #TempEmployees\nFROM employees WHERE salary > 50000;",
+                "notes": "Cú pháp tạo bảng tạm thời cục bộ trong phiên làm việc."
+            }
+        ]
+    },
+    {
+        "id": "map_string_split_functions",
+        "concept_id": "concept_string_split",
+        "source_syntax_ids": [
+            "pg_regexp_split_to_table"
+        ],
+        "target_syntax_ids": [
+            "ms_string_split"
+        ],
+        "equivalence_level": "equivalent",
+        "conditions": "Cả hai đều tách chuỗi thành tập dòng. STRING_SPLIT trong SQL Server tách bằng ký tự đơn; regexp_split_to_table trong PostgreSQL hỗ trợ regex.",
+        "limitations": "SQL Server STRING_SPLIT chỉ nhận ký tự phân cách độ dài 1 ký tự.",
+        "notes": "SQL Server 2022 bổ sung tham số ordinal để giữ thứ tự phần tử.",
+        "verification_status": "verified",
+        "verified_by": "LLTool Architecture Team",
+        "verified_at": "2026-10-22",
+        "source_ids": [
+            "src_ms_string_split",
+            "src_pg_pattern_matching",
+            "src_ai_ms_exclusive_guide"
+        ],
+        "comparison_examples": [
+            {
+                "postgresql": "SELECT item\nFROM regexp_split_to_table('Apple,Orange,Banana', ',') AS item;",
+                "sqlserver": "SELECT value\nFROM STRING_SPLIT('Apple,Orange,Banana', ',');",
+                "notes": "Tách danh sách trái cây dạng chuỗi thành từng dòng riêng lẻ."
+            }
+        ]
+    },
+    {
+        "id": "map_identity_retrieval",
+        "concept_id": "concept_identity_retrieval",
+        "source_syntax_ids": [
+            "pg_on_conflict_upsert"
+        ],
+        "target_syntax_ids": [
+            "ms_scope_identity"
+        ],
+        "equivalence_level": "conditional",
+        "conditions": "Lấy giá trị ID tự tăng sau INSERT. PostgreSQL sử dụng mệnh đề RETURNING id trực tiếp; SQL Server dùng hàm SCOPE_IDENTITY() hoặc mệnh đề OUTPUT INSERTED.id.",
+        "limitations": "RETURNING trong PostgreSQL trả về kết quả ngay trong client response, SCOPE_IDENTITY() trong SQL Server là hàm hệ thống đọc biến ngữ cảnh.",
+        "notes": "RETURNING của PostgreSQL linh hoạt hơn vì hỗ trợ trả về mọi cột được sinh ra hoặc tính toán.",
+        "verification_status": "verified",
+        "verified_by": "LLTool Architecture Team",
+        "verified_at": "2026-10-22",
+        "source_ids": [
+            "src_ms_scope_identity",
+            "src_ai_ms_exclusive_guide"
+        ],
+        "comparison_examples": [
+            {
+                "postgresql": "INSERT INTO orders (customer_id, amount)\nVALUES (101, 150.00)\nRETURNING id;",
+                "sqlserver": "INSERT INTO orders (customer_id, amount)\nVALUES (101, 150.00);\n\nSELECT SCOPE_IDENTITY() AS id;",
+                "notes": "Lấy ID của bản ghi vừa chèn vào bảng orders."
+            }
+        ]
+    },
+    {
+        "id": "map_set_nocount_optimization",
+        "concept_id": "concept_set_nocount",
+        "source_syntax_ids": [
+            "pg_anonymous_do_block"
+        ],
+        "target_syntax_ids": [
+            "ms_set_nocount"
+        ],
+        "equivalence_level": "no_direct_equivalent",
+        "conditions": "SET NOCOUNT ON là chỉ thị đặc thù của T-SQL để giảm round-trip mạng. PostgreSQL xử lý rowcount trong message protocol nhẹ nhàng nên không cần lệnh tương đương.",
+        "limitations": "Không có lệnh tương đương trực tiếp trong PostgreSQL.",
+        "notes": "Trong PostgreSQL, số dòng bị ảnh hưởng được trả về qua thẻ lệnh CommandComplete tự động.",
+        "verification_status": "verified",
+        "verified_by": "LLTool Architecture Team",
+        "verified_at": "2026-10-22",
+        "source_ids": [
+            "src_ms_set_nocount",
+            "src_ai_ms_exclusive_guide"
+        ],
+        "comparison_examples": [
+            {
+                "postgresql": "-- Trong PostgreSQL không cần lệnh tương đương\nUPDATE accounts SET balance = balance + 10 WHERE active = true;",
+                "sqlserver": "SET NOCOUNT ON;\nUPDATE accounts SET balance = balance + 10 WHERE active = 1;",
+                "notes": "Tối ưu hóa thông báo số dòng bị ảnh hưởng trong batch thực thi."
+            }
+        ]
+    }
+]

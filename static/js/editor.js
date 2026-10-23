@@ -589,9 +589,6 @@
                     }]);
                     ed.pushUndoStop();
                     ed.focus();
-                    if (typeof window.showToast === 'function') {
-                        window.showToast('✓ Formatted selection', 'success');
-                    }
                 } else {
                     // Format Document with confirmation dialog (Section 35.1 A)
                     const fullSql = ed.getValue();
@@ -607,9 +604,6 @@
                         }]);
                         ed.pushUndoStop();
                         ed.focus();
-                        if (typeof window.showToast === 'function') {
-                            window.showToast('✓ Formatted document', 'success');
-                        }
                     };
 
                     if (window.SqlFormatter && typeof window.SqlFormatter.showFormatConfirmDialog === 'function') {
@@ -750,6 +744,8 @@
             suggestOnTriggerCharacters: false,
             wordBasedSuggestions: "off",
             snippetSuggestions: "none",
+            formatOnPaste: false,
+            formatOnType: false,
         });
 
         // Always sync current cursor position to active tab state
@@ -775,8 +771,8 @@
                 const isX = (e.keyCode === 54) || (e.browserEvent && (e.browserEvent.key === 'x' || e.browserEvent.key === 'X'));
                 if (isC || isX) {
                     const text = (window.getMonacoSelectedOrLineText ? window.getMonacoSelectedOrLineText(editor) : '');
-                    if (text && window.copyToClipboard) {
-                        window.copyToClipboard(text);
+                    if (text && window.pywebview && window.pywebview.api && typeof window.pywebview.api.set_clipboard_text === 'function') {
+                        try { window.pywebview.api.set_clipboard_text(text); } catch (_) {}
                     }
                 }
             });
@@ -841,13 +837,91 @@
             contextMenuOrder: 99,
             run: () => {
                 if (window.SqlSyntaxCheckService && typeof window.SqlSyntaxCheckService.toggleEnabled === 'function') {
-                    const newState = window.SqlSyntaxCheckService.toggleEnabled();
-                    if (typeof window.showToast === 'function') {
-                        window.showToast(
-                            newState ? '✓ Đã bật kiểm tra cú pháp SQL (Syntax Check Enabled)' : 'Đã tắt kiểm tra cú pháp SQL (Syntax Check Disabled)',
-                            newState ? 'success' : 'secondary'
-                        );
-                    }
+                    window.SqlSyntaxCheckService.toggleEnabled();
+                }
+            }
+        });
+
+        // ── Bookmark as Snippet (Sprint 2 - F2) ──────────────────────────────
+        editor.addAction({
+            id: 'sql-bookmark-snippet',
+            label: '📌 Lưu làm Snippet (Bookmark as Snippet)...',
+            keybindings: [
+                monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyB
+            ],
+            contextMenuGroupId: '1_modification',
+            contextMenuOrder: 1.5,
+            run: () => {
+                if (window.AppSnippets && typeof window.AppSnippets.showBookmarkPopover === 'function') {
+                    window.AppSnippets.showBookmarkPopover();
+                }
+            }
+        });
+
+        // ── Query Parameters Modal (Sprint 2 - Bước 2.2 F7) ───────────────────
+        editor.addAction({
+            id: 'sql-query-parameters',
+            label: '⚙ Cấu hình tham số truy vấn (Query Parameters)...',
+            keybindings: [
+                monaco.KeyMod.Alt | monaco.KeyCode.KeyP
+            ],
+            contextMenuGroupId: '1_modification',
+            contextMenuOrder: 1.6,
+            run: () => {
+                if (window.QueryParamsManager && typeof window.QueryParamsManager.openParametersModal === 'function') {
+                    window.QueryParamsManager.openParametersModal(editor);
+                }
+            }
+        });
+
+        // ── Extract to CTE (Sprint 3 - Bước 3.2 F5) ───────────────────────────
+        editor.addAction({
+            id: 'sql-extract-to-cte',
+            label: '🧩 Trích xuất thành CTE (Extract to CTE)...',
+            keybindings: [
+                monaco.KeyMod.Alt | monaco.KeyMod.Shift | monaco.KeyCode.KeyC,
+                monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyE
+            ],
+            contextMenuGroupId: '1_modification',
+            contextMenuOrder: 1.7,
+            run: () => {
+                if (window.SqlRefactorEngine && typeof window.SqlRefactorEngine.extractToCTE === 'function') {
+                    window.SqlRefactorEngine.extractToCTE(editor);
+                }
+            }
+        });
+
+        // ── Cross-Database Syntax Reference & Compare (Phase 4) ───────────────
+        editor.addAction({
+            id: 'sql-compare-selection',
+            label: '⚖ Đối chiếu cú pháp đa CSDL (Cross-Database Compare)...',
+            keybindings: [
+                monaco.KeyMod.CtrlCmd | monaco.KeyMod.Alt | monaco.KeyCode.KeyC
+            ],
+            contextMenuGroupId: '1_modification',
+            contextMenuOrder: 1.75,
+            run: (ed) => {
+                if (window.SyntaxCatalog && typeof window.SyntaxCatalog.compareSelectionFromEditor === 'function') {
+                    window.SyntaxCatalog.compareSelectionFromEditor(ed || editor);
+                } else if (typeof window.compareSyntaxSelectionFromEditor === 'function') {
+                    window.compareSyntaxSelectionFromEditor(ed || editor);
+                }
+            }
+        });
+
+        editor.addAction({
+            id: 'sql-open-syntax-reference',
+            label: '📖 Tra cứu cú pháp CSDL (Syntax Reference)...',
+            keybindings: [
+                monaco.KeyMod.CtrlCmd | monaco.KeyMod.Alt | monaco.KeyCode.KeyS
+            ],
+            contextMenuGroupId: '1_modification',
+            contextMenuOrder: 1.76,
+            run: (ed) => {
+                if (window.SyntaxCatalog && typeof window.SyntaxCatalog.openReferenceFromEditor === 'function') {
+                    window.SyntaxCatalog.openReferenceFromEditor(ed || editor);
+                } else if (typeof window.openSyntaxReferenceWindow === 'function') {
+                    window.openSyntaxReferenceWindow();
                 }
             }
         });
@@ -1035,6 +1109,11 @@
                 }
             }
         });
+
+        // ── Smart Refactor: Format on Paste (Sprint 3 - Bước 3.2 F5) ─────────────
+        if (window.SqlRefactorEngine && typeof window.SqlRefactorEngine.hookFormatOnPaste === 'function') {
+            window.SqlRefactorEngine.hookFormatOnPaste(editor);
+        }
 
         // ── Find Widget Keyboard Event Isolation (BUG 2) ─────────────────────────
         const isFindWidgetActive = () => {
@@ -1468,9 +1547,6 @@
                 issuesEl.addEventListener('click', () => {
                     if (window.SqlSyntaxCheckService && typeof window.SqlSyntaxCheckService.isEnabled === 'function' && !window.SqlSyntaxCheckService.isEnabled()) {
                         window.SqlSyntaxCheckService.setEnabled(true);
-                        if (typeof window.showToast === 'function') {
-                            window.showToast('✓ Đã bật kiểm tra cú pháp SQL (Syntax Check Enabled)', 'success');
-                        }
                         return;
                     }
                     const ed = EditorStatusBar.getActiveEditor();
@@ -1589,14 +1665,39 @@
                 window.SqlSyntaxCheckService.attachEditor(window.AppEditor);
             }
 
+            // Immediately sync active tab model if AppTabs already initialized
+            if (window.AppTabs && typeof window.AppTabs.syncActiveTabWithEditor === 'function') {
+                window.AppTabs.syncActiveTabWithEditor(_primaryEditor);
+            }
+            try {
+                window.dispatchEvent(new CustomEvent('editor-mounted', { detail: { editor: _primaryEditor } }));
+            } catch (_) {}
+
             // Set initial theme
             if (window.ThemeManager) {
                 const cur = window.ThemeManager.getCurrentTheme ? window.ThemeManager.getCurrentTheme() : 'dark';
                 window.AppEditor.setOption('theme', cur);
             }
 
-            // Sync layout & font metrics after render with staggered delays
-            [50, 150, 300, 600, 1200].forEach(delay => {
+            // ResizeObserver for automatic robust relayout on any resize / window unhide / container changes
+            if (window.ResizeObserver) {
+                try {
+                    const ro = new ResizeObserver(() => {
+                        if (_primaryEditor) _primaryEditor.layout();
+                        if (_secondaryEditor) _secondaryEditor.layout();
+                    });
+                    ro.observe(targetEl);
+                    const wrapEl = document.querySelector('.ide-editor-wrap');
+                    if (wrapEl) ro.observe(wrapEl);
+                    const paneEl = document.getElementById('editor-pane-1');
+                    if (paneEl) ro.observe(paneEl);
+                } catch (e) {
+                    console.warn('[Editor] ResizeObserver setup error:', e);
+                }
+            }
+
+            // Sync layout & font metrics after render with staggered delays (covering splash transition up to 3.5s)
+            [50, 150, 300, 600, 1200, 2000, 2500, 3500].forEach(delay => {
                 setTimeout(() => {
                     if (_primaryEditor) _primaryEditor.layout();
                     remeasureMonacoFonts();

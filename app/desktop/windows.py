@@ -1571,7 +1571,19 @@ def open_bravo_window(
         base_dir = get_bundle_dir()
 
     try:
-        bravo_html = (base_dir / "templates" / "bravo_form.html").resolve().as_uri()
+        candidate_paths = [
+            base_dir / "templates" / "bravo_form.html",
+            base_dir / "_internal" / "templates" / "bravo_form.html",
+            Path(__file__).resolve().parent.parent.parent / "templates" / "bravo_form.html",
+        ]
+        chosen_path = None
+        for cand in candidate_paths:
+            if cand.exists():
+                chosen_path = cand
+                break
+        if not chosen_path:
+            chosen_path = candidate_paths[0]
+        bravo_html = chosen_path.resolve().as_uri()
 
         if conn_name and str(conn_name).startswith("__group__"):
             conn_name = None
@@ -1638,6 +1650,20 @@ def open_bravo_window(
             apply_dwm_titlebar_theme(bravo_win, bg=t.get("bg"), text=t.get("text"), border=t.get("border"), is_dark=t.get("is_dark"))
         else:
             apply_dwm_titlebar_theme(bravo_win, bg=cur_theme)
+
+        def on_loaded():
+            try:
+                for delay in (0.05, 0.2, 0.5):
+                    threading.Timer(delay, lambda: api.apply_titlebar_theme()).start()
+                bravo_win.evaluate_js(
+                    f"if (window.ThemeManager) {{ window.ThemeManager.applyTheme('{cur_theme}', false); }} "
+                    f"else {{ document.documentElement.setAttribute('data-bs-theme', '{cur_theme}'); }}"
+                    f"const _l = document.getElementById('bravo-initial-loader'); if (_l) {{ _l.style.opacity = '0'; setTimeout(() => _l.remove(), 250); }}"
+                )
+            except Exception:
+                pass
+
+        bravo_win.events.loaded += on_loaded
 
         def on_closed():
             if bravo_win in getattr(api, "_bravo_windows", []):
@@ -1922,10 +1948,37 @@ def open_result_comparator_window(
         return {"success": False, "error": str(exc)}
 
 
+_google_sheets_window_lock = threading.Lock()
+_google_sheets_is_opening = False
+
+
 def open_google_sheets_window(api: Any, base_dir: Optional[Path] = None) -> Dict[str, Any]:
     """Open or focus the dedicated Google Sheets Workspace subwindow."""
+    global _google_sheets_is_opening
     if base_dir is None:
         base_dir = get_bundle_dir()
+
+    with _google_sheets_window_lock:
+        if hasattr(api, "_google_sheets_manager_window") and api._google_sheets_manager_window:
+            try:
+                sub_win = api._google_sheets_manager_window
+                w, h = 1320, 840
+                cx, cy, _ = calculate_centered_coordinates(w, h, api)
+                try:
+                    sub_win.move(cx, cy)
+                except Exception:
+                    pass
+                sub_win.show()
+                sub_win.focus()
+                return {"success": True}
+            except Exception:
+                api._google_sheets_manager_window = None
+
+        if _google_sheets_is_opening:
+            logger.info("[GoogleSheets] Window opening is already in progress, skipping concurrent duplicate.")
+            return {"success": True}
+
+        _google_sheets_is_opening = True
 
     try:
         candidate_paths = [
@@ -1948,18 +2001,6 @@ def open_google_sheets_window(api: Any, base_dir: Optional[Path] = None) -> Dict
         w, h = 1320, 840
         cx, cy, target_screen = calculate_centered_coordinates(w, h, api)
 
-        if hasattr(api, "_google_sheets_manager_window") and api._google_sheets_manager_window:
-            try:
-                try:
-                    api._google_sheets_manager_window.move(cx, cy)
-                except Exception:
-                    pass
-                api._google_sheets_manager_window.show()
-                api._google_sheets_manager_window.focus()
-                return {"success": True}
-            except Exception:
-                api._google_sheets_manager_window = None
-
         win_title = "Google Sheets Workspace — luoBTool IDE"
         sub_api = GoogleSheetsSubwindowApi(api)
         sub_win = webview.create_window(
@@ -1975,7 +2016,8 @@ def open_google_sheets_window(api: Any, base_dir: Optional[Path] = None) -> Dict
             text_select=True,
         )
         sub_api.set_window(sub_win)
-        api._google_sheets_manager_window = sub_win
+        with _google_sheets_window_lock:
+            api._google_sheets_manager_window = sub_win
 
         def _center_on_shown():
             try:
@@ -2006,7 +2048,8 @@ def open_google_sheets_window(api: Any, base_dir: Optional[Path] = None) -> Dict
                 sub_api.gs_editor_host_dispose()
             except Exception:
                 pass
-            api._google_sheets_manager_window = None
+            with _google_sheets_window_lock:
+                api._google_sheets_manager_window = None
             try:
                 if sub_win in webview.windows:
                     webview.windows.remove(sub_win)
@@ -2018,6 +2061,189 @@ def open_google_sheets_window(api: Any, base_dir: Optional[Path] = None) -> Dict
     except Exception as exc:
         logger.exception("Error opening google sheets window: %s", exc)
         return {"success": False, "error": str(exc)}
+    finally:
+        with _google_sheets_window_lock:
+            _google_sheets_is_opening = False
+
+
+# ── Cross-Database Syntax Reference & Compare Subwindow ────────────────────
+
+class SyntaxReferenceSubwindowApi:
+    """JS Bridge for standalone Syntax Reference & Compare subwindow."""
+
+    def __init__(self, main_api, initial_filter=None):
+        self._main_api = main_api
+        self._initial_filter = initial_filter or {}
+        self._window = None
+
+    def set_window(self, win):
+        self._window = win
+
+    def close_window(self):
+        if self._window:
+            try:
+                self._window.destroy()
+            except Exception:
+                pass
+        return {"success": True}
+
+    def apply_titlebar_theme(self, bg_hex=None, text_hex=None, border_hex=None, is_dark=None):
+        return self._main_api.apply_titlebar_theme(bg_hex, text_hex, border_hex, is_dark)
+
+    def get_settings(self):
+        return self._main_api.get_settings()
+
+    def get_initial_filter(self):
+        return self._initial_filter
+
+    def search_syntax_catalog(self, query="", database=None, category=None, status=None, is_exclusive=None):
+        return self._main_api.search_syntax_catalog(query=query, database=database, category=category, status=status, is_exclusive=is_exclusive)
+
+    def get_syntax_entry(self, syntax_id):
+        return self._main_api.get_syntax_entry(syntax_id)
+
+    def get_syntax_concept(self, concept_id):
+        return self._main_api.get_syntax_concept(concept_id)
+
+    def get_syntax_manifest(self):
+        return self._main_api.get_syntax_manifest()
+
+    def compare_syntax_selection(self, sql_text, source_db="postgresql", target_db="sqlserver"):
+        return self._main_api.compare_syntax_selection(sql_text=sql_text, source_db=source_db, target_db=target_db)
+
+    def insert_to_active_editor(self, sql_content):
+        return self._main_api.syntax_catalog_insert_to_editor(sql_content)
+
+    def open_external_url(self, url):
+        return self._main_api.open_external_url(url)
+
+
+_syntax_ref_window_lock = threading.RLock()
+_syntax_ref_is_opening = False
+
+
+def open_syntax_reference_window(
+    api: Any,
+    initial_filter: Optional[Dict[str, Any]] = None,
+    base_dir: Optional[Path] = None
+) -> Dict[str, Any]:
+    """Open or focus the Syntax Reference & Compare desktop subwindow."""
+    global _syntax_ref_is_opening
+    if base_dir is None:
+        base_dir = get_bundle_dir()
+
+    with _syntax_ref_window_lock:
+        if hasattr(api, "_syntax_reference_window") and api._syntax_reference_window:
+            try:
+                sub_win = api._syntax_reference_window
+                w, h = 1260, 800
+                cx, cy, _ = calculate_centered_coordinates(w, h, api)
+                try:
+                    sub_win.move(cx, cy)
+                except Exception:
+                    pass
+                sub_win.show()
+                sub_win.focus()
+                if initial_filter:
+                    import json
+                    payload = json.dumps(initial_filter)
+                    try:
+                        sub_win.evaluate_js(f"if (window.applyInitialContext) {{ window.applyInitialContext({payload}); }}")
+                    except Exception:
+                        pass
+                return {"success": True}
+            except Exception:
+                api._syntax_reference_window = None
+
+        if _syntax_ref_is_opening:
+            logger.info("[SyntaxReference] Window opening is already in progress, skipping concurrent duplicate.")
+            return {"success": True}
+
+        _syntax_ref_is_opening = True
+
+        try:
+            settings = _load_settings_file()
+            cur_theme = settings.get("theme") or settings.get("appearance", {}).get("theme", "dark")
+
+            candidate_paths = [
+                base_dir / "templates" / "syntax_reference_window.html",
+                base_dir / "_internal" / "templates" / "syntax_reference_window.html",
+                Path(__file__).resolve().parent.parent.parent / "templates" / "syntax_reference_window.html",
+            ]
+            chosen_path = None
+            for cand in candidate_paths:
+                if cand.exists():
+                    chosen_path = cand
+                    break
+            if not chosen_path:
+                chosen_path = candidate_paths[0]
+            html_path = chosen_path.resolve().as_uri()
+
+            w, h = 1260, 800
+            cx, cy, target_screen = calculate_centered_coordinates(w, h, api)
+
+            win_title = "Tra cứu & Đối chiếu cú pháp (PostgreSQL & SQL Server) — luoBTool IDE"
+            sub_api = SyntaxReferenceSubwindowApi(api, initial_filter=initial_filter)
+            sub_win = webview.create_window(
+                title=win_title,
+                url=html_path,
+                js_api=sub_api,
+                width=w,
+                height=h,
+                x=cx,
+                y=cy,
+                screen=target_screen,
+                min_size=(920, 560),
+                text_select=True,
+            )
+            sub_api.set_window(sub_win)
+            api._syntax_reference_window = sub_win
+
+            def _center_on_shown():
+                try:
+                    sub_win.move(cx, cy)
+                except Exception:
+                    pass
+
+            def _apply_theme_on_loaded():
+                try:
+                    sub_win.evaluate_js(
+                        f"if (window.ThemeManager) {{ window.ThemeManager.applyTheme('{cur_theme}', false); }} "
+                        f"else {{ document.documentElement.setAttribute('data-bs-theme', '{cur_theme}'); }}"
+                    )
+                    if initial_filter:
+                        import json
+                        payload = json.dumps(initial_filter)
+                        sub_win.evaluate_js(f"if (window.applyInitialContext) {{ window.applyInitialContext({payload}); }}")
+                except Exception:
+                    pass
+
+            sub_win.events.shown += _center_on_shown
+            sub_win.events.loaded += _apply_theme_on_loaded
+
+            if getattr(api, "_current_titlebar_theme", None):
+                t = api._current_titlebar_theme
+                apply_dwm_titlebar_theme(sub_win, bg=t.get("bg"), text=t.get("text"), border=t.get("border"), is_dark=t.get("is_dark"), title=win_title)
+            else:
+                apply_dwm_titlebar_theme(sub_win, bg=cur_theme, title=win_title)
+
+            def on_closed():
+                with _syntax_ref_window_lock:
+                    api._syntax_reference_window = None
+                try:
+                    if sub_win in webview.windows:
+                        webview.windows.remove(sub_win)
+                except Exception:
+                    pass
+
+            sub_win.events.closed += on_closed
+            return {"success": True}
+        except Exception as exc:
+            logger.exception("Error opening syntax reference window: %s", exc)
+            return {"success": False, "error": str(exc)}
+        finally:
+            _syntax_ref_is_opening = False
+
 
 
 

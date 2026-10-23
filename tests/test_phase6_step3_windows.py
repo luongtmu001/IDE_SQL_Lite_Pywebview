@@ -17,6 +17,7 @@ from app.desktop.windows import (
     open_profiler_window,
     open_event_listener_window,
     open_query_history_window,
+    open_bravo_window,
     apply_titlebar_theme_to_windows,
 )
 
@@ -73,3 +74,19 @@ def test_apply_titlebar_theme_to_windows():
         assert res["success"] is True
         mock_dwm.assert_called()
         assert mock_api._current_titlebar_theme["bg"] == "#1e1e1e"
+
+
+def test_open_bravo_window_creation():
+    mock_api = MagicMock()
+    mock_api._bravo_windows = []
+    mock_win = MagicMock()
+
+    with patch("webview.create_window", return_value=mock_win) as mock_create:
+        res = open_bravo_window(mock_api, conn_name="TestConn", database="TestDB")
+        assert res["success"] is True
+        assert "bravo_session_id" in res
+        mock_create.assert_called_once()
+        kwargs = mock_create.call_args[1]
+        assert "bravo_form.html" in kwargs["url"]
+        assert mock_win in mock_api._bravo_windows
+

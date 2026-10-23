@@ -17,42 +17,36 @@ window.GoogleSheetsManager = (function () {
   }
 
   function _bindGlobalTriggers() {
-    const bind = () => {
-      // Toolbar button trigger
-      const navBtn = document.getElementById('ide-google-sheets-btn');
-      if (navBtn && !navBtn._gsBound) {
-        navBtn._gsBound = true;
-        navBtn.addEventListener('click', (e) => {
-          e.preventDefault();
-          openManager();
-        });
-      }
+    // Toolbar button trigger
+    const navBtn = document.getElementById('ide-google-sheets-btn');
+    if (navBtn && !navBtn._gsBound) {
+      navBtn._gsBound = true;
+      navBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        openManager();
+      });
+    }
 
-      // View menu trigger
-      const menuBtn = document.getElementById('ide-menu-google-sheets');
-      if (menuBtn && !menuBtn._gsBound) {
-        menuBtn._gsBound = true;
-        menuBtn.addEventListener('click', (e) => {
-          e.preventDefault();
-          openManager();
-        });
-      }
+    // View menu trigger
+    const menuBtn = document.getElementById('ide-menu-google-sheets');
+    if (menuBtn && !menuBtn._gsBound) {
+      menuBtn._gsBound = true;
+      menuBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        openManager();
+      });
+    }
 
-      // Subwindow standalone refresh button
-      const refreshBtn = document.getElementById('gs-btn-refresh-workspace');
-      if (refreshBtn && !refreshBtn._gsBound) {
-        refreshBtn._gsBound = true;
-        refreshBtn.addEventListener('click', (e) => {
-          e.preventDefault();
-          refresh();
-        });
-      }
-    };
-
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', bind);
-    } else {
-      bind();
+    // Subwindow standalone refresh button
+    const refreshBtn = document.getElementById('gs-btn-refresh-workspace');
+    if (refreshBtn && !refreshBtn._gsBound) {
+      refreshBtn._gsBound = true;
+      refreshBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        refresh();
+      });
     }
 
     // Keyboard shortcut Ctrl+Alt+G
@@ -68,6 +62,10 @@ window.GoogleSheetsManager = (function () {
   }
 
   async function openManager() {
+    if (window._isOpeningSheets) return;
+    window._isOpeningSheets = true;
+    setTimeout(() => { window._isOpeningSheets = false; }, 1500);
+
     if (window.AppLoader) window.AppLoader.show('Đang mở Google Sheets Manager...');
     try {
       // 1. In native PyWebView desktop environment: open a new dedicated subwindow
@@ -117,8 +115,8 @@ window.GoogleSheetsManager = (function () {
           _activeProjectId = (_activeProjectId && _projects.some((p) => p.id === _activeProjectId))
             ? _activeProjectId
             : (lastProjId && _projects.some((p) => p.id === lastProjId))
-            ? lastProjId
-            : _projects[0].id;
+              ? lastProjId
+              : _projects[0].id;
           _currentProjectData = _projects.find((p) => p.id === _activeProjectId) || _projects[0];
         } else {
           _activeProjectId = null;

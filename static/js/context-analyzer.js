@@ -214,9 +214,17 @@
 
         const boundaries = [0];
         let parenDepth = 0;
+        let caseDepth = 0;
         let stmtStarter = null;
-        let seenFromOrValues = false;
+        let statementBodyComplete = false;
         let inFromClause = false;
+        let inUpdateSet = false;
+        let seenAssignInSet = false;
+        let inExec = false;
+        let inSetStmt = false;
+        let seenSetAssign = false;
+        let inDeclare = false;
+        let seenVarInDeclare = false;
 
         const CONTINUATION_BEFORE_SELECT = new Set([
             'UNION', 'INTERSECT', 'EXCEPT', 'ALL', 'AS', 'INTO', 'RETURN', 'IF', 'ELSE', 'VIEW', 'OPENQUERY', 'OPENROWSET'
@@ -231,71 +239,172 @@
             'IN', 'IS', 'NULL', 'LIKE', 'BETWEEN', 'EXISTS', 'NOT', 'ASC', 'DESC'
         ]);
 
+        const STMT_STARTERS = [
+            'SELECT', 'INSERT', 'UPDATE', 'DELETE', 'MERGE', 'WITH', 'DECLARE',
+            'CREATE', 'ALTER', 'DROP', 'EXEC', 'EXECUTE', 'TRUNCATE', 'USE',
+            'PRINT', 'THROW', 'RETURN', 'IF', 'WHILE'
+        ];
+
+        const TRIGGER_EVENT_PREV = new Set(['AFTER', 'BEFORE', 'FOR', 'OF']);
+
         for (let i = 0; i < codeTokens.length; i++) {
             const t = codeTokens[i];
+            const up = (t.upper || t.value).toUpperCase();
+
             if (t.value === '(') {
                 parenDepth++;
             } else if (t.value === ')') {
                 if (parenDepth > 0) parenDepth--;
+                if (parenDepth === 0 && inDeclare) {
+                    statementBodyComplete = true;
+                }
+            }
+
+            if (up === 'CASE') {
+                caseDepth++;
+            } else if (up === 'END' && caseDepth > 0) {
+                caseDepth--;
             }
 
             if (parenDepth === 0) {
-                const up = (t.upper || t.value).toUpperCase();
                 const isSemicolon = (t.type === 'PUNCTUATION' && t.value === ';');
                 const isGo = (t.type === 'KEYWORD' && up === 'GO');
+                const nextTok = i + 1 < codeTokens.length ? codeTokens[i + 1] : null;
+                const nextUp = nextTok ? (nextTok.upper || nextTok.value).toUpperCase() : '';
 
-                if (isSemicolon || isGo) {
+                // Block boundary: block END closes previous statement/block
+                const isBlockEnd = (up === 'END' && caseDepth === 0);
+
+                if (isSemicolon || isGo || isBlockEnd) {
                     boundaries.push(t.end);
                     stmtStarter = null;
-                    seenFromOrValues = false;
+                    statementBodyComplete = false;
                     inFromClause = false;
+                    inUpdateSet = false;
+                    seenAssignInSet = false;
+                    inExec = false;
+                    inSetStmt = false;
+                    seenSetAssign = false;
+                    inDeclare = false;
+                    seenVarInDeclare = false;
                     continue;
                 }
 
+                const prevTok = i > 0 ? codeTokens[i - 1] : null;
+                const prev = prevTok ? (prevTok.upper || prevTok.value).toUpperCase() : '';
+
                 if (stmtStarter === null) {
-                    if (['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'MERGE', 'WITH', 'DECLARE', 'CREATE', 'ALTER', 'DROP', 'EXEC', 'EXECUTE', 'TRUNCATE', 'USE'].includes(up)) {
-                        stmtStarter = up;
+                    const isTriggerEvent = ['INSERT', 'UPDATE', 'DELETE'].includes(up) && TRIGGER_EVENT_PREV.has(prev);
+                    if (!isTriggerEvent) {
+                        if (STMT_STARTERS.includes(up)) {
+                            stmtStarter = up;
+                            if (up === 'EXEC' || up === 'EXECUTE') inExec = true;
+                            if (up === 'DECLARE') inDeclare = true;
+                        } else if (up === 'SET') {
+                            stmtStarter = 'SET';
+                            inSetStmt = true;
+                        }
                     }
                 } else {
                     if (up === 'FROM') {
                         inFromClause = true;
                     } else if (up === 'VALUES') {
-                        seenFromOrValues = true;
+                        statementBodyComplete = true;
                     } else if (inFromClause) {
                         if (!CLAUSE_CONTINUATION_KEYWORDS.has(up) && t.type !== 'PUNCTUATION') {
-                            seenFromOrValues = true;
+                            statementBodyComplete = true;
                             inFromClause = false;
+                        }
+                    } else if (stmtStarter === 'UPDATE') {
+                        if (up === 'SET') {
+                            inUpdateSet = true;
+                        } else if (inUpdateSet && t.value === '=') {
+                            seenAssignInSet = true;
+                        } else if (seenAssignInSet && (t.type === 'NUMBER' || t.type === 'STRING' || t.type === 'IDENTIFIER' || t.type === 'PARAMETER')) {
+                            statementBodyComplete = true;
+                        } else if (up === 'WHERE') {
+                            statementBodyComplete = false;
+                        } else if (t.type === 'OPERATOR' || up === 'AND' || up === 'OR') {
+                            statementBodyComplete = false;
+                        } else if (t.type === 'NUMBER' || t.type === 'STRING' || t.type === 'IDENTIFIER') {
+                            if (seenAssignInSet) statementBodyComplete = true;
+                        }
+                    } else if (inExec) {
+                        if (t.type === 'IDENTIFIER' || t.type === 'KEYWORD') {
+                            statementBodyComplete = true;
+                        }
+                    } else if (inSetStmt) {
+                        if (t.value === '=') {
+                            seenSetAssign = true;
+                        } else if (up === 'ON' || up === 'OFF') {
+                            statementBodyComplete = true;
+                        } else if (seenSetAssign && (t.type === 'NUMBER' || t.type === 'STRING' || t.type === 'IDENTIFIER' || t.type === 'PARAMETER')) {
+                            statementBodyComplete = true;
+                        }
+                    } else if (inDeclare) {
+                        if (t.type === 'PARAMETER' || (t.value && t.value.startsWith('@'))) {
+                            seenVarInDeclare = true;
+                        } else if (t.value === ',') {
+                            seenVarInDeclare = false;
+                            statementBodyComplete = false;
+                        } else if (seenVarInDeclare && (t.type === 'IDENTIFIER' || t.type === 'KEYWORD' || t.type === 'NUMBER' || t.type === 'STRING')) {
+                            statementBodyComplete = true;
+                        }
+                    } else if (stmtStarter === 'RETURN') {
+                        if (t.type === 'NUMBER' || t.type === 'STRING' || t.type === 'IDENTIFIER' || t.type === 'PARAMETER') {
+                            statementBodyComplete = true;
                         }
                     }
 
                     // Check if this token starts a new statement at parenDepth === 0
-                    const prevTok = i > 0 ? codeTokens[i - 1] : null;
-                    const prev = prevTok ? (prevTok.upper || prevTok.value).toUpperCase() : '';
                     const isNewlineAfterPrev = i > 0 && fullSql.substring(codeTokens[i - 1].end, t.start).includes('\n');
+                    const isTriggerEvent = ['INSERT', 'UPDATE', 'DELETE'].includes(up) && TRIGGER_EVENT_PREV.has(prev);
 
                     if (up === 'SELECT') {
                         const isAfterBlockOrRoutine = ['BEGIN', 'DO'].includes(prev);
                         if (!CONTINUATION_BEFORE_SELECT.has(prev) || (prev === 'AS' && (stmtStarter === 'CREATE' || stmtStarter === 'ALTER'))) {
-                            if (stmtStarter === 'SELECT' || stmtStarter === 'DECLARE' || seenFromOrValues || isAfterBlockOrRoutine || stmtStarter === 'CREATE' || stmtStarter === 'ALTER') {
+                            if (stmtStarter !== 'INSERT' || statementBodyComplete) {
                                 boundaries.push(t.start);
                                 stmtStarter = 'SELECT';
-                                seenFromOrValues = false;
+                                statementBodyComplete = false;
                                 inFromClause = false;
+                                inUpdateSet = false;
+                                seenAssignInSet = false;
+                                inExec = false;
+                                inSetStmt = false;
+                                seenSetAssign = false;
+                                inDeclare = false;
+                                seenVarInDeclare = false;
                             }
                         }
-                    } else if (['INSERT', 'UPDATE', 'DELETE', 'DECLARE', 'CREATE', 'ALTER', 'DROP', 'WITH', 'EXEC', 'EXECUTE', 'TRUNCATE', 'USE'].includes(up)) {
-                        if (!['THEN', 'ELSE', 'DO'].includes(prev) && !(prev === 'AS' && stmtStarter !== 'CREATE' && stmtStarter !== 'ALTER')) {
+                    } else if (!isTriggerEvent && (STMT_STARTERS.includes(up) || (up === 'SET' && stmtStarter !== 'UPDATE' && prev !== 'UPDATE' && isNewlineAfterPrev))) {
+                        const isTableHintWith = (up === 'WITH' && ((i + 1 < codeTokens.length && codeTokens[i + 1].value === '(') || (prevTok && (prevTok.type === 'IDENTIFIER' || prevTok.value === ')') && (inFromClause || stmtStarter === 'SELECT' || stmtStarter === 'UPDATE' || stmtStarter === 'DELETE'))));
+                        if (!isTableHintWith && !['THEN', 'ELSE', 'DO'].includes(prev) && !(prev === 'AS' && stmtStarter !== 'CREATE' && stmtStarter !== 'ALTER')) {
                             boundaries.push(t.start);
                             stmtStarter = up;
-                            seenFromOrValues = false;
+                            statementBodyComplete = false;
                             inFromClause = false;
+                            inUpdateSet = false;
+                            seenAssignInSet = false;
+                            inExec = (up === 'EXEC' || up === 'EXECUTE');
+                            inSetStmt = (up === 'SET');
+                            seenSetAssign = false;
+                            inDeclare = (up === 'DECLARE');
+                            seenVarInDeclare = false;
                         }
-                    } else if (seenFromOrValues && isNewlineAfterPrev && prevTok && prevTok.value !== ',' && t.type !== 'PUNCTUATION' && !CLAUSE_CONTINUATION_KEYWORDS.has(up)) {
+                    } else if (statementBodyComplete && isNewlineAfterPrev && prevTok && prevTok.value !== ',' && t.type !== 'PUNCTUATION' && !CLAUSE_CONTINUATION_KEYWORDS.has(up)) {
                         // Identifier or partial typing on a new line after complete clause
                         boundaries.push(t.start);
                         stmtStarter = up;
-                        seenFromOrValues = false;
+                        statementBodyComplete = false;
                         inFromClause = false;
+                        inUpdateSet = false;
+                        seenAssignInSet = false;
+                        inExec = false;
+                        inSetStmt = false;
+                        seenSetAssign = false;
+                        inDeclare = false;
+                        seenVarInDeclare = false;
                     }
                 }
             }
@@ -475,16 +584,20 @@
     // ─────────────────────────────────────────────────────────────────────────────
     // 5. ALTER / CREATE CONTEXT DETECTION
     // ─────────────────────────────────────────────────────────────────────────────
-    function detectAlterContext(textBeforeCursor, optionalCodeTokens = null) {
+    function detectAlterContext(textBeforeCursor, optionalCodeTokens = null, stmtStartOffset = 0) {
         if (!textBeforeCursor && !optionalCodeTokens) return { isAlter: false, action: "", alterType: "" };
 
         const tokenizer = getTokenizer();
         if (optionalCodeTokens || tokenizer) {
             const codeTokens = optionalCodeTokens || tokenizer.filterCodeTokens(tokenizer.tokenize(textBeforeCursor));
 
-            // Find current statement boundary (scan backwards to last ';' or 'GO')
+            // Find current statement boundary (scan backwards to last ';' or 'GO' or stmtStartOffset)
             let stmtStartIdx = 0;
             for (let i = codeTokens.length - 1; i >= 0; i--) {
+                if (stmtStartOffset > 0 && codeTokens[i].start < stmtStartOffset) {
+                    stmtStartIdx = i + 1;
+                    break;
+                }
                 const up = (codeTokens[i].upper || codeTokens[i].value).toUpperCase();
                 if (codeTokens[i].value === ';' || up === 'GO') {
                     stmtStartIdx = i + 1;
@@ -544,11 +657,16 @@
             return { isAlter: false, action: "", alterType: "", actionStart: -1 };
         }
 
-        // Fallback regex: only inspect current statement after last ';' or 'GO'
-        const lastBoundaryMatch = textBeforeCursor.match(/(?:;|[\r\n]\s*GO\b)(?![\s\S]*(?:;|[\r\n]\s*GO\b))/i);
-        const currentStmtText = lastBoundaryMatch
-            ? textBeforeCursor.substring(lastBoundaryMatch.index + lastBoundaryMatch[0].length)
-            : textBeforeCursor;
+        // Fallback regex: only inspect current statement after last ';' or 'GO' or stmtStartOffset
+        let currentStmtText = textBeforeCursor;
+        if (stmtStartOffset > 0 && stmtStartOffset < textBeforeCursor.length) {
+            currentStmtText = textBeforeCursor.substring(stmtStartOffset);
+        } else {
+            const lastBoundaryMatch = textBeforeCursor.match(/(?:;|[\r\n]\s*GO\b)(?![\s\S]*(?:;|[\r\n]\s*GO\b))/i);
+            currentStmtText = lastBoundaryMatch
+                ? textBeforeCursor.substring(lastBoundaryMatch.index + lastBoundaryMatch[0].length)
+                : textBeforeCursor;
+        }
 
         const pattern = /\b(ALTER|DROP|CREATE\s+OR\s+ALTER|CREATE\s+OR\s+REPLACE)(?:\s+(PROCEDURE|PROC|FUNCTION|FUNC|TRIGGER|VIEW|TABLE))?\b/gi;
         let match;
@@ -889,30 +1007,137 @@
     // ─────────────────────────────────────────────────────────────────────────────
     // 6. SCOPE, TEMP TABLES & TABLE VARIABLES EXTRACTION
     // ─────────────────────────────────────────────────────────────────────────────
-    function extractLocalTempTables(sqlText, optionalTokens = null) {
+    function extractLocalTempTables(sqlText, optionalTokens = null, cursorIndex = -1) {
         if (!sqlText) return [];
         const tokenizer = getTokenizer();
         if (optionalTokens || tokenizer) {
             const tokens = optionalTokens || tokenizer.tokenize(sqlText);
             const seen = new Set();
             const result = [];
-            tokens.forEach(t => {
-                if (t.type === 'PARAMETER' && t.value.startsWith('#') && t.value.length > 1 && !/^#+$/.test(t.value)) {
-                    const lower = t.value.toLowerCase();
-                    if (!seen.has(lower)) {
-                        seen.add(lower);
-                        result.push(t.value);
+            for (let i = 0; i < tokens.length; i++) {
+                const t = tokens[i];
+                if (cursorIndex >= 0 && t.start <= cursorIndex && cursorIndex <= t.end) {
+                    continue; // Skip token currently being typed under cursor (J4 fix)
+                }
+                const up = (t.upper || t.value).toUpperCase();
+
+                // 1. CREATE TABLE #temp / CREATE [TEMP] TABLE
+                if (up === 'CREATE') {
+                    let k = i + 1;
+                    while (k < tokens.length && (tokens[k].type === 'WHITESPACE' || tokens[k].type === 'COMMENT_LINE' || tokens[k].type === 'COMMENT_BLOCK')) k++;
+                    let isTemp = false;
+                    while (k < tokens.length) {
+                        const kUp = (tokens[k].upper || tokens[k].value).toUpperCase();
+                        if (['GLOBAL', 'LOCAL', 'UNLOGGED', 'OR', 'REPLACE'].includes(kUp)) {
+                            k++;
+                        } else if (['TEMP', 'TEMPORARY'].includes(kUp)) {
+                            isTemp = true;
+                            k++;
+                        } else {
+                            break;
+                        }
+                        while (k < tokens.length && (tokens[k].type === 'WHITESPACE' || tokens[k].type === 'COMMENT_LINE' || tokens[k].type === 'COMMENT_BLOCK')) k++;
+                    }
+                    if (k < tokens.length && (tokens[k].upper || tokens[k].value).toUpperCase() === 'TABLE') {
+                        k++;
+                        while (k < tokens.length && (tokens[k].type === 'WHITESPACE' || tokens[k].type === 'COMMENT_LINE' || tokens[k].type === 'COMMENT_BLOCK')) k++;
+                        if (k < tokens.length && (tokens[k].upper || tokens[k].value).toUpperCase() === 'IF') {
+                            k += 3;
+                            while (k < tokens.length && (tokens[k].type === 'WHITESPACE' || tokens[k].type === 'COMMENT_LINE' || tokens[k].type === 'COMMENT_BLOCK')) k++;
+                        }
+                        if (k < tokens.length) {
+                            const tblVal = cleanIdentifier(tokens[k].value);
+                            if (tblVal && tblVal.startsWith('#') && tblVal.length > 1 && !/^#+$/.test(tblVal)) {
+                                const lower = tblVal.toLowerCase();
+                                if (!seen.has(lower)) {
+                                    seen.add(lower);
+                                    result.push(tblVal);
+                                }
+                            } else if (isTemp && (tokens[k].type === 'IDENTIFIER' || tokens[k].type === 'KEYWORD')) {
+                                if (tblVal && !seen.has(tblVal.toLowerCase())) {
+                                    seen.add(tblVal.toLowerCase());
+                                    result.push(tblVal);
+                                }
+                            }
+                        }
                     }
                 }
-            });
+
+                // 2. SELECT ... INTO #temp / INTO TEMP tbl
+                if (up === 'INTO') {
+                    let k = i + 1;
+                    while (k < tokens.length && (tokens[k].type === 'WHITESPACE' || tokens[k].type === 'COMMENT_LINE' || tokens[k].type === 'COMMENT_BLOCK')) k++;
+                    let isTemp = false;
+                    if (k < tokens.length && ['TEMP', 'TEMPORARY', 'UNLOGGED'].includes((tokens[k].upper || tokens[k].value).toUpperCase())) {
+                        isTemp = true;
+                        k++;
+                        while (k < tokens.length && (tokens[k].type === 'WHITESPACE' || tokens[k].type === 'COMMENT_LINE' || tokens[k].type === 'COMMENT_BLOCK')) k++;
+                        if (k < tokens.length && (tokens[k].upper || tokens[k].value).toUpperCase() === 'TABLE') {
+                            k++;
+                            while (k < tokens.length && (tokens[k].type === 'WHITESPACE' || tokens[k].type === 'COMMENT_LINE' || tokens[k].type === 'COMMENT_BLOCK')) k++;
+                        }
+                    }
+                    if (k < tokens.length) {
+                        const tblVal = cleanIdentifier(tokens[k].value);
+                        if (tblVal && (isTemp || (tblVal.startsWith('#') && tblVal.length > 1 && !/^#+$/.test(tblVal)))) {
+                            let selectIdx = -1;
+                            for (let b = i - 1; b >= 0; b--) {
+                                const bUp = (tokens[b].upper || tokens[b].value).toUpperCase();
+                                if (tokens[b].value === ';' || bUp === 'GO' || ['INSERT', 'UPDATE', 'DELETE', 'MERGE', 'CREATE', 'ALTER', 'DROP'].includes(bUp)) {
+                                    break;
+                                }
+                                if (bUp === 'SELECT') {
+                                    selectIdx = b;
+                                    break;
+                                }
+                            }
+                            if (selectIdx !== -1) {
+                                const lower = tblVal.toLowerCase();
+                                if (!seen.has(lower)) {
+                                    seen.add(lower);
+                                    result.push(tblVal);
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // 3. ALTER TABLE #temp ADD ...
+                if (up === 'ALTER') {
+                    let k = i + 1;
+                    while (k < tokens.length && (tokens[k].type === 'WHITESPACE' || tokens[k].type === 'COMMENT_LINE' || tokens[k].type === 'COMMENT_BLOCK')) k++;
+                    if (k < tokens.length && (tokens[k].upper || tokens[k].value).toUpperCase() === 'TABLE') {
+                        k++;
+                        while (k < tokens.length && (tokens[k].type === 'WHITESPACE' || tokens[k].type === 'COMMENT_LINE' || tokens[k].type === 'COMMENT_BLOCK')) k++;
+                        if (k < tokens.length) {
+                            const tblVal = cleanIdentifier(tokens[k].value);
+                            if (tblVal && tblVal.startsWith('#') && tblVal.length > 1 && !/^#+$/.test(tblVal)) {
+                                k++;
+                                while (k < tokens.length && (tokens[k].type === 'WHITESPACE' || tokens[k].type === 'COMMENT_LINE' || tokens[k].type === 'COMMENT_BLOCK')) k++;
+                                if (k < tokens.length && (tokens[k].upper || tokens[k].value).toUpperCase() === 'ADD') {
+                                    const lower = tblVal.toLowerCase();
+                                    if (!seen.has(lower)) {
+                                        seen.add(lower);
+                                        result.push(tblVal);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
             return result;
         }
 
-        const regex = /(?:^|[^a-zA-Z0-9_])(#[#a-zA-Z0-9_]+)/g;
         const seen = new Set();
         const result = [];
         let match;
-        while ((match = regex.exec(sqlText)) !== null) {
+        // Only match declared temp tables in regex fallback: CREATE TABLE #temp / SELECT ... INTO #temp
+        const createRegex = /\bCREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(#[#a-zA-Z0-9_]+)/gi;
+        while ((match = createRegex.exec(sqlText)) !== null) {
+            if (cursorIndex >= 0 && match.index <= cursorIndex && cursorIndex <= match.index + match[0].length) {
+                continue;
+            }
             const table = match[1];
             if (table.length > 1 && !/^#+$/.test(table)) {
                 const lower = table.toLowerCase();
@@ -920,6 +1145,37 @@
                     seen.add(lower);
                     result.push(table);
                 }
+            }
+        }
+        const intoRegex = /\bINTO\s+(#[#a-zA-Z0-9_]+)/gi;
+        while ((match = intoRegex.exec(sqlText)) !== null) {
+            if (cursorIndex >= 0 && match.index <= cursorIndex && cursorIndex <= match.index + match[0].length) {
+                continue;
+            }
+            const table = match[1];
+            if (table.length > 1 && !/^#+$/.test(table)) {
+                const prefixText = sqlText.substring(0, match.index);
+                const lastSelect = prefixText.lastIndexOf('SELECT');
+                const lastSemi = prefixText.lastIndexOf(';');
+                if (lastSelect !== -1 && lastSelect > lastSemi) {
+                    const lower = table.toLowerCase();
+                    if (!seen.has(lower)) {
+                        seen.add(lower);
+                        result.push(table);
+                    }
+                }
+            }
+        }
+        // Also match PostgreSQL CREATE TEMP TABLE
+        const pgRegex = /\bCREATE\s+(?:(?:GLOBAL\s+|LOCAL\s+)?(?:TEMPORARY|TEMP)\s+TABLE\s+)(?:IF\s+NOT\s+EXISTS\s+)?([a-zA-Z0-9_"]+)/gi;
+        while ((match = pgRegex.exec(sqlText)) !== null) {
+            if (cursorIndex >= 0 && match.index <= cursorIndex && cursorIndex <= match.index + match[0].length) {
+                continue;
+            }
+            const table = cleanIdentifier(match[1]);
+            if (table && !seen.has(table.toLowerCase())) {
+                seen.add(table.toLowerCase());
+                result.push(table);
             }
         }
         return result;
@@ -1097,6 +1353,11 @@
                             j++;
                             if (j < codeTokens.length && codeTokens[j].value === '.') {
                                 j++; // skip dot
+                                if (j < codeTokens.length && codeTokens[j].value === '.') {
+                                    // double dot e.g. Db..Table
+                                    tableParts.push('');
+                                    j++; // skip second dot
+                                }
                             } else {
                                 break; // end of table path
                             }
@@ -1107,6 +1368,8 @@
 
                     if (tableParts.length === 0) continue;
 
+                    let serverName = "";
+                    let databaseName = "";
                     let schemaName = "";
                     let tableName = "";
                     if (tableParts.length === 1) {
@@ -1114,8 +1377,14 @@
                     } else if (tableParts.length === 2) {
                         schemaName = tableParts[0];
                         tableName = tableParts[1];
-                    } else if (tableParts.length >= 3) {
-                        schemaName = tableParts[tableParts.length - 2];
+                    } else if (tableParts.length === 3) {
+                        databaseName = tableParts[0];
+                        schemaName = tableParts[1] || 'dbo';
+                        tableName = tableParts[2];
+                    } else if (tableParts.length >= 4) {
+                        serverName = tableParts[tableParts.length - 4];
+                        databaseName = tableParts[tableParts.length - 3];
+                        schemaName = tableParts[tableParts.length - 2] || 'dbo';
                         tableName = tableParts[tableParts.length - 1];
                     }
 
@@ -1139,6 +1408,8 @@
                         tblType = 'table_variable';
                     }
                     const info = {
+                        server: serverName,
+                        database: databaseName,
                         schema: schemaName,
                         table: tableName,
                         type: tblType,
@@ -1216,6 +1487,10 @@
                             j++;
                             if (j < codeTokens.length && codeTokens[j].value === '.') {
                                 j++;
+                                if (j < codeTokens.length && codeTokens[j].value === '.') {
+                                    tableParts.push('');
+                                    j++;
+                                }
                             } else {
                                 break;
                             }
@@ -1224,9 +1499,11 @@
                         }
                     }
                     if (tableParts.length > 0) {
-                        let schemaName = tableParts.length > 1 ? tableParts[tableParts.length - 2] : '';
+                        let serverName = tableParts.length >= 4 ? tableParts[tableParts.length - 4] : '';
+                        let databaseName = tableParts.length >= 3 ? tableParts[tableParts.length - 3] : '';
+                        let schemaName = tableParts.length > 1 ? (tableParts[tableParts.length - 2] || 'dbo') : '';
                         let tableName = tableParts[tableParts.length - 1];
-                        const info = { schema: schemaName, table: tableName, dmlAction: 'INSERT' };
+                        const info = { server: serverName, database: databaseName, schema: schemaName, table: tableName, dmlAction: 'INSERT' };
                         aliasMap[tableName.toLowerCase()] = info;
                         aliasMap[tableName] = info;
                     }
@@ -1243,6 +1520,10 @@
                             j++;
                             if (j < codeTokens.length && codeTokens[j].value === '.') {
                                 j++;
+                                if (j < codeTokens.length && codeTokens[j].value === '.') {
+                                    tableParts.push('');
+                                    j++;
+                                }
                             } else {
                                 break;
                             }
@@ -1251,9 +1532,11 @@
                         }
                     }
                     if (tableParts.length > 0) {
-                        let schemaName = tableParts.length > 1 ? tableParts[tableParts.length - 2] : '';
+                        let serverName = tableParts.length >= 4 ? tableParts[tableParts.length - 4] : '';
+                        let databaseName = tableParts.length >= 3 ? tableParts[tableParts.length - 3] : '';
+                        let schemaName = tableParts.length > 1 ? (tableParts[tableParts.length - 2] || 'dbo') : '';
                         let tableName = tableParts[tableParts.length - 1];
-                        const info = { schema: schemaName, table: tableName, dmlAction: 'UPDATE' };
+                        const info = { server: serverName, database: databaseName, schema: schemaName, table: tableName, dmlAction: 'UPDATE' };
                         let aliasToken = null;
                         if (j < codeTokens.length) {
                             const nextWord = (codeTokens[j].upper || codeTokens[j].value).toUpperCase();
@@ -1336,10 +1619,12 @@
 
         Object.values(aliasMap).forEach(info => {
             if (info.table) {
-                const key = `${(info.schema || '').toLowerCase()}::${info.table.toLowerCase()}::${(info.alias || '').toLowerCase()}`;
+                const key = `${(info.server || '').toLowerCase()}::${(info.database || '').toLowerCase()}::${(info.schema || '').toLowerCase()}::${info.table.toLowerCase()}::${(info.alias || '').toLowerCase()}`;
                 if (!seen.has(key)) {
                     seen.add(key);
                     tables.push({
+                        server: info.server || '',
+                        database: info.database || '',
                         schema: info.schema,
                         table: info.table,
                         targetObject: info.targetObject || info.table,
@@ -1735,13 +2020,36 @@
         return result;
     }
 
-    function detectExecContext(codeTokens) {
+    function detectExecContext(codeTokens, allTokens = [], textBeforeCursor = "", cursorIndex = 0, stmtStartOffset = 0) {
+        if ((!codeTokens || codeTokens.length === 0) && textBeforeCursor) {
+            const rawText = (stmtStartOffset > 0 && stmtStartOffset < textBeforeCursor.length)
+                ? textBeforeCursor.substring(stmtStartOffset)
+                : textBeforeCursor;
+            const execMatch = rawText.match(/\b(?:EXEC|EXECUTE)\s+([a-zA-Z0-9_#$]+(?:\.[a-zA-Z0-9_#$]+)*)(\s*.*)$/i);
+            if (execMatch) {
+                const fullProc = execMatch[1];
+                const parts = fullProc.split('.');
+                const procName = parts[parts.length - 1];
+                const procSchema = parts.length > 1 ? parts[parts.length - 2] : "";
+                const afterText = execMatch[2] || "";
+                const isParameterPosition = afterText.length > 0 && (afterText.startsWith(' ') || afterText.startsWith('\t') || afterText.startsWith('\n'));
+                return {
+                    isExec: true,
+                    procedureName: procName,
+                    procedureSchema: procSchema,
+                    isParameterPosition: isParameterPosition
+                };
+            }
+            return { isExec: false, procedureName: "", procedureSchema: "", isParameterPosition: false };
+        }
+
         if (!codeTokens || codeTokens.length === 0) {
             return { isExec: false, procedureName: "", procedureSchema: "", isParameterPosition: false };
         }
 
         let execIdx = -1;
         for (let i = codeTokens.length - 1; i >= 0; i--) {
+            if (stmtStartOffset > 0 && codeTokens[i].start < stmtStartOffset) break;
             const up = (codeTokens[i].upper || codeTokens[i].value).toUpperCase();
             if (up === 'EXEC' || up === 'EXECUTE') {
                 execIdx = i;
@@ -1793,7 +2101,11 @@
             procName = parts[parts.length - 1];
         }
 
-        const isParameterPosition = Boolean(procName && !hasTrailingDot && j < codeTokens.length);
+        const hasTrailingSpace = allTokens.length > 0 && allTokens[allTokens.length - 1].type === 'WHITESPACE';
+        const procTokenEnd = (j > 0 && codeTokens[j - 1]) ? codeTokens[j - 1].end : 0;
+        const isPastProcedure = Boolean(procTokenEnd && cursorIndex > procTokenEnd);
+
+        const isParameterPosition = Boolean(procName && !hasTrailingDot && (j < codeTokens.length || hasTrailingSpace || isPastProcedure));
 
         return {
             isExec: true,
@@ -1929,8 +2241,11 @@
                                 tDepth--;
                                 if (tDepth < 0) {
                                     if (p > 0) {
-                                        const pWord = (codeTokens[p - 1].upper || codeTokens[p - 1].value || '').toUpperCase();
-                                        if (pWord === 'TABLE' || (p > 1 && (codeTokens[p - 2].upper || codeTokens[p - 2].value || '').toUpperCase() === 'TABLE')) {
+                                        let k = p - 1;
+                                        while (k >= 0 && (codeTokens[k].type === 'IDENTIFIER' || codeTokens[k].value === '.' || codeTokens[k].type === 'PARAMETER')) {
+                                            k--;
+                                        }
+                                        if (k >= 0 && (codeTokens[k].upper || codeTokens[k].value || '').toUpperCase() === 'TABLE') {
                                             return { isDataTypePosition: true, dataTypeTarget: 'TABLE_COLUMN' };
                                         }
                                     }
@@ -1944,6 +2259,273 @@
         }
 
         return { isDataTypePosition: false, dataTypeTarget: null };
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────────
+    // 7c. SYNTAX POSITION DETECTION (Spec Section 5 GĐ2)
+    // ─────────────────────────────────────────────────────────────────────────────
+    function detectPosition({
+        codeTokens,
+        cursorIndex,
+        statementRange,
+        currentWord,
+        clause,
+        dataTypeContext,
+        dmlContext,
+        routineContext,
+        isAggregateArg,
+        dialect
+    }) {
+        let position = null;
+        let aliasSlot = false;
+
+        if (!codeTokens) codeTokens = [];
+
+        // 1. Tokens within statement boundary prior to or at cursor
+        let stmtTokens = codeTokens;
+        if (statementRange && typeof statementRange.start === 'number' && typeof statementRange.end === 'number') {
+            stmtTokens = codeTokens.filter(t => t.start >= statementRange.start && t.end <= cursorIndex);
+        } else {
+            stmtTokens = codeTokens.filter(t => t.end <= cursorIndex);
+        }
+
+        // 2. Preceding tokens strictly before cursor/currentWord
+        let precedingTokens = stmtTokens;
+        if (currentWord && precedingTokens.length > 0) {
+            const lastTok = precedingTokens[precedingTokens.length - 1];
+            if (cleanIdentifier(lastTok.value).toLowerCase() === currentWord.toLowerCase()) {
+                precedingTokens = precedingTokens.slice(0, -1);
+            }
+        }
+
+        const lastCodeTok = precedingTokens.length > 0 ? precedingTokens[precedingTokens.length - 1] : null;
+        const lastCodeVal = lastCodeTok ? (lastCodeTok.upper || lastCodeTok.value || '').toUpperCase() : '';
+        const prevCodeTok = precedingTokens.length > 1 ? precedingTokens[precedingTokens.length - 2] : null;
+        const prevCodeVal = prevCodeTok ? (prevCodeTok.upper || prevCodeTok.value || '').toUpperCase() : '';
+
+        // ── 1. statement_start ─────────────────────────────────────────────────
+        let isStmtStart = false;
+        if (precedingTokens.length === 0) {
+            isStmtStart = true;
+        } else if (lastCodeTok.value === ';' || lastCodeVal === 'GO') {
+            isStmtStart = true;
+        } else if (lastCodeVal === 'BEGIN') {
+            if (prevCodeVal !== 'TRAN' && prevCodeVal !== 'TRANSACTION') {
+                isStmtStart = true;
+            }
+        } else if (lastCodeVal === 'TRY' && prevCodeVal === 'BEGIN') {
+            isStmtStart = true;
+        } else if (lastCodeVal === 'CATCH' && prevCodeVal === 'BEGIN') {
+            isStmtStart = true;
+        } else if (lastCodeVal === 'ELSE') {
+            if (!['SELECT', 'WHERE', 'ON', 'HAVING'].includes(clause)) {
+                isStmtStart = true;
+            }
+        } else if (lastCodeVal === 'THEN') {
+            if (!['SELECT', 'WHERE', 'ON', 'HAVING'].includes(clause)) {
+                isStmtStart = true;
+            }
+        } else if (lastCodeVal === 'AS') {
+            const hasRoutineKeyword = stmtTokens.some(t => ['PROCEDURE', 'PROC', 'FUNCTION', 'TRIGGER'].includes((t.upper || t.value).toUpperCase()));
+            if ((routineContext && routineContext.isInRoutine) || hasRoutineKeyword) {
+                isStmtStart = true;
+            }
+        }
+
+        if (isStmtStart) {
+            return { position: 'statement_start', aliasSlot: false };
+        }
+
+        // ── 2. column_definition_type ──────────────────────────────────────────
+        if (dataTypeContext && dataTypeContext.isDataTypePosition && dataTypeContext.dataTypeTarget === 'TABLE_COLUMN') {
+            return { position: 'column_definition_type', aliasSlot: false };
+        }
+
+        // ── 3. table_hint (SQL Server WITH ( ... ) after table source) ────────
+        if (codeTokens.length > 0) {
+            let depth = 0;
+            let openParenIdx = -1;
+            for (let p = codeTokens.length - 1; p >= 0; p--) {
+                const tok = codeTokens[p];
+                if (tok.value === ')') {
+                    depth++;
+                } else if (tok.value === '(') {
+                    if (depth === 0) {
+                        openParenIdx = p;
+                        break;
+                    } else {
+                        depth--;
+                    }
+                }
+            }
+            if (openParenIdx > 0) {
+                const beforeParen = codeTokens[openParenIdx - 1];
+                const bpUp = (beforeParen.upper || beforeParen.value || '').toUpperCase();
+                if (bpUp === 'WITH' && openParenIdx > 1) {
+                    const beforeWith = codeTokens[openParenIdx - 2];
+                    const bwUp = (beforeWith.upper || beforeWith.value || '').toUpperCase();
+                    if ((['FROM', 'JOIN', 'UPDATE'].includes(clause) || clause === '') && (beforeWith.type === 'IDENTIFIER' || beforeWith.value === ')' || (beforeWith.type === 'KEYWORD' && !['SELECT', 'INSERT', 'UPDATE', 'DELETE', ';', 'BEGIN', 'AS'].includes(bwUp)))) {
+                        return { position: 'table_hint', aliasSlot: false };
+                    }
+                }
+            }
+        }
+
+        // ── 4. aggregate_arg (First argument inside aggregate function) ────────
+        if (isAggregateArg) {
+            let depth = 0;
+            let commaCount = 0;
+            for (let p = codeTokens.length - 1; p >= 0; p--) {
+                const tok = codeTokens[p];
+                if (tok.value === ')') depth++;
+                else if (tok.value === ',') {
+                    if (depth === 0) commaCount++;
+                } else if (tok.value === '(') {
+                    if (depth === 0) break;
+                    else depth--;
+                }
+            }
+            if (commaCount === 0) {
+                return { position: 'aggregate_arg', aliasSlot: false };
+            }
+        }
+
+        // ── 5. is_predicate (After IS / IS NOT) ─────────────────────────────────
+        if (lastCodeVal === 'IS' || (lastCodeVal === 'NOT' && prevCodeVal === 'IS')) {
+            return { position: 'is_predicate', aliasSlot: false };
+        }
+
+        // ── 6. order_direction (Inside ORDER BY after column/expression) ───────
+        if (clause === 'ORDER BY' && lastCodeTok) {
+            const nonOrderDirKeywords = new Set(['BY', 'ORDER', 'ASC', 'DESC', 'NULLS', 'FIRST', 'LAST']);
+            if (lastCodeTok.value !== ',' && !nonOrderDirKeywords.has(lastCodeVal)) {
+                if (lastCodeTok.type === 'IDENTIFIER' || lastCodeTok.type === 'NUMBER' || lastCodeTok.value === ')') {
+                    return { position: 'order_direction', aliasSlot: false };
+                }
+            }
+        }
+
+        // ── 7. on_conflict (PostgreSQL after ON in INSERT ... VALUES) ───────────
+        if (lastCodeVal === 'ON') {
+            const hasInsert = stmtTokens.some(t => (t.upper || t.value || '').toUpperCase() === 'INSERT');
+            const hasValues = stmtTokens.some(t => (t.upper || t.value || '').toUpperCase() === 'VALUES');
+            if (hasInsert && hasValues) {
+                return { position: 'on_conflict', aliasSlot: false };
+            }
+        }
+
+        // ── 8. alias_name (After AS in SELECT list or table source) ────────────
+        if (lastCodeVal === 'AS') {
+            const isCast = dataTypeContext && (dataTypeContext.dataTypeTarget === 'CAST' || dataTypeContext.dataTypeTarget === 'PG_CAST');
+            const hasRoutineKeyword = stmtTokens.some(t => ['PROCEDURE', 'PROC', 'FUNCTION', 'TRIGGER'].includes((t.upper || t.value).toUpperCase()));
+            if (!isCast && !hasRoutineKeyword && !(routineContext && routineContext.isInRoutine)) {
+                return { position: 'alias_name', aliasSlot: false };
+            }
+        }
+
+        // ── 9. value_expression ────────────────────────────────────────────────
+        if (dmlContext && (dmlContext.isUpdateSetValue || dmlContext.isValues)) {
+            return { position: 'value_expression', aliasSlot: false };
+        }
+        if (clause === 'VALUES') {
+            return { position: 'value_expression', aliasSlot: false };
+        }
+        if (['WHERE', 'ON', 'HAVING', 'CASE'].includes(clause) && lastCodeTok) {
+            const compOps = new Set(['=', '<>', '!=', '>', '<', '>=', '<=', 'LIKE', 'ILIKE']);
+            if (lastCodeTok.type === 'OPERATOR' && compOps.has(lastCodeTok.value)) {
+                return { position: 'value_expression', aliasSlot: false };
+            }
+            if (compOps.has(lastCodeVal)) {
+                return { position: 'value_expression', aliasSlot: false };
+            }
+            // Check for IN ( ... ) list or subquery (Spec RC7, IN-PAREN)
+            if (precedingTokens.length > 0) {
+                let depth = 0;
+                for (let p = precedingTokens.length - 1; p >= 0; p--) {
+                    const tok = precedingTokens[p];
+                    if (tok.value === ')') {
+                        depth++;
+                    } else if (tok.value === '(') {
+                        if (depth === 0) {
+                            if (p > 0) {
+                                const beforeParen = precedingTokens[p - 1];
+                                const bpVal = (beforeParen.upper || beforeParen.value || '').toUpperCase();
+                                if (bpVal === 'IN') {
+                                    return { position: 'value_expression', aliasSlot: false };
+                                }
+                                if (bpVal === 'NOT' && p > 1) {
+                                    const beforeNot = precedingTokens[p - 2];
+                                    const bnVal = (beforeNot.upper || beforeNot.value || '').toUpperCase();
+                                    if (bnVal === 'IN') {
+                                        return { position: 'value_expression', aliasSlot: false };
+                                    }
+                                }
+                            }
+                            break;
+                        } else {
+                            depth--;
+                        }
+                    }
+                }
+            }
+        }
+
+        // ── 10. after_operand (WHERE/ON/HAVING/CASE after column/literal/var/) )
+        if (['WHERE', 'ON', 'HAVING', 'CASE'].includes(clause) && lastCodeTok) {
+            const nonOperands = new Set([
+                'WHERE', 'ON', 'HAVING', 'CASE', 'WHEN', 'THEN', 'ELSE', 'END',
+                'AND', 'OR', 'NOT', 'IN', 'IS', 'LIKE', 'ILIKE', 'BETWEEN', 'EXISTS',
+                '=', '<>', '!=', '>', '<', '>=', '<=', '+', '-', '*', '/', '%',
+                '(', ',', '.'
+            ]);
+            if (!nonOperands.has(lastCodeVal) && !nonOperands.has(lastCodeTok.value) && lastCodeTok.type !== 'OPERATOR') {
+                if (lastCodeTok.type === 'IDENTIFIER' || lastCodeTok.type === 'NUMBER' || lastCodeTok.type === 'STRING' || lastCodeTok.type === 'PARAMETER' || lastCodeTok.value === ')') {
+                    return { position: 'after_operand', aliasSlot: false };
+                }
+            }
+        }
+
+        // ── 11. after_source (+ aliasSlot) ────────────────────────────────────
+        const isSourceClause = (clause === 'FROM' || clause === 'JOIN' || (dmlContext && dmlContext.isUpdate && !dmlContext.isUpdateSet && !dmlContext.isUpdateSetValue));
+        if (isSourceClause && lastCodeTok) {
+            const nonSourceEndKeywords = new Set([
+                'FROM', 'JOIN', 'INNER', 'LEFT', 'RIGHT', 'FULL', 'CROSS', 'OUTER',
+                'ON', 'USING', 'APPLY', 'LATERAL', 'WITH', 'AS', 'WHERE', 'GROUP',
+                'ORDER', 'HAVING', 'LIMIT', 'OFFSET', 'UNION', 'EXCEPT', 'INTERSECT',
+                '(', ',', ';', '.'
+            ]);
+            if (!nonSourceEndKeywords.has(lastCodeVal) && !nonSourceEndKeywords.has(lastCodeTok.value)) {
+                if (lastCodeTok.type === 'IDENTIFIER' || lastCodeTok.value === ')') {
+                    position = 'after_source';
+                    if (lastCodeTok.value === ')') {
+                        aliasSlot = true;
+                    } else {
+                        // Inspect preceding token before lastCodeTok in codeTokens
+                        const lastTokIdx = codeTokens.indexOf(lastCodeTok);
+                        if (lastTokIdx > 0) {
+                            const prevTok = codeTokens[lastTokIdx - 1];
+                            const prevVal = (prevTok.upper || prevTok.value || '').toUpperCase();
+                            if (prevTok.value === '.') {
+                                aliasSlot = true; // e.g. dbo.Orders ‸
+                            } else if (prevVal === 'AS') {
+                                aliasSlot = false; // e.g. Orders AS o ‸
+                            } else if (['FROM', 'JOIN', 'UPDATE', 'CROSS', 'APPLY'].includes(prevVal) || prevTok.value === ',') {
+                                aliasSlot = true; // e.g. FROM Orders ‸ or FROM o, Items ‸
+                            } else if (prevTok.type === 'IDENTIFIER' || prevTok.value === ')') {
+                                aliasSlot = false; // e.g. FROM Orders o ‸ or FROM (sub) o ‸
+                            } else {
+                                aliasSlot = false;
+                            }
+                        } else {
+                            aliasSlot = true;
+                        }
+                    }
+                    return { position: 'after_source', aliasSlot };
+                }
+            }
+        }
+
+        return { position: null, aliasSlot: false };
     }
 
     // ─────────────────────────────────────────────────────────────────────────────
@@ -1971,6 +2553,8 @@
         let execContext = { isExec: false, procedureName: "", procedureSchema: "", isParameterPosition: false };
         let routineContext = { isInRoutine: false, isRoutineBody: false, routineType: "", routineName: "" };
         let dataTypeContext = { isDataTypePosition: false, dataTypeTarget: null };
+        let enclosingFunction = "";
+        let isAggregateArg = false;
         let statementRange = { start: 0, end: fullSql.length };
         let stmtInfo = { start: 0, end: fullSql.length, text: fullSql };
         let isInsideComment = false;
@@ -1987,6 +2571,7 @@
 
         let fullTokens = null;
         let fullCodeTokens = [];
+        let codeTokens = [];
 
         if (tokenizer) {
             if (fullSql === _lastFullSql && _lastFullTokens) {
@@ -2054,7 +2639,7 @@
                     break;
                 }
             }
-            const codeTokens = tokenizer.filterCodeTokens(allTokens);
+            codeTokens = tokenizer.filterCodeTokens(allTokens);
 
             // 3. Current token and dot-qualifier
             // Check raw characters immediately preceding cursor to accurately detect trailing dot or @
@@ -2070,9 +2655,11 @@
             tokenStartOffset = cursorIndex;
             tokenEndOffset = cursorIndex;
 
+            let hasTrailingSpace = false;
             if (allTokens.length > 0) {
                 const lastTok = allTokens[allTokens.length - 1];
                 if (lastTok.type === 'WHITESPACE') {
+                    hasTrailingSpace = true;
                     currentWord = "";
                     tokenStartOffset = cursorIndex;
                     tokenEndOffset = cursorIndex;
@@ -2123,7 +2710,7 @@
                 const lastTokIdx = codeTokens.length - 1;
                 if (codeTokens[lastTokIdx].value === '.') {
                     dotIdx = lastTokIdx;
-                } else if (lastTokIdx >= 1 && codeTokens[lastTokIdx - 1].value === '.') {
+                } else if (lastTokIdx >= 1 && codeTokens[lastTokIdx - 1].value === '.' && !hasTrailingSpace && currentWord) {
                     dotIdx = lastTokIdx - 1;
                 }
 
@@ -2172,8 +2759,15 @@
                 }
             }
 
-            // 4. Preceding tokens for follow-up detection
-            const nonPunct = codeTokens.filter(t => t.type === 'KEYWORD' || t.type === 'IDENTIFIER');
+            // 4. Preceding tokens for follow-up detection (excluding current word under cursor)
+            let precedingCodeTokens = codeTokens;
+            if (currentWord && precedingCodeTokens.length > 0) {
+                const lastCodeTok = precedingCodeTokens[precedingCodeTokens.length - 1];
+                if (cleanIdentifier(lastCodeTok.value).toLowerCase() === currentWord.toLowerCase()) {
+                    precedingCodeTokens = precedingCodeTokens.slice(0, -1);
+                }
+            }
+            const nonPunct = precedingCodeTokens.filter(t => t.type === 'KEYWORD' || t.type === 'IDENTIFIER');
             if (nonPunct.length > 0) {
                 previousTokens = nonPunct.slice(-3).map(t => (t.upper || t.value).toUpperCase());
                 previousToken = previousTokens[previousTokens.length - 1];
@@ -2217,10 +2811,36 @@
             clause = detectClauseFromTokens(codeTokens, cursorIndex, statementRange.start);
 
             // 6. ALTER, EXEC, ROUTINE & DATA TYPE Context Detection
-            alterContext = detectAlterContext(textBeforeCursor, codeTokens);
-            execContext = detectExecContext(codeTokens);
+            alterContext = detectAlterContext(textBeforeCursor, codeTokens, statementRange.start);
+            execContext = detectExecContext(codeTokens, allTokens, textBeforeCursor, cursorIndex, statementRange.start);
             routineContext = detectRoutineContext(codeTokens, textBeforeCursor, fullCodeTokens);
             dataTypeContext = detectDataTypeContext(codeTokens, currentWord, fullCodeTokens, cursorIndex);
+
+            // 6b. Enclosing function & Aggregate Argument Detection
+            let parenDepth = 0;
+            for (let i = codeTokens.length - 1; i >= 0; i--) {
+                const tk = codeTokens[i];
+                if (tk.value === ')') {
+                    parenDepth++;
+                } else if (tk.value === '(') {
+                    if (parenDepth > 0) {
+                        parenDepth--;
+                    } else {
+                        // Found unclosed '(' containing cursor
+                        if (i > 0) {
+                            const prevTk = codeTokens[i - 1];
+                            if (prevTk.type === 'IDENTIFIER' || prevTk.type === 'KEYWORD') {
+                                enclosingFunction = cleanIdentifier(prevTk.value).toUpperCase();
+                                const AGGREGATE_FUNCS = ['COUNT', 'SUM', 'AVG', 'MIN', 'MAX', 'STRING_AGG', 'GROUP_CONCAT', 'COUNT_BIG'];
+                                if (AGGREGATE_FUNCS.includes(enclosingFunction)) {
+                                    isAggregateArg = true;
+                                }
+                            }
+                        }
+                        break;
+                    }
+                }
+            }
 
             if (routineContext && routineContext.isRoutineBody) {
                 alterContext = { isAlter: false, action: "", alterType: "" };
@@ -2365,6 +2985,28 @@
             contextType = IntelliSenseContextType.PROCEDURE;
         }
 
+        // 8b. Syntax Position Detection (Spec Section 5 GĐ2)
+        const detectedPos = detectPosition({
+            codeTokens,
+            cursorIndex,
+            statementRange,
+            currentWord,
+            clause,
+            dataTypeContext,
+            dmlContext,
+            routineContext,
+            isAggregateArg,
+            dialect
+        });
+        let position = detectedPos.position;
+        let aliasSlot = detectedPos.aliasSlot;
+
+        if (position === 'column_definition_type') {
+            dataTypeContext.isDataTypePosition = true;
+            dataTypeContext.dataTypeTarget = 'TABLE_COLUMN';
+            contextType = IntelliSenseContextType.DATA_TYPE;
+        }
+
         if (isInsideComment) {
             contextType = 'comment';
             currentWord = '';
@@ -2378,8 +3020,8 @@
         }
 
         // 9. Local script objects & table aliases
-        let localTempTables = extractLocalTempTables(fullSql, fullTokens);
-        let localTableVars = extractLocalTableVars(fullSql, fullTokens);
+        let localTempTables = extractLocalTempTables(fullSql, fullTokens, cursorIndex);
+        let localTableVars = extractLocalTableVars(fullSql, fullTokens, cursorIndex);
         let localVariables = [];
         let ctes = [];
         let aliasMap = {};
@@ -2389,7 +3031,7 @@
 
         if (window.DefaultScopeResolver && tokenizer) {
             const allCodeTokens = fullCodeTokens;
-            const rootScope = window.DefaultScopeResolver.buildScopeTree(allCodeTokens, fullSql.length, cursorIndex, statementRange);
+            const rootScope = window.DefaultScopeResolver.buildScopeTree(allCodeTokens, fullSql.length, cursorIndex, statementRange, dialect);
             activeScope = window.DefaultScopeResolver.getScopeAt(rootScope, cursorIndex);
 
             if (activeScope) {
@@ -2415,14 +3057,12 @@
 
                 ctes = activeScope.getSymbolsByType('cte');
                 localVariables = activeScope.getSymbolsByType('scalar_variable');
-                const scopeTableVars = activeScope.getSymbolsByType('table_variable');
-                if (scopeTableVars.length > 0) {
-                    localTableVars = [...new Set([...localTableVars, ...scopeTableVars.map(v => v.name)])];
-                }
-                const scopeTempTables = activeScope.getSymbolsByType('temp_table');
-                if (scopeTempTables.length > 0) {
-                    localTempTables = [...new Set([...localTempTables, ...scopeTempTables.map(t => t.name)])];
-                }
+                const scopeTableVars = activeScope.getSymbolsByType('table_variable')
+                    .filter(s => s.isDeclared !== false && s.sourceType !== 'QUERY_REFERENCE');
+                localTableVars = scopeTableVars.map(v => v.name);
+                const scopeTempTables = activeScope.getSymbolsByType('temp_table')
+                    .filter(s => s.isDeclared !== false && s.sourceType !== 'QUERY_REFERENCE');
+                localTempTables = scopeTempTables.map(t => t.name);
             }
 
             if (fullQualifier || qualifier) {
@@ -2516,6 +3156,10 @@
             triggerChar,
             clause,
             contextType,
+            enclosingFunction,
+            isAggregateArg,
+            position: position || null,
+            aliasSlot: Boolean(aliasSlot),
             isDataTypePosition: Boolean(dataTypeContext.isDataTypePosition),
             dataTypeTarget: dataTypeContext.dataTypeTarget || null,
             previousToken,
@@ -2598,6 +3242,7 @@
         detectRoutineContext,
         detectCatchBlock,
         detectStatementBoundary,
+        detectPosition,
         analyze
     };
 

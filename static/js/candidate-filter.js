@@ -218,13 +218,15 @@
             if (matchedFirstChar) score += 20;
             score += Math.min(20, consecutiveMatches * 5);
             score -= Math.min(25, totalGaps * 2);
-            return Math.max(10, score);
+            // Spec GĐ4 / RC10: Fuzzy score capped at 70 (< subword 72)
+            return Math.min(70, Math.max(10, score));
         }
 
         filter(candidates, query = '') {
             if (!candidates || !Array.isArray(candidates)) return [];
             const rawQuery = String(query || '').trim();
             const cleanQuery = rawQuery.toLowerCase();
+            const isV2Ranking = (typeof localStorage !== 'undefined' && localStorage.getItem('intellisense.v2.ranking') === 'false') ? false : true;
 
             if (!cleanQuery) {
                 return candidates.map(c => ({
@@ -248,16 +250,16 @@
                 const nameClean = stripDelims(nameLower);
                 const queryClean = stripDelims(cleanQuery);
 
-                // Phase 9: Star Expansion query matching (*, expand, all, star, columns)
+                // Phase 9: Star Expansion query matching (*, expand, star)
                 if (item.type === 'star_expansion') {
-                    if (cleanQuery === '*' || 'expand'.startsWith(cleanQuery) || 'columns'.startsWith(cleanQuery) || 'all'.startsWith(cleanQuery) || 'star'.startsWith(cleanQuery)) {
+                    if (cleanQuery === '*' || (cleanQuery.length >= 3 && ('expand'.startsWith(cleanQuery) || 'star'.startsWith(cleanQuery)))) {
                         prefixMatches.push({
                             ...item,
                             _matchType: cleanQuery === '*' ? 'exact' : 'prefix',
                             _matchScore: cleanQuery === '*' ? 100 : 88
                         });
-                        return;
                     }
+                    return;
                 }
 
                 // 1. Exact match
@@ -273,10 +275,14 @@
                 // 2. Prefix match
                 if (nameLower.startsWith(cleanQuery) || (queryClean && nameClean.startsWith(queryClean))) {
                     const ratio = queryClean ? (queryClean.length / nameClean.length) : (cleanQuery.length / nameLower.length);
+                    // Spec GĐ4 / RC3: Bỏ thưởng tỷ lệ độ dài: 85 + min(3, 15 * ratio)
+                    const prefixScore = isV2Ranking
+                        ? (85 + Math.min(3, Math.round(15 * ratio)))
+                        : (80 + Math.round(ratio * 15));
                     prefixMatches.push({
                         ...item,
                         _matchType: 'prefix',
-                        _matchScore: 80 + Math.round(ratio * 15)
+                        _matchScore: prefixScore
                     });
                     return;
                 }

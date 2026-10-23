@@ -27,6 +27,7 @@
             let sev = m.MarkerSeverity.Error;
             if (this.severity === 'warning') sev = m.MarkerSeverity.Warning;
             else if (this.severity === 'info') sev = m.MarkerSeverity.Info;
+            else if (this.severity === 'hint') sev = (m.MarkerSeverity.Hint !== undefined ? m.MarkerSeverity.Hint : m.MarkerSeverity.Info);
 
             return {
                 severity: sev,

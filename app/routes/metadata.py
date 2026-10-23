@@ -13,7 +13,8 @@ def get_connection(connection_id):
 def databases(connection_id):
     try:
         connection = get_connection(connection_id)
-        items = connection.metadata_service.list_databases()
+        accessible_only = request.args.get("accessible_only", "").lower() in ("1", "true", "yes")
+        items = connection.metadata_service.list_databases(accessible_only=accessible_only)
         search = request.args.get("search")
         if search:
             s = search.strip().lower()

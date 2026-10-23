@@ -120,6 +120,21 @@ test('Phase 5 - Token classification simulation for PL/pgSQL routine', () => {
     assert.strictEqual(classifyWord('PLPGSQL', provider), 'keyword');
     assert.strictEqual(classifyWord('RETURNS', provider), 'keyword');
 
+    // Extended PostgreSQL keywords & routines
+    assert.strictEqual(classifyWord('CALL', provider), 'keyword');
+    assert.strictEqual(classifyWord('REFRESH', provider), 'keyword');
+    assert.strictEqual(classifyWord('MATERIALIZED', provider), 'keyword');
+    assert.strictEqual(classifyWord('LATERAL', provider), 'keyword');
+    assert.strictEqual(classifyWord('GENERATED', provider), 'keyword');
+    assert.strictEqual(classifyWord('WITHIN', provider), 'keyword');
+
+    // Extended PostgreSQL functions & types
+    assert.strictEqual(classifyWord('GEN_RANDOM_UUID', provider), 'predefined');
+    assert.strictEqual(classifyWord('UUID_GENERATE_V4', provider), 'predefined');
+    assert.strictEqual(classifyWord('JSONB_SET', provider), 'predefined');
+    assert.strictEqual(classifyWord('INTERVAL', provider), 'type');
+    assert.strictEqual(classifyWord('INET', provider), 'type');
+
     // Identifiers should remain 'identifier'
     assert.strictEqual(classifyWord('my_variable', provider), 'identifier');
     assert.strictEqual(classifyWord('order_total', provider), 'identifier');
@@ -138,7 +153,27 @@ test('Phase 5 - Token classification simulation for T-SQL CATCH block', () => {
     assert.strictEqual(classifyWord('ERROR_LINE', provider), 'predefined');
     assert.strictEqual(classifyWord('XACT_STATE', provider), 'predefined');
 
+    // Extended T-SQL keywords, hints, windowing
+    assert.strictEqual(classifyWord('OUTPUT', provider), 'keyword');
+    assert.strictEqual(classifyWord('INSERTED', provider), 'keyword');
+    assert.strictEqual(classifyWord('DELETED', provider), 'keyword');
+    assert.strictEqual(classifyWord('NOLOCK', provider), 'keyword');
+    assert.strictEqual(classifyWord('UPDLOCK', provider), 'keyword');
+    assert.strictEqual(classifyWord('PIVOT', provider), 'keyword');
+    assert.strictEqual(classifyWord('UNPIVOT', provider), 'keyword');
+    assert.strictEqual(classifyWord('UNBOUNDED', provider), 'keyword');
+    assert.strictEqual(classifyWord('PRECEDING', provider), 'keyword');
+    assert.strictEqual(classifyWord('FOLLOWING', provider), 'keyword');
+
+    // Extended T-SQL functions & types
+    assert.strictEqual(classifyWord('SCOPE_IDENTITY', provider), 'predefined');
+    assert.strictEqual(classifyWord('PARSENAME', provider), 'predefined');
+    assert.strictEqual(classifyWord('DATEDIFF_BIG', provider), 'predefined');
+    assert.strictEqual(classifyWord('GEOMETRY', provider), 'type');
+    assert.strictEqual(classifyWord('ROWVERSION', provider), 'type');
+
     // Standard columns and tables remain identifiers
     assert.strictEqual(classifyWord('Users', provider), 'identifier');
     assert.strictEqual(classifyWord('ErrorLog', provider), 'identifier');
 });
+

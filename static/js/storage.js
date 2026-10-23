@@ -326,6 +326,43 @@
                 console.warn('[AppStorage] resetCodeStyles error:', e);
             }
             return await this.getCodeStyles();
+        },
+
+        // ── Execution Statistics History (Sprint 1 - F3) ──────────────────────
+        getQueryStatsHistory(queryHash) {
+            if (!queryHash) return [];
+            try {
+                const key = `lltool_stats_${queryHash}`;
+                const raw = localStorage.getItem(key);
+                if (!raw) return [];
+                const parsed = JSON.parse(raw);
+                return Array.isArray(parsed) ? parsed : [];
+            } catch (e) {
+                console.warn('[AppStorage] getQueryStatsHistory error:', e);
+                return [];
+            }
+        },
+
+        saveQueryStatsHistory(queryHash, stats) {
+            if (!queryHash || !stats) return [];
+            try {
+                const key = `lltool_stats_${queryHash}`;
+                let history = this.getQueryStatsHistory(queryHash);
+                history.push({
+                    durationMs: typeof stats.durationMs === 'number' ? stats.durationMs : 0,
+                    rowCount: typeof stats.rowCount === 'number' ? stats.rowCount : 0,
+                    dataSizeBytes: typeof stats.dataSizeBytes === 'number' ? stats.dataSizeBytes : 0,
+                    timestamp: stats.timestamp || Date.now()
+                });
+                if (history.length > 5) {
+                    history = history.slice(-5);
+                }
+                localStorage.setItem(key, JSON.stringify(history));
+                return history;
+            } catch (e) {
+                console.warn('[AppStorage] saveQueryStatsHistory error:', e);
+                return [stats];
+            }
         }
     };
 

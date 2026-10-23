@@ -40,7 +40,9 @@ def test_run_node_js_test_suite():
     )
 
     if proc.returncode != 0:
-        print("[NODE TEST STDOUT]:\n", proc.stdout)
-        print("[NODE TEST STDERR]:\n", proc.stderr)
+        safe_stdout = proc.stdout.encode('ascii', errors='replace').decode('ascii')
+        safe_stderr = proc.stderr.encode('ascii', errors='replace').decode('ascii')
+        print("[NODE TEST STDOUT]:\n", safe_stdout)
+        print("[NODE TEST STDERR]:\n", safe_stderr)
 
-    assert proc.returncode == 0, f"Node.js test suite failed with exit code {proc.returncode}:\n{proc.stdout}"
+    assert proc.returncode == 0, f"Node.js test suite failed with exit code {proc.returncode}"

@@ -204,13 +204,13 @@ class TestScriptAsPostgreSql:
     def test_script_function_drop_with_args_pg(self):
         _, svc = create_mock_session("postgresql")
         sql = svc.script_object("testdb", "public", "calc_tax(integer, numeric)", object_type="function", action="DROP")
-        assert sql == 'DROP FUNCTION IF EXISTS "public"."calc_tax"(integer, numeric) CASCADE;'
+        assert sql == 'DROP FUNCTION IF EXISTS public.calc_tax(integer, numeric);'
 
     def test_script_procedure_drop_with_args_pg(self):
         _, svc = create_mock_session("postgresql")
         raw_sig = "USP_B20EMPLOYEE_UPDATEPROFILE(IN P_EMPLOYEEID CHARACTER VARYING, IN P_DATE DATE)"
         sql = svc.script_object("testdb", "public", raw_sig, object_type="procedure", action="DROP")
-        assert sql == 'DROP PROCEDURE IF EXISTS "public"."USP_B20EMPLOYEE_UPDATEPROFILE"(IN P_EMPLOYEEID CHARACTER VARYING, IN P_DATE DATE) CASCADE;'
+        assert sql == 'DROP PROCEDURE IF EXISTS public.USP_B20EMPLOYEE_UPDATEPROFILE(CHARACTER VARYING, DATE);'
 
     def test_script_procedure_execute_with_args_pg(self):
         _, svc = create_mock_session("postgresql")
@@ -232,6 +232,69 @@ class TestScriptAsPostgreSql:
         svc.get_object_definition = MagicMock(return_value='CREATE VIEW "public"."active_items" AS SELECT * FROM items')
         sql = svc.script_object("testdb", "public", "active_items", object_type="view", action="ALTER")
         assert 'CREATE OR REPLACE VIEW "public"."active_items"' in sql
+
+    def test_script_function_drop_with_overloads_from_db_pg(self):
+        session, svc = create_mock_session("postgresql")
+        session.adapter.get_routine_signatures.return_value = [
+            {"name": "calc_tax", "schema": "public", "identity_args": "amount numeric, rate double precision", "routine_type": "function"},
+            {"name": "calc_tax", "schema": "public", "identity_args": "amount numeric", "routine_type": "function"},
+        ]
+        sql = svc.script_object("testdb", "public", "calc_tax", object_type="function", action="DROP")
+        expected = (
+            'DROP FUNCTION IF EXISTS public.calc_tax(numeric, double precision);\n'
+            'DROP FUNCTION IF EXISTS public.calc_tax(numeric);'
+        )
+        assert sql == expected
+
+    def test_script_procedure_drop_from_db_pg(self):
+        session, svc = create_mock_session("postgresql")
+        session.adapter.get_routine_signatures.return_value = [
+            {"name": "process_orders", "schema": "public", "identity_args": "p_customer_id integer, p_date date", "routine_type": "procedure"}
+        ]
+        sql = svc.script_object("testdb", "public", "process_orders", object_type="procedure", action="DROP")
+        assert sql == 'DROP PROCEDURE IF EXISTS public.process_orders(integer, date);'
+
+    def test_script_function_drop_zero_args_pg(self):
+        _, svc = create_mock_session("postgresql")
+        sql = svc.script_object("testdb", "dbo", "ufn_b00command_running()", object_type="function", action="DROP")
+        assert sql == 'DROP FUNCTION IF EXISTS dbo.ufn_b00command_running();'
+
+    def test_script_procedure_drop_fallback_no_signatures_pg(self):
+        session, svc = create_mock_session("postgresql")
+        session.adapter.get_routine_signatures.return_value = []
+        sql = svc.script_object("testdb", "public", "orphan_proc", object_type="procedure", action="DROP")
+        assert sql == 'DROP PROCEDURE IF EXISTS public.orphan_proc();'
+
+    def test_script_procedure_drop_sqlserver(self):
+        _, svc = create_mock_session("sqlserver")
+        sql = svc.script_object("TestDb", "dbo", "sp_ProcessOrders", object_type="procedure", action="DROP")
+        assert sql == 'DROP PROCEDURE IF EXISTS [dbo].[sp_ProcessOrders];'
+
+    def test_script_function_drop_sqlserver(self):
+        _, svc = create_mock_session("sqlserver")
+        sql = svc.script_object("TestDb", "dbo", "fn_CalculateTax", object_type="function", action="DROP")
+        assert sql == 'DROP FUNCTION IF EXISTS [dbo].[fn_CalculateTax];'
+
+    def test_adapter_get_routine_signatures_postgresql(self):
+        from app.database.postgresql import PostgreSqlAdapter
+        adapter = PostgreSqlAdapter.__new__(PostgreSqlAdapter)
+        adapter.connection = MagicMock()
+        mock_execute = MagicMock(return_value={
+            "rows": [
+                ("calc_tax", "public", "numeric, double precision", "amount numeric, rate double precision", "function", 2, 12345),
+                ("calc_tax", "public", "numeric", "amount numeric", "function", 1, 12346),
+            ]
+        })
+        adapter.execute = mock_execute
+
+        sigs = adapter.get_routine_signatures(schema="public", name="calc_tax", database="testdb")
+        assert len(sigs) == 2
+        assert sigs[0]["name"] == "calc_tax"
+        assert sigs[0]["type_args"] == "numeric, double precision"
+        assert sigs[0]["identity_args"] == "numeric, double precision"
+        assert sigs[0]["routine_type"] == "function"
+        assert sigs[1]["identity_args"] == "numeric"
+
 
 
 class DummyApi(MetadataApiMixin):
@@ -303,3 +366,23 @@ class TestResultDiffEngineLogic:
         assert val_null != val_empty
         assert (val_null is None) is True
         assert (val_empty is None) is False
+
+
+class TestCleanPgIdentityArgs:
+    def test_clean_pg_identity_args_variations(self):
+        from app.services.metadata_service import clean_pg_identity_args
+        cases = [
+            ("integer", "integer"),
+            ("p1 integer", "integer"),
+            ("IN P_EMPLOYEEID CHARACTER VARYING, IN P_DATE DATE", "CHARACTER VARYING, DATE"),
+            ("amount numeric, rate double precision", "numeric, double precision"),
+            ("VARIADIC p_arr integer[]", "integer[]"),
+            ("p_ts timestamp with time zone, p_total numeric(12, 2)", "timestamp with time zone, numeric(12, 2)"),
+            ("numeric(12, 2)", "numeric(12, 2)"),
+            ("p_notes text[]", "text[]"),
+            ('"myParam" integer', "integer"),
+            ("", ""),
+        ]
+        for inp, expected in cases:
+            assert clean_pg_identity_args(inp).lower() == expected.lower()
+

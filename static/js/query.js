@@ -295,6 +295,20 @@ function initQuery() {
             }
         }
 
+        // SPID badge in status bar
+        const spidBadge = document.getElementById('ide-status-spid');
+        const spidText = document.getElementById('ide-status-spid-text');
+        const effectiveSpid = (tab && tab.spid) || (curConn && curConn.spid);
+        if (spidBadge && spidText) {
+            if (effectiveSpid) {
+                const label = (dbType === 'postgresql' || (curConn && curConn.type === 'postgresql')) ? 'PID: ' : 'SPID: ';
+                spidText.textContent = label + effectiveSpid;
+                spidBadge.classList.remove('d-none');
+            } else {
+                spidBadge.classList.add('d-none');
+            }
+        }
+
         // Refresh transaction status in background
         refreshTxStatus();
     }
@@ -834,7 +848,6 @@ function initQuery() {
                                 }
                             }
                             updateActionBar();
-                            showToast(`Switched database to ${dbName}`, 'info');
                         });
 
                         menuDb.appendChild(li);
@@ -964,7 +977,6 @@ function initQuery() {
                                     }
                                 }
                                 updateActionBar();
-                                showToast(`Switched schema to ${name}`, 'info');
                             });
 
                             menuSchema.appendChild(li);
@@ -1275,13 +1287,16 @@ function initQuery() {
             }
         };
 
-        // Click on pane/toolbar marks it as active and updates status
         const setActiveGrid = () => {
             tabContainer.querySelectorAll('.ide-grid-pane').forEach(p => p.classList.remove('ide-grid-pane-active'));
             pane.classList.add('ide-grid-pane-active');
             if (typeof window.updateActiveGridStatus === 'function') {
-                const curRows = (resSet.row_count ?? (resSet.rows ? resSet.rows.length : 0));
-                window.updateActiveGridStatus(gridNum, curRows, totalGrids);
+                const inst = (table && window.GridResultManager) ? window.GridResultManager.getInstance(table) : null;
+                const curRows = (inst && typeof inst.totalRows === 'number')
+                    ? inst.totalRows
+                    : (resSet.row_count ?? (resSet.rows ? resSet.rows.length : 0));
+                const allPanes = tabContainer.querySelectorAll('.ide-grid-pane');
+                window.updateActiveGridStatus(gridNum, curRows, allPanes.length || totalGrids);
             }
         };
         pane.addEventListener('pointerdown', setActiveGrid);
@@ -1741,6 +1756,85 @@ function initQuery() {
         setTimeout(() => restoreEditorState(rawEditor, snapshot), 150);
     }
 
+    // ── Execution Statistics Helpers (Sprint 1 - F3) ──────────────────────────
+    function computeQueryHash(sql) {
+        const text = (sql || '').trim().replace(/\s+/g, ' ').toLowerCase();
+        if (!text) return 'q_empty';
+        let hash = 5381;
+        for (let i = 0; i < text.length; i++) {
+            hash = ((hash << 5) + hash) + text.charCodeAt(i);
+            hash = hash & hash;
+        }
+        return 'q_' + (hash >>> 0).toString(16);
+    }
+
+    function estimateResultPayloadSize(results) {
+        if (!results || !Array.isArray(results) || results.length === 0) return 0;
+        let bytes = 0;
+        try {
+            for (let i = 0; i < results.length; i++) {
+                const r = results[i];
+                if (!r) continue;
+                if (r.columns && Array.isArray(r.columns)) {
+                    bytes += r.columns.reduce((acc, c) => acc + (c && c.name ? c.name.length : 10) + 16, 0);
+                }
+                if (r.rows && Array.isArray(r.rows)) {
+                    const sampleCount = Math.min(r.rows.length, 25);
+                    let sampleBytes = 0;
+                    for (let j = 0; j < sampleCount; j++) {
+                        const row = r.rows[j];
+                        if (Array.isArray(row)) {
+                            sampleBytes += row.reduce((sum, v) => sum + (v === null || v === undefined ? 4 : String(v).length), 0);
+                        } else if (typeof row === 'object' && row !== null) {
+                            sampleBytes += Object.values(row).reduce((sum, v) => sum + (v === null || v === undefined ? 4 : String(v).length), 0);
+                        }
+                    }
+                    const avgRowBytes = sampleCount > 0 ? (sampleBytes / sampleCount) : 0;
+                    bytes += Math.round(avgRowBytes * r.rows.length);
+                }
+            }
+        } catch (_) {
+            bytes = 512;
+        }
+        return Math.max(bytes, 0);
+    }
+
+    function recordAndSyncExecutionStats(sql, ms, rowCount, results, connId, dbName, schema) {
+        try {
+            const queryHash = computeQueryHash(sql);
+            const dataSizeBytes = estimateResultPayloadSize(results);
+            let history = [];
+            if (window.AppStorage && typeof window.AppStorage.saveQueryStatsHistory === 'function') {
+                history = window.AppStorage.saveQueryStatsHistory(queryHash, {
+                    durationMs: ms,
+                    rowCount: rowCount,
+                    dataSizeBytes: dataSizeBytes,
+                    timestamp: Date.now()
+                });
+            } else if (window.AppStorage && typeof window.AppStorage.getQueryStatsHistory === 'function') {
+                history = window.AppStorage.getQueryStatsHistory(queryHash);
+            }
+
+            if (window.GridResultManager && typeof window.GridResultManager.updateExecutionStats === 'function') {
+                window.GridResultManager.updateExecutionStats({
+                    queryHash,
+                    durationMs: ms,
+                    rowCount,
+                    dataSizeBytes,
+                    connId: connId || window.ActiveConnectionId,
+                    dbName: dbName || window.ActiveDatabase,
+                    schema: schema || window.ActiveSchema,
+                    history
+                });
+            }
+        } catch (e) {
+            console.warn('[Query] Error recording execution stats:', e);
+        }
+    }
+    window.__recordAndSyncExecutionStats = recordAndSyncExecutionStats;
+    window.__estimateResultPayloadSize = estimateResultPayloadSize;
+    window.__computeQueryHash = computeQueryHash;
+
     // ── Execute query ─────────────────────────────────────────────────────────
     async function executeQuery(skipProtection = false, skipBsCheck = false, confirmed = false, execOptions = {}) {
         if (resultPanelState.isRunning) return;
@@ -1957,7 +2051,11 @@ function initQuery() {
 
         // Check if connectionId is valid and active in connection manager
         let isActiveConn = false;
-        if (window.AppExplorer && typeof window.AppExplorer.getActiveConnections === 'function') {
+        if (tabState && tabState.isDedicatedTabSession && tabState.connectionId) {
+            // Dedicated per-tab session is already active for this tab
+            isActiveConn = true;
+            connId = tabState.connectionId;
+        } else if (window.AppExplorer && typeof window.AppExplorer.getActiveConnections === 'function') {
             const activeList = window.AppExplorer.getActiveConnections() || [];
             if (connId && activeList.some(a => a && a.connection_id === connId)) {
                 isActiveConn = true;
@@ -2010,7 +2108,7 @@ function initQuery() {
                     });
                 });
                 if (isActiveConn) {
-                    executeQuery(skipDryRun, forceAll, forceExec, execOptions);
+                    executeQuery(skipProtection, skipBsCheck, confirmed, execOptions);
                     return;
                 }
             }
@@ -2021,6 +2119,48 @@ function initQuery() {
             setResultsTabVisible(false);
             switchResultView('results-messages');
             return;
+        }
+
+        // Ensure per-tab dedicated session if enabled (default ON per Section 7.1)
+        let isPerTabSession = true;
+        try {
+            const rawSettings = localStorage.getItem('ide-settings');
+            if (rawSettings) {
+                const parsed = JSON.parse(rawSettings);
+                if (parsed && parsed.sql && parsed.sql.perTabSession !== undefined) {
+                    isPerTabSession = Boolean(parsed.sql.perTabSession);
+                }
+            }
+        } catch (_) {}
+
+        const currentExecutingTabId = (tabState && (tabState.id || tabState.tabId)) || getActiveTabId();
+        const curType = ((tabState && tabState.dbType) || '').toLowerCase();
+        const isSupportedDb = curType === 'sqlserver' || curType === 'mssql' || curType === 'tsql' || curType === 'postgresql' || curType === 'postgres' || curType === 'pg' || !curType;
+        if (isPerTabSession && currentExecutingTabId && tabState && isSupportedDb) {
+            if (!tabState.isDedicatedTabSession) {
+                try {
+                    const tabSessRes = await fetch('/api/connections/tab-session', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            tab_id: currentExecutingTabId,
+                            connection_id: connId,
+                            database: dbName || null,
+                            schema: schema || null
+                        })
+                    });
+                    const tabSessData = await tabSessRes.json();
+                    if (tabSessData && tabSessData.success && tabSessData.connection) {
+                        tabState.connectionId = tabSessData.connection.connection_id;
+                        tabState.spid = tabSessData.connection.spid;
+                        tabState.isDedicatedTabSession = true;
+                        connId = tabState.connectionId;
+                        if (window.updateActionBar) window.updateActionBar();
+                    }
+                } catch (e) {
+                    console.warn('[Query] Could not initialize dedicated tab session, fallback to shared:', e);
+                }
+            }
         }
 
         // UI: running state
@@ -2139,7 +2279,7 @@ function initQuery() {
                     console.warn('[Query] Session expired, auto-reconnecting and retrying query...');
                     setRunning(false);
                     await window.AppExplorer.reconnectConnection(connId, cName, tabSt?.dbType, null);
-                    executeQuery(skipDryRun, forceAll, forceExec, { ...(execOptions || {}), hasRetried: true });
+                    executeQuery(skipProtection, skipBsCheck, confirmed, { ...(execOptions || {}), hasRetried: true });
                     return;
                 }
             }
@@ -2292,13 +2432,23 @@ function initQuery() {
                     setStatus(`${finalRows.toLocaleString()} rows · ${gridCount} grid${gridCount > 1 ? 's' : ''} · ${ms} ms`);
                 }
                 if (footerTime) footerTime.textContent = `${ms} ms`;
-                if (footerRows) footerRows.textContent = `${finalRows.toLocaleString()} row${finalRows !== 1 ? 's' : ''} (${gridCount} result set${gridCount !== 1 ? 's' : ''})`;
+                if (footerRows) {
+                    if (gridCount > 1) {
+                        footerRows.innerHTML = `${finalRows.toLocaleString()} dòng <span class="text-muted ms-1">(${gridCount} bảng)</span>`;
+                    } else {
+                        footerRows.innerHTML = `<b>${finalRows.toLocaleString()}</b> dòng`;
+                    }
+                }
+                recordAndSyncExecutionStats(sql, ms, finalRows, streamedResults, connId, dbName, schema);
                 setResultsTabVisible(true);
                 switchResultView('results-grid');
             } else if (hasData) {
                 // Results available (e.g. statement 1 succeeded) -> Show Results Tab
                 setResultsTabVisible(true);
                 renderGrid({ results: dataResults }, ms);
+                let totalRowsCount = 0;
+                dataResults.forEach(r => { totalRowsCount += (r.row_count ?? (r.rows ? r.rows.length : 0)); });
+                recordAndSyncExecutionStats(sql, ms, totalRowsCount, dataResults, connId, dbName, schema);
 
                 if (hasErrors) {
                     // Subsequent statement failed -> notify user and show indicator on Messages tab
@@ -2940,10 +3090,40 @@ function initQuery() {
 
         // Function to update status when user clicks a specific grid
         window.updateActiveGridStatus = function(activeGridNum, activeRows, totalGridsCount) {
-            if (footerRows) {
-                footerRows.innerHTML = `Bảng <b>#${activeGridNum}</b>: <b>${activeRows.toLocaleString()}</b> dòng <span class="text-muted ms-1">(Tổng: ${totalRowCount.toLocaleString()} dòng / ${totalGridsCount} bảng)</span>`;
+            const currentTabId = getActiveTabId();
+            const currentContainer = (currentTabId && tabGridContainers[currentTabId]) ? tabGridContainers[currentTabId] : tableWrap;
+            const panes = currentContainer ? currentContainer.querySelectorAll('.ide-grid-pane') : [];
+            const actualTotalGrids = panes.length || totalGridsCount || 1;
+
+            if (actualTotalGrids > 1) {
+                // Multi-table mode: calculate accurate total rows across all grids
+                let actualTotalRows = 0;
+                panes.forEach(p => {
+                    const tbl = p.querySelector('table.ide-results-table');
+                    const inst = (tbl && window.GridResultManager) ? window.GridResultManager.getInstance(tbl) : null;
+                    if (inst && typeof inst.totalRows === 'number') {
+                        actualTotalRows += inst.totalRows;
+                    } else {
+                        const rowCountBadge = p.querySelector('.ide-grid-pane-rowcount');
+                        const parsed = rowCountBadge ? parseInt(rowCountBadge.textContent.replace(/[^0-9]/g, ''), 10) : 0;
+                        actualTotalRows += (parsed || 0);
+                    }
+                });
+                if (actualTotalRows === 0 && activeRows > 0) {
+                    actualTotalRows = activeRows;
+                }
+
+                if (footerRows) {
+                    footerRows.innerHTML = `Bảng <b>#${activeGridNum}</b>: <b>${activeRows.toLocaleString()}</b> dòng <span class="text-muted ms-1">(Tổng: ${actualTotalRows.toLocaleString()} dòng / ${actualTotalGrids} bảng)</span>`;
+                }
+                setStatus(`Bảng #${activeGridNum}: ${activeRows.toLocaleString()} dòng · Tổng: ${actualTotalRows.toLocaleString()} dòng / ${actualTotalGrids} bảng`);
+            } else {
+                // Single grid result: simply display clean row count, no duplicate text
+                if (footerRows) {
+                    footerRows.innerHTML = `<b>${activeRows.toLocaleString()}</b> dòng`;
+                }
+                setStatus(`${activeRows.toLocaleString()} rows`);
             }
-            setStatus(`Bảng #${activeGridNum}: ${activeRows.toLocaleString()} dòng`);
         };
 
         // Function to synchronize footer row counts when rows are filtered
@@ -2952,38 +3132,69 @@ function initQuery() {
             let hiddenTotal = 0;
             const currentContainer = (tabId && tabGridContainers[tabId]) ? tabGridContainers[tabId] : tableWrap;
             const tables = currentContainer.querySelectorAll('table.ide-results-table');
+            const totalGrids = tables.length;
+            let currentTotalRows = 0;
+
             tables.forEach(tbl => {
                 const inst = window.GridResultManager ? window.GridResultManager.getInstance(tbl) : null;
                 if (inst) {
                     const shown = inst.getVisibleRowCount();
                     shownTotal += shown;
+                    currentTotalRows += inst.totalRows;
                     hiddenTotal += (inst.totalRows - shown);
                 } else {
                     const trs = tbl.querySelectorAll('tbody tr');
+                    let tableTotal = 0;
                     trs.forEach(tr => {
+                        tableTotal++;
                         if (tr.classList.contains('ide-row-filtered-out')) {
                             hiddenTotal++;
                         } else {
                             shownTotal++;
                         }
                     });
+                    currentTotalRows += tableTotal;
                 }
             });
 
+            if (!footerRows) return;
+
             if (hiddenTotal > 0) {
-                footerRows.innerHTML = `Hiển thị <b>${shownTotal}</b> / ${totalRowCount} dòng (${totalGrids} result set${totalGrids !== 1 ? 's' : ''})`;
+                if (totalGrids > 1) {
+                    footerRows.innerHTML = `Hiển thị <b>${shownTotal.toLocaleString()}</b> / ${currentTotalRows.toLocaleString()} dòng <span class="text-muted ms-1">(${totalGrids} bảng)</span>`;
+                } else {
+                    footerRows.innerHTML = `Hiển thị <b>${shownTotal.toLocaleString()}</b> / ${currentTotalRows.toLocaleString()} dòng`;
+                }
             } else {
-                footerRows.textContent = `${totalRowCount} row${totalRowCount !== 1 ? 's' : ''} (${totalGrids} result set${totalGrids !== 1 ? 's' : ''})`;
+                if (totalGrids > 1) {
+                    footerRows.innerHTML = `${currentTotalRows.toLocaleString()} dòng <span class="text-muted ms-1">(${totalGrids} bảng)</span>`;
+                } else {
+                    footerRows.innerHTML = `<b>${currentTotalRows.toLocaleString()}</b> dòng`;
+                }
             }
         }
         window.updateResultFooter = updateResultFooter;
 
         // Footer
-        footerRows.textContent = `${totalRowCount} row${totalRowCount !== 1 ? 's' : ''} (${totalGrids} result set${totalGrids !== 1 ? 's' : ''})`;
+        if (totalGrids > 1) {
+            footerRows.innerHTML = `${totalRowCount.toLocaleString()} dòng <span class="text-muted ms-1">(${totalGrids} bảng)</span>`;
+            setStatus(`${totalRowCount.toLocaleString()} rows · ${totalGrids} grids · ${ms} ms`);
+        } else {
+            footerRows.innerHTML = `<b>${totalRowCount.toLocaleString()}</b> dòng`;
+            setStatus(`${totalRowCount.toLocaleString()} rows · ${ms} ms`);
+        }
         footerTime.textContent = `${ms} ms`;
         footer.classList.remove('d-none');
         footer.classList.add('d-flex');
         setStatus(`${totalRowCount} rows · ${totalGrids} grid${totalGrids > 1 ? 's' : ''} · ${ms} ms`);
+
+        if (window.GridResultManager && typeof window.GridResultManager.updateExecutionStats === 'function') {
+            const currentTabState = window.AppTabs ? window.AppTabs.getActiveTabState() : null;
+            const cId = (currentTabState && currentTabState.connectionId) || window.ActiveConnectionId;
+            const dName = (currentTabState && currentTabState.database) || window.ActiveDatabase;
+            const sName = (currentTabState && currentTabState.schema) || window.ActiveSchema;
+            recordAndSyncExecutionStats(null, ms, totalRowCount, resultsList, cId, dName, sName);
+        }
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
@@ -3392,9 +3603,6 @@ function initQuery() {
             const tab = window.AppTabs ? window.AppTabs.getActiveTabState() : null;
             if (tab) {
                 tab.isDebugActive = !tab.isDebugActive;
-                if (typeof showToast === 'function') {
-                    showToast(tab.isDebugActive ? 'Chế độ Debug PostgreSQL: ĐÃ BẬT' : 'Chế độ Debug PostgreSQL: ĐÃ TẮT', tab.isDebugActive ? 'warning' : 'info');
-                }
             }
             updateActionBar();
             if (window.checkSqlSyntax) window.checkSqlSyntax();

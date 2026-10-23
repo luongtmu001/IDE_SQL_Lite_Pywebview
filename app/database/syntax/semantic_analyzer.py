@@ -13,6 +13,7 @@ Reference: .SKILL/sytax_check.md
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 import logging
 import re
 import time
@@ -319,12 +320,136 @@ def extract_table_variables(sql: str) -> dict[str, set[str]]:
     return table_vars
 
 
+def _extract_projection_column_name(expr: str) -> str:
+    """Extract effective column name or alias from a single SELECT projection expression."""
+    expr = re.sub(r"/\*.*?\*/", " ", expr, flags=re.DOTALL)
+    expr = re.sub(r"--.*$", " ", expr, flags=re.MULTILINE).strip()
+    if not expr:
+        return ""
+    # Strip leading DISTINCT, ALL, TOP
+    expr = re.sub(r"^\s*DISTINCT\s+", "", expr, flags=re.IGNORECASE)
+    expr = re.sub(r"^\s*ALL\s+", "", expr, flags=re.IGNORECASE)
+    expr = re.sub(r"^\s*TOP\s+(?:\([^\)]+\)|\d+)(?:\s+PERCENT)?(?:\s+WITH\s+TIES)?\s+", "", expr, flags=re.IGNORECASE).strip()
+    if not expr:
+        return ""
+    if expr == "*" or expr.endswith(".*"):
+        return "*"
+
+    # 1. Match: expr AS alias or expr AS [alias] or expr AS "alias"
+    as_match = re.search(r"\bAS\s+(?:\[([^\]]+)\]|\"([^\"]+)\"|([a-zA-Z_@#$][a-zA-Z0-9_@#$]*))\s*$", expr, re.IGNORECASE)
+    if as_match:
+        alias = as_match.group(1) or as_match.group(2) or as_match.group(3)
+        return clean_identifier(alias).lower()
+
+    # 2. Match: alias = expr (T-SQL alias assignment)
+    t_sql_alias = re.match(r"^\s*(?:\[([^\]]+)\]|\"([^\"]+)\"|([a-zA-Z_@#$][a-zA-Z0-9_@#$]*))\s*=\s*", expr)
+    if t_sql_alias:
+        alias = t_sql_alias.group(1) or t_sql_alias.group(2) or t_sql_alias.group(3)
+        return clean_identifier(alias).lower()
+
+    # 3. Match: expr alias (implicit alias without AS keyword, e.g. CAST(...) _Check or 1 flag)
+    # The alias token must follow a closing paren, closing quote, bracket, or digit
+    implicit_alias = re.search(r"(?:[\)'\"\]]|\d+)\s+(?:\[([^\]]+)\]|\"([^\"]+)\"|([a-zA-Z_@#$][a-zA-Z0-9_@#$]*))\s*$", expr)
+    if implicit_alias:
+        alias = implicit_alias.group(1) or implicit_alias.group(2) or implicit_alias.group(3)
+        return clean_identifier(alias).lower()
+
+    # 4. Match simple column: tbl.col or col or [col]
+    simple_col = re.match(r"^(?:(?:[#@\w\.\"\[\]]+)\.)?(?:\[([^\]]+)\]|\"([^\"]+)\"|([a-zA-Z_@#$][a-zA-Z0-9_@#$]*))\s*$", expr)
+    if simple_col:
+        col = simple_col.group(1) or simple_col.group(2) or simple_col.group(3)
+        return clean_identifier(col).lower()
+
+    return ""
+
+
+def _extract_columns_from_proj_str(proj_str: str) -> set[str]:
+    """Parse projection string with balanced parentheses and return set of column names/aliases."""
+    cols = set()
+    depth = 0
+    curr: list[str] = []
+    has_wildcard = False
+    for ch in proj_str:
+        if ch == "(":
+            depth += 1
+            curr.append(ch)
+        elif ch == ")":
+            depth = max(0, depth - 1)
+            curr.append(ch)
+        elif ch == "," and depth == 0:
+            item = "".join(curr).strip()
+            if item:
+                if "*" in item:
+                    has_wildcard = True
+                c = _extract_projection_column_name(item)
+                if c:
+                    cols.add(c)
+            curr = []
+        else:
+            curr.append(ch)
+    last = "".join(curr).strip()
+    if last:
+        if "*" in last:
+            has_wildcard = True
+        c = _extract_projection_column_name(last)
+        if c:
+            cols.add(c)
+    if has_wildcard:
+        cols.add("*")
+    return {c for c in cols if c}
+
+
+def _extract_col_name_from_add_clause(item: str) -> str:
+    item = re.sub(r"/\*.*?\*/", " ", item, flags=re.DOTALL)
+    item = re.sub(r"--.*$", " ", item, flags=re.MULTILINE).strip()
+    if not item:
+        return ""
+    if re.match(r"^\s*(?:CONSTRAINT|PRIMARY|FOREIGN|CHECK|UNIQUE|INDEX)\b", item, re.IGNORECASE):
+        return ""
+    item = re.sub(r"^\s*COLUMN\s+(?:IF\s+NOT\s+EXISTS\s+)?", "", item, flags=re.IGNORECASE).strip()
+    m = re.match(r"^(?:\[([^\]]+)\]|\"([^\"]+)\"|([a-zA-Z_@#$][a-zA-Z0-9_@#$]*))", item)
+    if m:
+        raw = m.group(1) or m.group(2) or m.group(3)
+        return clean_identifier(raw).lower()
+    return ""
+
+
+def _extract_columns_from_alter_add_body(body: str) -> set[str]:
+    cols = set()
+    depth = 0
+    curr: list[str] = []
+    for ch in body:
+        if ch == "(":
+            depth += 1
+            curr.append(ch)
+        elif ch == ")":
+            depth = max(0, depth - 1)
+            curr.append(ch)
+        elif ch == "," and depth == 0:
+            item = "".join(curr).strip()
+            if item:
+                c = _extract_col_name_from_add_clause(item)
+                if c:
+                    cols.add(c)
+            curr = []
+        else:
+            curr.append(ch)
+    last = "".join(curr).strip()
+    if last:
+        c = _extract_col_name_from_add_clause(last)
+        if c:
+            cols.add(c)
+    return cols
+
+
 def extract_temporary_tables(sql: str) -> dict[str, set[str]]:
     """
     Extract temporary tables:
     1. CREATE TABLE #temp ( col1 INT, col2 VARCHAR(50) )
     2. CREATE TEMP TABLE temp_name ( col1 INT, col2 TEXT )
     3. SELECT col1, col2, expr AS col3 INTO #temp FROM ...
+    4. CREATE [TEMPORARY|TEMP] TABLE [IF NOT EXISTS] temp_name [(col1, col2)] AS SELECT ... (PostgreSQL)
+    5. ALTER TABLE #temp ADD col INT / ALTER TABLE temp ADD col TEXT
     Returns mapping: '#temp' -> {'col1', 'col2', 'col3'}.
     """
     temp_tables: dict[str, set[str]] = {}
@@ -367,7 +492,7 @@ def extract_temporary_tables(sql: str) -> dict[str, set[str]]:
     for m in into_pattern.finditer(sql):
         raw_name = m.group(1)
         clean_name = clean_identifier(raw_name).lower()
-        is_temp = clean_name.startswith("#") or "TEMP" in m.group(0).upper() or clean_name.startswith("temp_")
+        is_temp = clean_name.startswith("#") or "TEMP" in m.group(0).upper()
         if not is_temp:
             continue
 
@@ -396,67 +521,718 @@ def extract_temporary_tables(sql: str) -> dict[str, set[str]]:
                     if word == "select":
                         sel_pos = pos + 1
                         break
-                    elif word in ("union", "begin", "end", "go", "insert", "update", "delete"):
+                    elif word in ("union", "begin", "end", "go", "insert", "update", "delete", "create", "alter", "drop"):
                         break
                     continue
             pos -= 1
 
         if sel_pos != -1:
             proj_str = sql[sel_pos + 6 : m.start()].strip()
-            cols = set()
-            depth = 0
-            curr: list[str] = []
-            has_wildcard = False
-            for ch in proj_str:
-                if ch == "(":
-                    depth += 1
-                    curr.append(ch)
-                elif ch == ")":
-                    depth = max(0, depth - 1)
-                    curr.append(ch)
-                elif ch == "," and depth == 0:
-                    item = "".join(curr).strip()
-                    if item:
-                        if "*" in item:
-                            has_wildcard = True
-                        cols.add(_extract_projection_column_name(item))
-                    curr = []
-                else:
-                    curr.append(ch)
-            last = "".join(curr).strip()
-            if last:
-                if "*" in last:
-                    has_wildcard = True
-                cols.add(_extract_projection_column_name(last))
-
-            if has_wildcard:
-                cols.add("*")
-
-            clean_cols = {c for c in cols if c}
+            clean_cols = _extract_columns_from_proj_str(proj_str)
+            has_star = "*" in clean_cols
+            clean_cols.discard("*")
+            if has_star:
+                m_from = re.search(r"\bFROM\s+([#@\w\.\"\[\]]+)", sql[m.end():], re.IGNORECASE)
+                if m_from:
+                    src_tbl = clean_identifier(m_from.group(1)).lower()
+                    if src_tbl in temp_tables:
+                        clean_cols.update(temp_tables[src_tbl])
             if clean_cols:
                 if clean_name in temp_tables:
                     temp_tables[clean_name].update(clean_cols)
                 else:
-                    temp_tables[clean_name] = clean_cols
+                    temp_tables[clean_name] = set(clean_cols)
 
-    # 3. INSERT INTO #temp (col1, col2, ...)
-    insert_pattern = re.compile(
-        r"\bINSERT\s+INTO\s+([#@\w\.\"\[\]]+)\s*\((.*?)\)",
+    # 3. PostgreSQL: CREATE [GLOBAL|LOCAL] [TEMPORARY|TEMP] TABLE [IF NOT EXISTS] temp_name [(cols)] AS SELECT ...
+    create_as_pattern = re.compile(
+        r"\bCREATE\s+(?:(?:GLOBAL\s+|LOCAL\s+)?(?:TEMPORARY|TEMP)\s+TABLE\s+)(?:IF\s+NOT\s+EXISTS\s+)?([#@\w\.\"\[\]]+)\s*(?:\((.*?)\)\s*)?AS\s+(?:\(\s*)?SELECT\b\s+(.*?)(?=\b(?:FROM|WHERE|GROUP|ORDER|LIMIT|HAVING|UNION|;|$))\b",
         re.IGNORECASE | re.DOTALL,
     )
-    for im in insert_pattern.finditer(sql):
-        raw_name = im.group(1)
+    for m in create_as_pattern.finditer(sql):
+        raw_name = m.group(1)
         clean_name = clean_identifier(raw_name).lower()
-        if clean_name.startswith("#") or clean_name.startswith("temp_"):
-            cols_str = im.group(2)
-            c_items = [clean_identifier(c).lower() for c in cols_str.split(",") if c.strip()]
-            if c_items:
+        explicit_cols_str = m.group(2)
+        if explicit_cols_str:
+            clean_cols = {clean_identifier(c).lower() for c in explicit_cols_str.split(",") if c.strip()}
+        else:
+            proj = m.group(3).strip()
+            clean_cols = _extract_columns_from_proj_str(proj)
+            has_star = "*" in clean_cols
+            clean_cols.discard("*")
+            if has_star:
+                m_from = re.search(r"\bFROM\s+([#@\w\.\"\[\]]+)", sql[m.start():], re.IGNORECASE)
+                if m_from:
+                    src_tbl = clean_identifier(m_from.group(1)).lower()
+                    if src_tbl in temp_tables:
+                        clean_cols.update(temp_tables[src_tbl])
+        if clean_cols:
+            if clean_name in temp_tables:
+                temp_tables[clean_name].update(clean_cols)
+            else:
+                temp_tables[clean_name] = set(clean_cols)
+
+    # 4. ALTER TABLE #temp ADD / ALTER TABLE temp ADD
+    alter_add_pattern = re.compile(
+        r"\bALTER\s+TABLE\s+(?:ONLY\s+)?([#@\w\.\"\[\]]+)\s+ADD\s+(.*?)(?=\bALTER\b|\bDROP\b|\bSELECT\b|\bINSERT\b|\bUPDATE\b|\bDELETE\b|\bEXEC\b|\bEXECUTE\b|\bGO\b|;|$)",
+        re.IGNORECASE | re.DOTALL,
+    )
+    for m in alter_add_pattern.finditer(sql):
+        raw_name = m.group(1)
+        clean_name = clean_identifier(raw_name).lower()
+        if clean_name.startswith("#") or clean_name in temp_tables:
+            body = m.group(2)
+            cols = _extract_columns_from_alter_add_body(body)
+            if cols:
                 if clean_name in temp_tables:
-                    temp_tables[clean_name].update(c_items)
+                    temp_tables[clean_name].update(cols)
                 else:
-                    temp_tables[clean_name] = set(c_items)
+                    temp_tables[clean_name] = set(cols)
 
     return temp_tables
+
+
+@dataclass
+class TempTableState:
+    name: str
+    columns: set[str] = field(default_factory=set)
+    dropped_columns: set[str] = field(default_factory=set)
+    is_open: bool = False
+    is_dropped: bool = False
+    created_at_pos: int = -1
+    is_defined: bool = False
+
+
+@dataclass
+class TimelineEvent:
+    pos: int
+    event_type: str  # 'CREATE', 'CREATE_AS', 'SELECT_INTO', 'ALTER_ADD', 'ALTER_DROP', 'DROP', 'EXEC_OPEN'
+    table_name: str  # lowercase clean name
+    columns: set[str] = field(default_factory=set)
+    extra: dict[str, Any] = field(default_factory=dict)
+
+
+class TempTableTimeline:
+    """
+    Tracks lifecycle and structural mutations of temporary tables chronologically:
+    CREATE, CREATE TEMP TABLE AS, SELECT INTO, ALTER TABLE ADD/DROP, DROP TABLE, and EXEC mutations.
+    Implements Section 4 & 5 of .SKILL/temp_table_session_context_analysis.md.
+    """
+
+    def __init__(
+        self,
+        sql: str,
+        sql_masked: str | None = None,
+        dialect: str = "sqlserver",
+        cached_tables_dict: dict[str, list[str]] | None = None,
+        mutators: dict[str, dict] | None = None,
+        declared_temp_tables: dict[str, set[str]] | None = None,
+    ):
+        self.sql = sql
+        self.sql_masked = sql_masked if sql_masked is not None else sql
+        self.dialect = dialect.lower()
+        self.cached_tables_dict = cached_tables_dict or {}
+        self.mutators = mutators or {}
+        self.declared_temp_tables = declared_temp_tables or {}
+        self.events: list[TimelineEvent] = []
+        self._build_timeline()
+
+    def has_table(self, table_name: str) -> bool:
+        clean = clean_identifier(table_name).lower()
+        return any(e.table_name == clean for e in self.events)
+
+    def _build_timeline(self):
+        sql = self.sql
+        sql_masked = self.sql_masked
+
+        # 1. CREATE TABLE #temp / CREATE TEMP TABLE t
+        create_pattern = re.compile(
+            r"\bCREATE\s+(?:(?:GLOBAL\s+|LOCAL\s+)?(?:TEMPORARY|TEMP)\s+)?TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?([#@\w\.\"\[\]]+)\s*\(",
+            re.IGNORECASE,
+        )
+        for m in create_pattern.finditer(sql_masked):
+            raw_name = m.group(1)
+            clean_name = clean_identifier(raw_name).lower()
+            is_temp_kw = bool(re.search(r"\b(?:TEMPORARY|TEMP)\b", sql_masked[m.start():m.end()], re.IGNORECASE))
+            if clean_name.startswith("#") or is_temp_kw:
+                start_idx = m.end() - 1
+                depth = 0
+                end_idx = -1
+                for i in range(start_idx, len(sql_masked)):
+                    if sql_masked[i] == "(":
+                        depth += 1
+                    elif sql_masked[i] == ")":
+                        depth -= 1
+                        if depth == 0:
+                            end_idx = i
+                            break
+                cols = set()
+                if end_idx != -1:
+                    body = sql[start_idx + 1:end_idx]
+                    cols = self._extract_columns_from_parens(body)
+                self.events.append(TimelineEvent(
+                    pos=m.start(),
+                    event_type="CREATE",
+                    table_name=clean_name,
+                    columns=cols
+                ))
+
+        # 1b. PostgreSQL: CREATE TEMP TABLE ... AS SELECT ...
+        create_as_pattern = re.compile(
+            r"\bCREATE\s+(?:(?:GLOBAL\s+|LOCAL\s+)?(?:TEMPORARY|TEMP)\s+TABLE\s+)(?:IF\s+NOT\s+EXISTS\s+)?([#@\w\.\"\[\]]+)\s*(?:\((.*?)\)\s*)?AS\s+(?:\(\s*)?SELECT\b\s+(.*?)(?=\b(?:FROM|WHERE|GROUP|ORDER|LIMIT|HAVING|UNION|;|$))\b",
+            re.IGNORECASE | re.DOTALL,
+        )
+        for m in create_as_pattern.finditer(sql_masked):
+            raw_name = m.group(1)
+            clean_name = clean_identifier(raw_name).lower()
+            explicit_cols_str = m.group(2)
+            source_tbl_name = ""
+            if explicit_cols_str:
+                clean_cols = {clean_identifier(c).lower() for c in explicit_cols_str.split(",") if c.strip()}
+            else:
+                proj = m.group(3).strip()
+                cols = self._extract_projection_columns(proj)
+                has_star = "*" in cols
+                clean_cols = {c for c in cols if c and c != "*"}
+                after_create = sql_masked[m.start():]
+                m_from = re.search(r"\bFROM\s+([#@\w\.\"\[\]]+)", after_create, re.IGNORECASE)
+                source_tbl_name = clean_identifier(m_from.group(1)).lower() if m_from else ""
+                if has_star and source_tbl_name:
+                    source_cols = set()
+                    for prev_ev in self.events:
+                        if prev_ev.table_name == source_tbl_name and prev_ev.pos < m.start():
+                            if prev_ev.event_type in ("CREATE", "CREATE_AS", "SELECT_INTO"):
+                                source_cols = set(prev_ev.columns)
+                            elif prev_ev.event_type == "ALTER_ADD":
+                                source_cols.update(prev_ev.columns)
+                            elif prev_ev.event_type == "ALTER_DROP":
+                                source_cols.difference_update(prev_ev.columns)
+                            elif prev_ev.event_type == "MUTATOR_COPY":
+                                source_cols.update(prev_ev.columns)
+                    if not source_cols and self.cached_tables_dict:
+                        for tbl_k, col_list in self.cached_tables_dict.items():
+                            if tbl_k.lower() == source_tbl_name or tbl_k.lower().endswith("." + source_tbl_name):
+                                source_cols = {c.lower() for c in col_list}
+                                break
+                    if source_cols:
+                        clean_cols.update(source_cols)
+
+            self.events.append(TimelineEvent(
+                pos=m.start(),
+                event_type="CREATE_AS",
+                table_name=clean_name,
+                columns=clean_cols,
+                extra={"source_table": source_tbl_name}
+            ))
+
+        # 2. SELECT ... INTO #temp
+        into_pattern = re.compile(
+            r"\bINTO\s+(?:(?:GLOBAL\s+|LOCAL\s+)?(?:TEMPORARY|TEMP)\s+TABLE\s+)?([#@\w\.\"\[\]]+)",
+            re.IGNORECASE,
+        )
+        for m in into_pattern.finditer(sql_masked):
+            raw_name = m.group(1)
+            clean_name = clean_identifier(raw_name).lower()
+            is_temp = clean_name.startswith("#") or "TEMP" in m.group(0).upper()
+            if not is_temp:
+                continue
+            pos = m.start() - 1
+            depth = 0
+            sel_pos = -1
+            while pos >= 0:
+                ch = sql_masked[pos]
+                if ch == ")":
+                    depth += 1
+                elif ch == "(":
+                    depth = max(0, depth - 1)
+                elif depth == 0:
+                    if ch == ";":
+                        break
+                    if ch.isalpha() or ch == "_":
+                        w_end = pos + 1
+                        while pos >= 0 and (sql_masked[pos].isalnum() or sql_masked[pos] in ("_", "@", "#", "$")):
+                            pos -= 1
+                        word = sql_masked[pos + 1:w_end].lower()
+                        if word == "select":
+                            sel_pos = pos + 1
+                            break
+                        elif word in ("union", "begin", "end", "go", "insert", "update", "delete", "create", "alter", "drop"):
+                            break
+                pos -= 1
+
+            if sel_pos != -1:
+                proj = sql[sel_pos + 6:m.start()].strip()
+                cols = self._extract_projection_columns(proj)
+                has_star = "*" in cols
+                clean_cols = {c for c in cols if c and c != "*"}
+
+                after_into = sql_masked[m.end():]
+                m_from = re.search(r"\bFROM\s+([#@\w\.\"\[\]]+)", after_into, re.IGNORECASE)
+                source_tbl_name = clean_identifier(m_from.group(1)).lower() if m_from else ""
+                if has_star and source_tbl_name:
+                    source_cols = set()
+                    for prev_ev in self.events:
+                        if prev_ev.table_name == source_tbl_name and prev_ev.pos < m.start():
+                            if prev_ev.event_type in ("CREATE", "CREATE_AS", "SELECT_INTO"):
+                                source_cols = set(prev_ev.columns)
+                            elif prev_ev.event_type == "ALTER_ADD":
+                                source_cols.update(prev_ev.columns)
+                            elif prev_ev.event_type == "ALTER_DROP":
+                                source_cols.difference_update(prev_ev.columns)
+                            elif prev_ev.event_type == "MUTATOR_COPY":
+                                source_cols.update(prev_ev.columns)
+                    if not source_cols and self.cached_tables_dict:
+                        for tbl_k, col_list in self.cached_tables_dict.items():
+                            if tbl_k.lower() == source_tbl_name or tbl_k.lower().endswith("." + source_tbl_name):
+                                source_cols = {c.lower() for c in col_list}
+                                break
+                    if source_cols:
+                        clean_cols.update(source_cols)
+
+                self.events.append(TimelineEvent(
+                    pos=m.start(),
+                    event_type="SELECT_INTO",
+                    table_name=clean_name,
+                    columns=clean_cols,
+                    extra={"source_table": source_tbl_name}
+                ))
+
+        # 3. ALTER TABLE ... ADD ...
+        alter_add_pattern = re.compile(
+            r"\bALTER\s+TABLE\s+(?:ONLY\s+)?([#@\w\.\"\[\]]+)\s+ADD\s+(.*?)(?=\bALTER\b|\bDROP\b|\bSELECT\b|\bINSERT\b|\bUPDATE\b|\bDELETE\b|\bEXEC\b|\bEXECUTE\b|\bGO\b|;|$)",
+            re.IGNORECASE | re.DOTALL,
+        )
+        for m in alter_add_pattern.finditer(sql_masked):
+            raw_name = m.group(1)
+            clean_name = clean_identifier(raw_name).lower()
+            body = sql[m.start(2):m.end(2)]
+            added_cols = self._extract_columns_from_alter_add(body)
+            if added_cols:
+                self.events.append(TimelineEvent(
+                    pos=m.start(),
+                    event_type="ALTER_ADD",
+                    table_name=clean_name,
+                    columns=added_cols
+                ))
+
+        # 4. ALTER TABLE ... DROP COLUMN ...
+        alter_drop_pattern = re.compile(
+            r"\bALTER\s+TABLE\s+(?:ONLY\s+)?([#@\w\.\"\[\]]+)\s+DROP\s+COLUMN\s+(?:IF\s+EXISTS\s+)?(.*?)(?=\bALTER\b|\bADD\b|\bSELECT\b|\bINSERT\b|\bUPDATE\b|\bDELETE\b|\bEXEC\b|\bEXECUTE\b|\bGO\b|;|$)",
+            re.IGNORECASE | re.DOTALL,
+        )
+        for m in alter_drop_pattern.finditer(sql_masked):
+            raw_name = m.group(1)
+            clean_name = clean_identifier(raw_name).lower()
+            body = sql[m.start(2):m.end(2)]
+            dropped_cols = self._extract_columns_from_alter_drop(body)
+            if dropped_cols:
+                self.events.append(TimelineEvent(
+                    pos=m.start(),
+                    event_type="ALTER_DROP",
+                    table_name=clean_name,
+                    columns=dropped_cols
+                ))
+
+        # 5. DROP TABLE ...
+        drop_pattern = re.compile(
+            r"\b(?:IF\s+.*?\s+)?DROP\s+TABLE\s+(?:IF\s+EXISTS\s+)?([#@\w\.\"\[\]]+)",
+            re.IGNORECASE,
+        )
+        for m in drop_pattern.finditer(sql_masked):
+            raw_name = m.group(1)
+            clean_name = clean_identifier(raw_name).lower()
+            self.events.append(TimelineEvent(
+                pos=m.start(),
+                event_type="DROP",
+                table_name=clean_name
+            ))
+
+        # 6. EXEC / EXECUTE containing #temp name or dynamic SQL mentioning #temp
+        # E.g. EXECUTE usp_sys_CreateTable N'#Kqt', @_Kqt
+        # E.g. EXEC('ALTER TABLE #T ADD Extra INT')
+        exec_pattern = re.compile(
+            r"\b(?:EXEC|EXECUTE)(?:\s+([#@\w\.\"\[\]]+)|\s*\((.*?)\)|\s+(.*?))(?=\b(?:EXEC|EXECUTE|SELECT|INSERT|UPDATE|DELETE|CREATE|ALTER|DROP|GO)\b|;|$)",
+            re.IGNORECASE | re.DOTALL,
+        )
+
+        mutator_map = {k.lower(): v for k, v in self.mutators.items()}
+        if "usp_sys_createtable" not in mutator_map:
+            mutator_map["usp_sys_createtable"] = {"target": 1, "copyColumnsFrom": 2}
+        if "usp_sys_append" not in mutator_map:
+            mutator_map["usp_sys_append"] = {"target": 2, "schemaChange": False}
+
+        for m in exec_pattern.finditer(sql_masked):
+            exec_full = sql[m.start():m.end()]
+
+            # Check if this EXEC calls a recognized mutator procedure
+            m_proc = re.match(
+                r"^\s*(?:EXEC|EXECUTE)\s+(?:(?:dbo|sys|pg_catalog)\.)?([a-zA-Z_#$][a-zA-Z0-9_#$]*)",
+                exec_full,
+                re.IGNORECASE,
+            )
+            proc_name = clean_identifier(m_proc.group(1)).lower() if m_proc else ""
+            mutator_cfg = mutator_map.get(proc_name) if proc_name else None
+
+            if mutator_cfg is not None:
+                if mutator_cfg.get("schemaChange") is False:
+                    # Procedure does not alter schema of temp table (Section 5.3)
+                    continue
+
+                target_idx = mutator_cfg.get("target", 1)
+                copy_from_idx = mutator_cfg.get("copyColumnsFrom")
+
+                # Parse arguments after procedure name
+                args_str = exec_full[m_proc.end():]
+                args = []
+                depth = 0
+                in_quote = False
+                buf = []
+                for ch in args_str:
+                    if ch == "'":
+                        in_quote = not in_quote
+                        buf.append(ch)
+                    elif ch == "(" and not in_quote:
+                        depth += 1
+                        buf.append(ch)
+                    elif ch == ")" and not in_quote:
+                        depth = max(0, depth - 1)
+                        buf.append(ch)
+                    elif ch == "," and depth == 0 and not in_quote:
+                        args.append("".join(buf).strip())
+                        buf = []
+                    else:
+                        buf.append(ch)
+                if buf:
+                    args.append("".join(buf).strip())
+
+                target_arg = args[target_idx - 1] if len(args) >= target_idx else ""
+                m_target_temp = re.search(r"#[a-zA-Z0-9_#$]+", target_arg)
+                clean_target = clean_identifier(m_target_temp.group(0)).lower() if m_target_temp else ""
+
+                if clean_target and copy_from_idx and len(args) >= copy_from_idx:
+                    source_arg = args[copy_from_idx - 1].strip()
+                    source_table_name = ""
+                    m_lit = re.search(r"N?'([^']+)'", source_arg)
+                    if m_lit:
+                        source_table_name = clean_identifier(m_lit.group(1)).lower()
+                    elif source_arg.startswith("@"):
+                        var_name = clean_identifier(source_arg)
+                        m_var_val = re.search(
+                            rf"\b(?:DECLARE\s+{re.escape(var_name)}\s+[^=]*=\s*|SET\s+{re.escape(var_name)}\s*=\s*|{re.escape(var_name)}\s+[^=]*=\s*)N?'([^']+)'",
+                            sql,
+                            re.IGNORECASE,
+                        )
+                        if m_var_val:
+                            source_table_name = clean_identifier(m_var_val.group(1)).lower()
+
+                    copied_cols = set()
+                    if source_table_name and self.cached_tables_dict:
+                        for k, v in self.cached_tables_dict.items():
+                            norm_k = re.sub(r"[\[\]\"`]", "", k).strip().lower()
+                            if norm_k == source_table_name or norm_k.endswith(f".{source_table_name}"):
+                                copied_cols = {clean_identifier(c).lower() for c in v}
+                                break
+
+                    if copied_cols:
+                        self.events.append(TimelineEvent(
+                            pos=m.start(),
+                            event_type="MUTATOR_COPY",
+                            table_name=clean_target,
+                            columns=copied_cols,
+                            extra={"is_open": False, "source_table": source_table_name}
+                        ))
+                        continue
+                    else:
+                        self.events.append(TimelineEvent(
+                            pos=m.start(),
+                            event_type="EXEC_OPEN",
+                            table_name=clean_target,
+                            extra={"source_table": source_table_name}
+                        ))
+                        continue
+
+            # Default: scan for string literals mentioning #temp
+            str_literals = re.findall(r"N?'(.*?)'", exec_full, re.DOTALL)
+            for s in str_literals:
+                temp_matches = re.findall(r"#[a-zA-Z0-9_#$]+", s)
+                for tm in temp_matches:
+                    clean_tm = clean_identifier(tm).lower()
+                    self.events.append(TimelineEvent(
+                        pos=m.start(),
+                        event_type="EXEC_OPEN",
+                        table_name=clean_tm
+                    ))
+
+        # 7. Global temp tables ##G: if EXEC happens anywhere in the script, mark ##G open
+        has_any_exec = bool(exec_pattern.search(sql_masked))
+        if has_any_exec:
+            for ev in list(self.events):
+                if ev.table_name.startswith("##") and ev.event_type == "CREATE":
+                    self.events.append(TimelineEvent(
+                        pos=ev.pos + 1,
+                        event_type="EXEC_OPEN",
+                        table_name=ev.table_name
+                    ))
+
+        # 8. Cross-procedure and Routine Scope Handling
+        # PostgreSQL: Temp tables survive routine execution; when a procedure is called via CALL or PERFORM,
+        # its temp tables are created in the active session and become visible to the caller.
+        # SQL Server: Local #temp tables created inside a stored procedure are automatically dropped when that
+        # procedure finishes (at routine end); caller procedures or outer scripts CANNOT access them.
+        routine_pattern = re.compile(
+            r"\b(?:CREATE|ALTER)(?:\s+OR\s+(?:REPLACE|ALTER))?\s+(PROCEDURE|PROC|FUNCTION|FUNC|TRIGGER)\s+(?:(?:([a-zA-Z_#$][a-zA-Z0-9_#$]*)\.)?([a-zA-Z_#$][a-zA-Z0-9_#$]*))",
+            re.IGNORECASE,
+        )
+        routines = []
+        routine_map = {}
+        for m_rtn in routine_pattern.finditer(sql_masked):
+            r_type = m_rtn.group(1).lower()
+            r_schema = (m_rtn.group(2) or "").lower()
+            r_name = clean_identifier(m_rtn.group(3) or "").lower()
+            if not r_name:
+                continue
+            full_name = f"{r_schema}.{r_name}" if r_schema else r_name
+            r_start = m_rtn.start()
+
+            after_rtn = sql_masked[m_rtn.end():]
+            m_dollar = re.search(r"(\$[a-zA-Z0-9_]*\$)", after_rtn)
+            r_end = len(sql_masked)
+            if m_dollar and m_dollar.start() < 250:
+                tag = m_dollar.group(1)
+                tag_start = m_rtn.end() + m_dollar.start()
+                close_pos = sql_masked.find(tag, tag_start + len(tag))
+                if close_pos != -1:
+                    r_end = close_pos + len(tag)
+                    m_semi = re.match(r"\s*;", sql_masked[r_end:])
+                    if m_semi:
+                        r_end += m_semi.end()
+            else:
+                m_go = re.search(r"\bGO\b", after_rtn, re.IGNORECASE)
+                m_next_create = re.search(r"\b(?:CREATE|ALTER)\s+(?:OR\s+(?:REPLACE|ALTER)\s+)?(?:PROCEDURE|PROC|FUNCTION|FUNC|TRIGGER)\b", after_rtn, re.IGNORECASE)
+
+                depth = 0
+                has_begin = False
+                end_pos = -1
+                for m_block in re.finditer(r"\b(BEGIN|END)\b", after_rtn, re.IGNORECASE):
+                    kw = m_block.group(1).upper()
+                    if kw == "BEGIN":
+                        depth += 1
+                        has_begin = True
+                    elif kw == "END":
+                        if depth > 0:
+                            depth -= 1
+                            if has_begin and depth == 0:
+                                end_pos = m_rtn.end() + m_block.end()
+                                m_semi = re.match(r"\s*;", sql_masked[end_pos:])
+                                if m_semi:
+                                    end_pos += m_semi.end()
+                                break
+
+                candidate_ends = [len(sql_masked)]
+                if m_go:
+                    candidate_ends.append(m_rtn.end() + m_go.start())
+                if m_next_create:
+                    candidate_ends.append(m_rtn.end() + m_next_create.start())
+                if end_pos != -1:
+                    candidate_ends.append(end_pos)
+                r_end = min(candidate_ends)
+
+            rtn_info = {
+                "name": r_name,
+                "fullName": full_name,
+                "schema": r_schema,
+                "start": r_start,
+                "end": r_end,
+                "temp_tables": [],
+                "called_routines": []
+            }
+            routines.append(rtn_info)
+            routine_map[r_name] = rtn_info
+            if full_name != r_name:
+                routine_map[full_name] = rtn_info
+
+        # Track which temp tables were declared in which routine
+        for ev in list(self.events):
+            if ev.event_type in ("CREATE", "CREATE_AS", "SELECT_INTO", "MUTATOR_COPY"):
+                for r in routines:
+                    if r["start"] <= ev.pos <= r["end"]:
+                        r["temp_tables"].append((ev.table_name, set(ev.columns)))
+
+        is_postgres = (
+            ("postgres" in self.dialect)
+            or ("pgsql" in self.dialect)
+            or ("$$" in sql_masked)
+        )
+        is_sqlserver = (
+            ("sqlserver" in self.dialect)
+            or ("mssql" in self.dialect)
+            or ("tsql" in self.dialect)
+            or (not is_postgres and ("GO" in sql_masked or "#" in sql_masked or "@" in sql_masked))
+        )
+
+        call_pattern = re.compile(
+            r"\b(?:CALL|PERFORM)\s+(?:(?:([a-zA-Z_#$][a-zA-Z0-9_#$]*)\.)?([a-zA-Z_#$][a-zA-Z0-9_#$]*))",
+            re.IGNORECASE,
+        )
+
+        # Detect called routines inside routines
+        for m_call in call_pattern.finditer(sql_masked):
+            c_pos = m_call.start()
+            c_schema = (m_call.group(1) or "").lower()
+            c_name = clean_identifier(m_call.group(2) or "").lower()
+            c_full = f"{c_schema}.{c_name}" if c_schema else c_name
+            enc_rtn = next((r for r in routines if r["start"] <= c_pos <= r["end"]), None)
+            if enc_rtn:
+                enc_rtn["called_routines"].append(c_name)
+                if c_full != c_name:
+                    enc_rtn["called_routines"].append(c_full)
+
+        def get_exported_temp_tables(rtn_name, visited=None):
+            if visited is None:
+                visited = set()
+            norm = rtn_name.lower().strip()
+            if not norm or norm in visited:
+                return []
+            visited.add(norm)
+            r = routine_map.get(norm) or (routine_map.get(norm.split(".")[-1]) if "." in norm else None)
+            if not r:
+                return []
+            res = list(r["temp_tables"])
+            for child in r["called_routines"]:
+                res.extend(get_exported_temp_tables(child, visited))
+            return res
+
+        # In PostgreSQL: export temp tables upon CALL or PERFORM
+        if is_postgres:
+            for m_call in call_pattern.finditer(sql_masked):
+                c_pos = m_call.start()
+                c_name = clean_identifier(m_call.group(2) or "").lower()
+                exported = get_exported_temp_tables(c_name)
+                for tbl_name, tbl_cols in exported:
+                    self.events.append(TimelineEvent(
+                        pos=c_pos,
+                        event_type="CREATE",
+                        table_name=tbl_name,
+                        columns=set(tbl_cols)
+                    ))
+
+        # Routines define procedure bodies; local temp tables declared within routine bodies
+        # are not in the session scope until called. Mark them dropped at routine definition end.
+        for r in routines:
+            seen_dropped = set()
+            for tbl_name, _ in r["temp_tables"]:
+                if tbl_name not in seen_dropped and not tbl_name.startswith("##"):
+                    seen_dropped.add(tbl_name)
+                    self.events.append(TimelineEvent(
+                        pos=r["end"],
+                        event_type="DROP",
+                        table_name=tbl_name
+                    ))
+
+        # Sort all events chronologically by pos
+        self.events.sort(key=lambda e: e.pos)
+
+    def _extract_columns_from_parens(self, body: str) -> set[str]:
+        cols = set()
+        depth = 0
+        curr = []
+        for ch in body:
+            if ch == "(":
+                depth += 1
+                curr.append(ch)
+            elif ch == ")":
+                depth = max(0, depth - 1)
+                curr.append(ch)
+            elif ch == "," and depth == 0:
+                item = "".join(curr).strip()
+                if item:
+                    c = self._extract_col_name(item)
+                    if c:
+                        cols.add(c)
+                curr = []
+            else:
+                curr.append(ch)
+        last = "".join(curr).strip()
+        if last:
+            c = self._extract_col_name(last)
+            if c:
+                cols.add(c)
+        return cols
+
+    def _extract_columns_from_alter_add(self, body: str) -> set[str]:
+        return _extract_columns_from_alter_add_body(body)
+
+    def _extract_col_name_from_add(self, item: str) -> str:
+        return _extract_col_name_from_add_clause(item)
+
+    def _extract_columns_from_alter_drop(self, body: str) -> set[str]:
+        cols = set()
+        for chunk in body.split(","):
+            chunk = chunk.strip()
+            chunk = re.sub(r"^\s*COLUMN\s+(?:IF\s+EXISTS\s+)?", "", chunk, flags=re.IGNORECASE).strip()
+            m = re.match(r"^(?:\[([^\]]+)\]|\"([^\"]+)\"|([a-zA-Z_@#$][a-zA-Z0-9_@#$]*))", chunk)
+            if m:
+                raw = m.group(1) or m.group(2) or m.group(3)
+                cols.add(clean_identifier(raw).lower())
+        return cols
+
+    def _extract_col_name(self, item: str) -> str:
+        item = item.strip()
+        if not item or re.match(r"^\s*(?:CONSTRAINT|PRIMARY|FOREIGN|CHECK|UNIQUE|INDEX)\b", item, re.IGNORECASE):
+            return ""
+        m = re.match(r"^(?:\[([^\]]+)\]|\"([^\"]+)\"|([a-zA-Z_@#$][a-zA-Z0-9_@#$]*))", item)
+        if m:
+            raw = m.group(1) or m.group(2) or m.group(3)
+            return clean_identifier(raw).lower()
+        return ""
+
+    def _extract_projection_columns(self, proj_str: str) -> set[str]:
+        return _extract_columns_from_proj_str(proj_str)
+
+    def get_table_state(self, table_name: str, at_pos: int) -> TempTableState:
+        clean_name = clean_identifier(table_name).lower()
+        state = TempTableState(name=clean_name)
+
+        if clean_name.startswith("##"):
+            state.is_open = True
+            state.is_defined = True
+
+        relevant_events = [e for e in self.events if e.table_name == clean_name and e.pos <= at_pos]
+        if not relevant_events:
+            future = [e for e in self.events if e.table_name == clean_name and e.event_type in ("CREATE", "CREATE_AS", "SELECT_INTO") and e.pos > at_pos]
+            if future:
+                state.created_at_pos = future[0].pos
+                state.is_defined = False
+                return state
+            if clean_name.startswith("##"):
+                return state
+            return state
+
+        for ev in relevant_events:
+            if ev.event_type in ("CREATE", "CREATE_AS", "SELECT_INTO"):
+                state.columns = set(ev.columns)
+                state.is_open = False
+                state.is_dropped = False
+                state.created_at_pos = ev.pos
+                state.is_defined = True
+            elif ev.event_type == "ALTER_ADD":
+                state.columns.update(ev.columns)
+            elif ev.event_type == "ALTER_DROP":
+                state.columns.difference_update(ev.columns)
+                state.dropped_columns.update(ev.columns)
+            elif ev.event_type == "DROP":
+                state.is_dropped = True
+                state.is_defined = False
+                state.columns.clear()
+            elif ev.event_type == "EXEC_OPEN":
+                state.is_open = True
+                state.is_defined = True
+            elif ev.event_type == "MUTATOR_COPY":
+                state.columns.update(ev.columns)
+                state.is_defined = True
+                if ev.extra.get("is_open"):
+                    state.is_open = True
+
+        return state
 
 
 def extract_ctes(sql: str) -> dict[str, set[str]]:
@@ -505,67 +1281,11 @@ def extract_ctes(sql: str) -> dict[str, set[str]]:
             sel_m = re.match(r"^\s*SELECT\s+(.*?)(?:\s+FROM\b.*|$)", body_no_comments, re.IGNORECASE | re.DOTALL)
             if sel_m:
                 proj_str = sel_m.group(1)
-                cols = set()
-                depth = 0
-                curr: list[str] = []
-                for ch in proj_str:
-                    if ch == "(":
-                        depth += 1
-                        curr.append(ch)
-                    elif ch == ")":
-                        depth = max(0, depth - 1)
-                        curr.append(ch)
-                    elif ch == "," and depth == 0:
-                        item = "".join(curr).strip()
-                        if item:
-                            cols.add(_extract_projection_column_name(item))
-                        curr = []
-                    else:
-                        curr.append(ch)
-                last = "".join(curr).strip()
-                if last:
-                    cols.add(_extract_projection_column_name(last))
-                clean_cols = {c for c in cols if c and c != "*"}
+                clean_cols = {c for c in _extract_columns_from_proj_str(proj_str) if c and c != "*"}
                 if clean_cols:
                     ctes[cte_name] = clean_cols
 
     return ctes
-
-
-def _extract_projection_column_name(expr: str) -> str:
-    """Extract effective column name or alias from a single SELECT projection expression."""
-    expr = re.sub(r"/\*.*?\*/", " ", expr, flags=re.DOTALL)
-    expr = re.sub(r"--.*$", " ", expr, flags=re.MULTILINE).strip()
-    if not expr:
-        return ""
-    # Strip leading DISTINCT, ALL, TOP
-    expr = re.sub(r"^\s*DISTINCT\s+", "", expr, flags=re.IGNORECASE)
-    expr = re.sub(r"^\s*ALL\s+", "", expr, flags=re.IGNORECASE)
-    expr = re.sub(r"^\s*TOP\s+(?:\([^\)]+\)|\d+)(?:\s+PERCENT)?(?:\s+WITH\s+TIES)?\s+", "", expr, flags=re.IGNORECASE).strip()
-    if not expr:
-        return ""
-    if expr == "*":
-        return "*"
-
-    # Match: expr AS alias or expr [alias] or expr "alias"
-    as_match = re.search(r"\bAS\s+(?:\[([^\]]+)\]|\"([^\"]+)\"|([a-zA-Z_@#$][a-zA-Z0-9_@#$]*))\s*$", expr, re.IGNORECASE)
-    if as_match:
-        alias = as_match.group(1) or as_match.group(2) or as_match.group(3)
-        return clean_identifier(alias).lower()
-
-    # Match: alias = expr (T-SQL alias assignment)
-    t_sql_alias = re.match(r"^\s*(?:\[([^\]]+)\]|\"([^\"]+)\"|([a-zA-Z_@#$][a-zA-Z0-9_@#$]*))\s*=\s*", expr)
-    if t_sql_alias:
-        alias = t_sql_alias.group(1) or t_sql_alias.group(2) or t_sql_alias.group(3)
-        return clean_identifier(alias).lower()
-
-    # Match simple column: tbl.col or col or [col]
-    simple_col = re.match(r"^(?:(?:[#@\w\.\"\[\]]+)\.)?(?:\[([^\]]+)\]|\"([^\"]+)\"|([a-zA-Z_@#$][a-zA-Z0-9_@#$]*))\s*$", expr)
-    if simple_col:
-        col = simple_col.group(1) or simple_col.group(2) or simple_col.group(3)
-        return clean_identifier(col).lower()
-
-    return ""
 
 
 def get_temp_table_columns_from_db(
@@ -611,7 +1331,7 @@ def get_temp_table_columns_from_db(
         try:
             if norm_dialect == "sqlserver":
                 temp_name = clean_tbl if clean_tbl.startswith("#") else f"#{clean_tbl}"
-                # 1. Query by OBJECT_ID('tempdb..#temp')
+                # Query by OBJECT_ID('tempdb..#temp') strictly in current session (T7 fix)
                 query = """
                     SELECT c.name
                     FROM tempdb.sys.columns c
@@ -619,29 +1339,19 @@ def get_temp_table_columns_from_db(
                 """
                 cursor.execute(query, (temp_name,))
                 rows = cursor.fetchall()
-                if not rows:
-                    # 2. Fallback: Query tempdb.sys.tables where name matches session temp table prefix
-                    query2 = """
-                        SELECT c.name
-                        FROM tempdb.sys.columns c
-                        JOIN tempdb.sys.tables t ON t.object_id = c.object_id
-                        WHERE LOWER(t.name) LIKE LOWER(?) + '[_]%'
-                    """
-                    cursor.execute(query2, (temp_name,))
-                    rows = cursor.fetchall()
                 if rows:
                     cols = {clean_identifier(r[0]).lower() for r in rows if r and r[0]}
                     _set_cached_columns(cache_key, cols)
                     return cols
             else:
-                # PostgreSQL temporary tables live in pg_temp or pg_temp_%
+                # PostgreSQL temporary tables live in current backend's temp schema (T8 fix)
                 query = """
                     SELECT a.attname
                     FROM pg_catalog.pg_attribute a
                     JOIN pg_catalog.pg_class c ON c.oid = a.attrelid
                     JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
                     WHERE LOWER(c.relname) = LOWER(%s)
-                      AND (n.nspname = 'pg_temp' OR n.nspname LIKE 'pg_temp_%%')
+                      AND (n.oid = pg_my_temp_schema() OR n.nspname = 'pg_temp')
                       AND a.attnum > 0 AND NOT a.attisdropped
                 """
                 cursor.execute(query, (clean_tbl,))
@@ -1325,6 +2035,7 @@ def analyze_sql_semantics(
     database: str | None = None,
     schema: str | None = None,
     cached_tables_dict: dict[str, list[str]] | None = None,
+    mutators: dict[str, dict] | None = None,
 ) -> list[dict[str, Any]]:
     """
     Main Semantic Analyzer:
@@ -1337,15 +2048,37 @@ def analyze_sql_semantics(
     if not sql or not sql.strip():
         return []
 
+    from app.database.syntax.proc_body_detector import get_proc_local_identifiers
+
     sql_masked = mask_sql_literals_and_comments(sql)
     diagnostics: list[dict[str, Any]] = []
     lines = sql.splitlines()
     masked_lines = sql_masked.splitlines()
 
+    # Collect procedure parameters and local variables to whitelist
+    proc_identifiers = get_proc_local_identifiers(sql, dialect)
+
+    if mutators is None:
+        try:
+            from app.services.settings_store import load_settings
+            st = load_settings()
+            if isinstance(st, dict):
+                mutators = st.get("intellisense", {}).get("tempTableMutators")
+        except Exception:
+            mutators = None
+
     # 1. Extract local table schemas declared within the script (using masked sql to avoid literals)
     table_vars = extract_table_variables(sql_masked)
     temp_tables = extract_temporary_tables(sql_masked)
     ctes = extract_ctes(sql_masked)
+    timeline = TempTableTimeline(
+        sql=sql,
+        sql_masked=sql_masked,
+        dialect=dialect,
+        cached_tables_dict=cached_tables_dict,
+        mutators=mutators,
+        declared_temp_tables=temp_tables,
+    )
 
     # Combined local table schema registry: table_name_lower -> set of lowercase columns
     local_tables: dict[str, set[str]] = {}
@@ -1381,6 +2114,9 @@ def analyze_sql_semantics(
             into_target_clean = clean_identifier(into_target_raw).lower()
             # Strip the INTO clause so the target table is never treated as a column of FROM table!
             proj_str = proj_str[:into_match.start()] + " " + proj_str[into_match.end():]
+            # If in PostgreSQL procedural context and target is a variable, do NOT treat as temp table
+            if norm_dialect == "postgres" and into_target_clean in proc_identifiers:
+                into_target_clean = None
 
         # 2. Parse multi-part table name (supports 1, 2, 3, or 4-part names for linked servers)
         # Check if table is a derived table subquery: FROM (SELECT ...) [AS] alias
@@ -1401,20 +2137,57 @@ def analyze_sql_semantics(
             clean_tbl = t_tbl.lower()
             alias_name = clean_identifier(raw_alias).lower() if raw_alias else clean_tbl
 
+            is_temp_candidate = (
+                clean_tbl.startswith("#")
+                or (t_schema and t_schema.lower() in ("pg_temp", "temp"))
+                or timeline.has_table(clean_tbl)
+            )
+
             if clean_tbl in table_vars or (t_schema and f"{t_schema}.{clean_tbl}" in table_vars):
                 known_columns = table_vars.get(clean_tbl) or table_vars.get(f"{t_schema}.{clean_tbl}")
                 table_category = "table variable"
-            elif clean_tbl in temp_tables or (t_schema and f"{t_schema}.{clean_tbl}" in temp_tables):
-                known_columns = temp_tables.get(clean_tbl) or temp_tables.get(f"{t_schema}.{clean_tbl}")
+            elif is_temp_candidate:
                 table_category = "temporary table"
-            elif clean_tbl.startswith("#") or clean_tbl.startswith("temp_") or (t_schema and t_schema.lower() in ("pg_temp", "temp")):
-                # Temporary table created outside current script/procedure - query from DB session
-                known_columns = get_temp_table_columns_from_db(
-                    connection_session=connection_session,
-                    dialect=dialect,
-                    table_name=clean_tbl,
-                )
-                table_category = "temporary table"
+                tbl_state = timeline.get_table_state(clean_tbl, sel_start)
+                if (not tbl_state.is_defined and tbl_state.created_at_pos > sel_start) or tbl_state.is_dropped:
+                    query_start_line = sql[:sel_start].count("\n") + 1
+                    if norm_dialect == "postgres":
+                        msg = f'relation "{clean_identifier(raw_table_name)}" does not exist'
+                    else:
+                        msg = f"Invalid object name '{clean_identifier(raw_table_name)}'."
+                    diagnostics.append(
+                        {
+                            "severity": "error",
+                            "message": msg,
+                            "code": "SQL_INVALID_OBJECT",
+                            "line": query_start_line,
+                            "column": 1,
+                            "end_column": 1 + len(raw_table_name),
+                            "token": clean_identifier(raw_table_name),
+                            "source": dialect,
+                        }
+                    )
+                    continue
+
+                if tbl_state.is_open:
+                    known_columns = set(tbl_state.columns) | {"*"}
+                elif tbl_state.is_defined and not tbl_state.is_dropped:
+                    known_columns = set(tbl_state.columns)
+                    # T6: Merge real columns from active DB session if available
+                    if clean_tbl.startswith("#") or (t_schema and t_schema.lower() in ("pg_temp", "temp")):
+                        db_cols = get_temp_table_columns_from_db(
+                            connection_session=connection_session,
+                            dialect=dialect,
+                            table_name=clean_tbl,
+                        )
+                        if db_cols:
+                            known_columns.update(db_cols)
+                elif clean_tbl.startswith("#") or (t_schema and t_schema.lower() in ("pg_temp", "temp")):
+                    known_columns = get_temp_table_columns_from_db(
+                        connection_session=connection_session,
+                        dialect=dialect,
+                        table_name=clean_tbl,
+                    )
                 if known_columns:
                     temp_tables[clean_tbl] = known_columns
                     local_tables[clean_tbl] = known_columns
@@ -1548,17 +2321,36 @@ def analyze_sql_semantics(
                 j_clean_tbl = js_tbl.lower()
                 j_alias_name = clean_identifier(j_alias).lower() if j_alias else j_clean_tbl
 
+                is_j_temp = (
+                    j_clean_tbl.startswith("#")
+                    or (js_sch and js_sch.lower() in ("pg_temp", "temp"))
+                    or timeline.has_table(j_clean_tbl)
+                )
+
                 j_cols = None
                 if j_clean_tbl in table_vars:
                     j_cols = table_vars[j_clean_tbl]
-                elif j_clean_tbl in temp_tables:
-                    j_cols = temp_tables[j_clean_tbl]
-                elif j_clean_tbl.startswith("#") or j_clean_tbl.startswith("temp_") or (js_sch and js_sch.lower() in ("pg_temp", "temp")):
-                    j_cols = get_temp_table_columns_from_db(
-                        connection_session=connection_session,
-                        dialect=dialect,
-                        table_name=j_clean_tbl,
-                    )
+                elif is_j_temp:
+                    j_state = timeline.get_table_state(j_clean_tbl, sel_start)
+                    if j_state.is_open:
+                        j_cols = set(j_state.columns) | {"*"}
+                    elif j_state.is_defined and not j_state.is_dropped:
+                        j_cols = set(j_state.columns)
+                        # T6: Merge real columns from active DB session if available
+                        if j_clean_tbl.startswith("#") or (js_sch and js_sch.lower() in ("pg_temp", "temp")):
+                            db_cols = get_temp_table_columns_from_db(
+                                connection_session=connection_session,
+                                dialect=dialect,
+                                table_name=j_clean_tbl,
+                            )
+                            if db_cols:
+                                j_cols.update(db_cols)
+                    elif j_clean_tbl.startswith("#") or (js_sch and js_sch.lower() in ("pg_temp", "temp")):
+                        j_cols = get_temp_table_columns_from_db(
+                            connection_session=connection_session,
+                            dialect=dialect,
+                            table_name=j_clean_tbl,
+                        )
                     if j_cols:
                         temp_tables[j_clean_tbl] = j_cols
                         local_tables[j_clean_tbl] = j_cols
@@ -1596,7 +2388,15 @@ def analyze_sql_semantics(
             token_clean = clean_identifier(token).lower()
 
             # Ignore wildcard, reserved keywords, numeric literals, and table aliases themselves
-            if token_clean == "*" or token_clean in _SQL_RESERVED_IDENTIFIERS or token_clean == alias_name or token_clean == clean_tbl:
+            if (
+                token_clean == "*"
+                or token_clean in _SQL_RESERVED_IDENTIFIERS
+                or token_clean == alias_name
+                or token_clean == clean_tbl
+                or token_clean in proc_identifiers
+                or token.lower() in proc_identifiers
+                or token_clean.lstrip("@") in proc_identifiers
+            ):
                 continue
 
             # Check if column is invalid
@@ -1633,7 +2433,7 @@ def analyze_sql_semantics(
                             target_cat = "table"
                     elif qualifier in ("inserted", "deleted", "dbo", "public", (schema or "").lower(), (t_schema or "").lower()):
                         continue
-                    elif qualifier in _SQL_RESERVED_IDENTIFIERS:
+                    elif qualifier in _SQL_RESERVED_IDENTIFIERS or qualifier in proc_identifiers:
                         continue
                     else:
                         # Non-existent alias (Issue S5 / SEM-FN-3)
@@ -1659,11 +2459,20 @@ def analyze_sql_semantics(
                 for l_idx in range(query_start_line - 1, min(len(lines), query_end_line)):
                     line_txt = lines[l_idx]
                     m_txt = masked_lines[l_idx] if l_idx < len(masked_lines) else None
-                    pos = _find_token_position_in_line(line_txt, search_token, m_txt)
+                    pos = None
+                    if qualifier and not is_invalid_alias:
+                        pos = _find_token_position_in_line(line_txt, f"{qualifier}.{token}", m_txt)
+                        if pos:
+                            q_len = len(qualifier) + 1
+                            pos = (pos[0] + q_len, pos[1])
+                    if not pos:
+                        pos = _find_token_position_in_line(line_txt, search_token, m_txt)
                     if pos:
-                        found_line = l_idx + 1
-                        found_col, found_end_col = pos
-                        break
+                        candidate_key = (l_idx + 1, pos[0], search_token.lower())
+                        if candidate_key not in seen_diags:
+                            found_line = l_idx + 1
+                            found_col, found_end_col = pos
+                            break
 
                 if found_line is None:
                     # Token not actually found in non-comment code lines; skip to avoid placing error on SELECT/WITH
@@ -1712,17 +2521,21 @@ def analyze_sql_semantics(
         _, _, _, i_tbl = split_qualified_table_name(i_raw_tbl)
         i_clean_tbl = i_tbl.lower()
 
+        i_is_temp = i_clean_tbl.startswith("#") or timeline.has_table(i_clean_tbl)
         i_known_cols = None
         i_cat = "table"
         if i_clean_tbl in table_vars:
             i_known_cols = table_vars[i_clean_tbl]
             i_cat = "table variable"
-        elif i_clean_tbl in temp_tables:
-            i_known_cols = temp_tables[i_clean_tbl]
+        elif i_is_temp:
             i_cat = "temporary table"
-        elif i_clean_tbl.startswith("#"):
-            i_known_cols = get_temp_table_columns_from_db(connection_session, dialect, i_clean_tbl)
-            i_cat = "temporary table"
+            i_state = timeline.get_table_state(i_clean_tbl, im.start())
+            if i_state.is_open:
+                i_known_cols = set(i_state.columns) | {"*"}
+            elif i_state.is_defined and not i_state.is_dropped:
+                i_known_cols = set(i_state.columns)
+            elif i_clean_tbl.startswith("#"):
+                i_known_cols = get_temp_table_columns_from_db(connection_session, dialect, i_clean_tbl)
         else:
             i_server, i_db, i_schema, i_tbl_name = split_qualified_table_name(i_raw_tbl)
             i_known_cols = get_physical_table_columns(
@@ -1736,7 +2549,7 @@ def analyze_sql_semantics(
             )
             i_cat = "linked server table" if i_server else "table"
 
-        if i_known_cols:
+        if i_known_cols and "*" not in i_known_cols:
             i_start_line = sql[: im.start()].count("\n") + 1
             i_end_line = sql[: im.end()].count("\n") + 1
             for col_item in i_col_str.split(","):
@@ -1784,17 +2597,21 @@ def analyze_sql_semantics(
         _, _, _, u_tbl = split_qualified_table_name(u_raw_tbl)
         u_clean_tbl = u_tbl.lower()
 
+        u_is_temp = u_clean_tbl.startswith("#") or timeline.has_table(u_clean_tbl)
         u_known_cols = None
         u_cat = "table"
         if u_clean_tbl in table_vars:
             u_known_cols = table_vars[u_clean_tbl]
             u_cat = "table variable"
-        elif u_clean_tbl in temp_tables:
-            u_known_cols = temp_tables[u_clean_tbl]
+        elif u_is_temp:
             u_cat = "temporary table"
-        elif u_clean_tbl.startswith("#"):
-            u_known_cols = get_temp_table_columns_from_db(connection_session, dialect, u_clean_tbl)
-            u_cat = "temporary table"
+            u_state = timeline.get_table_state(u_clean_tbl, um.start())
+            if u_state.is_open:
+                u_known_cols = set(u_state.columns) | {"*"}
+            elif u_state.is_defined and not u_state.is_dropped:
+                u_known_cols = set(u_state.columns)
+            elif u_clean_tbl.startswith("#"):
+                u_known_cols = get_temp_table_columns_from_db(connection_session, dialect, u_clean_tbl)
         else:
             u_server, u_db, u_schema, u_tbl_name = split_qualified_table_name(u_raw_tbl)
             u_known_cols = get_physical_table_columns(
@@ -1808,7 +2625,7 @@ def analyze_sql_semantics(
             )
             u_cat = "linked server table" if u_server else "table"
 
-        if u_known_cols:
+        if u_known_cols and "*" not in u_known_cols:
             u_start_line = sql[: um.start()].count("\n") + 1
             u_end_line = sql[: um.end()].count("\n") + 1
             assignments = re.findall(r"(?:\[([^\]]+)\]|\"([^\"]+)\"|([a-zA-Z_@#$][a-zA-Z0-9_@#$]*))\s*=", u_set_str)
@@ -1874,6 +2691,8 @@ def _extract_referenced_identifiers(
     # Remove T-SQL alias assignment: my_alias = expr
     cleaned = re.sub(r"^\s*(?:\[[^\]]+\]|\"[^\"]+\"|[a-zA-Z_@#$][a-zA-Z0-9_@#$]*)\s*=\s*", " ", cleaned)
     if is_projection:
+        # Also remove any @var = expr variable assignment within projection
+        cleaned = re.sub(r"@[a-zA-Z0-9_]+\s*=\s*", " ", cleaned)
         # Remove trailing space-separated alias: expr my_alias
         cleaned = re.sub(r"\s+(?:\[[^\]]+\]|\"[^\"]+\"|[a-zA-Z_@#$][a-zA-Z0-9_@#$]*)\s*$", " ", cleaned)
 

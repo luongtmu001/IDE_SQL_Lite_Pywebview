@@ -3543,6 +3543,80 @@
         return escapeXml(formatted.substring(1, formatted.length - 3));
     }
 
+    // ── Execution Statistics Bar Support (Sprint 1 - F3) ─────────────────────
+    function formatBytes(bytes) {
+        if (!bytes || bytes <= 0 || isNaN(bytes)) return '0 B';
+        if (bytes < 1024) return `${Math.round(bytes)} B`;
+        if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+        return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+    }
+
+    function renderSparklineSvg(svgEl, history, currentMs) {
+        if (!svgEl) return;
+        const width = 60;
+        const height = 15;
+        const barWidth = 8;
+        const barGap = 4;
+        const maxBars = 5;
+
+        let points = [];
+        if (Array.isArray(history) && history.length > 0) {
+            points = history.map(h => (typeof h === 'number' ? h : (h && typeof h.durationMs === 'number' ? h.durationMs : 0)));
+        }
+        if (typeof currentMs === 'number' && (points.length === 0 || points[points.length - 1] !== currentMs)) {
+            points.push(currentMs);
+        }
+        const recent = points.slice(-maxBars);
+        if (recent.length === 0) recent.push(currentMs || 0);
+
+        const maxVal = Math.max(...recent, 1);
+
+        let svgHtml = '';
+        recent.forEach((val, idx) => {
+            const h = Math.max(3, Math.min(height, Math.round((val / maxVal) * (height - 2))));
+            const x = idx * (barWidth + barGap);
+            const y = height - h;
+            let color = '#10b981'; // < 500ms
+            if (val > 2000) color = '#ef4444'; // > 2000ms
+            else if (val >= 500) color = '#f59e0b'; // 500-2000ms
+
+            const isCurrent = (idx === recent.length - 1);
+            const opacity = isCurrent ? '1' : '0.6';
+            svgHtml += `<rect x="${x}" y="${y}" width="${barWidth}" height="${h}" fill="${color}" opacity="${opacity}" rx="1"><title>Run #${idx + 1}: ${val} ms</title></rect>`;
+        });
+
+        svgEl.innerHTML = svgHtml;
+    }
+
+    let _lastStats = null;
+    let _statsClickListenerAttached = false;
+
+    function copyExecutionMetrics() {
+        if (!_lastStats) return;
+        const payload = {
+            queryHash: _lastStats.queryHash || 'unknown',
+            durationMs: _lastStats.durationMs || 0,
+            rowCount: _lastStats.rowCount || 0,
+            dataSizeBytes: _lastStats.dataSizeBytes || 0,
+            dataSizeFormatted: formatBytes(_lastStats.dataSizeBytes),
+            connectionId: _lastStats.connId || null,
+            database: _lastStats.dbName || null,
+            schema: _lastStats.schema || null,
+            timestamp: new Date(_lastStats.timestamp || Date.now()).toISOString()
+        };
+        const jsonStr = JSON.stringify(payload, null, 2);
+        copyText(jsonStr);
+
+        const footer = document.getElementById('ide-result-footer');
+        if (footer) {
+            footer.classList.remove('ide-stat-copied-flash');
+            void footer.offsetWidth; // trigger reflow
+            footer.classList.add('ide-stat-copied-flash');
+            setTimeout(() => footer.classList.remove('ide-stat-copied-flash'), 600);
+        }
+        notify('Đã sao chép thông số thực thi (Execution Stats JSON) vào Clipboard', 'info');
+    }
+
     // ── Public API ───────────────────────────────────────────────────────────
     const attachedGrids = new WeakMap();
     const activeInstances = new Set();
@@ -3597,6 +3671,79 @@
                 totalResizeRenderCount,
                 totalObserverCallbacks
             };
+        },
+        updateExecutionStats(stats) {
+            if (!stats) return;
+            _lastStats = { ...stats, timestamp: stats.timestamp || Date.now() };
+
+            const footer = document.getElementById('ide-result-footer');
+            if (!footer) return;
+
+            footer.classList.remove('d-none');
+            footer.classList.add('d-flex');
+
+            // 1. Duration badge
+            const timeBadge = document.getElementById('ide-footer-time-badge');
+            const timeVal = document.getElementById('ide-footer-time');
+            const dur = typeof stats.durationMs === 'number' ? stats.durationMs : 0;
+            if (timeVal) {
+                timeVal.textContent = (dur >= 10000) ? `${(dur / 1000).toFixed(2)} s` : `${dur} ms`;
+            }
+            if (timeBadge) {
+                timeBadge.classList.remove('speed-fast', 'speed-normal', 'speed-slow');
+                if (dur > 2000) {
+                    timeBadge.classList.add('speed-slow');
+                } else if (dur >= 500) {
+                    timeBadge.classList.add('speed-normal');
+                } else {
+                    timeBadge.classList.add('speed-fast');
+                }
+            }
+
+            // 2. Data Size
+            const sizeVal = document.getElementById('ide-footer-size-val');
+            if (sizeVal) {
+                sizeVal.textContent = formatBytes(stats.dataSizeBytes);
+            }
+
+            // 3. Connection & DB label
+            const connEl = document.getElementById('ide-footer-conn');
+            const connVal = document.getElementById('ide-footer-conn-val');
+            if (connVal && connEl) {
+                const parts = [];
+                if (stats.connId) parts.push(`#${stats.connId}`);
+                if (stats.dbName) parts.push(stats.dbName);
+                if (stats.schema) parts.push(`(${stats.schema})`);
+                if (parts.length > 0) {
+                    connVal.textContent = parts.join(' · ');
+                    connEl.classList.remove('d-none');
+                } else {
+                    connEl.classList.add('d-none');
+                }
+            }
+
+            // 4. Sparkline Trend
+            const sparklineSvg = document.getElementById('ide-footer-sparkline');
+            if (sparklineSvg) {
+                renderSparklineSvg(sparklineSvg, stats.history, dur);
+            }
+
+            // 5. Setup click listener once
+            if (!_statsClickListenerAttached) {
+                _statsClickListenerAttached = true;
+                footer.addEventListener('click', (e) => {
+                    copyExecutionMetrics();
+                });
+            }
+        },
+        getLastExecutionStats() {
+            return _lastStats;
+        },
+        copyExecutionStats() {
+            copyExecutionMetrics();
+        },
+        formatBytes(bytes) {
+            return formatBytes(bytes);
         }
     };
 

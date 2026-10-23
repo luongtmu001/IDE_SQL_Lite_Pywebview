@@ -307,3 +307,126 @@ class ConnectionManager:
                 logger.info("Closed idle connection %s (idle >= %ss)", conn.connection_id, max_idle_seconds)
 
         return closed_count
+
+    def get_or_create_for_tab(self, owner_session_id: str, tab_id: str, source_conn_id: Optional[str] = None, config: Optional[dict] = None):
+        """
+        Create or retrieve a dedicated execution connection for a specific tab (SSMS per-tab session model).
+        """
+        clean_tab = str(tab_id or "").strip()
+        if not clean_tab:
+            raise ValueError("tab_id is required for per-tab session")
+
+        with self._lock:
+            # 1. Check if tab already has an active connection
+            for conn in list(self._connections.values()):
+                if conn.owner_session_id == owner_session_id and getattr(conn, "tab_id", None) == clean_tab:
+                    if conn.is_alive():
+                        conn.touch()
+                        return conn
+                    else:
+                        # Close dead connection
+                        try:
+                            self.close(owner_session_id, conn.connection_id)
+                        except Exception:
+                            pass
+                        break
+
+            # 2. Derive configuration for new connection
+            config_to_use = None
+            if source_conn_id and source_conn_id in self._connections:
+                src_conn = self._connections[source_conn_id]
+                config_to_use = dict(src_conn.config or {})
+                cached_pwd = self.get_cached_password(config_to_use)
+                if cached_pwd:
+                    config_to_use["password"] = cached_pwd
+            elif config and isinstance(config, dict) and (config.get("server") or config.get("host") or config.get("type")):
+                config_to_use = dict(config)
+                if not config_to_use.get("password") and not config_to_use.get("trusted_connection"):
+                    cached_pwd = self.get_cached_password(config_to_use)
+                    if cached_pwd:
+                        config_to_use["password"] = cached_pwd
+            elif source_conn_id:
+                try:
+                    from app.services.settings_store import CONNECTIONS_FILE, _read_json
+                    saved = _read_json(CONNECTIONS_FILE, [])
+                    for p in saved:
+                        if p.get("id") == source_conn_id or str(p.get("name", "")).strip().lower() == str(source_conn_id).strip().lower():
+                            config_to_use = dict(p)
+                            break
+                except Exception as ex:
+                    logger.debug("Could not lookup source_conn_id in saved connections: %s", ex)
+
+            # Apply overrides from config (such as database or schema)
+            if config_to_use and config and isinstance(config, dict):
+                if config.get("database"):
+                    config_to_use["database"] = config.get("database")
+                if config.get("schema"):
+                    config_to_use["schema"] = config.get("schema")
+
+            # Fallback password resolution
+            if config_to_use and not config_to_use.get("password") and not config_to_use.get("trusted_connection") and (config_to_use.get("type") or "").lower() != "sqlite":
+                cached_pwd = self.get_cached_password(config_to_use)
+                if cached_pwd:
+                    config_to_use["password"] = cached_pwd
+                else:
+                    try:
+                        from app.services.settings_store import CONNECTIONS_FILE, _read_json
+                        from app.utils.crypto import decrypt_password
+                        saved = _read_json(CONNECTIONS_FILE, [])
+                        target = None
+                        prof_id = config_to_use.get("id") or config_to_use.get("connection_id")
+                        if prof_id:
+                            for p in saved:
+                                if p.get("id") == prof_id:
+                                    target = p
+                                    break
+                        if not target and config_to_use.get("name"):
+                            c_name = str(config_to_use.get("name")).strip().lower()
+                            for p in saved:
+                                if str(p.get("name")).strip().lower() == c_name:
+                                    target = p
+                                    break
+                        if target and target.get("password"):
+                            config_to_use["password"] = decrypt_password(target["password"])
+                    except Exception as ex:
+                        logger.debug("Could not fallback decrypt password in get_or_create_for_tab: %s", ex)
+
+            if not config_to_use:
+                raise ValueError("Could not determine connection config for tab session")
+
+            # 3. Create a dedicated connection session
+            conn = self.create(owner_session_id, config_to_use)
+            conn.tab_id = clean_tab
+            return conn
+
+    def close_for_tab(self, owner_session_id: str, tab_id: str) -> int:
+        """Close dedicated connection(s) associated with a tab when closed."""
+        clean_tab = str(tab_id or "").strip()
+        if not clean_tab:
+            return 0
+        with self._lock:
+            tab_conns = [
+                conn for conn in self._connections.values()
+                if conn.owner_session_id == owner_session_id and getattr(conn, "tab_id", None) == clean_tab
+            ]
+        closed = 0
+        for conn in tab_conns:
+            try:
+                self.close(owner_session_id, conn.connection_id)
+                closed += 1
+            except Exception as ex:
+                logger.warning("Error closing connection for tab %s: %s", clean_tab, ex)
+        return closed
+
+    def get_for_tab(self, owner_session_id: str, tab_id: str) -> Optional[ConnectionSession]:
+        """Retrieve existing active dedicated connection for a tab without creating a new one."""
+        clean_tab = str(tab_id or "").strip()
+        if not clean_tab:
+            return None
+        with self._lock:
+            for conn in self._connections.values():
+                if conn.owner_session_id == owner_session_id and getattr(conn, "tab_id", None) == clean_tab:
+                    if conn.is_alive():
+                        conn.touch()
+                        return conn
+        return None

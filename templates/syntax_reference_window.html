@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="vi" data-bs-theme="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self'; worker-src 'self' blob:;">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tra cứu &amp; Đối chiếu cú pháp (PostgreSQL &amp; SQL Server) — luoBTool IDE</title>
+
+    <!-- Immediate Theme & Typography Restore -->
+    <script>
+        (function () {
+            try {
+                var saved = localStorage.getItem('ide-theme');
+                if (saved) {
+                    document.documentElement.setAttribute('data-bs-theme', saved);
+                }
+                var fontFam = localStorage.getItem('ide-ui-font-family');
+                var fontSz = localStorage.getItem('ide-ui-font-size');
+                if (fontFam) {
+                    var stack = fontFam;
+                    if (fontFam === 'Segoe UI') stack = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif";
+                    else if (fontFam === 'Inter') stack = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif";
+                    else if (fontFam === 'Roboto') stack = "'Roboto', 'Segoe UI', Arial, sans-serif";
+                    else if (fontFam === 'Arial') stack = "Arial, 'Helvetica Neue', Helvetica, sans-serif";
+                    else if (fontFam === 'Tahoma') stack = "Tahoma, Verdana, 'Segoe UI', sans-serif";
+                    else if (fontFam === 'System UI') stack = "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+                    document.documentElement.style.setProperty('--ide-ui-font-family', stack);
+                    document.documentElement.style.setProperty('--bs-body-font-family', stack);
+                }
+                if (fontSz) {
+                    var szNum = parseInt(fontSz, 10);
+                    if (!isNaN(szNum) && szNum >= 10 && szNum <= 24) {
+                        document.documentElement.style.setProperty('--ide-ui-font-size', szNum + 'px');
+                        document.documentElement.style.setProperty('--bs-body-font-size', szNum + 'px');
+                    }
+                }
+            } catch (e) { }
+        })();
+    </script>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Roboto:wght@400;500;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
+        rel="stylesheet">
+
+    <!-- Vendor CSS -->
+    <link rel="stylesheet" href="../static/vendor/bootstrap/bootstrap.min.css">
+    <link rel="stylesheet" href="../static/vendor/fontawesome/all.min.css">
+    <link rel="stylesheet" href="../static/vendor/monaco/vs/editor/editor.main.css">
+
+    <!-- IDE Theme Variables & Syntax Catalog Styles -->
+    <link rel="stylesheet" href="../static/css/theme-variables.css">
+    <link rel="stylesheet" href="../static/css/themes.css">
+    <link rel="stylesheet" href="../static/css/editor.css">
+    <link rel="stylesheet" href="../static/css/syntax-catalog.css">
+</head>
+
+<body class="syntax-window-body">
+    <div id="syntax-window-root" class="syntax-window-root">
+        <!-- Top App Bar -->
+        <header class="syntax-window-header">
+            <div class="syntax-window-brand">
+                <div class="syntax-window-icon-badge">
+                    <i class="fa-solid fa-circle-question"></i>
+                </div>
+                <div>
+                    <h1 class="syntax-window-title">Tra cứu &amp; Đối chiếu cú pháp</h1>
+                    <div class="syntax-window-subtitle">PostgreSQL &amp; Microsoft SQL Server • Catalog v1.0.0</div>
+                </div>
+            </div>
+
+            <!-- View Switcher Tabs -->
+            <nav class="syntax-window-nav" aria-label="Chế độ làm việc">
+                <button type="button" class="syntax-window-tab active" id="tab-nav-reference" data-tab="reference">
+                    <i class="fa-solid fa-book-open me-1"></i> Tra cứu (Reference)
+                </button>
+                <button type="button" class="syntax-window-tab" id="tab-nav-compare" data-tab="compare">
+                    <i class="fa-solid fa-code-compare me-1"></i> So sánh cú pháp (Compare)
+                </button>
+            </nav>
+        </header>
+
+        <!-- View 1: Reference View -->
+        <main id="syntax-view-reference" class="syntax-window-view active">
+            <!-- Filter Bar -->
+            <section class="syntax-win-controls" aria-label="Bộ lọc tra cứu">
+                <div class="syntax-win-search-wrap">
+                    <i class="fa-solid fa-magnifying-glass syntax-ref-search-icon"></i>
+                    <input type="text" id="win-syntax-search" class="syntax-ref-search-input"
+                        placeholder="Tìm kiếm cú pháp, hàm, từ khóa, toán tử (vd: LATERAL, ILIKE, ~~, OFFSET, STRING_AGG)..."
+                        autocomplete="off" spellcheck="false">
+                    <button type="button" id="win-syntax-search-clear" class="syntax-ref-search-clear" title="Xóa từ khóa">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+                <div class="syntax-win-filter-row">
+                    <div class="syntax-ref-db-pills" id="win-syntax-db-pills">
+                        <button type="button" class="syntax-ref-pill active" data-scope="all">
+                            <i class="fa-solid fa-globe"></i> Tất cả
+                        </button>
+                        <button type="button" class="syntax-ref-pill pill-pg" data-scope="postgresql">
+                            <i class="fa-solid fa-database"></i> PostgreSQL
+                        </button>
+                        <button type="button" class="syntax-ref-pill pill-ms" data-scope="sqlserver">
+                            <i class="fa-solid fa-database"></i> SQL Server
+                        </button>
+                        <button type="button" class="syntax-ref-pill pill-exclusive-pg" data-scope="exclusive-pg" title="Chỉ hiển thị các câu lệnh đặc thù riêng của PostgreSQL">
+                            <i class="fa-solid fa-star text-info"></i> Lệnh riêng PostgreSQL
+                        </button>
+                        <button type="button" class="syntax-ref-pill pill-exclusive-ms" data-scope="exclusive-ms" title="Chỉ hiển thị các câu lệnh đặc thù riêng của SQL Server">
+                            <i class="fa-solid fa-star text-warning"></i> Lệnh riêng SQL Server
+                        </button>
+                        <button type="button" class="syntax-ref-pill pill-mapped" data-scope="mapped" title="Chỉ hiển thị các câu lệnh có ánh xạ đối chiếu 2 chiều">
+                            <i class="fa-solid fa-code-compare text-success"></i> Cặp đối chiếu 2 bên
+                        </button>
+                    </div>
+                    <div>
+                        <select id="win-syntax-category" class="syntax-ref-category-select">
+                            <option value="all">Tất cả nhóm câu lệnh</option>
+                            <option value="query">Truy vấn &amp; Nối bảng (Query / Join)</option>
+                            <option value="dml">Thao tác dữ liệu (DML / Upsert)</option>
+                            <option value="string">Chuỗi &amp; Ký tự đại diện (String / Regex)</option>
+                            <option value="paging">Phân trang &amp; Giới hạn (Paging)</option>
+                            <option value="aggregate">Hàm gộp (Aggregate)</option>
+                            <option value="comparison">So sánh &amp; Xử lý NULL (Comparison)</option>
+                            <option value="datatype">Kiểu dữ liệu &amp; Mảng (Datatype / Array)</option>
+                            <option value="procedural">Thủ tục &amp; Biến (Procedural / Block)</option>
+                            <option value="optimization">Tối ưu &amp; Session (Optimization)</option>
+                            <option value="identity">Khóa tự tăng (Identity / Sequence)</option>
+                            <option value="datetime">Ngày giờ (Date / Time)</option>
+                            <option value="json">Dữ liệu JSON</option>
+                            <option value="utility">Tiện ích &amp; Sao chép (Bulk / Utility)</option>
+                            <option value="admin">Quản trị &amp; Bảo trì (Admin)</option>
+                            <option value="messaging">Thông điệp bất đồng bộ (Messaging)</option>
+                        </select>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Two-Pane Layout: List & Detail -->
+            <div class="syntax-win-body">
+                <aside class="syntax-win-list-pane" aria-label="Danh sách mục cú pháp">
+                    <div class="syntax-ref-list-count" id="win-syntax-count">Đang tải danh mục cú pháp...</div>
+                    <div id="win-syntax-list" class="syntax-win-list-scroll"></div>
+                </aside>
+                <article class="syntax-win-detail-pane" id="win-syntax-detail" aria-label="Chi tiết mục cú pháp">
+                    <div class="syntax-empty-state">
+                        <i class="fa-solid fa-book-bookmark syntax-empty-icon"></i>
+                        <span>Chọn một mục cú pháp ở danh sách bên trái để xem chi tiết và đối chiếu</span>
+                    </div>
+                </article>
+            </div>
+        </main>
+
+        <!-- View 2: Compare View -->
+        <main id="syntax-view-compare" class="syntax-window-view">
+            <!-- Compare Controls Bar -->
+            <section class="syntax-compare-toolbar" aria-label="Tùy chọn đối chiếu">
+                <div class="syntax-compare-selectors">
+                    <div class="syntax-compare-field">
+                        <label class="syntax-compare-label" for="cmp-source-dialect">Dialect Nguồn:</label>
+                        <select id="cmp-source-dialect" class="syntax-ref-category-select">
+                            <option value="postgresql" selected>PostgreSQL</option>
+                            <option value="sqlserver">Microsoft SQL Server</option>
+                        </select>
+                    </div>
+                    <button type="button" id="cmp-btn-swap" class="syntax-compare-btn-swap" title="Đổi chiều đối chiếu (Swap Dialects)">
+                        <i class="fa-solid fa-arrow-right-arrow-left"></i>
+                    </button>
+                    <div class="syntax-compare-field">
+                        <label class="syntax-compare-label" for="cmp-target-dialect">Dialect Đích:</label>
+                        <select id="cmp-target-dialect" class="syntax-ref-category-select">
+                            <option value="sqlserver" selected>Microsoft SQL Server</option>
+                            <option value="postgresql">PostgreSQL</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Sample Presets -->
+                <div class="syntax-compare-samples">
+                    <span class="syntax-compare-label">Mẫu nhanh:</span>
+                    <button type="button" class="syntax-sample-btn" data-sample="limit_offset">LIMIT / OFFSET</button>
+                    <button type="button" class="syntax-sample-btn" data-sample="string_agg">STRING_AGG</button>
+                    <button type="button" class="syntax-sample-btn" data-sample="lateral_apply">LATERAL / APPLY</button>
+                    <button type="button" class="syntax-sample-btn" data-sample="coalesce_isnull">COALESCE / ISNULL</button>
+                    <button type="button" class="syntax-sample-btn" data-sample="ilike">ILIKE</button>
+                    <button type="button" class="syntax-sample-btn" data-sample="string_concat">|| vs + (Concat)</button>
+                    <button type="button" class="syntax-sample-btn" data-sample="substring">SUBSTR / SUBSTRING</button>
+                    <button type="button" class="syntax-sample-btn" data-sample="dateadd">INTERVAL / DATEADD</button>
+                    <button type="button" class="syntax-sample-btn" data-sample="casting">:: vs CAST/TRY_CAST</button>
+                    <button type="button" class="syntax-sample-btn" data-sample="returning_output">RETURNING / OUTPUT</button>
+                </div>
+
+                <div class="syntax-compare-actions">
+                    <button type="button" id="cmp-btn-analyze" class="syntax-btn-analyze">
+                        <i class="fa-solid fa-wand-magic-sparkles me-1"></i> Phân tích đối chiếu
+                    </button>
+                </div>
+            </section>
+
+            <!-- Compare Main Panels: Side-by-side Editors -->
+            <div class="syntax-compare-grid">
+                <div class="syntax-compare-card">
+                    <div class="syntax-compare-card-hdr">
+                        <span id="cmp-source-hdr-title" class="syntax-compare-card-title">
+                            <i class="fa-solid fa-database text-info me-1"></i> Đoạn SQL nguồn (PostgreSQL)
+                        </span>
+                        <button type="button" id="cmp-source-clear" class="syntax-card-btn" title="Xóa nội dung">
+                            <i class="fa-solid fa-eraser"></i>
+                        </button>
+                    </div>
+                    <div class="syntax-editor-container">
+                        <div id="cmp-source-monaco" class="syntax-monaco-box"></div>
+                        <textarea id="cmp-source-editor" class="syntax-textarea" placeholder="Nhập hoặc dán câu lệnh SQL nguồn cần tra cứu đối chiếu vào đây..."></textarea>
+                    </div>
+                </div>
+
+                <div class="syntax-compare-card">
+                    <div class="syntax-compare-card-hdr">
+                        <span id="cmp-target-hdr-title" class="syntax-compare-card-title">
+                            <i class="fa-solid fa-database text-warning me-1"></i> Cú pháp tương đương đích (SQL Server)
+                        </span>
+                        <div class="syntax-cmp-actions">
+                            <button type="button" id="cmp-target-copy" class="syntax-card-btn" title="Sao chép SQL đích">
+                                <i class="fa-regular fa-copy me-1"></i> Copy
+                            </button>
+                            <button type="button" id="cmp-target-insert" class="syntax-card-btn primary" title="Chèn trực tiếp vào Editor chính">
+                                <i class="fa-solid fa-arrow-turn-down me-1"></i> Chèn vào Editor
+                            </button>
+                        </div>
+                    </div>
+                    <div class="syntax-editor-container">
+                        <div id="cmp-target-monaco" class="syntax-monaco-box"></div>
+                        <textarea id="cmp-target-editor" class="syntax-textarea" placeholder="Cú pháp tương đương đối chiếu sẽ được hiển thị tại đây sau khi phân tích..." readonly></textarea>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Analysis Breakdown Results Card -->
+            <section class="syntax-compare-result-panel" id="cmp-result-panel" aria-label="Kết quả đối chiếu">
+                <div class="syntax-empty-state">
+                    <i class="fa-solid fa-code-compare syntax-empty-icon"></i>
+                    <span>Nhập câu lệnh SQL vào khung nguồn và nhấn <strong>&quot;Phân tích đối chiếu&quot;</strong> để xem phân tích mức độ tương đương, điều kiện ràng buộc và khác biệt hành vi.</span>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Vendor Scripts -->
+    <script src="../static/vendor/bootstrap/bootstrap.bundle.min.js"></script>
+
+    <!-- Monaco Editor AMD Loader & Dialect Setup -->
+    <script src="../static/vendor/monaco/vs/loader.js"></script>
+    <script src="../static/js/monaco-init.js"></script>
+    <script src="../static/js/monaco-sql-lang.js"></script>
+
+    <!-- App Scripts -->
+    <script src="../static/js/theme-registry.js"></script>
+    <script src="../static/js/theme.js"></script>
+    <script src="../static/js/typography.js"></script>
+    <script src="../static/js/syntax-reference-window.js"></script>
+
+    <script>
+        window.onSettingsChanged = function (settings) {
+            try {
+                var theme = (settings && settings.appearance && settings.appearance.theme) || (settings && settings.theme) || 'dark';
+                document.documentElement.setAttribute('data-bs-theme', theme);
+                if (window.ThemeManager) {
+                    window.ThemeManager.applyTheme(theme, false);
+                }
+                if (window.MonacoInit && typeof monaco !== 'undefined' && monaco.editor) {
+                    monaco.editor.setTheme(window.MonacoInit.getMonacoTheme(theme));
+                }
+                if (window.TypographyManager && settings && settings.appearance) {
+                    window.TypographyManager.apply({
+                        fontFamily: settings.editor && settings.editor.fontFamily,
+                        fontSize: settings.editor && settings.editor.fontSize,
+                        uiFontFamily: settings.appearance.uiFontFamily,
+                        uiFontSize: settings.appearance.uiFontSize
+                    }, false);
+                }
+            } catch (e) { }
+        };
+
+        document.addEventListener('DOMContentLoaded', function () {
+            if (window.TypographyManager && typeof window.TypographyManager.init === 'function') {
+                window.TypographyManager.init();
+            }
+        });
+    </script>
+</body>
+
+</html>

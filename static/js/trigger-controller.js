@@ -151,8 +151,8 @@
             return { kind: 'table', reason: 'from_join_space' };
         }
 
-        // 5. ON keyword in JOIN clause (e.g. '... JOIN Orders o ON ')
-        if (prevTokenUpper === 'ON' || (context && context.clause === 'ON')) {
+        // 5. ON keyword in JOIN clause (e.g. '... JOIN Orders o ON ', '... ON a = b AND ')
+        if (prevTokenUpper === 'ON' || (context && context.clause === 'ON' && ['AND', 'OR'].includes(prevTokenUpper))) {
             return { kind: 'join_condition', reason: 'on_space' };
         }
 
@@ -553,11 +553,12 @@
 
             // Section 8: Identifier typing in SQL Context or Snippet prefix
             if (currentWord.length >= 1) {
-                // Check if current word matches a snippet prefix
+                // Check if current word matches a snippet prefix for the active dbType
+                const currentDbType = (this.tabContext && this.tabContext.dbType) || (window.AppTabs && window.AppTabs.getActiveTabState && window.AppTabs.getActiveTabState()?.dbType) || window.ActiveDbType || null;
                 const hasSnippetMatch = Boolean(
                     window.AppSnippets &&
                     typeof window.AppSnippets.getSnippets === 'function' &&
-                    (window.AppSnippets.getSnippets() || []).some(s => (s.prefix || '').toLowerCase().startsWith(currentWord.toLowerCase()))
+                    (window.AppSnippets.getSnippets(currentDbType) || []).some(s => (s.prefix || '').toLowerCase().startsWith(currentWord.toLowerCase()))
                 );
 
                 // Must be in a valid SQL construct / clause OR matching a snippet prefix OR at start of statement

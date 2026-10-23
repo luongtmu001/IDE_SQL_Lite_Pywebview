@@ -1,0 +1,4927 @@
+{
+  "L2-FROM-001": {
+    "sql": "SELECT * FROM ‸",
+    "dialect": "mssql",
+    "total": 10,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "Customers",
+        "type": "table"
+      },
+      {
+        "rank": 2,
+        "label": "dbo",
+        "type": "schema"
+      },
+      {
+        "rank": 3,
+        "label": "hr",
+        "type": "schema"
+      },
+      {
+        "rank": 4,
+        "label": "Order Details",
+        "type": "table"
+      },
+      {
+        "rank": 5,
+        "label": "OrderItems",
+        "type": "table"
+      },
+      {
+        "rank": 6,
+        "label": "Orders",
+        "type": "table"
+      },
+      {
+        "rank": 7,
+        "label": "sales",
+        "type": "schema"
+      },
+      {
+        "rank": 8,
+        "label": "Tbl1",
+        "type": "table"
+      },
+      {
+        "rank": 9,
+        "label": "vOrders",
+        "type": "view"
+      },
+      {
+        "rank": 10,
+        "label": "fn_Total",
+        "type": "function"
+      }
+    ]
+  },
+  "L2-FROM-002": {
+    "sql": "SELECT * FROM Ord‸",
+    "dialect": "mssql",
+    "total": 4,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "Orders",
+        "type": "table"
+      },
+      {
+        "rank": 2,
+        "label": "OrderItems",
+        "type": "table"
+      },
+      {
+        "rank": 3,
+        "label": "Order Details",
+        "type": "table"
+      },
+      {
+        "rank": 4,
+        "label": "vOrders",
+        "type": "view"
+      }
+    ]
+  },
+  "L2-WHERE-001": {
+    "sql": "SELECT * FROM dbo.Orders WHERE ‸",
+    "dialect": "mssql",
+    "total": 83,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "OrderID",
+        "type": "pk_column"
+      },
+      {
+        "rank": 2,
+        "label": "CustomerID",
+        "type": "column"
+      },
+      {
+        "rank": 3,
+        "label": "IsActive",
+        "type": "column"
+      },
+      {
+        "rank": 4,
+        "label": "Notes",
+        "type": "column"
+      },
+      {
+        "rank": 5,
+        "label": "OrderDate",
+        "type": "column"
+      },
+      {
+        "rank": 6,
+        "label": "Total",
+        "type": "column"
+      },
+      {
+        "rank": 7,
+        "label": "COUNT",
+        "type": "sql_function"
+      },
+      {
+        "rank": 8,
+        "label": "GETDATE",
+        "type": "sql_function"
+      },
+      {
+        "rank": 9,
+        "label": "ISNULL",
+        "type": "sql_function"
+      },
+      {
+        "rank": 10,
+        "label": "AVG",
+        "type": "sql_function"
+      }
+    ]
+  },
+  "L2-WHERE-002": {
+    "sql": "SELECT * FROM dbo.Orders WHERE Cus‸",
+    "dialect": "mssql",
+    "total": 9,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "CustomerID",
+        "type": "column"
+      },
+      {
+        "rank": 2,
+        "label": "Customers",
+        "type": "table"
+      },
+      {
+        "rank": 3,
+        "label": "CURRENT_USER",
+        "type": "keyword"
+      },
+      {
+        "rank": 4,
+        "label": "CUME_DIST",
+        "type": "sql_function"
+      },
+      {
+        "rank": 5,
+        "label": "CURRENT_TIMESTAMP",
+        "type": "sql_function"
+      },
+      {
+        "rank": 6,
+        "label": "CURSOR",
+        "type": "keyword"
+      },
+      {
+        "rank": 7,
+        "label": "CLUSTERED",
+        "type": "keyword"
+      },
+      {
+        "rank": 8,
+        "label": "CURRENT_TIMESTAMP",
+        "type": "keyword"
+      },
+      {
+        "rank": 9,
+        "label": "NONCLUSTERED",
+        "type": "keyword"
+      }
+    ]
+  },
+  "L2-SELECT-001": {
+    "sql": "SELECT ‸ FROM dbo.Orders",
+    "dialect": "mssql",
+    "total": 84,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "* (Expand columns)",
+        "type": "star_expansion"
+      },
+      {
+        "rank": 2,
+        "label": "OrderID",
+        "type": "pk_column"
+      },
+      {
+        "rank": 3,
+        "label": "CustomerID",
+        "type": "column"
+      },
+      {
+        "rank": 4,
+        "label": "IsActive",
+        "type": "column"
+      },
+      {
+        "rank": 5,
+        "label": "Notes",
+        "type": "column"
+      },
+      {
+        "rank": 6,
+        "label": "OrderDate",
+        "type": "column"
+      },
+      {
+        "rank": 7,
+        "label": "Total",
+        "type": "column"
+      },
+      {
+        "rank": 8,
+        "label": "COUNT",
+        "type": "sql_function"
+      },
+      {
+        "rank": 9,
+        "label": "GETDATE",
+        "type": "sql_function"
+      },
+      {
+        "rank": 10,
+        "label": "ISNULL",
+        "type": "sql_function"
+      }
+    ]
+  },
+  "L2-ORDER-001": {
+    "sql": "SELECT * FROM dbo.Orders ORDER BY ‸",
+    "dialect": "mssql",
+    "total": 83,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "OrderID",
+        "type": "pk_column"
+      },
+      {
+        "rank": 2,
+        "label": "CustomerID",
+        "type": "column"
+      },
+      {
+        "rank": 3,
+        "label": "IsActive",
+        "type": "column"
+      },
+      {
+        "rank": 4,
+        "label": "Notes",
+        "type": "column"
+      },
+      {
+        "rank": 5,
+        "label": "OrderDate",
+        "type": "column"
+      },
+      {
+        "rank": 6,
+        "label": "Total",
+        "type": "column"
+      },
+      {
+        "rank": 7,
+        "label": "COUNT",
+        "type": "sql_function"
+      },
+      {
+        "rank": 8,
+        "label": "GETDATE",
+        "type": "sql_function"
+      },
+      {
+        "rank": 9,
+        "label": "ISNULL",
+        "type": "sql_function"
+      },
+      {
+        "rank": 10,
+        "label": "AVG",
+        "type": "sql_function"
+      }
+    ]
+  },
+  "L2-QUAL-001": {
+    "sql": "SELECT o.‸ FROM dbo.Orders o",
+    "dialect": "mssql",
+    "total": 7,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "* (All columns of o)",
+        "type": "star_expansion"
+      },
+      {
+        "rank": 2,
+        "label": "OrderID",
+        "type": "pk_column"
+      },
+      {
+        "rank": 3,
+        "label": "CustomerID",
+        "type": "column"
+      },
+      {
+        "rank": 4,
+        "label": "IsActive",
+        "type": "column"
+      },
+      {
+        "rank": 5,
+        "label": "Notes",
+        "type": "column"
+      },
+      {
+        "rank": 6,
+        "label": "OrderDate",
+        "type": "column"
+      },
+      {
+        "rank": 7,
+        "label": "Total",
+        "type": "column"
+      }
+    ]
+  },
+  "L2-QUAL-002": {
+    "sql": "SELECT c.‸ FROM dbo.Orders o JOIN dbo.Customers c ON o.CustomerID = c.CustomerID",
+    "dialect": "mssql",
+    "total": 5,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "* (All columns of c)",
+        "type": "star_expansion"
+      },
+      {
+        "rank": 2,
+        "label": "CustomerID",
+        "type": "column"
+      },
+      {
+        "rank": 3,
+        "label": "CustomerID",
+        "type": "pk_column"
+      },
+      {
+        "rank": 4,
+        "label": "ContactEmail",
+        "type": "column"
+      },
+      {
+        "rank": 5,
+        "label": "CustomerName",
+        "type": "column"
+      }
+    ]
+  },
+  "L2-JOIN-FK-001": {
+    "sql": "SELECT * FROM dbo.Orders o JOIN dbo.Customers c ON ‸",
+    "dialect": "mssql",
+    "total": 89,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "c.CustomerID = o.CustomerID",
+        "type": "join_condition"
+      },
+      {
+        "rank": 2,
+        "label": "CustomerID",
+        "type": "pk_column"
+      },
+      {
+        "rank": 3,
+        "label": "OrderID",
+        "type": "pk_column"
+      },
+      {
+        "rank": 4,
+        "label": "ContactEmail",
+        "type": "column"
+      },
+      {
+        "rank": 5,
+        "label": "CustomerID",
+        "type": "column"
+      },
+      {
+        "rank": 6,
+        "label": "CustomerName",
+        "type": "column"
+      },
+      {
+        "rank": 7,
+        "label": "IsActive",
+        "type": "column"
+      },
+      {
+        "rank": 8,
+        "label": "Notes",
+        "type": "column"
+      },
+      {
+        "rank": 9,
+        "label": "OrderDate",
+        "type": "column"
+      },
+      {
+        "rank": 10,
+        "label": "Total",
+        "type": "column"
+      }
+    ]
+  },
+  "L2-STAR-001": {
+    "sql": "SELECT *‸ FROM dbo.Orders",
+    "dialect": "mssql",
+    "total": 84,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "* (Expand columns)",
+        "type": "star_expansion"
+      },
+      {
+        "rank": 2,
+        "label": "OrderID",
+        "type": "pk_column"
+      },
+      {
+        "rank": 3,
+        "label": "CustomerID",
+        "type": "column"
+      },
+      {
+        "rank": 4,
+        "label": "IsActive",
+        "type": "column"
+      },
+      {
+        "rank": 5,
+        "label": "Notes",
+        "type": "column"
+      },
+      {
+        "rank": 6,
+        "label": "OrderDate",
+        "type": "column"
+      },
+      {
+        "rank": 7,
+        "label": "Total",
+        "type": "column"
+      },
+      {
+        "rank": 8,
+        "label": "COUNT",
+        "type": "sql_function"
+      },
+      {
+        "rank": 9,
+        "label": "GETDATE",
+        "type": "sql_function"
+      },
+      {
+        "rank": 10,
+        "label": "ISNULL",
+        "type": "sql_function"
+      }
+    ]
+  },
+  "L2-PG-001": {
+    "sql": "SELECT * FROM public.orders WHERE ‸",
+    "dialect": "postgresql",
+    "total": 80,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "id",
+        "type": "pk_column"
+      },
+      {
+        "rank": 2,
+        "label": "customer_id",
+        "type": "column"
+      },
+      {
+        "rank": 3,
+        "label": "is_deleted",
+        "type": "column"
+      },
+      {
+        "rank": 4,
+        "label": "order_date",
+        "type": "column"
+      },
+      {
+        "rank": 5,
+        "label": "total",
+        "type": "column"
+      },
+      {
+        "rank": 6,
+        "label": "COUNT",
+        "type": "sql_function"
+      },
+      {
+        "rank": 7,
+        "label": "NOW",
+        "type": "sql_function"
+      },
+      {
+        "rank": 8,
+        "label": "TO_CHAR",
+        "type": "sql_function"
+      },
+      {
+        "rank": 9,
+        "label": "AVG",
+        "type": "sql_function"
+      },
+      {
+        "rank": 10,
+        "label": "COALESCE",
+        "type": "sql_function"
+      }
+    ]
+  },
+  "L2-PG-002": {
+    "sql": "SELECT o.‸ FROM public.orders o",
+    "dialect": "postgresql",
+    "total": 6,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "* (All columns of o)",
+        "type": "star_expansion"
+      },
+      {
+        "rank": 2,
+        "label": "id",
+        "type": "pk_column"
+      },
+      {
+        "rank": 3,
+        "label": "customer_id",
+        "type": "column"
+      },
+      {
+        "rank": 4,
+        "label": "is_deleted",
+        "type": "column"
+      },
+      {
+        "rank": 5,
+        "label": "order_date",
+        "type": "column"
+      },
+      {
+        "rank": 6,
+        "label": "total",
+        "type": "column"
+      }
+    ]
+  },
+  "L2-PG-FK-001": {
+    "sql": "SELECT * FROM public.order_items oi JOIN public.orders o ON ‸",
+    "dialect": "postgresql",
+    "total": 87,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "o.id = oi.order_id",
+        "type": "join_condition"
+      },
+      {
+        "rank": 2,
+        "label": "id",
+        "type": "pk_column"
+      },
+      {
+        "rank": 3,
+        "label": "customer_id",
+        "type": "column"
+      },
+      {
+        "rank": 4,
+        "label": "is_deleted",
+        "type": "column"
+      },
+      {
+        "rank": 5,
+        "label": "order_date",
+        "type": "column"
+      },
+      {
+        "rank": 6,
+        "label": "order_id",
+        "type": "column"
+      },
+      {
+        "rank": 7,
+        "label": "price",
+        "type": "column"
+      },
+      {
+        "rank": 8,
+        "label": "product_id",
+        "type": "column"
+      },
+      {
+        "rank": 9,
+        "label": "quantity",
+        "type": "column"
+      },
+      {
+        "rank": 10,
+        "label": "total",
+        "type": "column"
+      }
+    ]
+  },
+  "L2-LOCAL-TEMP-001": {
+    "sql": "CREATE TABLE #tmp (TmpID INT, TmpName VARCHAR(50)); SELECT ‸ FROM #tmp;",
+    "dialect": "mssql",
+    "total": 81,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "* (Expand columns)",
+        "type": "star_expansion"
+      },
+      {
+        "rank": 2,
+        "label": "TmpID",
+        "type": "column"
+      },
+      {
+        "rank": 3,
+        "label": "TmpName",
+        "type": "column"
+      },
+      {
+        "rank": 4,
+        "label": "COUNT",
+        "type": "sql_function"
+      },
+      {
+        "rank": 5,
+        "label": "GETDATE",
+        "type": "sql_function"
+      },
+      {
+        "rank": 6,
+        "label": "ISNULL",
+        "type": "sql_function"
+      },
+      {
+        "rank": 7,
+        "label": "AVG",
+        "type": "sql_function"
+      },
+      {
+        "rank": 8,
+        "label": "COALESCE",
+        "type": "sql_function"
+      },
+      {
+        "rank": 9,
+        "label": "DATEADD",
+        "type": "sql_function"
+      },
+      {
+        "rank": 10,
+        "label": "DATEDIFF",
+        "type": "sql_function"
+      }
+    ]
+  },
+  "L2-LOCAL-VAR-001": {
+    "sql": "DECLARE @tbl TABLE (VarID INT, VarVal VARCHAR(50)); SELECT ‸ FROM @tbl;",
+    "dialect": "mssql",
+    "total": 81,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "* (Expand columns)",
+        "type": "star_expansion"
+      },
+      {
+        "rank": 2,
+        "label": "VarID",
+        "type": "column"
+      },
+      {
+        "rank": 3,
+        "label": "VarVal",
+        "type": "column"
+      },
+      {
+        "rank": 4,
+        "label": "COUNT",
+        "type": "sql_function"
+      },
+      {
+        "rank": 5,
+        "label": "GETDATE",
+        "type": "sql_function"
+      },
+      {
+        "rank": 6,
+        "label": "ISNULL",
+        "type": "sql_function"
+      },
+      {
+        "rank": 7,
+        "label": "AVG",
+        "type": "sql_function"
+      },
+      {
+        "rank": 8,
+        "label": "COALESCE",
+        "type": "sql_function"
+      },
+      {
+        "rank": 9,
+        "label": "DATEADD",
+        "type": "sql_function"
+      },
+      {
+        "rank": 10,
+        "label": "DATEDIFF",
+        "type": "sql_function"
+      }
+    ]
+  },
+  "L2-CTE-001": {
+    "sql": "WITH CteOrders AS (SELECT OrderID, Total FROM dbo.Orders) SELECT ‸ FROM CteOrders;",
+    "dialect": "mssql",
+    "total": 81,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "* (Expand columns)",
+        "type": "star_expansion"
+      },
+      {
+        "rank": 2,
+        "label": "OrderID",
+        "type": "column"
+      },
+      {
+        "rank": 3,
+        "label": "Total",
+        "type": "column"
+      },
+      {
+        "rank": 4,
+        "label": "COUNT",
+        "type": "sql_function"
+      },
+      {
+        "rank": 5,
+        "label": "GETDATE",
+        "type": "sql_function"
+      },
+      {
+        "rank": 6,
+        "label": "ISNULL",
+        "type": "sql_function"
+      },
+      {
+        "rank": 7,
+        "label": "AVG",
+        "type": "sql_function"
+      },
+      {
+        "rank": 8,
+        "label": "COALESCE",
+        "type": "sql_function"
+      },
+      {
+        "rank": 9,
+        "label": "DATEADD",
+        "type": "sql_function"
+      },
+      {
+        "rank": 10,
+        "label": "DATEDIFF",
+        "type": "sql_function"
+      }
+    ]
+  },
+  "L2-SNIP-001": {
+    "sql": "sel‸",
+    "dialect": "mssql",
+    "total": 5,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "SELECT",
+        "type": "keyword"
+      },
+      {
+        "rank": 2,
+        "label": "SEMANTICSIMILARITYTABLE",
+        "type": "keyword"
+      },
+      {
+        "rank": 3,
+        "label": "SEMANTICSIMILARITYDETAILSTABLE",
+        "type": "keyword"
+      },
+      {
+        "rank": 4,
+        "label": "SEMANTICKEYPHRASETABLE",
+        "type": "keyword"
+      },
+      {
+        "rank": 5,
+        "label": "TSEQUAL",
+        "type": "keyword"
+      }
+    ]
+  },
+  "L2-FORBID-STR": {
+    "sql": "SELECT 'hello ‸' FROM dbo.Orders",
+    "dialect": "mssql",
+    "total": 0,
+    "top10": []
+  },
+  "L2-FORBID-COMM": {
+    "sql": "-- test comment ‸\nSELECT * FROM dbo.Orders",
+    "dialect": "mssql",
+    "total": 0,
+    "top10": []
+  },
+  "INS-1": {
+    "sql": "INSERT INTO dbo.Orders (‸)",
+    "dialect": "mssql",
+    "total": 9,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "CustomerID",
+        "type": "column"
+      },
+      {
+        "rank": 2,
+        "label": "IsActive",
+        "type": "column"
+      },
+      {
+        "rank": 3,
+        "label": "Notes",
+        "type": "column"
+      },
+      {
+        "rank": 4,
+        "label": "OrderDate",
+        "type": "column"
+      },
+      {
+        "rank": 5,
+        "label": "OrderID",
+        "type": "pk_column"
+      },
+      {
+        "rank": 6,
+        "label": "Total",
+        "type": "column"
+      },
+      {
+        "rank": 7,
+        "label": "SELECT",
+        "type": "keyword"
+      },
+      {
+        "rank": 8,
+        "label": "VALUES",
+        "type": "keyword"
+      },
+      {
+        "rank": 9,
+        "label": "DEFAULT",
+        "type": "keyword"
+      }
+    ]
+  },
+  "INS-2": {
+    "sql": "SELECT CONVERT(‸, OrderID) FROM dbo.Orders",
+    "dialect": "mssql",
+    "total": 28,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "varchar",
+        "type": "data_type"
+      },
+      {
+        "rank": 2,
+        "label": "int",
+        "type": "data_type"
+      },
+      {
+        "rank": 3,
+        "label": "datetime",
+        "type": "data_type"
+      },
+      {
+        "rank": 4,
+        "label": "nvarchar",
+        "type": "data_type"
+      },
+      {
+        "rank": 5,
+        "label": "decimal",
+        "type": "data_type"
+      },
+      {
+        "rank": 6,
+        "label": "bigint",
+        "type": "data_type"
+      },
+      {
+        "rank": 7,
+        "label": "binary",
+        "type": "data_type"
+      },
+      {
+        "rank": 8,
+        "label": "bit",
+        "type": "data_type"
+      },
+      {
+        "rank": 9,
+        "label": "char",
+        "type": "data_type"
+      },
+      {
+        "rank": 10,
+        "label": "date",
+        "type": "data_type"
+      }
+    ]
+  },
+  "CAST-1": {
+    "sql": "SELECT CAST(OrderID AS ‸) FROM dbo.Orders",
+    "dialect": "mssql",
+    "total": 28,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "int",
+        "type": "data_type"
+      },
+      {
+        "rank": 2,
+        "label": "varchar",
+        "type": "data_type"
+      },
+      {
+        "rank": 3,
+        "label": "bigint",
+        "type": "data_type"
+      },
+      {
+        "rank": 4,
+        "label": "decimal",
+        "type": "data_type"
+      },
+      {
+        "rank": 5,
+        "label": "datetime",
+        "type": "data_type"
+      },
+      {
+        "rank": 6,
+        "label": "binary",
+        "type": "data_type"
+      },
+      {
+        "rank": 7,
+        "label": "bit",
+        "type": "data_type"
+      },
+      {
+        "rank": 8,
+        "label": "char",
+        "type": "data_type"
+      },
+      {
+        "rank": 9,
+        "label": "date",
+        "type": "data_type"
+      },
+      {
+        "rank": 10,
+        "label": "datetime2",
+        "type": "data_type"
+      }
+    ]
+  },
+  "DECL-1": {
+    "sql": "DECLARE @x ‸",
+    "dialect": "mssql",
+    "total": 28,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "int",
+        "type": "data_type"
+      },
+      {
+        "rank": 2,
+        "label": "varchar",
+        "type": "data_type"
+      },
+      {
+        "rank": 3,
+        "label": "bigint",
+        "type": "data_type"
+      },
+      {
+        "rank": 4,
+        "label": "bit",
+        "type": "data_type"
+      },
+      {
+        "rank": 5,
+        "label": "nvarchar",
+        "type": "data_type"
+      },
+      {
+        "rank": 6,
+        "label": "binary",
+        "type": "data_type"
+      },
+      {
+        "rank": 7,
+        "label": "char",
+        "type": "data_type"
+      },
+      {
+        "rank": 8,
+        "label": "date",
+        "type": "data_type"
+      },
+      {
+        "rank": 9,
+        "label": "datetime",
+        "type": "data_type"
+      },
+      {
+        "rank": 10,
+        "label": "datetime2",
+        "type": "data_type"
+      }
+    ]
+  },
+  "PG-CAST": {
+    "sql": "SELECT id::‸ FROM public.orders",
+    "dialect": "postgresql",
+    "total": 22,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "integer",
+        "type": "data_type"
+      },
+      {
+        "rank": 2,
+        "label": "text",
+        "type": "data_type"
+      },
+      {
+        "rank": 3,
+        "label": "numeric",
+        "type": "data_type"
+      },
+      {
+        "rank": 4,
+        "label": "varchar",
+        "type": "data_type"
+      },
+      {
+        "rank": 5,
+        "label": "boolean",
+        "type": "data_type"
+      },
+      {
+        "rank": 6,
+        "label": "bigint",
+        "type": "data_type"
+      },
+      {
+        "rank": 7,
+        "label": "bigserial",
+        "type": "data_type"
+      },
+      {
+        "rank": 8,
+        "label": "bytea",
+        "type": "data_type"
+      },
+      {
+        "rank": 9,
+        "label": "char",
+        "type": "data_type"
+      },
+      {
+        "rank": 10,
+        "label": "date",
+        "type": "data_type"
+      }
+    ]
+  },
+  "RET-1": {
+    "sql": "INSERT INTO public.orders (customer_id) VALUES (1) RETURNING ‸",
+    "dialect": "postgresql",
+    "total": 80,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "id",
+        "type": "pk_column"
+      },
+      {
+        "rank": 2,
+        "label": "customer_id",
+        "type": "column"
+      },
+      {
+        "rank": 3,
+        "label": "is_deleted",
+        "type": "column"
+      },
+      {
+        "rank": 4,
+        "label": "order_date",
+        "type": "column"
+      },
+      {
+        "rank": 5,
+        "label": "total",
+        "type": "column"
+      },
+      {
+        "rank": 6,
+        "label": "COUNT",
+        "type": "sql_function"
+      },
+      {
+        "rank": 7,
+        "label": "NOW",
+        "type": "sql_function"
+      },
+      {
+        "rank": 8,
+        "label": "TO_CHAR",
+        "type": "sql_function"
+      },
+      {
+        "rank": 9,
+        "label": "AVG",
+        "type": "sql_function"
+      },
+      {
+        "rank": 10,
+        "label": "COALESCE",
+        "type": "sql_function"
+      }
+    ]
+  },
+  "MRG-1": {
+    "sql": "MERGE INTO dbo.Orders AS tgt USING dbo.OrderItems AS src ON tgt.OrderID = src.‸",
+    "dialect": "mssql",
+    "total": 5,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "ItemID",
+        "type": "pk_column"
+      },
+      {
+        "rank": 2,
+        "label": "OrderID",
+        "type": "column"
+      },
+      {
+        "rank": 3,
+        "label": "ProductID",
+        "type": "column"
+      },
+      {
+        "rank": 4,
+        "label": "Quantity",
+        "type": "column"
+      },
+      {
+        "rank": 5,
+        "label": "UnitPrice",
+        "type": "column"
+      }
+    ]
+  },
+  "SCH-1": {
+    "sql": "SELECT * FROM ‸",
+    "dialect": "mssql",
+    "total": 10,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "Customers",
+        "type": "table"
+      },
+      {
+        "rank": 2,
+        "label": "dbo",
+        "type": "schema"
+      },
+      {
+        "rank": 3,
+        "label": "hr",
+        "type": "schema"
+      },
+      {
+        "rank": 4,
+        "label": "Order Details",
+        "type": "table"
+      },
+      {
+        "rank": 5,
+        "label": "OrderItems",
+        "type": "table"
+      },
+      {
+        "rank": 6,
+        "label": "Orders",
+        "type": "table"
+      },
+      {
+        "rank": 7,
+        "label": "sales",
+        "type": "schema"
+      },
+      {
+        "rank": 8,
+        "label": "Tbl1",
+        "type": "table"
+      },
+      {
+        "rank": 9,
+        "label": "vOrders",
+        "type": "view"
+      },
+      {
+        "rank": 10,
+        "label": "fn_Total",
+        "type": "function"
+      }
+    ]
+  },
+  "ON-1": {
+    "sql": "SELECT * FROM dbo.Orders o JOIN dbo.OrderItems i ON i.OrderID = ‸",
+    "dialect": "mssql",
+    "total": 92,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "SELECT",
+        "type": "keyword"
+      },
+      {
+        "rank": 2,
+        "label": "CASE",
+        "type": "keyword"
+      },
+      {
+        "rank": 3,
+        "label": "NULL",
+        "type": "keyword"
+      },
+      {
+        "rank": 4,
+        "label": "CAST",
+        "type": "keyword"
+      },
+      {
+        "rank": 5,
+        "label": "CONVERT",
+        "type": "keyword"
+      },
+      {
+        "rank": 6,
+        "label": "DEFAULT",
+        "type": "keyword"
+      },
+      {
+        "rank": 7,
+        "label": "TRY_CAST",
+        "type": "keyword"
+      },
+      {
+        "rank": 8,
+        "label": "OrderID",
+        "type": "pk_column"
+      },
+      {
+        "rank": 9,
+        "label": "CustomerID",
+        "type": "column"
+      },
+      {
+        "rank": 10,
+        "label": "IsActive",
+        "type": "column"
+      }
+    ]
+  },
+  "EXEC-1": {
+    "sql": "EXEC dbo.‸",
+    "dialect": "mssql",
+    "total": 1,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "usp_GetOrders",
+        "type": "procedure"
+      }
+    ]
+  },
+  "WIDE-1": {
+    "sql": "SELECT t.‸ FROM dbo.Tbl1 t",
+    "dialect": "mssql",
+    "total": 601,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "* (All columns of t)",
+        "type": "star_expansion"
+      },
+      {
+        "rank": 2,
+        "label": "Col_1",
+        "type": "column"
+      },
+      {
+        "rank": 3,
+        "label": "Col_10",
+        "type": "column"
+      },
+      {
+        "rank": 4,
+        "label": "Col_100",
+        "type": "column"
+      },
+      {
+        "rank": 5,
+        "label": "Col_101",
+        "type": "column"
+      },
+      {
+        "rank": 6,
+        "label": "Col_102",
+        "type": "column"
+      },
+      {
+        "rank": 7,
+        "label": "Col_103",
+        "type": "column"
+      },
+      {
+        "rank": 8,
+        "label": "Col_104",
+        "type": "column"
+      },
+      {
+        "rank": 9,
+        "label": "Col_105",
+        "type": "column"
+      },
+      {
+        "rank": 10,
+        "label": "Col_106",
+        "type": "column"
+      }
+    ]
+  },
+  "ALIAS-1": {
+    "sql": "SELECT b.‸ FROM dbo.Orders a JOIN dbo.Customers b ON a.CustomerID = b.CustomerID",
+    "dialect": "mssql",
+    "total": 5,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "* (All columns of b)",
+        "type": "star_expansion"
+      },
+      {
+        "rank": 2,
+        "label": "CustomerID",
+        "type": "column"
+      },
+      {
+        "rank": 3,
+        "label": "CustomerID",
+        "type": "pk_column"
+      },
+      {
+        "rank": 4,
+        "label": "ContactEmail",
+        "type": "column"
+      },
+      {
+        "rank": 5,
+        "label": "CustomerName",
+        "type": "column"
+      }
+    ]
+  },
+  "PG-EXCLUDED": {
+    "sql": "INSERT INTO public.orders (customer_id, total) VALUES (1, 100) ON CONFLICT (customer_id) DO UPDATE SET total = EXCLUDED.‸",
+    "dialect": "postgresql",
+    "total": 5,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "id",
+        "type": "pk_column"
+      },
+      {
+        "rank": 2,
+        "label": "customer_id",
+        "type": "column"
+      },
+      {
+        "rank": 3,
+        "label": "is_deleted",
+        "type": "column"
+      },
+      {
+        "rank": 4,
+        "label": "order_date",
+        "type": "column"
+      },
+      {
+        "rank": 5,
+        "label": "total",
+        "type": "column"
+      }
+    ]
+  },
+  "K-OR": {
+    "sql": "SELECT * FROM dbo.Orders WHERE OrderID = 1 OR‸",
+    "dialect": "mssql",
+    "total": 8,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "OR",
+        "type": "keyword"
+      },
+      {
+        "rank": 2,
+        "label": "OrderID",
+        "type": "pk_column"
+      },
+      {
+        "rank": 3,
+        "label": "OrderDate",
+        "type": "column"
+      },
+      {
+        "rank": 4,
+        "label": "ORIGINAL_LOGIN",
+        "type": "sql_function"
+      },
+      {
+        "rank": 5,
+        "label": "ORDER",
+        "type": "keyword"
+      },
+      {
+        "rank": 6,
+        "label": "Orders",
+        "type": "table"
+      },
+      {
+        "rank": 7,
+        "label": "OrderItems",
+        "type": "table"
+      },
+      {
+        "rank": 8,
+        "label": "Order Details",
+        "type": "table"
+      }
+    ]
+  },
+  "K-O": {
+    "sql": "SELECT * FROM dbo.Orders WHERE OrderID = 1 O‸",
+    "dialect": "mssql",
+    "total": 30,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "OR",
+        "type": "keyword"
+      },
+      {
+        "rank": 2,
+        "label": "OrderID",
+        "type": "pk_column"
+      },
+      {
+        "rank": 3,
+        "label": "OrderDate",
+        "type": "column"
+      },
+      {
+        "rank": 4,
+        "label": "OBJECT_ID",
+        "type": "sql_function"
+      },
+      {
+        "rank": 5,
+        "label": "OBJECT_NAME",
+        "type": "sql_function"
+      },
+      {
+        "rank": 6,
+        "label": "OBJECTPROPERTY",
+        "type": "sql_function"
+      },
+      {
+        "rank": 7,
+        "label": "ORIGINAL_LOGIN",
+        "type": "sql_function"
+      },
+      {
+        "rank": 8,
+        "label": "OBJECTPROPERTYEX",
+        "type": "sql_function"
+      },
+      {
+        "rank": 9,
+        "label": "OBJECT_DEFINITION",
+        "type": "sql_function"
+      },
+      {
+        "rank": 10,
+        "label": "OBJECT_SCHEMA_NAME",
+        "type": "sql_function"
+      }
+    ]
+  },
+  "PG-OR": {
+    "sql": "SELECT * FROM public.orders WHERE id = 1 OR‸",
+    "dialect": "postgresql",
+    "total": 43,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "OR",
+        "type": "keyword"
+      },
+      {
+        "rank": 2,
+        "label": "order_date",
+        "type": "column"
+      },
+      {
+        "rank": 3,
+        "label": "ORDER",
+        "type": "keyword"
+      },
+      {
+        "rank": 4,
+        "label": "FORMAT",
+        "type": "sql_function"
+      },
+      {
+        "rank": 5,
+        "label": "FLOOR",
+        "type": "sql_function"
+      },
+      {
+        "rank": 6,
+        "label": "orders",
+        "type": "table"
+      },
+      {
+        "rank": 7,
+        "label": "order_items",
+        "type": "table"
+      },
+      {
+        "rank": 8,
+        "label": "BOOL_OR",
+        "type": "sql_function"
+      },
+      {
+        "rank": 9,
+        "label": "FOREIGN",
+        "type": "keyword"
+      },
+      {
+        "rank": 10,
+        "label": "customer_id",
+        "type": "column"
+      }
+    ]
+  },
+  "AND-A": {
+    "sql": "SELECT * FROM dbo.Orders WHERE Total > 0 A‸",
+    "dialect": "mssql",
+    "total": 17,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "AND",
+        "type": "keyword"
+      },
+      {
+        "rank": 2,
+        "label": "AVG",
+        "type": "sql_function"
+      },
+      {
+        "rank": 3,
+        "label": "ABS",
+        "type": "sql_function"
+      },
+      {
+        "rank": 4,
+        "label": "ACOS",
+        "type": "sql_function"
+      },
+      {
+        "rank": 5,
+        "label": "ASIN",
+        "type": "sql_function"
+      },
+      {
+        "rank": 6,
+        "label": "ATAN",
+        "type": "sql_function"
+      },
+      {
+        "rank": 7,
+        "label": "ATN2",
+        "type": "sql_function"
+      },
+      {
+        "rank": 8,
+        "label": "ASCII",
+        "type": "sql_function"
+      },
+      {
+        "rank": 9,
+        "label": "APP_NAME",
+        "type": "sql_function"
+      },
+      {
+        "rank": 10,
+        "label": "AS",
+        "type": "keyword"
+      }
+    ]
+  },
+  "AND-EMPTY": {
+    "sql": "SELECT * FROM dbo.Orders WHERE OrderID = 1 AND ‸",
+    "dialect": "mssql",
+    "total": 83,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "OrderID",
+        "type": "pk_column"
+      },
+      {
+        "rank": 2,
+        "label": "CustomerID",
+        "type": "column"
+      },
+      {
+        "rank": 3,
+        "label": "IsActive",
+        "type": "column"
+      },
+      {
+        "rank": 4,
+        "label": "Notes",
+        "type": "column"
+      },
+      {
+        "rank": 5,
+        "label": "OrderDate",
+        "type": "column"
+      },
+      {
+        "rank": 6,
+        "label": "Total",
+        "type": "column"
+      },
+      {
+        "rank": 7,
+        "label": "COUNT",
+        "type": "sql_function"
+      },
+      {
+        "rank": 8,
+        "label": "GETDATE",
+        "type": "sql_function"
+      },
+      {
+        "rank": 9,
+        "label": "ISNULL",
+        "type": "sql_function"
+      },
+      {
+        "rank": 10,
+        "label": "AVG",
+        "type": "sql_function"
+      }
+    ]
+  },
+  "WHERE-OPERAND-I": {
+    "sql": "SELECT * FROM dbo.Orders WHERE OrderID I‸",
+    "dialect": "mssql",
+    "total": 20,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "IN",
+        "type": "keyword"
+      },
+      {
+        "rank": 2,
+        "label": "IS",
+        "type": "keyword"
+      },
+      {
+        "rank": 3,
+        "label": "IsActive",
+        "type": "column"
+      },
+      {
+        "rank": 4,
+        "label": "ISNULL",
+        "type": "sql_function"
+      },
+      {
+        "rank": 5,
+        "label": "IIF",
+        "type": "sql_function"
+      },
+      {
+        "rank": 6,
+        "label": "ISDATE",
+        "type": "sql_function"
+      },
+      {
+        "rank": 7,
+        "label": "ISNUMERIC",
+        "type": "sql_function"
+      },
+      {
+        "rank": 8,
+        "label": "IDENT_INCR",
+        "type": "sql_function"
+      },
+      {
+        "rank": 9,
+        "label": "IDENT_SEED",
+        "type": "sql_function"
+      },
+      {
+        "rank": 10,
+        "label": "IDENT_CURRENT",
+        "type": "sql_function"
+      }
+    ]
+  },
+  "WHERE-OPERAND": {
+    "sql": "SELECT * FROM dbo.Orders WHERE OrderID ‸",
+    "dialect": "mssql",
+    "total": 99,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "IN",
+        "type": "keyword"
+      },
+      {
+        "rank": 2,
+        "label": "IS",
+        "type": "keyword"
+      },
+      {
+        "rank": 3,
+        "label": "BETWEEN",
+        "type": "keyword"
+      },
+      {
+        "rank": 4,
+        "label": "LIKE",
+        "type": "keyword"
+      },
+      {
+        "rank": 5,
+        "label": "AND",
+        "type": "keyword"
+      },
+      {
+        "rank": 6,
+        "label": "OR",
+        "type": "keyword"
+      },
+      {
+        "rank": 7,
+        "label": "EXISTS",
+        "type": "keyword"
+      },
+      {
+        "rank": 8,
+        "label": "NOT",
+        "type": "keyword"
+      },
+      {
+        "rank": 9,
+        "label": "<>",
+        "type": "keyword"
+      },
+      {
+        "rank": 10,
+        "label": "=",
+        "type": "keyword"
+      }
+    ]
+  },
+  "WHERE-EMPTY": {
+    "sql": "SELECT * FROM dbo.Orders WHERE ‸",
+    "dialect": "mssql",
+    "total": 83,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "OrderID",
+        "type": "pk_column"
+      },
+      {
+        "rank": 2,
+        "label": "CustomerID",
+        "type": "column"
+      },
+      {
+        "rank": 3,
+        "label": "IsActive",
+        "type": "column"
+      },
+      {
+        "rank": 4,
+        "label": "Notes",
+        "type": "column"
+      },
+      {
+        "rank": 5,
+        "label": "OrderDate",
+        "type": "column"
+      },
+      {
+        "rank": 6,
+        "label": "Total",
+        "type": "column"
+      },
+      {
+        "rank": 7,
+        "label": "COUNT",
+        "type": "sql_function"
+      },
+      {
+        "rank": 8,
+        "label": "GETDATE",
+        "type": "sql_function"
+      },
+      {
+        "rank": 9,
+        "label": "ISNULL",
+        "type": "sql_function"
+      },
+      {
+        "rank": 10,
+        "label": "AVG",
+        "type": "sql_function"
+      }
+    ]
+  },
+  "WHERE-N": {
+    "sql": "SELECT * FROM dbo.Orders WHERE N‸",
+    "dialect": "mssql",
+    "total": 14,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "Notes",
+        "type": "column"
+      },
+      {
+        "rank": 2,
+        "label": "NULLIF",
+        "type": "sql_function"
+      },
+      {
+        "rank": 3,
+        "label": "NCHAR",
+        "type": "sql_function"
+      },
+      {
+        "rank": 4,
+        "label": "NEWID",
+        "type": "sql_function"
+      },
+      {
+        "rank": 5,
+        "label": "NTILE",
+        "type": "sql_function"
+      },
+      {
+        "rank": 6,
+        "label": "NEWSEQUENTIALID",
+        "type": "sql_function"
+      },
+      {
+        "rank": 7,
+        "label": "NOT",
+        "type": "keyword"
+      },
+      {
+        "rank": 8,
+        "label": "NULL",
+        "type": "keyword"
+      },
+      {
+        "rank": 9,
+        "label": "NOLOCK",
+        "type": "keyword"
+      },
+      {
+        "rank": 10,
+        "label": "NOWAIT",
+        "type": "keyword"
+      }
+    ]
+  },
+  "IS-EMPTY": {
+    "sql": "SELECT * FROM dbo.Orders WHERE OrderDate IS ‸",
+    "dialect": "mssql",
+    "total": 3,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "NOT",
+        "type": "keyword"
+      },
+      {
+        "rank": 2,
+        "label": "NULL",
+        "type": "keyword"
+      },
+      {
+        "rank": 3,
+        "label": "NOT NULL",
+        "type": "keyword"
+      }
+    ]
+  },
+  "IS-N": {
+    "sql": "SELECT * FROM dbo.Orders WHERE OrderDate IS N‸",
+    "dialect": "mssql",
+    "total": 3,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "NOT",
+        "type": "keyword"
+      },
+      {
+        "rank": 2,
+        "label": "NULL",
+        "type": "keyword"
+      },
+      {
+        "rank": 3,
+        "label": "NOT NULL",
+        "type": "keyword"
+      }
+    ]
+  },
+  "ORDER-DIR": {
+    "sql": "SELECT * FROM dbo.Orders ORDER BY OrderDate ‸",
+    "dialect": "mssql",
+    "total": 3,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "ASC",
+        "type": "keyword"
+      },
+      {
+        "rank": 2,
+        "label": "DESC",
+        "type": "keyword"
+      },
+      {
+        "rank": 3,
+        "label": ",",
+        "type": "keyword"
+      }
+    ]
+  },
+  "ORDER-DIR-D": {
+    "sql": "SELECT * FROM dbo.Orders ORDER BY OrderDate D‸",
+    "dialect": "mssql",
+    "total": 1,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "DESC",
+        "type": "keyword"
+      }
+    ]
+  },
+  "K-ORDER": {
+    "sql": "SELECT * FROM dbo.Orders o ORDER‸",
+    "dialect": "mssql",
+    "total": 2,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "ORDER",
+        "type": "keyword"
+      },
+      {
+        "rank": 2,
+        "label": "ORDER BY",
+        "type": "keyword"
+      }
+    ]
+  },
+  "GROUP-BY-KW": {
+    "sql": "SELECT * FROM dbo.Orders GROUP ‸",
+    "dialect": "mssql",
+    "total": 11,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "BY",
+        "type": "keyword"
+      },
+      {
+        "rank": 2,
+        "label": "Customers",
+        "type": "table"
+      },
+      {
+        "rank": 3,
+        "label": "dbo",
+        "type": "schema"
+      },
+      {
+        "rank": 4,
+        "label": "hr",
+        "type": "schema"
+      },
+      {
+        "rank": 5,
+        "label": "Order Details",
+        "type": "table"
+      },
+      {
+        "rank": 6,
+        "label": "OrderItems",
+        "type": "table"
+      },
+      {
+        "rank": 7,
+        "label": "Orders",
+        "type": "table"
+      },
+      {
+        "rank": 8,
+        "label": "sales",
+        "type": "schema"
+      },
+      {
+        "rank": 9,
+        "label": "Tbl1",
+        "type": "table"
+      },
+      {
+        "rank": 10,
+        "label": "vOrders",
+        "type": "view"
+      }
+    ]
+  },
+  "GROUPBY": {
+    "sql": "SELECT * FROM dbo.Orders GROUP BY ‸",
+    "dialect": "mssql",
+    "total": 83,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "OrderID",
+        "type": "pk_column"
+      },
+      {
+        "rank": 2,
+        "label": "CustomerID",
+        "type": "column"
+      },
+      {
+        "rank": 3,
+        "label": "IsActive",
+        "type": "column"
+      },
+      {
+        "rank": 4,
+        "label": "Notes",
+        "type": "column"
+      },
+      {
+        "rank": 5,
+        "label": "OrderDate",
+        "type": "column"
+      },
+      {
+        "rank": 6,
+        "label": "Total",
+        "type": "column"
+      },
+      {
+        "rank": 7,
+        "label": "COUNT",
+        "type": "sql_function"
+      },
+      {
+        "rank": 8,
+        "label": "GETDATE",
+        "type": "sql_function"
+      },
+      {
+        "rank": 9,
+        "label": "ISNULL",
+        "type": "sql_function"
+      },
+      {
+        "rank": 10,
+        "label": "AVG",
+        "type": "sql_function"
+      }
+    ]
+  },
+  "HAVING": {
+    "sql": "SELECT CustomerID, COUNT(*) FROM dbo.Orders GROUP BY CustomerID HAVING ‸",
+    "dialect": "mssql",
+    "total": 83,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "OrderID",
+        "type": "pk_column"
+      },
+      {
+        "rank": 2,
+        "label": "CustomerID",
+        "type": "column"
+      },
+      {
+        "rank": 3,
+        "label": "IsActive",
+        "type": "column"
+      },
+      {
+        "rank": 4,
+        "label": "Notes",
+        "type": "column"
+      },
+      {
+        "rank": 5,
+        "label": "OrderDate",
+        "type": "column"
+      },
+      {
+        "rank": 6,
+        "label": "Total",
+        "type": "column"
+      },
+      {
+        "rank": 7,
+        "label": "COUNT",
+        "type": "sql_function"
+      },
+      {
+        "rank": 8,
+        "label": "GETDATE",
+        "type": "sql_function"
+      },
+      {
+        "rank": 9,
+        "label": "ISNULL",
+        "type": "sql_function"
+      },
+      {
+        "rank": 10,
+        "label": "AVG",
+        "type": "sql_function"
+      }
+    ]
+  },
+  "JOIN-AFTER-O": {
+    "sql": "SELECT * FROM dbo.Orders o JOIN dbo.Customers c O‸",
+    "dialect": "mssql",
+    "total": 17,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "ON",
+        "type": "keyword"
+      },
+      {
+        "rank": 2,
+        "label": "ORDER",
+        "type": "keyword"
+      },
+      {
+        "rank": 3,
+        "label": "OUTER",
+        "type": "keyword"
+      },
+      {
+        "rank": 4,
+        "label": "JOIN",
+        "type": "keyword"
+      },
+      {
+        "rank": 5,
+        "label": "GROUP",
+        "type": "keyword"
+      },
+      {
+        "rank": 6,
+        "label": "CROSS",
+        "type": "keyword"
+      },
+      {
+        "rank": 7,
+        "label": "ORDER BY",
+        "type": "keyword"
+      },
+      {
+        "rank": 8,
+        "label": "OUTER APPLY",
+        "type": "keyword"
+      },
+      {
+        "rank": 9,
+        "label": "UNION",
+        "type": "keyword"
+      },
+      {
+        "rank": 10,
+        "label": "GROUP BY",
+        "type": "keyword"
+      }
+    ]
+  },
+  "JOIN-AFTER": {
+    "sql": "SELECT * FROM dbo.Orders o JOIN dbo.Customers c ‸",
+    "dialect": "mssql",
+    "total": 28,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "ON",
+        "type": "keyword"
+      },
+      {
+        "rank": 2,
+        "label": "WHERE",
+        "type": "keyword"
+      },
+      {
+        "rank": 3,
+        "label": "INNER",
+        "type": "keyword"
+      },
+      {
+        "rank": 4,
+        "label": "JOIN",
+        "type": "keyword"
+      },
+      {
+        "rank": 5,
+        "label": "LEFT",
+        "type": "keyword"
+      },
+      {
+        "rank": 6,
+        "label": "GROUP",
+        "type": "keyword"
+      },
+      {
+        "rank": 7,
+        "label": "ORDER",
+        "type": "keyword"
+      },
+      {
+        "rank": 8,
+        "label": "HAVING",
+        "type": "keyword"
+      },
+      {
+        "rank": 9,
+        "label": "CROSS",
+        "type": "keyword"
+      },
+      {
+        "rank": 10,
+        "label": "OUTER",
+        "type": "keyword"
+      }
+    ]
+  },
+  "JOIN-TBL": {
+    "sql": "SELECT * FROM dbo.Orders o JOIN ‸",
+    "dialect": "mssql",
+    "total": 14,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "Customers c ON c.CustomerID = o.CustomerID",
+        "type": "snippet"
+      },
+      {
+        "rank": 2,
+        "label": "Order Details od ON od.OrderID = o.OrderID",
+        "type": "snippet"
+      },
+      {
+        "rank": 3,
+        "label": "OrderItems oi ON oi.OrderID = o.OrderID",
+        "type": "snippet"
+      },
+      {
+        "rank": 4,
+        "label": "Customers",
+        "type": "table"
+      },
+      {
+        "rank": 5,
+        "label": "Order Details",
+        "type": "table"
+      },
+      {
+        "rank": 6,
+        "label": "OrderItems",
+        "type": "table"
+      },
+      {
+        "rank": 7,
+        "label": "dbo",
+        "type": "schema"
+      },
+      {
+        "rank": 8,
+        "label": "hr",
+        "type": "schema"
+      },
+      {
+        "rank": 9,
+        "label": "sales",
+        "type": "schema"
+      },
+      {
+        "rank": 10,
+        "label": "Tbl1",
+        "type": "table"
+      }
+    ]
+  },
+  "JOIN-FK-TARGET": {
+    "sql": "SELECT * FROM dbo.Orders o JOIN ‸",
+    "dialect": "mssql",
+    "total": 14,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "Customers c ON c.CustomerID = o.CustomerID",
+        "type": "snippet"
+      },
+      {
+        "rank": 2,
+        "label": "Order Details od ON od.OrderID = o.OrderID",
+        "type": "snippet"
+      },
+      {
+        "rank": 3,
+        "label": "OrderItems oi ON oi.OrderID = o.OrderID",
+        "type": "snippet"
+      },
+      {
+        "rank": 4,
+        "label": "Customers",
+        "type": "table"
+      },
+      {
+        "rank": 5,
+        "label": "Order Details",
+        "type": "table"
+      },
+      {
+        "rank": 6,
+        "label": "OrderItems",
+        "type": "table"
+      },
+      {
+        "rank": 7,
+        "label": "dbo",
+        "type": "schema"
+      },
+      {
+        "rank": 8,
+        "label": "hr",
+        "type": "schema"
+      },
+      {
+        "rank": 9,
+        "label": "sales",
+        "type": "schema"
+      },
+      {
+        "rank": 10,
+        "label": "Tbl1",
+        "type": "table"
+      }
+    ]
+  },
+  "SRC-EMPTY": {
+    "sql": "SELECT * FROM dbo.Orders o ‸",
+    "dialect": "mssql",
+    "total": 28,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "WHERE",
+        "type": "keyword"
+      },
+      {
+        "rank": 2,
+        "label": "INNER",
+        "type": "keyword"
+      },
+      {
+        "rank": 3,
+        "label": "JOIN",
+        "type": "keyword"
+      },
+      {
+        "rank": 4,
+        "label": "LEFT",
+        "type": "keyword"
+      },
+      {
+        "rank": 5,
+        "label": "ON",
+        "type": "keyword"
+      },
+      {
+        "rank": 6,
+        "label": "GROUP",
+        "type": "keyword"
+      },
+      {
+        "rank": 7,
+        "label": "ORDER",
+        "type": "keyword"
+      },
+      {
+        "rank": 8,
+        "label": "HAVING",
+        "type": "keyword"
+      },
+      {
+        "rank": 9,
+        "label": "CROSS",
+        "type": "keyword"
+      },
+      {
+        "rank": 10,
+        "label": "OUTER",
+        "type": "keyword"
+      }
+    ]
+  },
+  "SRC-W": {
+    "sql": "SELECT * FROM dbo.Orders o W‸",
+    "dialect": "mssql",
+    "total": 2,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "WHERE",
+        "type": "keyword"
+      },
+      {
+        "rank": 2,
+        "label": "WITH",
+        "type": "keyword"
+      }
+    ]
+  },
+  "SRC-I": {
+    "sql": "SELECT * FROM dbo.Orders o I‸",
+    "dialect": "mssql",
+    "total": 13,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "INNER",
+        "type": "keyword"
+      },
+      {
+        "rank": 2,
+        "label": "JOIN",
+        "type": "keyword"
+      },
+      {
+        "rank": 3,
+        "label": "RIGHT",
+        "type": "keyword"
+      },
+      {
+        "rank": 4,
+        "label": "HAVING",
+        "type": "keyword"
+      },
+      {
+        "rank": 5,
+        "label": "INTERSECT",
+        "type": "keyword"
+      },
+      {
+        "rank": 6,
+        "label": "INNER JOIN",
+        "type": "keyword"
+      },
+      {
+        "rank": 7,
+        "label": "WITH",
+        "type": "keyword"
+      },
+      {
+        "rank": 8,
+        "label": "UNION",
+        "type": "keyword"
+      },
+      {
+        "rank": 9,
+        "label": "RIGHT JOIN",
+        "type": "keyword"
+      },
+      {
+        "rank": 10,
+        "label": "UNION ALL",
+        "type": "keyword"
+      }
+    ]
+  },
+  "SRC-L": {
+    "sql": "SELECT * FROM dbo.Orders o L‸",
+    "dialect": "mssql",
+    "total": 8,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "LEFT",
+        "type": "keyword"
+      },
+      {
+        "rank": 2,
+        "label": "LEFT JOIN",
+        "type": "keyword"
+      },
+      {
+        "rank": 3,
+        "label": "FULL",
+        "type": "keyword"
+      },
+      {
+        "rank": 4,
+        "label": "FULL JOIN",
+        "type": "keyword"
+      },
+      {
+        "rank": 5,
+        "label": "APPLY",
+        "type": "keyword"
+      },
+      {
+        "rank": 6,
+        "label": "UNION ALL",
+        "type": "keyword"
+      },
+      {
+        "rank": 7,
+        "label": "CROSS APPLY",
+        "type": "keyword"
+      },
+      {
+        "rank": 8,
+        "label": "OUTER APPLY",
+        "type": "keyword"
+      }
+    ]
+  },
+  "PG-ONCONF": {
+    "sql": "INSERT INTO public.orders (customer_id) VALUES (1) ON ‸",
+    "dialect": "postgresql",
+    "total": 3,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "CONFLICT",
+        "type": "keyword"
+      },
+      {
+        "rank": 2,
+        "label": "DO NOTHING",
+        "type": "keyword"
+      },
+      {
+        "rank": 3,
+        "label": "DO UPDATE",
+        "type": "keyword"
+      }
+    ]
+  },
+  "HINT": {
+    "sql": "SELECT * FROM dbo.Orders WITH (‸",
+    "dialect": "mssql",
+    "total": 12,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "NOLOCK",
+        "type": "keyword"
+      },
+      {
+        "rank": 2,
+        "label": "INDEX",
+        "type": "keyword"
+      },
+      {
+        "rank": 3,
+        "label": "FORCESEEK",
+        "type": "keyword"
+      },
+      {
+        "rank": 4,
+        "label": "HOLDLOCK",
+        "type": "keyword"
+      },
+      {
+        "rank": 5,
+        "label": "NOWAIT",
+        "type": "keyword"
+      },
+      {
+        "rank": 6,
+        "label": "PAGLOCK",
+        "type": "keyword"
+      },
+      {
+        "rank": 7,
+        "label": "READPAST",
+        "type": "keyword"
+      },
+      {
+        "rank": 8,
+        "label": "READUNCOMMITTED",
+        "type": "keyword"
+      },
+      {
+        "rank": 9,
+        "label": "ROWLOCK",
+        "type": "keyword"
+      },
+      {
+        "rank": 10,
+        "label": "TABLOCK",
+        "type": "keyword"
+      }
+    ]
+  },
+  "START-EMPTY": {
+    "sql": "‸",
+    "dialect": "mssql",
+    "total": 28,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "SELECT",
+        "type": "keyword"
+      },
+      {
+        "rank": 2,
+        "label": "DELETE",
+        "type": "keyword"
+      },
+      {
+        "rank": 3,
+        "label": "INSERT",
+        "type": "keyword"
+      },
+      {
+        "rank": 4,
+        "label": "UPDATE",
+        "type": "keyword"
+      },
+      {
+        "rank": 5,
+        "label": "DECLARE",
+        "type": "keyword"
+      },
+      {
+        "rank": 6,
+        "label": "WITH",
+        "type": "keyword"
+      },
+      {
+        "rank": 7,
+        "label": "SET",
+        "type": "keyword"
+      },
+      {
+        "rank": 8,
+        "label": "BEGIN",
+        "type": "keyword"
+      },
+      {
+        "rank": 9,
+        "label": "EXEC",
+        "type": "keyword"
+      },
+      {
+        "rank": 10,
+        "label": "EXECUTE",
+        "type": "keyword"
+      }
+    ]
+  },
+  "START-S": {
+    "sql": "S‸",
+    "dialect": "mssql",
+    "total": 10,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "SELECT",
+        "type": "keyword"
+      },
+      {
+        "rank": 2,
+        "label": "SET",
+        "type": "keyword"
+      },
+      {
+        "rank": 3,
+        "label": "INSERT",
+        "type": "keyword"
+      },
+      {
+        "rank": 4,
+        "label": "USE",
+        "type": "keyword"
+      },
+      {
+        "rank": 5,
+        "label": "usp_GetOrders",
+        "type": "procedure"
+      },
+      {
+        "rank": 6,
+        "label": "Customers",
+        "type": "table"
+      },
+      {
+        "rank": 7,
+        "label": "Orders",
+        "type": "table"
+      },
+      {
+        "rank": 8,
+        "label": "vOrders",
+        "type": "view"
+      },
+      {
+        "rank": 9,
+        "label": "OrderItems",
+        "type": "table"
+      },
+      {
+        "rank": 10,
+        "label": "Order Details",
+        "type": "table"
+      }
+    ]
+  },
+  "START-U": {
+    "sql": "U‸",
+    "dialect": "mssql",
+    "total": 7,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "UPDATE",
+        "type": "keyword"
+      },
+      {
+        "rank": 2,
+        "label": "USE",
+        "type": "keyword"
+      },
+      {
+        "rank": 3,
+        "label": "TRUNCATE",
+        "type": "keyword"
+      },
+      {
+        "rank": 4,
+        "label": "EXECUTE",
+        "type": "keyword"
+      },
+      {
+        "rank": 5,
+        "label": "RETURN",
+        "type": "keyword"
+      },
+      {
+        "rank": 6,
+        "label": "usp_GetOrders",
+        "type": "procedure"
+      },
+      {
+        "rank": 7,
+        "label": "Customers",
+        "type": "table"
+      }
+    ]
+  },
+  "NEWSTMT": {
+    "sql": "SELECT * FROM dbo.Orders;\nS‸",
+    "dialect": "mssql",
+    "total": 10,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "SELECT",
+        "type": "keyword"
+      },
+      {
+        "rank": 2,
+        "label": "SET",
+        "type": "keyword"
+      },
+      {
+        "rank": 3,
+        "label": "INSERT",
+        "type": "keyword"
+      },
+      {
+        "rank": 4,
+        "label": "USE",
+        "type": "keyword"
+      },
+      {
+        "rank": 5,
+        "label": "usp_GetOrders",
+        "type": "procedure"
+      },
+      {
+        "rank": 6,
+        "label": "Customers",
+        "type": "table"
+      },
+      {
+        "rank": 7,
+        "label": "Orders",
+        "type": "table"
+      },
+      {
+        "rank": 8,
+        "label": "vOrders",
+        "type": "view"
+      },
+      {
+        "rank": 9,
+        "label": "OrderItems",
+        "type": "table"
+      },
+      {
+        "rank": 10,
+        "label": "Order Details",
+        "type": "table"
+      }
+    ]
+  },
+  "TRY": {
+    "sql": "BEGIN TRY ‸",
+    "dialect": "mssql",
+    "total": 28,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "SELECT",
+        "type": "keyword"
+      },
+      {
+        "rank": 2,
+        "label": "DELETE",
+        "type": "keyword"
+      },
+      {
+        "rank": 3,
+        "label": "INSERT",
+        "type": "keyword"
+      },
+      {
+        "rank": 4,
+        "label": "UPDATE",
+        "type": "keyword"
+      },
+      {
+        "rank": 5,
+        "label": "DECLARE",
+        "type": "keyword"
+      },
+      {
+        "rank": 6,
+        "label": "WITH",
+        "type": "keyword"
+      },
+      {
+        "rank": 7,
+        "label": "SET",
+        "type": "keyword"
+      },
+      {
+        "rank": 8,
+        "label": "BEGIN",
+        "type": "keyword"
+      },
+      {
+        "rank": 9,
+        "label": "EXEC",
+        "type": "keyword"
+      },
+      {
+        "rank": 10,
+        "label": "EXECUTE",
+        "type": "keyword"
+      }
+    ]
+  },
+  "UPD-SET": {
+    "sql": "UPDATE dbo.Orders SET ‸",
+    "dialect": "mssql",
+    "total": 83,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "CustomerID",
+        "type": "column"
+      },
+      {
+        "rank": 2,
+        "label": "IsActive",
+        "type": "column"
+      },
+      {
+        "rank": 3,
+        "label": "Notes",
+        "type": "column"
+      },
+      {
+        "rank": 4,
+        "label": "OrderDate",
+        "type": "column"
+      },
+      {
+        "rank": 5,
+        "label": "OrderID",
+        "type": "pk_column"
+      },
+      {
+        "rank": 6,
+        "label": "Total",
+        "type": "column"
+      },
+      {
+        "rank": 7,
+        "label": "COUNT",
+        "type": "sql_function"
+      },
+      {
+        "rank": 8,
+        "label": "GETDATE",
+        "type": "sql_function"
+      },
+      {
+        "rank": 9,
+        "label": "ISNULL",
+        "type": "sql_function"
+      },
+      {
+        "rank": 10,
+        "label": "AVG",
+        "type": "sql_function"
+      }
+    ]
+  },
+  "UPD-SET-VAL": {
+    "sql": "UPDATE dbo.Orders SET Total = ‸",
+    "dialect": "mssql",
+    "total": 90,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "SELECT",
+        "type": "keyword"
+      },
+      {
+        "rank": 2,
+        "label": "CASE",
+        "type": "keyword"
+      },
+      {
+        "rank": 3,
+        "label": "NULL",
+        "type": "keyword"
+      },
+      {
+        "rank": 4,
+        "label": "CAST",
+        "type": "keyword"
+      },
+      {
+        "rank": 5,
+        "label": "CONVERT",
+        "type": "keyword"
+      },
+      {
+        "rank": 6,
+        "label": "DEFAULT",
+        "type": "keyword"
+      },
+      {
+        "rank": 7,
+        "label": "TRY_CAST",
+        "type": "keyword"
+      },
+      {
+        "rank": 8,
+        "label": "Total",
+        "type": "column"
+      },
+      {
+        "rank": 9,
+        "label": "OrderID",
+        "type": "pk_column"
+      },
+      {
+        "rank": 10,
+        "label": "CustomerID",
+        "type": "column"
+      }
+    ]
+  },
+  "INS-INTO": {
+    "sql": "INSERT INTO ‸",
+    "dialect": "mssql",
+    "total": 9,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "Customers",
+        "type": "table"
+      },
+      {
+        "rank": 2,
+        "label": "dbo",
+        "type": "schema"
+      },
+      {
+        "rank": 3,
+        "label": "hr",
+        "type": "schema"
+      },
+      {
+        "rank": 4,
+        "label": "Order Details",
+        "type": "table"
+      },
+      {
+        "rank": 5,
+        "label": "OrderItems",
+        "type": "table"
+      },
+      {
+        "rank": 6,
+        "label": "Orders",
+        "type": "table"
+      },
+      {
+        "rank": 7,
+        "label": "sales",
+        "type": "schema"
+      },
+      {
+        "rank": 8,
+        "label": "Tbl1",
+        "type": "table"
+      },
+      {
+        "rank": 9,
+        "label": "vOrders",
+        "type": "view"
+      }
+    ]
+  },
+  "INS-VALUES": {
+    "sql": "INSERT INTO dbo.Orders (OrderID) VALUES (‸",
+    "dialect": "mssql",
+    "total": 90,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "SELECT",
+        "type": "keyword"
+      },
+      {
+        "rank": 2,
+        "label": "CASE",
+        "type": "keyword"
+      },
+      {
+        "rank": 3,
+        "label": "NULL",
+        "type": "keyword"
+      },
+      {
+        "rank": 4,
+        "label": "CAST",
+        "type": "keyword"
+      },
+      {
+        "rank": 5,
+        "label": "CONVERT",
+        "type": "keyword"
+      },
+      {
+        "rank": 6,
+        "label": "DEFAULT",
+        "type": "keyword"
+      },
+      {
+        "rank": 7,
+        "label": "TRY_CAST",
+        "type": "keyword"
+      },
+      {
+        "rank": 8,
+        "label": "OrderID",
+        "type": "pk_column"
+      },
+      {
+        "rank": 9,
+        "label": "CustomerID",
+        "type": "column"
+      },
+      {
+        "rank": 10,
+        "label": "IsActive",
+        "type": "column"
+      }
+    ]
+  },
+  "DEL-FROM": {
+    "sql": "DELETE FROM ‸",
+    "dialect": "mssql",
+    "total": 10,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "Customers",
+        "type": "table"
+      },
+      {
+        "rank": 2,
+        "label": "dbo",
+        "type": "schema"
+      },
+      {
+        "rank": 3,
+        "label": "hr",
+        "type": "schema"
+      },
+      {
+        "rank": 4,
+        "label": "Order Details",
+        "type": "table"
+      },
+      {
+        "rank": 5,
+        "label": "OrderItems",
+        "type": "table"
+      },
+      {
+        "rank": 6,
+        "label": "Orders",
+        "type": "table"
+      },
+      {
+        "rank": 7,
+        "label": "sales",
+        "type": "schema"
+      },
+      {
+        "rank": 8,
+        "label": "Tbl1",
+        "type": "table"
+      },
+      {
+        "rank": 9,
+        "label": "vOrders",
+        "type": "view"
+      },
+      {
+        "rank": 10,
+        "label": "fn_Total",
+        "type": "function"
+      }
+    ]
+  },
+  "CREATE-COLTYPE": {
+    "sql": "CREATE TABLE dbo.X (Id ‸",
+    "dialect": "mssql",
+    "total": 28,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "bigint",
+        "type": "data_type"
+      },
+      {
+        "rank": 2,
+        "label": "int",
+        "type": "data_type"
+      },
+      {
+        "rank": 3,
+        "label": "text",
+        "type": "data_type"
+      },
+      {
+        "rank": 4,
+        "label": "varchar",
+        "type": "data_type"
+      },
+      {
+        "rank": 5,
+        "label": "binary",
+        "type": "data_type"
+      },
+      {
+        "rank": 6,
+        "label": "bit",
+        "type": "data_type"
+      },
+      {
+        "rank": 7,
+        "label": "char",
+        "type": "data_type"
+      },
+      {
+        "rank": 8,
+        "label": "date",
+        "type": "data_type"
+      },
+      {
+        "rank": 9,
+        "label": "datetime",
+        "type": "data_type"
+      },
+      {
+        "rank": 10,
+        "label": "datetime2",
+        "type": "data_type"
+      }
+    ]
+  },
+  "COUNT-ARG": {
+    "sql": "SELECT COUNT(‸) FROM dbo.Orders",
+    "dialect": "mssql",
+    "total": 84,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "DISTINCT",
+        "type": "keyword"
+      },
+      {
+        "rank": 2,
+        "label": "*",
+        "type": "operator"
+      },
+      {
+        "rank": 3,
+        "label": "OrderID",
+        "type": "pk_column"
+      },
+      {
+        "rank": 4,
+        "label": "CustomerID",
+        "type": "column"
+      },
+      {
+        "rank": 5,
+        "label": "IsActive",
+        "type": "column"
+      },
+      {
+        "rank": 6,
+        "label": "Notes",
+        "type": "column"
+      },
+      {
+        "rank": 7,
+        "label": "OrderDate",
+        "type": "column"
+      },
+      {
+        "rank": 8,
+        "label": "Total",
+        "type": "column"
+      },
+      {
+        "rank": 9,
+        "label": "FROM",
+        "type": "keyword"
+      },
+      {
+        "rank": 10,
+        "label": "ON",
+        "type": "keyword"
+      }
+    ]
+  },
+  "ALIAS-POS": {
+    "sql": "SELECT OrderID AS ‸ FROM dbo.Orders",
+    "dialect": "mssql",
+    "total": 0,
+    "top10": []
+  },
+  "EXEC": {
+    "sql": "EXEC ‸",
+    "dialect": "mssql",
+    "total": 4,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "usp_GetOrders",
+        "type": "procedure"
+      },
+      {
+        "rank": 2,
+        "label": "dbo",
+        "type": "schema"
+      },
+      {
+        "rank": 3,
+        "label": "hr",
+        "type": "schema"
+      },
+      {
+        "rank": 4,
+        "label": "sales",
+        "type": "schema"
+      }
+    ]
+  },
+  "EXEC-PARAMS": {
+    "sql": "EXEC dbo.usp_GetOrders ‸",
+    "dialect": "mssql",
+    "total": 81,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "@CustomerID = ",
+        "type": "parameter"
+      },
+      {
+        "rank": 2,
+        "label": "@FromDate = ",
+        "type": "parameter"
+      },
+      {
+        "rank": 3,
+        "label": "FROM",
+        "type": "keyword"
+      },
+      {
+        "rank": 4,
+        "label": "ON",
+        "type": "keyword"
+      },
+      {
+        "rank": 5,
+        "label": "SELECT",
+        "type": "keyword"
+      },
+      {
+        "rank": 6,
+        "label": "WHERE",
+        "type": "keyword"
+      },
+      {
+        "rank": 7,
+        "label": "COUNT",
+        "type": "sql_function"
+      },
+      {
+        "rank": 8,
+        "label": "GETDATE",
+        "type": "sql_function"
+      },
+      {
+        "rank": 9,
+        "label": "AND",
+        "type": "keyword"
+      },
+      {
+        "rank": 10,
+        "label": "CASE",
+        "type": "keyword"
+      }
+    ]
+  },
+  "SEL-C": {
+    "sql": "SELECT C‸ FROM dbo.Orders",
+    "dialect": "mssql",
+    "total": 46,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "CustomerID",
+        "type": "column"
+      },
+      {
+        "rank": 2,
+        "label": "COUNT",
+        "type": "sql_function"
+      },
+      {
+        "rank": 3,
+        "label": "COALESCE",
+        "type": "sql_function"
+      },
+      {
+        "rank": 4,
+        "label": "CAST",
+        "type": "sql_function"
+      },
+      {
+        "rank": 5,
+        "label": "CONCAT",
+        "type": "sql_function"
+      },
+      {
+        "rank": 6,
+        "label": "CONVERT",
+        "type": "sql_function"
+      },
+      {
+        "rank": 7,
+        "label": "CHARINDEX",
+        "type": "sql_function"
+      },
+      {
+        "rank": 8,
+        "label": "CONCAT_WS",
+        "type": "sql_function"
+      },
+      {
+        "rank": 9,
+        "label": "CHOOSE",
+        "type": "sql_function"
+      },
+      {
+        "rank": 10,
+        "label": "CEILING",
+        "type": "sql_function"
+      }
+    ]
+  },
+  "SEL-CO": {
+    "sql": "SELECT co‸ FROM dbo.Orders",
+    "dialect": "mssql",
+    "total": 21,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "COUNT",
+        "type": "sql_function"
+      },
+      {
+        "rank": 2,
+        "label": "COALESCE",
+        "type": "sql_function"
+      },
+      {
+        "rank": 3,
+        "label": "CONCAT",
+        "type": "sql_function"
+      },
+      {
+        "rank": 4,
+        "label": "CONVERT",
+        "type": "sql_function"
+      },
+      {
+        "rank": 5,
+        "label": "CONCAT_WS",
+        "type": "sql_function"
+      },
+      {
+        "rank": 6,
+        "label": "COS",
+        "type": "sql_function"
+      },
+      {
+        "rank": 7,
+        "label": "COT",
+        "type": "sql_function"
+      },
+      {
+        "rank": 8,
+        "label": "COL_NAME",
+        "type": "sql_function"
+      },
+      {
+        "rank": 9,
+        "label": "COUNT_BIG",
+        "type": "sql_function"
+      },
+      {
+        "rank": 10,
+        "label": "COL_LENGTH",
+        "type": "sql_function"
+      }
+    ]
+  },
+  "SEL-T": {
+    "sql": "SELECT T‸ FROM dbo.Orders",
+    "dialect": "mssql",
+    "total": 27,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "Total",
+        "type": "column"
+      },
+      {
+        "rank": 2,
+        "label": "TRIM",
+        "type": "sql_function"
+      },
+      {
+        "rank": 3,
+        "label": "TAN",
+        "type": "sql_function"
+      },
+      {
+        "rank": 4,
+        "label": "TRY_CAST",
+        "type": "sql_function"
+      },
+      {
+        "rank": 5,
+        "label": "TRANSLATE",
+        "type": "sql_function"
+      },
+      {
+        "rank": 6,
+        "label": "TRY_PARSE",
+        "type": "sql_function"
+      },
+      {
+        "rank": 7,
+        "label": "TRY_CONVERT",
+        "type": "sql_function"
+      },
+      {
+        "rank": 8,
+        "label": "TIMEFROMPARTS",
+        "type": "sql_function"
+      },
+      {
+        "rank": 9,
+        "label": "TODATETIMEOFFSET",
+        "type": "sql_function"
+      },
+      {
+        "rank": 10,
+        "label": "TOP",
+        "type": "keyword"
+      }
+    ]
+  },
+  "SEL-EMPTY": {
+    "sql": "SELECT ‸ FROM dbo.Orders",
+    "dialect": "mssql",
+    "total": 84,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "* (Expand columns)",
+        "type": "star_expansion"
+      },
+      {
+        "rank": 2,
+        "label": "OrderID",
+        "type": "pk_column"
+      },
+      {
+        "rank": 3,
+        "label": "CustomerID",
+        "type": "column"
+      },
+      {
+        "rank": 4,
+        "label": "IsActive",
+        "type": "column"
+      },
+      {
+        "rank": 5,
+        "label": "Notes",
+        "type": "column"
+      },
+      {
+        "rank": 6,
+        "label": "OrderDate",
+        "type": "column"
+      },
+      {
+        "rank": 7,
+        "label": "Total",
+        "type": "column"
+      },
+      {
+        "rank": 8,
+        "label": "COUNT",
+        "type": "sql_function"
+      },
+      {
+        "rank": 9,
+        "label": "GETDATE",
+        "type": "sql_function"
+      },
+      {
+        "rank": 10,
+        "label": "ISNULL",
+        "type": "sql_function"
+      }
+    ]
+  },
+  "SEL-COMMA": {
+    "sql": "SELECT OrderID, ‸ FROM dbo.Orders",
+    "dialect": "mssql",
+    "total": 84,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "* (Expand columns)",
+        "type": "star_expansion"
+      },
+      {
+        "rank": 2,
+        "label": "OrderID",
+        "type": "pk_column"
+      },
+      {
+        "rank": 3,
+        "label": "CustomerID",
+        "type": "column"
+      },
+      {
+        "rank": 4,
+        "label": "IsActive",
+        "type": "column"
+      },
+      {
+        "rank": 5,
+        "label": "Notes",
+        "type": "column"
+      },
+      {
+        "rank": 6,
+        "label": "OrderDate",
+        "type": "column"
+      },
+      {
+        "rank": 7,
+        "label": "Total",
+        "type": "column"
+      },
+      {
+        "rank": 8,
+        "label": "COUNT",
+        "type": "sql_function"
+      },
+      {
+        "rank": 9,
+        "label": "GETDATE",
+        "type": "sql_function"
+      },
+      {
+        "rank": 10,
+        "label": "ISNULL",
+        "type": "sql_function"
+      }
+    ]
+  },
+  "SEL-NOFROM": {
+    "sql": "SELECT ‸",
+    "dialect": "mssql",
+    "total": 84,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "CASE",
+        "type": "keyword"
+      },
+      {
+        "rank": 2,
+        "label": "DISTINCT",
+        "type": "keyword"
+      },
+      {
+        "rank": 3,
+        "label": "NULL",
+        "type": "keyword"
+      },
+      {
+        "rank": 4,
+        "label": "TOP",
+        "type": "keyword"
+      },
+      {
+        "rank": 5,
+        "label": "CAST",
+        "type": "keyword"
+      },
+      {
+        "rank": 6,
+        "label": "CONVERT",
+        "type": "keyword"
+      },
+      {
+        "rank": 7,
+        "label": "TRY_CAST",
+        "type": "keyword"
+      },
+      {
+        "rank": 8,
+        "label": "COUNT",
+        "type": "sql_function"
+      },
+      {
+        "rank": 9,
+        "label": "GETDATE",
+        "type": "sql_function"
+      },
+      {
+        "rank": 10,
+        "label": "ISNULL",
+        "type": "sql_function"
+      }
+    ]
+  },
+  "SEL-NOFROM-C": {
+    "sql": "SELECT C‸",
+    "dialect": "mssql",
+    "total": 46,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "CASE",
+        "type": "keyword"
+      },
+      {
+        "rank": 2,
+        "label": "CAST",
+        "type": "keyword"
+      },
+      {
+        "rank": 3,
+        "label": "CONVERT",
+        "type": "keyword"
+      },
+      {
+        "rank": 4,
+        "label": "COUNT",
+        "type": "sql_function"
+      },
+      {
+        "rank": 5,
+        "label": "COALESCE",
+        "type": "sql_function"
+      },
+      {
+        "rank": 6,
+        "label": "CAST",
+        "type": "sql_function"
+      },
+      {
+        "rank": 7,
+        "label": "CONCAT",
+        "type": "sql_function"
+      },
+      {
+        "rank": 8,
+        "label": "CONVERT",
+        "type": "sql_function"
+      },
+      {
+        "rank": 9,
+        "label": "CHARINDEX",
+        "type": "sql_function"
+      },
+      {
+        "rank": 10,
+        "label": "CONCAT_WS",
+        "type": "sql_function"
+      }
+    ]
+  },
+  "FROM-CUS": {
+    "sql": "SELECT * FROM Cus‸",
+    "dialect": "mssql",
+    "total": 1,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "Customers",
+        "type": "table"
+      }
+    ]
+  },
+  "FROM-ORD": {
+    "sql": "SELECT * FROM Ord‸",
+    "dialect": "mssql",
+    "total": 4,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "Orders",
+        "type": "table"
+      },
+      {
+        "rank": 2,
+        "label": "OrderItems",
+        "type": "table"
+      },
+      {
+        "rank": 3,
+        "label": "Order Details",
+        "type": "table"
+      },
+      {
+        "rank": 4,
+        "label": "vOrders",
+        "type": "view"
+      }
+    ]
+  },
+  "VAR-AT": {
+    "sql": "DECLARE @Id INT; SELECT @‸",
+    "dialect": "mssql",
+    "total": 1,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "@Id",
+        "type": "scalar_variable"
+      }
+    ]
+  },
+  "VAR-NOAT": {
+    "sql": "DECLARE @Id INT; SELECT I‸",
+    "dialect": "mssql",
+    "total": 20,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "@Id",
+        "type": "scalar_variable"
+      },
+      {
+        "rank": 2,
+        "label": "ISNULL",
+        "type": "sql_function"
+      },
+      {
+        "rank": 3,
+        "label": "IIF",
+        "type": "sql_function"
+      },
+      {
+        "rank": 4,
+        "label": "ISDATE",
+        "type": "sql_function"
+      },
+      {
+        "rank": 5,
+        "label": "ISNUMERIC",
+        "type": "sql_function"
+      },
+      {
+        "rank": 6,
+        "label": "IDENT_INCR",
+        "type": "sql_function"
+      },
+      {
+        "rank": 7,
+        "label": "IDENT_SEED",
+        "type": "sql_function"
+      },
+      {
+        "rank": 8,
+        "label": "IDENT_CURRENT",
+        "type": "sql_function"
+      },
+      {
+        "rank": 9,
+        "label": "IN",
+        "type": "keyword"
+      },
+      {
+        "rank": 10,
+        "label": "IS",
+        "type": "keyword"
+      }
+    ]
+  },
+  "QUAL": {
+    "sql": "SELECT o.‸ FROM dbo.Orders o",
+    "dialect": "mssql",
+    "total": 7,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "* (All columns of o)",
+        "type": "star_expansion"
+      },
+      {
+        "rank": 2,
+        "label": "OrderID",
+        "type": "pk_column"
+      },
+      {
+        "rank": 3,
+        "label": "CustomerID",
+        "type": "column"
+      },
+      {
+        "rank": 4,
+        "label": "IsActive",
+        "type": "column"
+      },
+      {
+        "rank": 5,
+        "label": "Notes",
+        "type": "column"
+      },
+      {
+        "rank": 6,
+        "label": "OrderDate",
+        "type": "column"
+      },
+      {
+        "rank": 7,
+        "label": "Total",
+        "type": "column"
+      }
+    ]
+  },
+  "CORREL": {
+    "sql": "SELECT (SELECT ‸ FROM dbo.OrderItems i WHERE i.OrderID = o.OrderID) FROM dbo.Orders o",
+    "dialect": "mssql",
+    "total": 91,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "* (Expand columns)",
+        "type": "star_expansion"
+      },
+      {
+        "rank": 2,
+        "label": "ItemID",
+        "type": "pk_column"
+      },
+      {
+        "rank": 3,
+        "label": "OrderID",
+        "type": "pk_column"
+      },
+      {
+        "rank": 4,
+        "label": "CustomerID",
+        "type": "column"
+      },
+      {
+        "rank": 5,
+        "label": "IsActive",
+        "type": "column"
+      },
+      {
+        "rank": 6,
+        "label": "Notes",
+        "type": "column"
+      },
+      {
+        "rank": 7,
+        "label": "OrderDate",
+        "type": "column"
+      },
+      {
+        "rank": 8,
+        "label": "OrderID",
+        "type": "column"
+      },
+      {
+        "rank": 9,
+        "label": "ProductID",
+        "type": "column"
+      },
+      {
+        "rank": 10,
+        "label": "Quantity",
+        "type": "column"
+      }
+    ]
+  },
+  "CTE-FROM": {
+    "sql": "WITH c AS (SELECT 1 AS x) SELECT * FROM ‸",
+    "dialect": "mssql",
+    "total": 11,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "c",
+        "type": "cte"
+      },
+      {
+        "rank": 2,
+        "label": "Customers",
+        "type": "table"
+      },
+      {
+        "rank": 3,
+        "label": "dbo",
+        "type": "schema"
+      },
+      {
+        "rank": 4,
+        "label": "hr",
+        "type": "schema"
+      },
+      {
+        "rank": 5,
+        "label": "Order Details",
+        "type": "table"
+      },
+      {
+        "rank": 6,
+        "label": "OrderItems",
+        "type": "table"
+      },
+      {
+        "rank": 7,
+        "label": "Orders",
+        "type": "table"
+      },
+      {
+        "rank": 8,
+        "label": "sales",
+        "type": "schema"
+      },
+      {
+        "rank": 9,
+        "label": "Tbl1",
+        "type": "table"
+      },
+      {
+        "rank": 10,
+        "label": "vOrders",
+        "type": "view"
+      }
+    ]
+  },
+  "ON-FK": {
+    "sql": "SELECT * FROM dbo.Orders o JOIN dbo.Customers c ON ‸",
+    "dialect": "mssql",
+    "total": 89,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "c.CustomerID = o.CustomerID",
+        "type": "join_condition"
+      },
+      {
+        "rank": 2,
+        "label": "CustomerID",
+        "type": "pk_column"
+      },
+      {
+        "rank": 3,
+        "label": "OrderID",
+        "type": "pk_column"
+      },
+      {
+        "rank": 4,
+        "label": "ContactEmail",
+        "type": "column"
+      },
+      {
+        "rank": 5,
+        "label": "CustomerID",
+        "type": "column"
+      },
+      {
+        "rank": 6,
+        "label": "CustomerName",
+        "type": "column"
+      },
+      {
+        "rank": 7,
+        "label": "IsActive",
+        "type": "column"
+      },
+      {
+        "rank": 8,
+        "label": "Notes",
+        "type": "column"
+      },
+      {
+        "rank": 9,
+        "label": "OrderDate",
+        "type": "column"
+      },
+      {
+        "rank": 10,
+        "label": "Total",
+        "type": "column"
+      }
+    ]
+  },
+  "FN-GETD": {
+    "sql": "SELECT GETD‸",
+    "dialect": "mssql",
+    "total": 3,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "GETDATE",
+        "type": "sql_function"
+      },
+      {
+        "rank": 2,
+        "label": "GETUTCDATE",
+        "type": "sql_function"
+      },
+      {
+        "rank": 3,
+        "label": "usp_GetOrders",
+        "type": "procedure"
+      }
+    ]
+  },
+  "FN-DATEA": {
+    "sql": "SELECT DATEA‸",
+    "dialect": "mssql",
+    "total": 8,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "DATEADD",
+        "type": "sql_function"
+      },
+      {
+        "rank": 2,
+        "label": "DATEPART",
+        "type": "sql_function"
+      },
+      {
+        "rank": 3,
+        "label": "DATENAME",
+        "type": "sql_function"
+      },
+      {
+        "rank": 4,
+        "label": "DATEFROMPARTS",
+        "type": "sql_function"
+      },
+      {
+        "rank": 5,
+        "label": "DATETIMEFROMPARTS",
+        "type": "sql_function"
+      },
+      {
+        "rank": 6,
+        "label": "DATETIME2FROMPARTS",
+        "type": "sql_function"
+      },
+      {
+        "rank": 7,
+        "label": "DATETIMEOFFSETFROMPARTS",
+        "type": "sql_function"
+      },
+      {
+        "rank": 8,
+        "label": "SMALLDATETIMEFROMPARTS",
+        "type": "sql_function"
+      }
+    ]
+  },
+  "SUB-CID": {
+    "sql": "SELECT cid‸ FROM dbo.Customers",
+    "dialect": "mssql",
+    "total": 10,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "CustomerID",
+        "type": "pk_column"
+      },
+      {
+        "rank": 2,
+        "label": "CHARINDEX",
+        "type": "sql_function"
+      },
+      {
+        "rank": 3,
+        "label": "SCOPE_IDENTITY",
+        "type": "sql_function"
+      },
+      {
+        "rank": 4,
+        "label": "OBJECT_ID",
+        "type": "sql_function"
+      },
+      {
+        "rank": 5,
+        "label": "SCHEMA_ID",
+        "type": "sql_function"
+      },
+      {
+        "rank": 6,
+        "label": "PERCENTILE_DISC",
+        "type": "sql_function"
+      },
+      {
+        "rank": 7,
+        "label": "READCOMMITTED",
+        "type": "keyword"
+      },
+      {
+        "rank": 8,
+        "label": "SECURITYAUDIT",
+        "type": "keyword"
+      },
+      {
+        "rank": 9,
+        "label": "READUNCOMMITTED",
+        "type": "keyword"
+      },
+      {
+        "rank": 10,
+        "label": "SEMANTICSIMILARITYDETAILSTABLE",
+        "type": "keyword"
+      }
+    ]
+  },
+  "SUB-ORDT": {
+    "sql": "SELECT ordt‸ FROM dbo.Orders",
+    "dialect": "mssql",
+    "total": 3,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "OrderDate",
+        "type": "column"
+      },
+      {
+        "rank": 2,
+        "label": "OrderItems",
+        "type": "table"
+      },
+      {
+        "rank": 3,
+        "label": "Order Details",
+        "type": "table"
+      }
+    ]
+  },
+  "FUZZ-TTL": {
+    "sql": "SELECT ttl‸ FROM dbo.Orders",
+    "dialect": "mssql",
+    "total": 8,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "Total",
+        "type": "column"
+      },
+      {
+        "rank": 2,
+        "label": "fn_Total",
+        "type": "function"
+      },
+      {
+        "rank": 3,
+        "label": "IDENTITYCOL",
+        "type": "keyword"
+      },
+      {
+        "rank": 4,
+        "label": "FREETEXTTABLE",
+        "type": "keyword"
+      },
+      {
+        "rank": 5,
+        "label": "CONTAINSTABLE",
+        "type": "keyword"
+      },
+      {
+        "rank": 6,
+        "label": "SEMANTICKEYPHRASETABLE",
+        "type": "keyword"
+      },
+      {
+        "rank": 7,
+        "label": "SEMANTICSIMILARITYTABLE",
+        "type": "keyword"
+      },
+      {
+        "rank": 8,
+        "label": "SEMANTICSIMILARITYDETAILSTABLE",
+        "type": "keyword"
+      }
+    ]
+  },
+  "ALTER-PROC": {
+    "sql": "ALTER PROCEDURE ‸",
+    "dialect": "mssql",
+    "total": 4,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "usp_GetOrders",
+        "type": "procedure"
+      },
+      {
+        "rank": 2,
+        "label": "dbo",
+        "type": "schema"
+      },
+      {
+        "rank": 3,
+        "label": "hr",
+        "type": "schema"
+      },
+      {
+        "rank": 4,
+        "label": "sales",
+        "type": "schema"
+      }
+    ]
+  },
+  "DROP-TABLE": {
+    "sql": "DROP TABLE ‸",
+    "dialect": "mssql",
+    "total": 8,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "Customers",
+        "type": "table"
+      },
+      {
+        "rank": 2,
+        "label": "Order Details",
+        "type": "table"
+      },
+      {
+        "rank": 3,
+        "label": "OrderItems",
+        "type": "table"
+      },
+      {
+        "rank": 4,
+        "label": "Orders",
+        "type": "table"
+      },
+      {
+        "rank": 5,
+        "label": "Tbl1",
+        "type": "table"
+      },
+      {
+        "rank": 6,
+        "label": "dbo",
+        "type": "schema"
+      },
+      {
+        "rank": 7,
+        "label": "hr",
+        "type": "schema"
+      },
+      {
+        "rank": 8,
+        "label": "sales",
+        "type": "schema"
+      }
+    ]
+  },
+  "IN-PAREN": {
+    "sql": "SELECT * FROM dbo.Orders WHERE OrderID IN (‸)",
+    "dialect": "mssql",
+    "total": 90,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "SELECT",
+        "type": "keyword"
+      },
+      {
+        "rank": 2,
+        "label": "CASE",
+        "type": "keyword"
+      },
+      {
+        "rank": 3,
+        "label": "NULL",
+        "type": "keyword"
+      },
+      {
+        "rank": 4,
+        "label": "CAST",
+        "type": "keyword"
+      },
+      {
+        "rank": 5,
+        "label": "CONVERT",
+        "type": "keyword"
+      },
+      {
+        "rank": 6,
+        "label": "DEFAULT",
+        "type": "keyword"
+      },
+      {
+        "rank": 7,
+        "label": "TRY_CAST",
+        "type": "keyword"
+      },
+      {
+        "rank": 8,
+        "label": "OrderID",
+        "type": "pk_column"
+      },
+      {
+        "rank": 9,
+        "label": "CustomerID",
+        "type": "column"
+      },
+      {
+        "rank": 10,
+        "label": "IsActive",
+        "type": "column"
+      }
+    ]
+  },
+  "PG-SRC": {
+    "sql": "SELECT * FROM public.orders o ‸",
+    "dialect": "postgresql",
+    "total": 28,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "WHERE",
+        "type": "keyword"
+      },
+      {
+        "rank": 2,
+        "label": "INNER",
+        "type": "keyword"
+      },
+      {
+        "rank": 3,
+        "label": "JOIN",
+        "type": "keyword"
+      },
+      {
+        "rank": 4,
+        "label": "LEFT",
+        "type": "keyword"
+      },
+      {
+        "rank": 5,
+        "label": "ON",
+        "type": "keyword"
+      },
+      {
+        "rank": 6,
+        "label": "GROUP",
+        "type": "keyword"
+      },
+      {
+        "rank": 7,
+        "label": "LIMIT",
+        "type": "keyword"
+      },
+      {
+        "rank": 8,
+        "label": "ORDER",
+        "type": "keyword"
+      },
+      {
+        "rank": 9,
+        "label": "HAVING",
+        "type": "keyword"
+      },
+      {
+        "rank": 10,
+        "label": "OFFSET",
+        "type": "keyword"
+      }
+    ]
+  },
+  "PG-LIM": {
+    "sql": "SELECT * FROM public.orders ‸",
+    "dialect": "postgresql",
+    "total": 28,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "WHERE",
+        "type": "keyword"
+      },
+      {
+        "rank": 2,
+        "label": "INNER",
+        "type": "keyword"
+      },
+      {
+        "rank": 3,
+        "label": "JOIN",
+        "type": "keyword"
+      },
+      {
+        "rank": 4,
+        "label": "LEFT",
+        "type": "keyword"
+      },
+      {
+        "rank": 5,
+        "label": "ON",
+        "type": "keyword"
+      },
+      {
+        "rank": 6,
+        "label": "GROUP",
+        "type": "keyword"
+      },
+      {
+        "rank": 7,
+        "label": "LIMIT",
+        "type": "keyword"
+      },
+      {
+        "rank": 8,
+        "label": "ORDER",
+        "type": "keyword"
+      },
+      {
+        "rank": 9,
+        "label": "HAVING",
+        "type": "keyword"
+      },
+      {
+        "rank": 10,
+        "label": "OFFSET",
+        "type": "keyword"
+      }
+    ]
+  },
+  "PG-IS": {
+    "sql": "SELECT * FROM public.orders WHERE order_date IS ‸",
+    "dialect": "postgresql",
+    "total": 6,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "NOT",
+        "type": "keyword"
+      },
+      {
+        "rank": 2,
+        "label": "NULL",
+        "type": "keyword"
+      },
+      {
+        "rank": 3,
+        "label": "FALSE",
+        "type": "keyword"
+      },
+      {
+        "rank": 4,
+        "label": "NOT NULL",
+        "type": "keyword"
+      },
+      {
+        "rank": 5,
+        "label": "TRUE",
+        "type": "keyword"
+      },
+      {
+        "rank": 6,
+        "label": "UNKNOWN",
+        "type": "keyword"
+      }
+    ]
+  },
+  "PG-FROM": {
+    "sql": "SELECT * FROM ‸",
+    "dialect": "postgresql",
+    "total": 7,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "Customers",
+        "type": "table"
+      },
+      {
+        "rank": 2,
+        "label": "order_items",
+        "type": "table"
+      },
+      {
+        "rank": 3,
+        "label": "orders",
+        "type": "table"
+      },
+      {
+        "rank": 4,
+        "label": "public",
+        "type": "schema"
+      },
+      {
+        "rank": 5,
+        "label": "sales",
+        "type": "schema"
+      },
+      {
+        "rank": 6,
+        "label": "v_orders",
+        "type": "view"
+      },
+      {
+        "rank": 7,
+        "label": "fn_calc_discount",
+        "type": "function"
+      }
+    ]
+  },
+  "PG-QUOTED": {
+    "sql": "SELECT * FROM \"Customers\" ‸",
+    "dialect": "postgresql",
+    "total": 28,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "WHERE",
+        "type": "keyword"
+      },
+      {
+        "rank": 2,
+        "label": "INNER",
+        "type": "keyword"
+      },
+      {
+        "rank": 3,
+        "label": "JOIN",
+        "type": "keyword"
+      },
+      {
+        "rank": 4,
+        "label": "LEFT",
+        "type": "keyword"
+      },
+      {
+        "rank": 5,
+        "label": "ON",
+        "type": "keyword"
+      },
+      {
+        "rank": 6,
+        "label": "GROUP",
+        "type": "keyword"
+      },
+      {
+        "rank": 7,
+        "label": "LIMIT",
+        "type": "keyword"
+      },
+      {
+        "rank": 8,
+        "label": "ORDER",
+        "type": "keyword"
+      },
+      {
+        "rank": 9,
+        "label": "HAVING",
+        "type": "keyword"
+      },
+      {
+        "rank": 10,
+        "label": "OFFSET",
+        "type": "keyword"
+      }
+    ]
+  },
+  "PG-UPD-WHERE": {
+    "sql": "UPDATE public.orders SET total = 0 WHERE ‸",
+    "dialect": "postgresql",
+    "total": 80,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "id",
+        "type": "pk_column"
+      },
+      {
+        "rank": 2,
+        "label": "customer_id",
+        "type": "column"
+      },
+      {
+        "rank": 3,
+        "label": "is_deleted",
+        "type": "column"
+      },
+      {
+        "rank": 4,
+        "label": "order_date",
+        "type": "column"
+      },
+      {
+        "rank": 5,
+        "label": "total",
+        "type": "column"
+      },
+      {
+        "rank": 6,
+        "label": "COUNT",
+        "type": "sql_function"
+      },
+      {
+        "rank": 7,
+        "label": "NOW",
+        "type": "sql_function"
+      },
+      {
+        "rank": 8,
+        "label": "TO_CHAR",
+        "type": "sql_function"
+      },
+      {
+        "rank": 9,
+        "label": "AVG",
+        "type": "sql_function"
+      },
+      {
+        "rank": 10,
+        "label": "COALESCE",
+        "type": "sql_function"
+      }
+    ]
+  },
+  "PG-NOW": {
+    "sql": "SELECT NO‸",
+    "dialect": "postgresql",
+    "total": 27,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "NOW",
+        "type": "sql_function"
+      },
+      {
+        "rank": 2,
+        "label": "NOT",
+        "type": "keyword"
+      },
+      {
+        "rank": 3,
+        "label": "NOTICE",
+        "type": "keyword"
+      },
+      {
+        "rank": 4,
+        "label": "NOWAIT",
+        "type": "keyword"
+      },
+      {
+        "rank": 5,
+        "label": "NOTNULL",
+        "type": "keyword"
+      },
+      {
+        "rank": 6,
+        "label": "DO NOTHING",
+        "type": "keyword"
+      },
+      {
+        "rank": 7,
+        "label": "DIAGNOSTICS",
+        "type": "keyword"
+      },
+      {
+        "rank": 8,
+        "label": "RANDOM",
+        "type": "sql_function"
+      },
+      {
+        "rank": 9,
+        "label": "JSON_OBJECT",
+        "type": "sql_function"
+      },
+      {
+        "rank": 10,
+        "label": "JSON_OBJECT_KEYS",
+        "type": "sql_function"
+      }
+    ]
+  },
+  "PG-TOCH": {
+    "sql": "SELECT to_c‸",
+    "dialect": "postgresql",
+    "total": 1,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "TO_CHAR",
+        "type": "sql_function"
+      }
+    ]
+  },
+  "PG-GETD": {
+    "sql": "SELECT GETD‸",
+    "dialect": "postgresql",
+    "total": 1,
+    "top10": [
+      {
+        "rank": 1,
+        "label": "GENERATED",
+        "type": "keyword"
+      }
+    ]
+  },
+  "MS-LIMIT": {
+    "sql": "SELECT * FROM dbo.Orders LIM‸",
+    "dialect": "mssql",
+    "total": 0,
+    "top10": []
+  }
+}

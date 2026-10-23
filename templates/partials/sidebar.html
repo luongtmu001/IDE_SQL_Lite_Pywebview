@@ -23,6 +23,20 @@
         </div>
     </div>
 
+    <!-- Object Explorer Quick Search / Filter Bar -->
+    <div class="ide-sidebar-search px-2" id="ide-sidebar-search-container">
+        <div class="ide-search-box position-relative d-flex align-items-center">
+            <i class="fa-solid fa-magnifying-glass ide-search-icon"></i>
+            <input type="text" class="form-control form-control-sm ide-search-input"
+                id="ide-explorer-search-input" placeholder="Search objects..." autocomplete="off"
+                spellcheck="false" title="Search objects in tree (gõ để lọc object)">
+            <button class="btn btn-link ide-search-clear-btn d-none" type="button"
+                id="ide-explorer-search-clear" title="Clear filter (Xóa lọc)">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+    </div>
+
     <!-- Collapsed Rail: shows only representative connection icons when collapsed -->
     <div id="ide-sidebar-collapsed-rail" class="ide-sidebar-collapsed-rail d-none flex-column align-items-center py-2 gap-2 overflow-auto flex-grow-1">
         <!-- Dynamically populated by explorer.js -->

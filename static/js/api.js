@@ -198,6 +198,28 @@
             }
         },
         {
+            id: 'connections:tab_session_create',
+            method: 'POST',
+            pattern: '/api/connections/tab-session',
+            targetMethods: ['get_or_create_tab_session'],
+            handler: async (api, ctx) => {
+                verifyNativeMethod(api, 'get_or_create_tab_session');
+                const b = ctx.body || {};
+                return await api.get_or_create_tab_session(b.tab_id, b.connection_id, b.config || { database: b.database, schema: b.schema });
+            }
+        },
+        {
+            id: 'connections:tab_session_close',
+            method: 'DELETE',
+            pattern: /^\/api\/connections\/tab-session\/(.+)$/,
+            targetMethods: ['close_tab_session'],
+            handler: async (api, ctx) => {
+                verifyNativeMethod(api, 'close_tab_session');
+                const tabId = decodeURIComponent(ctx.match[1]);
+                return await api.close_tab_session(tabId);
+            }
+        },
+        {
             id: 'connections:delete',
             method: 'DELETE',
             pattern: /^\/api\/connections\/([^/]+)$/,
@@ -337,6 +359,86 @@
                     }
                 }
                 return result;
+            }
+        },
+
+        // =========================================================================
+        // Database Users & Roles Explorer
+        // =========================================================================
+        {
+            id: 'database_users:list',
+            method: '*',
+            pattern: '/api/database-users/list',
+            targetMethods: ['list_database_users'],
+            handler: async (api, ctx) => {
+                verifyNativeMethod(api, 'list_database_users');
+                const s = ctx.searchParams;
+                const b = ctx.body || {};
+                const connId = s.get('connection_id') || s.get('conn_id') || b.connection_id || b.conn_id;
+                const db = s.get('database') || b.database;
+                return await api.list_database_users(connId, db);
+            }
+        },
+        {
+            id: 'database_users:memberships',
+            method: 'GET',
+            pattern: '/api/database-users/memberships',
+            targetMethods: ['get_database_user_memberships'],
+            handler: async (api, ctx) => {
+                verifyNativeMethod(api, 'get_database_user_memberships');
+                const s = ctx.searchParams;
+                return await api.get_database_user_memberships(
+                    s.get('connection_id') || s.get('conn_id'),
+                    s.get('name') || s.get('principal_name'),
+                    s.get('database')
+                );
+            }
+        },
+        {
+            id: 'database_users:permissions',
+            method: 'GET',
+            pattern: '/api/database-users/permissions',
+            targetMethods: ['get_database_user_permissions'],
+            handler: async (api, ctx) => {
+                verifyNativeMethod(api, 'get_database_user_permissions');
+                const s = ctx.searchParams;
+                return await api.get_database_user_permissions(
+                    s.get('connection_id') || s.get('conn_id'),
+                    s.get('name') || s.get('principal_name'),
+                    s.get('database')
+                );
+            }
+        },
+        {
+            id: 'database_users:properties',
+            method: 'GET',
+            pattern: '/api/database-users/properties',
+            targetMethods: ['get_database_user_properties'],
+            handler: async (api, ctx) => {
+                verifyNativeMethod(api, 'get_database_user_properties');
+                const s = ctx.searchParams;
+                return await api.get_database_user_properties(
+                    s.get('connection_id') || s.get('conn_id'),
+                    s.get('name') || s.get('principal_name'),
+                    s.get('database')
+                );
+            }
+        },
+        {
+            id: 'database_users:script',
+            method: 'POST',
+            pattern: '/api/database-users/script',
+            targetMethods: ['script_database_user'],
+            handler: async (api, ctx) => {
+                verifyNativeMethod(api, 'script_database_user');
+                const b = ctx.body || {};
+                return await api.script_database_user(
+                    b.connection_id || b.conn_id,
+                    b.principal_name || b.name,
+                    b.action || b.script_type || 'CREATE',
+                    b.mode || 'basic',
+                    b.database
+                );
             }
         },
 

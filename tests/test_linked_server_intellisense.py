@@ -55,16 +55,20 @@ def test_static_js_linked_server_and_foreign_data_support():
     assert "getForeignServers(connectionId)" in cache_code
     assert "getForeignTables(connectionId, schema)" in cache_code
 
-    # 5. Completion Engine
+    # 5. Completion Engine & Candidate Generator
     engine_path = os.path.join(base_dir, "static", "js", "completion-engine.js")
     with open(engine_path, "r", encoding="utf-8") as f:
         engine_code = f.read()
-    
-    assert "getRemoteColumns" in engine_code
-    assert "Remote Column" in engine_code
-    assert "Linked Server" in engine_code
-    assert "Foreign Server" in engine_code
-    assert "Foreign Table" in engine_code
+    cand_gen_path = os.path.join(base_dir, "static", "js", "candidate-generator.js")
+    with open(cand_gen_path, "r", encoding="utf-8") as f:
+        cand_gen_code = f.read()
+
+    combined_code = engine_code + "\n" + cand_gen_code
+    assert "getRemoteColumns" in combined_code
+    assert "Remote Column" in combined_code
+    assert "Linked Server" in combined_code
+    assert "Foreign Server" in combined_code
+    assert "Foreign Table" in combined_code
 
 def test_sqlserver_database_adapter_methods():
     """Verify SqlServerAdapter linked server discovery methods adhere to read-only rules."""

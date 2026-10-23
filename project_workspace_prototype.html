@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>LLTool — Project Workspace Prototype</title>
+<style>
+:root{
+  --bg:#111827;--panel:#17212e;--panel2:#1d2938;--line:#2b394b;
+  --text:#e5edf7;--muted:#91a2b8;--blue:#1677ff;--blue2:#0d5fd1;
+  --green:#16a36a;--sheet:#188038;--hover:#25354a;--white:#fff;
+  --shadow:0 12px 30px rgba(0,0,0,.25);
+}
+*{box-sizing:border-box}
+body{margin:0;font:13px/1.45 "Segoe UI",Arial,sans-serif;background:var(--bg);color:var(--text);height:100vh;overflow:hidden}
+button,input,select{font:inherit}
+button{cursor:pointer}
+.app{height:100vh;display:flex;flex-direction:column}
+.topbar{height:43px;display:flex;align-items:center;gap:18px;padding:0 14px;background:#151c26;border-bottom:1px solid #263244;flex-shrink:0}
+.logo{width:24px;height:24px;border-radius:6px;background:#14796a;display:grid;place-items:center;font-weight:800;color:white}
+.menu{display:flex;gap:18px;color:#d7e1ef}
+.searchtop{margin-left:auto;width:min(360px,30vw);background:#202c3b;border:1px solid #334155;border-radius:6px;padding:7px 10px;color:#dce7f4}
+.window-actions{display:flex;gap:15px;color:#a8b7ca}
+.workspace{display:flex;min-height:0;flex:1}
+.rail{width:66px;background:#151d28;border-right:1px solid #263244;display:flex;flex-direction:column;align-items:stretch;flex-shrink:0}
+.railitem{padding:13px 4px;text-align:center;color:#93a5bb;font-size:11px;border-left:2px solid transparent;cursor:pointer}
+.railitem .ico{display:block;font-size:20px;margin-bottom:4px}
+.railitem.active{color:#fff;background:#1d2c40;border-left-color:#3b91ff}
+.railbottom{margin-top:auto}
+.sidebar{width:290px;min-width:235px;background:#141d28;border-right:1px solid #293648;display:flex;flex-direction:column;min-height:0;flex-shrink:0}
+.sidehead{height:48px;padding:0 14px;display:flex;align-items:center;gap:9px;border-bottom:1px solid #263244;font-size:14px;font-weight:600}
+.driveicon{width:22px;height:22px;display:grid;place-items:center;background:#f7fbff;color:#188038;border-radius:6px;font-size:14px}
+.side-tools{padding:11px 10px 7px;display:flex;gap:7px}
+.search{width:100%;background:#202c3b;color:var(--text);border:1px solid #344257;border-radius:6px;padding:9px 10px;outline:none}
+.search:focus,input:focus{border-color:#4597ff}
+.primary{border:0;background:var(--blue);color:#fff;border-radius:6px;padding:9px 11px;white-space:nowrap}
+.primary:hover{background:var(--blue2)}
+.secondary{border:1px solid #3b4b60;background:#253246;color:#e3ecf7;border-radius:6px;padding:8px 10px}
+.iconbtn{border:1px solid #344257;background:#202c3b;color:#dbe6f4;border-radius:6px;padding:7px 9px}
+.projectlabel{display:flex;align-items:center;justify-content:space-between;padding:11px 13px 7px;color:#a5b5c8;font-size:12px}
+.tree{overflow:auto;padding:0 7px 16px}
+.folder{margin:2px 0}
+.folder-title{padding:7px 7px;display:flex;align-items:center;gap:7px;border-radius:5px;cursor:pointer;color:#d9e4f2}
+.folder-title:hover,.file:hover{background:var(--hover)}
+.folder-title .chev{color:#8fa3ba;width:11px}
+.folder-title .foldericon{color:#e8b84e;font-size:15px}
+.filelist{padding-left:21px}
+.file{display:flex;align-items:center;gap:8px;padding:7px 8px;border-radius:5px;cursor:pointer;color:#b9c8da;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.file.selected{background:#174c8d;color:#fff}
+.file-icon{width:17px;height:17px;border-radius:4px;display:grid;place-items:center;font-size:10px;font-weight:700;flex-shrink:0;color:#fff}
+.file-icon.sheet{background:#16864b}.file-icon.doc{background:#2878dc}.file-icon.pdf{background:#d64b4b}.file-icon.xlsx{background:#238552}.file-icon.local{background:#64748b}
+.main{flex:1;min-width:0;display:flex;flex-direction:column;background:#0f1722}
+.tabs{height:43px;display:flex;align-items:stretch;background:#141d28;border-bottom:1px solid #2a3749;gap:3px;padding-left:9px;flex-shrink:0}
+.tab{padding:0 15px;display:flex;align-items:center;gap:8px;border-right:1px solid #2b394b;color:#aabbd0;min-width:135px;cursor:pointer}
+.tab.active{background:#1c2938;color:#fff;border-top:2px solid #2085ff}
+.tabclose{margin-left:auto;color:#8ca0b8}
+.content{display:flex;min-height:0;flex:1}
+.details{width:300px;min-width:260px;border-right:1px solid #293648;background:#151f2b;padding:22px 18px;overflow:auto}
+.doc-title{display:flex;align-items:center;gap:12px;margin-bottom:22px}
+.bigicon{width:42px;height:42px;border-radius:9px;background:#16864b;display:grid;place-items:center;font-size:22px;color:#fff}
+.doc-title h2{font-size:16px;margin:0 0 3px;font-weight:600}
+.muted{color:var(--muted)}
+.meta{display:grid;grid-template-columns:112px 1fr;gap:13px 8px;padding:0 0 19px;border-bottom:1px solid #2a3749;margin-bottom:17px}
+.meta .key{color:#92a5bb}
+.meta .value{color:#d8e3f0;overflow-wrap:anywhere}
+.actionrow{display:flex;gap:7px;margin-bottom:24px}
+.actionrow button{flex:1}
+.section-title{font-weight:600;margin:18px 0 9px;color:#e4edf8}
+.chips{display:flex;flex-wrap:wrap;gap:7px}
+.chip{border-radius:15px;padding:4px 9px;background:#174b3b;color:#9df0c7;font-size:11px}
+.chip.blue{background:#183d69;color:#b9d9ff}
+.related{display:flex;align-items:center;gap:8px;padding:8px 0;color:#c9d6e5;border-bottom:1px solid #263244}
+.related small{margin-left:auto;color:#879bb3}
+.editorarea{flex:1;min-width:0;display:flex;flex-direction:column;background:#fff;color:#202b3b}
+.sheet-titlebar{display:flex;align-items:center;gap:12px;padding:12px 15px;border-bottom:1px solid #e2e7ee;background:#fff}
+.sheet-logo{width:30px;height:30px;border-radius:5px;background:#188038;color:#fff;display:grid;place-items:center;font-size:18px}
+.sheet-heading{min-width:0}
+.sheet-heading strong{display:block;font-size:15px}
+.sheet-heading small{color:#758195}
+.avatars{margin-left:auto;display:flex;gap:-3px}
+.avatar{width:25px;height:25px;border-radius:50%;display:grid;place-items:center;background:#d4e7ff;border:2px solid white;color:#20518a;font-size:10px;font-weight:700;margin-left:-4px}
+.share{background:#0b65dc;color:#fff;border:0;border-radius:5px;padding:8px 14px}
+.sheet-menu{display:flex;gap:17px;padding:6px 16px;color:#4d596b;border-bottom:1px solid #e4e8ee;white-space:nowrap;overflow:auto}
+.toolbar{display:flex;align-items:center;gap:6px;padding:7px 10px;border-bottom:1px solid #e0e5eb;white-space:nowrap;overflow:auto}
+.tool{border:0;background:transparent;color:#4c5666;padding:5px 7px;border-radius:4px}
+.tool:hover{background:#edf2f7}
+.tool.select{border:1px solid #e0e5eb;min-width:64px;text-align:left}
+.formulabar{height:35px;display:flex;align-items:center;border-bottom:1px solid #dce3eb;flex-shrink:0}
+.cellname{width:80px;padding:8px 12px;border-right:1px solid #dce3eb;color:#4c5c70}
+.fx{padding:0 12px;color:#77869a;font-style:italic;font-weight:700}
+.formulainput{border:0;outline:0;flex:1;height:100%;color:#29364a;padding:0 8px}
+.gridwrap{flex:1;overflow:auto;position:relative}
+table.sheet{border-collapse:separate;border-spacing:0;min-width:100%;font-size:12px;table-layout:fixed}
+.sheet th,.sheet td{height:32px;border-right:1px solid #dfe5ec;border-bottom:1px solid #dfe5ec;padding:5px 9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sheet thead th{position:sticky;top:0;background:#f4f6f9;color:#526176;font-weight:500;text-align:center;z-index:2}
+.sheet .rownum{position:sticky;left:0;background:#f4f6f9;text-align:center;width:42px;color:#63748a;z-index:1}
+.sheet thead .rownum{z-index:3}
+.sheet td{background:#fff;outline:none}
+.sheet td[contenteditable="true"]:focus{outline:2px solid #1683ff;outline-offset:-2px;position:relative;z-index:1}
+.sheet .headercell{background:#d5f0df;font-weight:700}
+.sheet .num{text-align:right}
+.sheet .activecell{outline:2px solid #1683ff;outline-offset:-2px}
+.sheettabs{height:42px;border-top:1px solid #dfe5ec;background:#f8fafc;display:flex;align-items:stretch;gap:0;padding-left:8px;flex-shrink:0}
+.sheettab{border:0;border-right:1px solid #e1e6ed;background:transparent;padding:0 18px;color:#526176}
+.sheettab.active{background:#fff;color:#188038;border-bottom:3px solid #188038;font-weight:700}
+.sheettab.add{font-size:18px;padding:0 13px}
+.statusbar{height:24px;display:flex;align-items:center;gap:15px;padding:0 12px;background:#151d28;color:#91a4bb;border-top:1px solid #2a3749;font-size:11px;flex-shrink:0}
+.statusdot{width:6px;height:6px;background:#31c48d;border-radius:50%;display:inline-block;margin-right:5px}
+.toast{position:fixed;bottom:38px;right:24px;background:#163e32;border:1px solid #267b5b;color:#d6ffeb;padding:10px 15px;border-radius:7px;box-shadow:var(--shadow);display:none}
+.modalback{position:fixed;inset:0;background:#050a12aa;display:none;align-items:center;justify-content:center;z-index:10}
+.modal{width:min(480px,calc(100vw - 30px));background:#1a2635;border:1px solid #3a4a5e;border-radius:12px;box-shadow:var(--shadow);padding:20px}
+.modal h3{margin:0 0 7px;font-size:17px}
+.modal p{color:#9fb0c4;margin:0 0 18px}
+.modal label{display:block;margin:12px 0 6px;color:#d8e4f2}
+.modal input,.modal select{width:100%;padding:10px;border:1px solid #3b4b60;background:#111b28;color:#eef5ff;border-radius:6px}
+.modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:20px}
+@media(max-width:1100px){.details{display:none}.sidebar{width:250px}.menu{gap:10px}.searchtop{width:220px}}
+@media(max-width:760px){.rail{width:52px}.sidebar{width:205px}.menu{display:none}.sheet-menu{gap:10px}.share{padding:7px 9px}}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="logo">LL</div>
+    <nav class="menu"><span>File</span><span>Edit</span><span>Selection</span><span>View</span><span>Go</span><span>Run</span><span>Terminal</span><span>Help</span></nav>
+    <input class="searchtop" placeholder="⌕  Tìm trong dự án..." />
+    <div class="window-actions"><span>♧</span><span>—</span><span>□</span><span>×</span></div>
+  </header>
+  <div class="workspace">
+    <aside class="rail">
+      <div class="railitem"><span class="ico">▤</span>Explorer</div>
+      <div class="railitem active"><span class="ico">☁</span>Google Files</div>
+      <div class="railitem"><span class="ico">⑂</span>Source Control</div>
+      <div class="railitem"><span class="ico">▷</span>Run</div>
+      <div class="railitem"><span class="ico">▦</span>Extensions</div>
+      <div class="railbottom railitem"><span class="ico">⚙</span>Settings</div>
+    </aside>
+
+    <aside class="sidebar">
+      <div class="sidehead"><span class="driveicon">▲</span> Google Files <span style="margin-left:auto;color:#8498b0">×</span></div>
+      <div class="side-tools"><input id="filterFiles" class="search" placeholder="⌕  Tìm kiếm file, thư mục..." /></div>
+      <div class="side-tools" style="padding-top:0"><button class="primary" style="width:100%" onclick="openModal('addModal')">＋ Thêm file / Thư mục</button></div>
+      <div class="projectlabel"><span>▣ Dự án hiện tại</span><button class="iconbtn" title="Tạo dự án" onclick="openModal('projectModal')">＋</button></div>
+      <div class="tree" id="fileTree">
+        <div class="folder">
+          <div class="folder-title" onclick="toggleFolder(this)"><span class="chev">⌄</span><span class="foldericon">📁</span><b>Website bán hàng</b></div>
+          <div class="filelist">
+            <div class="file" data-name="Kế hoạch nội dung.xlsx" onclick="selectFile(this,'Kế hoạch nội dung','Excel')"><span class="file-icon xlsx">X</span>Kế hoạch nội dung.xlsx</div>
+            <div class="file selected" data-name="Tracking doanh thu" onclick="selectFile(this,'Tracking doanh thu','Google Sheets')"><span class="file-icon sheet">▦</span>Tracking doanh thu</div>
+            <div class="file" data-name="Danh sách khách hàng" onclick="selectFile(this,'Danh sách khách hàng','Google Sheets')"><span class="file-icon sheet">▦</span>Danh sách khách hàng</div>
+            <div class="file" data-name="Tài liệu thiết kế.docx" onclick="selectFile(this,'Tài liệu thiết kế.docx','Word')"><span class="file-icon doc">W</span>Tài liệu thiết kế.docx</div>
+            <div class="file" data-name="Báo cáo tháng 4.pdf" onclick="selectFile(this,'Báo cáo tháng 4.pdf','PDF')"><span class="file-icon pdf">P</span>Báo cáo tháng 4.pdf</div>
+          </div>
+        </div>
+        <div class="folder">
+          <div class="folder-title" onclick="toggleFolder(this)"><span class="chev">⌄</span><span class="foldericon">📁</span><b>Mobile App</b></div>
+          <div class="filelist">
+            <div class="file" data-name="Plan dự án.xlsx" onclick="selectFile(this,'Plan dự án.xlsx','Excel')"><span class="file-icon xlsx">X</span>Plan dự án.xlsx</div>
+            <div class="file" data-name="Bug list.docx" onclick="selectFile(this,'Bug list.docx','Word')"><span class="file-icon doc">W</span>Bug list.docx</div>
+            <div class="file" data-name="API documentation.pdf" onclick="selectFile(this,'API documentation.pdf','PDF')"><span class="file-icon pdf">P</span>API documentation.pdf</div>
+          </div>
+        </div>
+        <div class="folder">
+          <div class="folder-title" onclick="toggleFolder(this)"><span class="chev">⌄</span><span class="foldericon">📁</span><b>Marketing</b></div>
+          <div class="filelist">
+            <div class="file" data-name="Chiến dịch quảng cáo" onclick="selectFile(this,'Chiến dịch quảng cáo','Google Sheets')"><span class="file-icon sheet">▦</span>Chiến dịch quảng cáo</div>
+            <div class="file" data-name="Nội dung bài viết.docx" onclick="selectFile(this,'Nội dung bài viết.docx','Word')"><span class="file-icon doc">W</span>Nội dung bài viết.docx</div>
+            <div class="file" data-name="Hình ảnh" onclick="selectFile(this,'Hình ảnh','Thư mục')"><span class="file-icon local">▧</span>Hình ảnh</div>
+          </div>
+        </div>
+        <div class="folder">
+          <div class="folder-title" onclick="toggleFolder(this)"><span class="chev">⌄</span><span class="foldericon">📁</span><b>Tài chính</b></div>
+          <div class="filelist">
+            <div class="file" data-name="Bảng chi phí.xlsx" onclick="selectFile(this,'Bảng chi phí.xlsx','Excel')"><span class="file-icon xlsx">X</span>Bảng chi phí.xlsx</div>
+            <div class="file" data-name="Doanh thu 2024.pdf" onclick="selectFile(this,'Doanh thu 2024.pdf','PDF')"><span class="file-icon pdf">P</span>Doanh thu 2024.pdf</div>
+          </div>
+        </div>
+        <div class="folder">
+          <div class="folder-title" onclick="toggleFolder(this)"><span class="chev">⌄</span><span class="foldericon">📁</span><b>Cá nhân</b></div>
+          <div class="filelist">
+            <div class="file" data-name="Notes" onclick="selectFile(this,'Notes','Ghi chú')"><span class="file-icon doc">N</span>Notes</div>
+            <div class="file" data-name="Todos" onclick="selectFile(this,'Todos','Google Sheets')"><span class="file-icon sheet">▦</span>Todos</div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <div class="tabs">
+        <div class="tab"><span>▣</span> Google Files <span class="tabclose">×</span></div>
+        <div class="tab active" id="activeTab"><span style="color:#27ad6b">▦</span><span id="tabName">Tracking doanh thu</span><span class="tabclose">×</span></div>
+      </div>
+      <div class="content">
+        <section class="details">
+          <div class="doc-title">
+            <div class="bigicon" id="detailIcon">▦</div>
+            <div><h2 id="detailTitle">Tracking doanh thu</h2><div class="muted" id="detailType">Google Sheets</div></div>
+          </div>
+          <div class="meta">
+            <div class="key">Thuộc dự án</div><div class="value" id="detailProject">Website bán hàng</div>
+            <div class="key">Loại file</div><div class="value" id="detailMime">Google Sheets</div>
+            <div class="key">Người tạo</div><div class="value">nguyen@company.com</div>
+            <div class="key">Cập nhật lần cuối</div><div class="value">Hôm nay, 10:24</div>
+          </div>
+          <div class="actionrow">
+            <button class="primary" onclick="showToast('Đây là prototype: nút chỉnh sửa sẽ kết nối Google Sheets API khi triển khai.')">✎ Chỉnh sửa</button>
+            <button class="secondary" onclick="showToast('Mở liên kết gốc sẽ được bổ sung khi kết nối Google Drive.')">↗ Mở gốc</button>
+          </div>
+          <div class="section-title">Thành viên truy cập <a style="float:right;color:#3d9aff;font-weight:400;cursor:pointer" onclick="showToast('Quản lý quyền sẽ sử dụng quyền của Google Drive.')">Quản lý quyền</a></div>
+          <div class="muted">👤 👤  Bạn (quản trị)<br><br>+3 thành viên khác</div>
+          <div class="section-title">Mô tả</div>
+          <div class="muted" id="detailDescription">Theo dõi doanh thu theo tháng, sản phẩm và kênh bán hàng.</div>
+          <div class="section-title">Thẻ</div>
+          <div class="chips"><span class="chip">Doanh thu</span><span class="chip blue">Báo cáo</span><span class="chip" style="background:#47317a;color:#dfd1ff">Theo dõi</span></div>
+          <div class="section-title">Loại tài liệu</div>
+          <div class="related"><span class="file-icon sheet">▦</span>Google Sheets <span class="muted" style="margin-left:auto">Đã liên kết</span></div>
+          <div class="section-title">Tài liệu khác trong dự án <a style="float:right;color:#3d9aff;font-weight:400;cursor:pointer" onclick="showToast('Danh sách đầy đủ sẽ mở trong Workspace.')">Xem tất cả</a></div>
+          <div class="related"><span class="file-icon xlsx">X</span>Kế hoạch nội dung.xlsx <small>2 ngày trước</small></div>
+          <div class="related"><span class="file-icon sheet">▦</span>Danh sách khách hàng <small>3 ngày trước</small></div>
+          <div class="related"><span class="file-icon doc">W</span>Tài liệu thiết kế.docx <small>5 ngày trước</small></div>
+        </section>
+
+        <section class="editorarea">
+          <div class="sheet-titlebar">
+            <div class="sheet-logo">▦</div>
+            <div class="sheet-heading"><strong id="sheetTitle">Tracking doanh thu</strong><small>Google Sheets · Prototype</small></div>
+            <div class="avatars"><span class="avatar">NL</span><span class="avatar">TA</span><span class="avatar">MH</span></div>
+            <button class="share" onclick="showToast('Chia sẻ sẽ chuyển tới quyền chia sẻ của Google Drive.')">♧ Chia sẻ ▾</button>
+          </div>
+          <div class="sheet-menu"><span>Tệp</span><span>Chỉnh sửa</span><span>Xem</span><span>Chèn</span><span>Định dạng</span><span>Dữ liệu</span><span>Công cụ</span><span>Trợ giúp</span></div>
+          <div class="toolbar">
+            <button class="tool" onclick="showToast('Undo: demo giao diện')">↶</button><button class="tool" onclick="showToast('Redo: demo giao diện')">↷</button>
+            <button class="tool select">100% ▾</button><button class="tool">₫</button><button class="tool">%</button><button class="tool">.0</button><button class="tool">↔</button>
+            <button class="tool select">Arial ▾</button><button class="tool select">10 ▾</button><button class="tool"><b>B</b></button><button class="tool"><i>I</i></button><button class="tool"><u>U</u></button><button class="tool">A</button><button class="tool">▤</button>
+            <button class="tool" style="margin-left:auto" onclick="saveDemo()">☁ Lưu</button>
+          </div>
+          <div class="formulabar"><div class="cellname" id="cellName">A1 ▾</div><div class="fx">fx</div><input class="formulainput" id="formulaInput" value="Tháng" aria-label="Nội dung ô đang chọn" /></div>
+          <div class="gridwrap">
+            <table class="sheet" id="sheetGrid">
+              <thead><tr><th class="rownum"></th><th style="width:115px">A</th><th style="width:125px">B</th><th style="width:145px">C</th><th style="width:145px">D</th><th style="width:115px">E</th><th style="width:125px">F</th><th style="width:110px">G</th></tr></thead>
+              <tbody id="sheetBody"></tbody>
+            </table>
+          </div>
+          <div class="sheettabs"><button class="sheettab add" onclick="showToast('Thêm sheet sẽ kết nối Google Sheets API.')">＋</button><button class="sheettab active" onclick="switchSheet(this,'Doanh thu')">Doanh thu</button><button class="sheettab" onclick="switchSheet(this,'Sản phẩm')">Sản phẩm</button><button class="sheettab" onclick="switchSheet(this,'Kênh bán hàng')">Kênh bán hàng</button><button class="sheettab">▾</button></div>
+        </section>
+      </div>
+    </main>
+  </div>
+  <footer class="statusbar"><span><i class="statusdot"></i>Workspace demo</span><span id="saveStatus">Chưa có thay đổi</span><span style="margin-left:auto">UTF-8</span><span>Google Sheets API: chưa kết nối</span></footer>
+</div>
+
+<div class="toast" id="toast"></div>
+<div class="modalback" id="addModal">
+  <div class="modal">
+    <h3>Thêm tài liệu vào dự án</h3>
+    <p>Prototype giao diện — chưa kết nối Google Drive.</p>
+    <label>Loại tài liệu</label>
+    <select id="newType"><option>Google Sheets</option><option>Google Docs</option><option>Excel</option><option>Word</option><option>PDF</option><option>File local</option></select>
+    <label>Tên hiển thị</label><input id="newName" placeholder="Ví dụ: Database Mapping" />
+    <label>URL hoặc đường dẫn file (tùy chọn)</label><input id="newUrl" placeholder="Dán URL Google Drive..." />
+    <div class="modal-actions"><button class="secondary" onclick="closeModal('addModal')">Hủy</button><button class="primary" onclick="addFile()">Thêm vào dự án</button></div>
+  </div>
+</div>
+<div class="modalback" id="projectModal">
+  <div class="modal">
+    <h3>Tạo dự án</h3><p>Tạo nhóm dự án để tổ chức tài liệu.</p>
+    <label>Tên dự án</label><input id="projectName" placeholder="Ví dụ: Bravo ERP" />
+    <div class="modal-actions"><button class="secondary" onclick="closeModal('projectModal')">Hủy</button><button class="primary" onclick="addProject()">Tạo dự án</button></div>
+  </div>
+</div>
+<script>
+const initialRows = [
+ ['Tháng','Sản phẩm','Kênh bán hàng','Doanh thu (VNĐ)','Số đơn hàng','Tỷ lệ chuyển đổi','Ghi chú'],
+ ['Tháng 1','Sản phẩm A','Website','120,000,000','320','3.2%',''],
+ ['Tháng 1','Sản phẩm B','Shopee','80,000,000','210','2.8%',''],
+ ['Tháng 2','Sản phẩm A','Website','150,000,000','402','4.1%',''],
+ ['Tháng 2','Sản phẩm C','Lazada','95,000,000','287','3.5%',''],
+ ['Tháng 3','Sản phẩm A','Website','180,000,000','480','4.8%',''],
+ ['Tháng 3','Sản phẩm B','Shopee','110,000,000','356','3.9%',''],
+ ['Tháng 4','Sản phẩm A','Website','210,000,000','580','5.6%',''],
+ ['Tháng 4','Sản phẩm C','Lazada','130,000,000','412','4.7%','']
+];
+let selectedCell = null, dirty = false, currentSheet = 'Doanh thu';
+function renderGrid(rows=initialRows){
+ const body=document.getElementById('sheetBody'); body.innerHTML='';
+ for(let r=0;r<24;r++){
+   const tr=document.createElement('tr'); const rn=document.createElement('td');rn.className='rownum';rn.textContent=r+1;tr.appendChild(rn);
+   for(let c=0;c<7;c++){
+     const td=document.createElement('td'); const val=(rows[r]&&rows[r][c])||'';
+     td.textContent=val; td.contentEditable='true'; td.dataset.row=r+1;td.dataset.col=c;
+     if(r===0)td.classList.add('headercell');
+     if(c===3||c===4||c===5)td.classList.add('num');
+     td.addEventListener('focus',()=>selectCell(td));
+     td.addEventListener('input',()=>{dirty=true;document.getElementById('saveStatus').textContent='Có thay đổi chưa lưu';});
+     td.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();const next=body.querySelector(`td[data-row="${Number(td.dataset.row)+1}"][data-col="${td.dataset.col}"]`);if(next)next.focus();}});
+     tr.appendChild(td);
+   }body.appendChild(tr);
+ }
+ const first=body.querySelector('td[data-row="1"][data-col="0"]'); if(first)selectCell(first);
+}
+function selectCell(td){
+ if(selectedCell)selectedCell.classList.remove('activecell');
+ selectedCell=td;td.classList.add('activecell');
+ document.getElementById('cellName').textContent=String.fromCharCode(65+Number(td.dataset.col))+td.dataset.row+' ▾';
+ document.getElementById('formulaInput').value=td.textContent;
+}
+document.getElementById('formulaInput').addEventListener('input',e=>{if(selectedCell){selectedCell.textContent=e.target.value;dirty=true;document.getElementById('saveStatus').textContent='Có thay đổi chưa lưu';}});
+document.getElementById('filterFiles').addEventListener('input',e=>{
+ const q=e.target.value.toLowerCase();
+ document.querySelectorAll('.file').forEach(f=>f.style.display=f.dataset.name.toLowerCase().includes(q)?'flex':'none');
+ document.querySelectorAll('.folder').forEach(folder=>{const visible=[...folder.querySelectorAll('.file')].some(f=>f.style.display!=='none');folder.style.display=visible?'block':'none';});
+});
+function toggleFolder(el){const list=el.nextElementSibling;const open=list.style.display!=='none';list.style.display=open?'none':'block';el.querySelector('.chev').textContent=open?'›':'⌄';}
+function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.style.display='block';clearTimeout(window.toastTimer);window.toastTimer=setTimeout(()=>t.style.display='none',3000);}
+function openModal(id){document.getElementById(id).style.display='flex';}
+function closeModal(id){document.getElementById(id).style.display='none';}
+function addFile(){
+ const name=document.getElementById('newName').value.trim();const type=document.getElementById('newType').value;
+ if(!name){showToast('Vui lòng nhập tên tài liệu.');return;}
+ const folder=document.querySelector('.folder');const list=folder.querySelector('.filelist');const div=document.createElement('div');div.className='file';div.dataset.name=name;
+ let cls='sheet',label='▦';if(type==='Word'||type==='Google Docs'){cls='doc';label='W';}else if(type==='PDF'){cls='pdf';label='P';}else if(type==='Excel'){cls='xlsx';label='X';}else if(type==='File local'){cls='local';label='F';}
+ div.innerHTML=`<span class="file-icon ${cls}">${label}</span>${escapeHtml(name)}`;
+ div.onclick=()=>selectFile(div,name,type);list.appendChild(div);closeModal('addModal');document.getElementById('newName').value='';document.getElementById('newUrl').value='';
+ showToast('Đã thêm vào giao diện demo; chưa lưu vào Google Drive.');
+}
+function escapeHtml(s){return s.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function addProject(){
+ const name=document.getElementById('projectName').value.trim();if(!name){showToast('Vui lòng nhập tên dự án.');return;}
+ const tree=document.getElementById('fileTree');const f=document.createElement('div');f.className='folder';
+ f.innerHTML=`<div class="folder-title" onclick="toggleFolder(this)"><span class="chev">⌄</span><span class="foldericon">📁</span><b>${escapeHtml(name)}</b></div><div class="filelist"></div>`;
+ tree.appendChild(f);closeModal('projectModal');document.getElementById('projectName').value='';showToast('Đã tạo dự án demo.');
+}
+function selectFile(el,name,type){
+ document.querySelectorAll('.file').forEach(f=>f.classList.remove('selected'));el.classList.add('selected');
+ document.getElementById('tabName').textContent=name;document.getElementById('detailTitle').textContent=name;document.getElementById('sheetTitle').textContent=name;
+ document.getElementById('detailType').textContent=type;document.getElementById('detailMime').textContent=type;
+ document.getElementById('detailIcon').textContent=type==='Google Sheets'?'▦':type==='PDF'?'P':type==='Word'?'W':'F';
+ document.getElementById('detailDescription').textContent=type==='Google Sheets'?'Tài liệu bảng tính được liên kết với dự án.':'Tài liệu mẫu trong Project Workspace.';
+ if(type!=='Google Sheets'&&type!=='Excel'){showToast('Prototype: trình xem riêng cho '+type+' chưa được triển khai.');}
+}
+function switchSheet(el,name){
+ document.querySelectorAll('.sheettab').forEach(t=>t.classList.remove('active'));el.classList.add('active');currentSheet=name;
+ const rows= name==='Sản phẩm' ? [['Mã sản phẩm','Tên sản phẩm','Danh mục','Giá bán','Trạng thái'],['SP001','Sản phẩm A','Thiết bị','1,200,000','Đang bán'],['SP002','Sản phẩm B','Phụ kiện','450,000','Đang bán']] :
+ name==='Kênh bán hàng' ? [['Kênh','Người phụ trách','Đơn hàng','Doanh thu'],['Website','Nguyễn An','580','210,000,000'],['Shopee','Trần Bình','356','110,000,000'],['Lazada','Lê Minh','412','130,000,000']] : initialRows;
+ renderGrid(rows);showToast('Đã chuyển sang sheet: '+name);
+}
+function saveDemo(){
+ if(!dirty){showToast('Không có thay đổi cần lưu.');return;}
+ dirty=false;document.getElementById('saveStatus').textContent='Đã lưu trong bản demo (chưa đồng bộ Google)';
+ showToast('Bản demo chưa ghi dữ liệu lên Google Sheets. Khi triển khai cần kết nối API.');
+}
+window.addEventListener('beforeunload',e=>{if(dirty){e.preventDefault();e.returnValue='';}});
+renderGrid();
+</script>
+</body>
+</html>

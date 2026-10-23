@@ -54,7 +54,7 @@ def extract_param_declarations(sql: str) -> Dict[str, Dict[str, Any]]:
             default_val = ""
 
         # Validate type
-        if p_type not in ("string", "number", "identifier", "date"):
+        if p_type not in ("string", "number", "identifier", "date", "boolean"):
             p_type = "string"
 
         declarations[name] = {
@@ -270,6 +270,14 @@ def format_safe_param_value(value: Any, p_type: str, dialect: str = "sqlserver")
         # Escaped string literal
         escaped = val_str.replace("'", "''")
         return f"'{escaped}'"
+
+    elif p_type == "boolean":
+        val_lower = val_str.lower()
+        is_true = val_lower in ("1", "true", "t", "yes", "y", "on")
+        if is_pg:
+            return "TRUE" if is_true else "FALSE"
+        else:
+            return "1" if is_true else "0"
 
     else:
         # Default: string

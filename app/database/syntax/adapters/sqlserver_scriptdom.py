@@ -214,9 +214,24 @@ class SqlServerScriptDomAdapter(BaseSyntaxAdapter):
 
     def _extract_token_from_message(self, message: str, line_text: str | None = None) -> str:
         """Extract faulty token from ScriptDOM error message or line text."""
+        # 1. 'near [the keyword] <TOKEN>'
         m = re.search(r"near\s+(?:the\s+keyword\s+)?['\"]?([^'\"\r\n]+)['\"]?", message, re.IGNORECASE)
         if m:
             token = m.group(1).rstrip(".'\"").strip("'\"").strip()
+            if token:
+                return token
+
+        # 2. 'encountered <TOKEN> instead' (common in ScriptDOM parser error messages)
+        m_enc = re.search(r"encountered\s+['\"]?([^'\"\s\r\n\.]+)['\"]?\s+instead", message, re.IGNORECASE)
+        if m_enc:
+            token = m_enc.group(1).rstrip(".'\"").strip("'\"").strip()
+            if token:
+                return token
+
+        # 3. Quoted element/token in message, e.g. 'The datatype 'TEXT' is not supported'
+        m_quote = re.search(r"['\"]([^'\"]+)['\"]", message)
+        if m_quote:
+            token = m_quote.group(1).strip()
             if token:
                 return token
 

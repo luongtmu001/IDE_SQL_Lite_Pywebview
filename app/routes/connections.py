@@ -165,3 +165,36 @@ def reconnect_connection(connection_id):
     except Exception as exc:
         return jsonify(success=False, error=str(exc)), 400
 
+
+@connections_bp.post("/tab-session")
+def get_or_create_tab_session():
+    data = request.get_json(silent=True) or {}
+    tab_id = data.get("tab_id")
+    source_conn_id = data.get("connection_id")
+    config = data.get("config")
+
+    if not tab_id:
+        return jsonify(success=False, error="tab_id is required"), 400
+
+    owner_id = get_owner_session_id()
+    cm = get_connection_manager()
+    try:
+        conn = cm.get_or_create_for_tab(owner_id, tab_id, source_conn_id=source_conn_id, config=config)
+        info = conn.public_info()
+        info["is_alive"] = conn.is_alive()
+        return jsonify(success=True, connection=info)
+    except Exception as exc:
+        return jsonify(success=False, error=str(exc)), 400
+
+
+@connections_bp.delete("/tab-session/<tab_id>")
+def close_tab_session(tab_id):
+    owner_id = get_owner_session_id()
+    cm = get_connection_manager()
+    try:
+        closed = cm.close_for_tab(owner_id, tab_id)
+        return jsonify(success=True, closed_count=closed)
+    except Exception as exc:
+        return jsonify(success=False, error=str(exc)), 400
+
+

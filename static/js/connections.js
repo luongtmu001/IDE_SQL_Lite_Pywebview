@@ -613,13 +613,6 @@ function initConnections() {
 
                 const dCount = (data.databases || []).length;
                 const sCount = (data.schemas || []).length;
-                if (trigger === 'schemas') {
-                    showToast(`✓ Đã tải ${sCount} schema từ server`, 'success');
-                } else if (trigger === 'dbs') {
-                    showToast(`✓ Đã tải ${dCount} database từ server`, 'success');
-                } else {
-                    showToast(`✓ Đã tải kết nối (${dCount} DBs, ${sCount} Schemas)`, 'success');
-                }
             } else {
                 alert("Không thể tải metadata từ server: " + (data.error || "Lỗi không xác định"));
             }

@@ -56,7 +56,9 @@ const SAMPLE_SCHEMA = {
                 { name: 'OrderID', type: 'int', nullable: false, isPrimary: true },
                 { name: 'CustomerID', type: 'int', nullable: false },
                 { name: 'OrderDate', type: 'datetime', nullable: true },
-                { name: 'Total', type: 'decimal', precision: 18, scale: 2, nullable: true }
+                { name: 'Total', type: 'decimal', precision: 18, scale: 2, nullable: true },
+                { name: 'IsActive', type: 'bit', nullable: false },
+                { name: 'Notes', type: 'nvarchar', maxLength: 500, nullable: true }
             ],
             'dbo.Customers': [
                 { name: 'CustomerID', type: 'int', nullable: false, isPrimary: true },
@@ -110,13 +112,52 @@ const SAMPLE_SCHEMA = {
         },
         foreignKeys: {
             'dbo.OrderItems': [
-                { constraint: 'FK_OrderItems_Orders', column: 'OrderID', foreignSchema: 'dbo', foreignTable: 'Orders', foreignColumn: 'OrderID' }
+                {
+                    constraint_name: 'FK_OrderItems_Orders',
+                    from_schema: 'dbo',
+                    from_table: 'OrderItems',
+                    from_columns: ['OrderID'],
+                    to_schema: 'dbo',
+                    to_table: 'Orders',
+                    to_columns: ['OrderID'],
+                    constraint: 'FK_OrderItems_Orders',
+                    column: 'OrderID',
+                    foreignSchema: 'dbo',
+                    foreignTable: 'Orders',
+                    foreignColumn: 'OrderID'
+                }
             ],
             'dbo.Orders': [
-                { constraint: 'FK_Orders_Customers', column: 'CustomerID', foreignSchema: 'dbo', foreignTable: 'Customers', foreignColumn: 'CustomerID' }
+                {
+                    constraint_name: 'FK_Orders_Customers',
+                    from_schema: 'dbo',
+                    from_table: 'Orders',
+                    from_columns: ['CustomerID'],
+                    to_schema: 'dbo',
+                    to_table: 'Customers',
+                    to_columns: ['CustomerID'],
+                    constraint: 'FK_Orders_Customers',
+                    column: 'CustomerID',
+                    foreignSchema: 'dbo',
+                    foreignTable: 'Customers',
+                    foreignColumn: 'CustomerID'
+                }
             ],
             'dbo.Order Details': [
-                { constraint: 'FK_OrderDetails_Orders', column: 'OrderID', foreignSchema: 'dbo', foreignTable: 'Orders', foreignColumn: 'OrderID' }
+                {
+                    constraint_name: 'FK_OrderDetails_Orders',
+                    from_schema: 'dbo',
+                    from_table: 'Order Details',
+                    from_columns: ['OrderID'],
+                    to_schema: 'dbo',
+                    to_table: 'Orders',
+                    to_columns: ['OrderID'],
+                    constraint: 'FK_OrderDetails_Orders',
+                    column: 'OrderID',
+                    foreignSchema: 'dbo',
+                    foreignTable: 'Orders',
+                    foreignColumn: 'OrderID'
+                }
             ]
         },
         dataTypes: [
@@ -133,6 +174,8 @@ const SAMPLE_SCHEMA = {
             { name: 'Customers', schema: 'public', type: 'table' },
             { name: 'order_items', schema: 'public', type: 'table' },
             { name: 'v_orders', schema: 'public', type: 'view' },
+            { name: 'usp_add_customer', schema: 'public', type: 'procedure' },
+            { name: 'fn_calc_discount', schema: 'public', type: 'function' },
             { name: 'region', schema: 'sales', type: 'table' }
         ],
         columns: {
@@ -140,7 +183,8 @@ const SAMPLE_SCHEMA = {
                 { name: 'id', type: 'integer', nullable: false, isPrimary: true },
                 { name: 'customer_id', type: 'integer', nullable: false },
                 { name: 'order_date', type: 'timestamp', nullable: true },
-                { name: 'total', type: 'numeric', precision: 18, scale: 2, nullable: true }
+                { name: 'total', type: 'numeric', precision: 18, scale: 2, nullable: true },
+                { name: 'is_deleted', type: 'boolean', nullable: false }
             ],
             'public.Customers': [
                 { name: 'id', type: 'integer', nullable: false, isPrimary: true },
@@ -165,13 +209,48 @@ const SAMPLE_SCHEMA = {
                 { name: 'description', type: 'text', nullable: true }
             ]
         },
-        parameters: {},
+        parameters: {
+            'public.usp_add_customer': [
+                { name: 'p_name', type: 'text', direction: 'IN' },
+                { name: 'p_email', type: 'text', direction: 'IN' }
+            ],
+            'public.fn_calc_discount': [
+                { name: 'p_total', type: 'numeric', direction: 'IN' },
+                { name: 'p_rate', type: 'numeric', direction: 'IN' }
+            ]
+        },
         foreignKeys: {
             'public.order_items': [
-                { constraint: 'fk_order_items_orders', column: 'order_id', foreignSchema: 'public', foreignTable: 'orders', foreignColumn: 'id' }
+                {
+                    constraint_name: 'fk_order_items_orders',
+                    from_schema: 'public',
+                    from_table: 'order_items',
+                    from_columns: ['order_id'],
+                    to_schema: 'public',
+                    to_table: 'orders',
+                    to_columns: ['id'],
+                    constraint: 'fk_order_items_orders',
+                    column: 'order_id',
+                    foreignSchema: 'public',
+                    foreignTable: 'orders',
+                    foreignColumn: 'id'
+                }
             ],
             'public.orders': [
-                { constraint: 'fk_orders_customers', column: 'customer_id', foreignSchema: 'public', foreignTable: 'Customers', foreignColumn: 'id' }
+                {
+                    constraint_name: 'fk_orders_customers',
+                    from_schema: 'public',
+                    from_table: 'orders',
+                    from_columns: ['customer_id'],
+                    to_schema: 'public',
+                    to_table: 'Customers',
+                    to_columns: ['id'],
+                    constraint: 'fk_orders_customers',
+                    column: 'customer_id',
+                    foreignSchema: 'public',
+                    foreignTable: 'Customers',
+                    foreignColumn: 'id'
+                }
             ]
         },
         dataTypes: [
@@ -223,7 +302,12 @@ class MockMetadataProvider {
         const { key } = this._resolveSchemaTable(schema, table);
         for (const [k, cols] of Object.entries(this.schemaData.columns)) {
             if (k.toLowerCase() === key.toLowerCase()) {
-                return cols.slice();
+                return cols.map(c => ({
+                    ...c,
+                    is_pk: Boolean(c.is_pk || c.isPrimary),
+                    data_type: c.data_type || c.type,
+                    is_nullable: c.is_nullable !== undefined ? c.is_nullable : c.nullable
+                }));
             }
         }
         return [];
@@ -248,13 +332,28 @@ class MockMetadataProvider {
     }
 
     async getForeignKeys(connId, database, schema, table) {
-        const { key } = this._resolveSchemaTable(schema, table);
-        for (const [k, fks] of Object.entries(this.schemaData.foreignKeys)) {
-            if (k.toLowerCase() === key.toLowerCase()) {
-                return fks.slice();
+        if (!table) return [];
+        const defaultSchema = this.dbType === 'postgresql' ? 'public' : 'dbo';
+        const s = (schema || defaultSchema).toLowerCase();
+        const t = (table || '').toLowerCase();
+        const results = [];
+        const seen = new Set();
+        for (const fks of Object.values(this.schemaData.foreignKeys)) {
+            for (const fk of fks) {
+                const fromSch = (fk.from_schema || defaultSchema).toLowerCase();
+                const fromTbl = (fk.from_table || '').toLowerCase();
+                const toSch = (fk.to_schema || defaultSchema).toLowerCase();
+                const toTbl = (fk.to_table || '').toLowerCase();
+                if ((fromSch === s && fromTbl === t) || (toSch === s && toTbl === t) || fromTbl === t || toTbl === t) {
+                    const id = fk.constraint_name || fk.constraint || `${fromTbl}-${toTbl}`;
+                    if (!seen.has(id)) {
+                        seen.add(id);
+                        results.push(fk);
+                    }
+                }
             }
         }
-        return [];
+        return results;
     }
 
     async fetchForeignKeys(connId, database, schema, table) {
@@ -359,6 +458,7 @@ function createIdeContext(options = {}) {
         sandbox,
         mockProvider,
         defaultTabCtx,
+        signatureResolver: engine.signatureResolver,
 
         /**
          * Helper: Analyze SQL with cursor marked by ‸ or explicit offset

@@ -79,6 +79,51 @@ VALID_PLPGSQL_ROUTINES = [
     END;
     $$ LANGUAGE plpgsql;
     """, "CASE statement with END CASE"),
+
+    # 6. OPEN cursor FOR query
+    ("""
+    CREATE OR REPLACE FUNCTION test_open_cursor()
+    RETURNS VOID AS $$
+    DECLARE
+        cur refcursor;
+    BEGIN
+        OPEN cur FOR SELECT * FROM users WHERE active = true;
+        CLOSE cur;
+    END;
+    $$ LANGUAGE plpgsql;
+    """, "OPEN cursor FOR query"),
+
+    # 7. OPEN cursor SCROLL / NO SCROLL FOR EXECUTE query
+    ("""
+    CREATE OR REPLACE FUNCTION test_open_cursor_scroll()
+    RETURNS VOID AS $$
+    DECLARE
+        cur1 refcursor;
+        cur2 refcursor;
+    BEGIN
+        OPEN cur1 SCROLL FOR SELECT id, name FROM accounts;
+        OPEN cur2 NO SCROLL FOR EXECUTE 'SELECT id, name FROM accounts WHERE active = true';
+        CLOSE cur1;
+        CLOSE cur2;
+    END;
+    $$ LANGUAGE plpgsql;
+    """, "OPEN cursor SCROLL / NO SCROLL FOR EXECUTE"),
+
+    # 8. Bound CURSOR FOR in DECLARE block
+    ("""
+    CREATE OR REPLACE FUNCTION test_cursor_declaration()
+    RETURNS VOID AS $$
+    DECLARE
+        c_users CURSOR FOR SELECT * FROM users;
+        c_by_id CURSOR (p_id INT) FOR SELECT * FROM users WHERE id = p_id;
+    BEGIN
+        OPEN c_users;
+        OPEN c_by_id(42);
+        CLOSE c_users;
+        CLOSE c_by_id;
+    END;
+    $$ LANGUAGE plpgsql;
+    """, "CURSOR FOR in DECLARE block"),
 ]
 
 INVALID_PLPGSQL_ROUTINES = [

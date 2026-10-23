@@ -82,13 +82,13 @@
     <link rel="stylesheet" href="../static/css/table-designer.css?v=1.0.5">
     <link rel="stylesheet" href="../static/css/table-data-editor.css?v=1.0.5">
     <!-- CodeMirror (for Table Designer SQL preview, live diff, and triggers) -->
-    <link rel="stylesheet" href="../static/vendor/codemirror/codemirror.min.css">
-    <link rel="stylesheet" href="../static/vendor/codemirror/darcula.min.css">
+    <link rel="stylesheet" href="../static/vendor/codemirror/codemirror.min.css?v=1.0.5">
+    <link rel="stylesheet" href="../static/vendor/codemirror/darcula.min.css?v=1.0.5">
     <!-- Monaco Editor CSS -->
-    <link rel="stylesheet" href="../static/vendor/monaco/vs/editor/editor.main.css">
+    <link rel="stylesheet" href="../static/vendor/monaco/vs/editor/editor.main.css?v=1.0.5">
     <!-- AG Grid Community CSS -->
-    <link rel="stylesheet" href="../static/vendor/ag-grid/ag-grid.css">
-    <link rel="stylesheet" href="../static/vendor/ag-grid/ag-theme-quartz.css">
+    <link rel="stylesheet" href="../static/vendor/ag-grid/ag-grid.css?v=1.0.5">
+    <link rel="stylesheet" href="../static/vendor/ag-grid/ag-theme-quartz.css?v=1.0.5">
     <link rel="stylesheet" href="../static/css/bravo.css?v=1.0.5">
     <link rel="stylesheet" href="../static/css/sql-protection.css?v=1.0.5">
     <link rel="stylesheet" href="../static/css/file-history-sidebar.css?v=1.0.5">
@@ -101,6 +101,8 @@
     <link rel="stylesheet" href="../static/css/activity-monitor.css?v=1.0.5">
     <link rel="stylesheet" href="../static/css/schema-compare.css?v=1.0.5">
     <link rel="stylesheet" href="../static/css/google-sheets/google-sheets.css?v=1.0.5">
+    <link rel="stylesheet" href="../static/css/user-permissions.css?v=1.0.5">
+    <link rel="stylesheet" href="../static/css/syntax-catalog.css?v=1.0.5">
 </head>
 
 <body class="overflow-hidden vh-100 d-flex flex-column m-0 p-0" style="background-color: var(--ide-bg-main, #1C1D23);">
@@ -116,7 +118,8 @@
             <ul class="navbar-nav align-items-center">
                 <li class="nav-item dropdown">
                     <a class="nav-link px-2 py-1 dropdown-toggle" href="#" id="menu-file" role="button"
-                        data-bs-toggle="dropdown" aria-expanded="false">File <i class="fa-solid fa-chevron-down ide-menu-arrow ms-1"></i></a>
+                        data-bs-toggle="dropdown" aria-expanded="false">File <i
+                            class="fa-solid fa-chevron-down ide-menu-arrow ms-1"></i></a>
                     <ul class="dropdown-menu shadow" aria-labelledby="menu-file"
                         style="min-width: 220px; font-size: 13px;">
                         <li>
@@ -158,7 +161,8 @@
                 </li>
                 <li class="nav-item dropdown">
                     <a class="nav-link px-2 py-1 dropdown-toggle" href="#" id="menu-edit" role="button"
-                        data-bs-toggle="dropdown" aria-expanded="false">Edit <i class="fa-solid fa-chevron-down ide-menu-arrow ms-1"></i></a>
+                        data-bs-toggle="dropdown" aria-expanded="false">Edit <i
+                            class="fa-solid fa-chevron-down ide-menu-arrow ms-1"></i></a>
                     <ul class="dropdown-menu shadow" aria-labelledby="menu-edit"
                         style="min-width: 220px; font-size: 13px;">
                         <li>
@@ -195,7 +199,8 @@
                         <li>
                             <a class="dropdown-item d-flex align-items-center justify-content-between" href="#"
                                 id="ide-menu-refresh-objects-intellisense">
-                                <span><i class="fa-solid fa-arrows-rotate me-2 text-primary"></i>Refresh Objects &amp; IntelliSense</span>
+                                <span><i class="fa-solid fa-arrows-rotate me-2 text-primary"></i>Refresh Objects &amp;
+                                    IntelliSense</span>
                                 <kbd class="text-muted"
                                     style="font-size: 10px; background: transparent; border: 1px solid var(--ide-border, #444);">Ctrl+Shift+R</kbd>
                             </a>
@@ -204,7 +209,8 @@
                 </li>
                 <li class="nav-item dropdown">
                     <a class="nav-link px-2 py-1 dropdown-toggle" href="#" id="menu-format" role="button"
-                        data-bs-toggle="dropdown" aria-expanded="false">Format <i class="fa-solid fa-chevron-down ide-menu-arrow ms-1"></i></a>
+                        data-bs-toggle="dropdown" aria-expanded="false">Format <i
+                            class="fa-solid fa-chevron-down ide-menu-arrow ms-1"></i></a>
                     <ul class="dropdown-menu shadow" aria-labelledby="menu-format"
                         style="min-width: 220px; font-size: 13px;">
                         <li>
@@ -231,7 +237,8 @@
                 </li>
                 <li class="nav-item dropdown">
                     <a class="nav-link px-2 py-1 dropdown-toggle" href="#" id="menu-view" role="button"
-                        data-bs-toggle="dropdown" aria-expanded="false">View <i class="fa-solid fa-chevron-down ide-menu-arrow ms-1"></i></a>
+                        data-bs-toggle="dropdown" aria-expanded="false">View <i
+                            class="fa-solid fa-chevron-down ide-menu-arrow ms-1"></i></a>
                     <ul class="dropdown-menu shadow" aria-labelledby="menu-view"
                         style="min-width: 220px; font-size: 13px;">
                         <li>
@@ -287,7 +294,8 @@
                         <li>
                             <a class="dropdown-item d-flex align-items-center justify-content-between" href="#"
                                 id="ide-menu-google-sheets">
-                                <span><i class="fa-solid fa-table-cells me-2 text-success"></i>Google Sheets Manager...</span>
+                                <span><i class="fa-solid fa-table-cells me-2 text-success"></i>Google Sheets
+                                    Manager...</span>
                                 <kbd class="text-muted"
                                     style="font-size: 10px; background: transparent; border: 1px solid var(--ide-border, #444);">Ctrl+Alt+G</kbd>
                             </a>
@@ -395,7 +403,7 @@
             </div>
 
             <!-- Object Explorer Quick Search / Filter Bar -->
-            <div class="ide-sidebar-search px-2 py-1" id="ide-sidebar-search-container">
+            <div class="ide-sidebar-search px-2" id="ide-sidebar-search-container">
                 <div class="ide-search-box position-relative d-flex align-items-center">
                     <i class="fa-solid fa-magnifying-glass ide-search-icon"></i>
                     <input type="text" class="form-control form-control-sm ide-search-input"
@@ -432,7 +440,7 @@
 
 
         <!-- Editor + Results column -->
-        <div class="d-flex flex-column flex-grow-1 overflow-hidden">
+        <div class="d-flex flex-column flex-grow-1 overflow-hidden ide-editor-column">
 
             <!-- Editor pane -->
             <div id="ide-editor-pane" class="d-flex flex-column overflow-hidden">
@@ -611,6 +619,10 @@
                             title="Compare / Diff Files...">
                             <i class="fa-solid fa-code-compare me-1 text-warning"></i>Compare
                         </button>
+                        <button id="ide-btn-syntax-reference" class="ide-action-btn ide-action-collapsible"
+                            title="Tra cứu cú pháp PostgreSQL & SQL Server (Syntax Reference)">
+                            <i class="fa-solid fa-circle-question me-1 text-info"></i>Reference
+                        </button>
                         <button id="ide-btn-history" class="ide-action-btn ide-action-collapsible"
                             title="Query History (Ctrl+Alt+H)">
                             <i class="fa-solid fa-clock-rotate-left me-1 text-warning"></i>History
@@ -651,6 +663,8 @@
                                     <hr class="dropdown-divider my-1">
                                 </li>
                                 <li><a class="dropdown-item d-flex align-items-center gap-2" href="#"
+                                        id="ide-overflow-btn-syntax-reference"><i class="fa-solid fa-circle-question text-info"></i> Syntax Reference</a></li>
+                                <li><a class="dropdown-item d-flex align-items-center gap-2" href="#"
                                         id="ide-overflow-btn-history"><i
                                             class="fa-solid fa-clock-rotate-left text-warning"></i> Query History <span
                                             class="ms-auto text-muted small">Ctrl+Alt+H</span></a></li>
@@ -679,14 +693,20 @@
                 </div>
                 <!-- Editor Tabs -->
                 <div class="ide-tabs-container d-flex align-items-end px-1 position-relative">
+                    <!-- Syntax Reference Button pinned at beginning of tab strip -->
+                    <div id="ide-tab-reference-btn-wrap" class="ide-tab-ref-wrap">
+                        <button id="ide-btn-tab-syntax-reference" class="ide-tab-ref-btn" type="button" title="Tra cứu cú pháp (Syntax Reference - PostgreSQL &amp; SQL Server)">
+                            <i class="fa-solid fa-circle-question"></i>
+                        </button>
+                    </div>
                     <ul id="ide-tabs-bar" class="nav nav-tabs border-0 m-0 p-0 flex-nowrap" style="overflow: hidden;">
                         <!-- Tabs will be injected here by tabs.js -->
+                        <li id="ide-new-tab-li" class="list-unstyled d-flex align-items-center ms-1 mb-0 flex-shrink-0">
+                            <button id="ide-new-tab-btn" class="ide-toolbar-btn" title="New Query Tab (Ctrl+T, Ctrl+N)">
+                                <i class="fa-solid fa-plus"></i>
+                            </button>
+                        </li>
                     </ul>
-                    <li id="ide-new-tab-li" class="list-unstyled d-flex align-items-center ms-1 mb-0 flex-shrink-0">
-                        <button id="ide-new-tab-btn" class="ide-toolbar-btn" title="New Query Tab (Ctrl+T, Ctrl+N)">
-                            <i class="fa-solid fa-plus"></i>
-                        </button>
-                    </li>
                     <div id="ide-tab-overflow-wrap" class="ms-auto d-flex align-items-center mb-0 flex-shrink-0">
                         <button id="ide-tabs-overflow-btn" class="ide-toolbar-btn" title="More Tabs (...)">
                             <i class="fa-solid fa-ellipsis"></i>
@@ -1021,72 +1041,82 @@
                     <!-- Built and managed dynamically by schema-compare.js -->
                 </div>
 
+                <!-- Database Users & Role Permissions Area -->
+                <div id="user-permissions-container"
+                    class="d-none d-flex flex-grow-1 flex-column overflow-hidden position-relative">
+                    <!-- Built and managed dynamically by user-permissions.js -->
+                </div>
+
+                <!-- Editor Status Bar (SSMS style - zoom, issues, ln/col, crlf, utf-8) -->
+                <div id="ide-editor-status-bar"
+                    class="ide-editor-status-bar d-flex align-items-center justify-content-between px-2 user-select-none">
+                    <div class="d-flex align-items-center gap-2">
+                        <!-- Zoom Combo Box -->
+                        <div class="ide-editor-zoom-wrap dropdown position-relative">
+                            <div class="ide-editor-zoom-box">
+                                <input type="text" id="ide-sb-zoom-input" class="ide-sb-zoom-input" value="100 %"
+                                    title="Zoom % (Nhập số hoặc chọn mốc)" aria-label="Editor Zoom">
+                                <button type="button" class="ide-sb-zoom-btn dropdown-toggle dropdown-toggle-split"
+                                    data-bs-toggle="dropdown" aria-expanded="false" title="Chọn mức Zoom">
+                                    <span class="visually-hidden">Toggle Zoom</span>
+                                </button>
+                                <ul class="dropdown-menu dropdown-menu-start ide-sb-zoom-menu shadow">
+                                    <li><button class="dropdown-item" type="button" data-zoom="400">400 %</button></li>
+                                    <li><button class="dropdown-item" type="button" data-zoom="300">300 %</button></li>
+                                    <li><button class="dropdown-item" type="button" data-zoom="200">200 %</button></li>
+                                    <li><button class="dropdown-item" type="button" data-zoom="150">150 %</button></li>
+                                    <li><button class="dropdown-item" type="button" data-zoom="125">125 %</button></li>
+                                    <li><button class="dropdown-item" type="button" data-zoom="100">100 %</button></li>
+                                    <li><button class="dropdown-item" type="button" data-zoom="75">75 %</button></li>
+                                    <li><button class="dropdown-item" type="button" data-zoom="50">50 %</button></li>
+                                    <li><button class="dropdown-item" type="button" data-zoom="20">20 %</button></li>
+                                </ul>
+                            </div>
+                        </div>
+
+                        <!-- Editor Issues / Errors -->
+                        <div id="ide-sb-issues" class="ide-sb-issues" title="No syntax issues found">
+                            <i class="fa-solid fa-circle-check text-success"></i>
+                            <span id="ide-sb-issues-text">No issues found</span>
+                        </div>
+
+                        <!-- Environment & Safety Badges (Mục 5.1) -->
+                        <div class="d-flex align-items-center gap-1 ms-2" id="ide-safety-badges-wrap">
+                            <span id="ide-status-env"
+                                class="badge bg-secondary-subtle text-secondary border border-secondary px-2 py-1 d-none"
+                                style="font-size: 10px; font-weight: 700; letter-spacing: 0.5px;">DEV</span>
+                            <span id="ide-status-readonly"
+                                class="badge bg-warning-subtle text-warning border border-warning px-2 py-1 d-none"
+                                style="font-size: 10px; font-weight: 600;"><i class="fa-solid fa-lock me-1"></i>READ
+                                ONLY</span>
+                            <span id="ide-status-tx"
+                                class="badge bg-info-subtle text-info border border-info px-2 py-1 d-none"
+                                style="font-size: 10px; font-weight: 600;"><i class="fa-solid fa-rotate me-1 fa-spin"></i>TX
+                                OPEN</span>
+                            <span id="ide-status-spid"
+                                class="badge bg-secondary-subtle text-secondary border border-secondary px-2 py-1 d-none"
+                                style="font-size: 10px; font-weight: 600;"
+                                title="Phiên kết nối của Tab (SPID / PID)"><i class="fa-solid fa-terminal me-1"></i><span id="ide-status-spid-text">SPID: --</span></span>
+                        </div>
+                    </div>
+
+                    <!-- Right Side: Ln/Col, Tab/Space, CRLF, UTF-8 -->
+                    <div class="d-flex align-items-center">
+                        <span id="ide-sb-cursor" class="ide-sb-item" title="Line, Column (Selection)">Ln: 1, Ch: 1</span>
+                        <span class="ide-sb-sep">|</span>
+                        <span id="ide-sb-indent" class="ide-sb-item clickable" title="Click to toggle Spaces/Tabs">SPACES:
+                            4</span>
+                        <span class="ide-sb-sep">|</span>
+                        <span id="ide-sb-eol" class="ide-sb-item clickable" title="Click to toggle CRLF/LF">CRLF</span>
+                        <span class="ide-sb-sep">|</span>
+                        <span id="ide-sb-encoding" class="ide-sb-item" title="File Encoding">UTF-8</span>
+                    </div>
+                </div>
+
             </div>
 
             <!-- Horizontal drag resizer (editor ↕ results) -->
             <div class="ide-resizer-horizontal"></div>
-
-            <!-- Editor Status Bar (SSMS style - zoom, issues, ln/col, crlf, utf-8) -->
-            <div id="ide-editor-status-bar"
-                class="ide-editor-status-bar d-flex align-items-center justify-content-between px-2 user-select-none">
-                <div class="d-flex align-items-center gap-2">
-                    <!-- Zoom Combo Box -->
-                    <div class="ide-editor-zoom-wrap dropdown position-relative">
-                        <div class="ide-editor-zoom-box">
-                            <input type="text" id="ide-sb-zoom-input" class="ide-sb-zoom-input" value="100 %"
-                                title="Zoom % (Nhập số hoặc chọn mốc)" aria-label="Editor Zoom">
-                            <button type="button" class="ide-sb-zoom-btn dropdown-toggle dropdown-toggle-split"
-                                data-bs-toggle="dropdown" aria-expanded="false" title="Chọn mức Zoom">
-                                <span class="visually-hidden">Toggle Zoom</span>
-                            </button>
-                            <ul class="dropdown-menu dropdown-menu-start ide-sb-zoom-menu shadow">
-                                <li><button class="dropdown-item" type="button" data-zoom="400">400 %</button></li>
-                                <li><button class="dropdown-item" type="button" data-zoom="300">300 %</button></li>
-                                <li><button class="dropdown-item" type="button" data-zoom="200">200 %</button></li>
-                                <li><button class="dropdown-item" type="button" data-zoom="150">150 %</button></li>
-                                <li><button class="dropdown-item" type="button" data-zoom="125">125 %</button></li>
-                                <li><button class="dropdown-item" type="button" data-zoom="100">100 %</button></li>
-                                <li><button class="dropdown-item" type="button" data-zoom="75">75 %</button></li>
-                                <li><button class="dropdown-item" type="button" data-zoom="50">50 %</button></li>
-                                <li><button class="dropdown-item" type="button" data-zoom="20">20 %</button></li>
-                            </ul>
-                        </div>
-                    </div>
-
-                    <!-- Editor Issues / Errors -->
-                    <div id="ide-sb-issues" class="ide-sb-issues" title="No syntax issues found">
-                        <i class="fa-solid fa-circle-check text-success"></i>
-                        <span id="ide-sb-issues-text">No issues found</span>
-                    </div>
-
-                    <!-- Environment & Safety Badges (Mục 5.1) -->
-                    <div class="d-flex align-items-center gap-1 ms-2" id="ide-safety-badges-wrap">
-                        <span id="ide-status-env"
-                            class="badge bg-secondary-subtle text-secondary border border-secondary px-2 py-1 d-none"
-                            style="font-size: 10px; font-weight: 700; letter-spacing: 0.5px;">DEV</span>
-                        <span id="ide-status-readonly"
-                            class="badge bg-warning-subtle text-warning border border-warning px-2 py-1 d-none"
-                            style="font-size: 10px; font-weight: 600;"><i class="fa-solid fa-lock me-1"></i>READ
-                            ONLY</span>
-                        <span id="ide-status-tx"
-                            class="badge bg-info-subtle text-info border border-info px-2 py-1 d-none"
-                            style="font-size: 10px; font-weight: 600;"><i class="fa-solid fa-rotate me-1 fa-spin"></i>TX
-                            OPEN</span>
-                    </div>
-                </div>
-
-                <!-- Right Side: Ln/Col, Tab/Space, CRLF, UTF-8 -->
-                <div class="d-flex align-items-center">
-                    <span id="ide-sb-cursor" class="ide-sb-item" title="Line, Column (Selection)">Ln: 1, Ch: 1</span>
-                    <span class="ide-sb-sep">|</span>
-                    <span id="ide-sb-indent" class="ide-sb-item clickable" title="Click to toggle Spaces/Tabs">SPACES:
-                        4</span>
-                    <span class="ide-sb-sep">|</span>
-                    <span id="ide-sb-eol" class="ide-sb-item clickable" title="Click to toggle CRLF/LF">CRLF</span>
-                    <span class="ide-sb-sep">|</span>
-                    <span id="ide-sb-encoding" class="ide-sb-item" title="File Encoding">UTF-8</span>
-                </div>
-            </div>
 
             <!-- Results pane -->
             <div id="ide-result-panel" class="d-flex flex-column ide-result-panel">
@@ -1191,11 +1221,32 @@
 
                 </div>
 
-                <!-- Footer bar: row count + timing -->
-                <div id="ide-result-footer" class="d-none align-items-center px-3 gap-3 ide-result-footer">
-                    <span id="ide-footer-rows"></span>
-                    <span class="ide-vdivider" style="height: 12px;"></span>
-                    <span id="ide-footer-time"></span>
+                <!-- Footer bar: execution statistics bar (Sprint 1 - F3) -->
+                <div id="ide-result-footer" class="d-none align-items-center px-3 ide-result-footer grid-execution-stats-bar" title="Thống kê thực thi truy vấn (Click để sao chép JSON metrics)">
+                    <div class="d-flex align-items-center gap-2 flex-grow-1 overflow-hidden" id="ide-footer-stats-left">
+                        <span id="ide-footer-rows" class="ide-stat-item ide-stat-rows"></span>
+                        <span class="ide-vdivider" style="height: 12px;"></span>
+                        <span id="ide-footer-time-badge" class="ide-stat-badge speed-fast" title="Thời gian thực thi">
+                            <i class="fa-regular fa-clock me-1"></i><span id="ide-footer-time">0 ms</span>
+                        </span>
+                        <span class="ide-vdivider" style="height: 12px;"></span>
+                        <span id="ide-footer-size" class="ide-stat-item ide-stat-size" title="Dung lượng dữ liệu kết quả">
+                            <i class="fa-solid fa-database me-1 text-muted"></i><span id="ide-footer-size-val">0 B</span>
+                        </span>
+                        <span class="ide-vdivider" style="height: 12px;"></span>
+                        <span id="ide-footer-conn" class="ide-stat-item ide-stat-conn text-truncate" title="Kết nối & Cơ sở dữ liệu">
+                            <i class="fa-solid fa-link me-1 text-muted"></i><span id="ide-footer-conn-val"></span>
+                        </span>
+                    </div>
+                    <div class="d-flex align-items-center gap-2 ms-auto flex-shrink-0" id="ide-footer-stats-right">
+                        <div id="ide-footer-sparkline-wrap" class="ide-stat-sparkline-wrap d-flex align-items-center" title="Xu hướng thời gian 5 lần chạy gần nhất">
+                            <span class="text-muted me-1" style="font-size: 10px;">Trend:</span>
+                            <svg id="ide-footer-sparkline" class="ide-stat-sparkline" width="60" height="15" viewBox="0 0 60 15"></svg>
+                        </div>
+                        <button type="button" class="btn btn-xs btn-link text-decoration-none ide-btn-copy-stats p-0 ms-1 text-muted" id="ide-btn-copy-stats" title="Sao chép JSON metrics (Copy Execution Stats)">
+                            <i class="fa-solid fa-copy"></i>
+                        </button>
+                    </div>
                 </div>
 
             </div>
@@ -1267,7 +1318,8 @@
                             <div class="custom-combobox position-relative" id="connGroupCombobox">
                                 <input type="text" class="form-control form-control-sm" id="connGroup"
                                     placeholder="e.g. Production (optional)" autocomplete="off">
-                                <button type="button" class="custom-combobox-toggle" id="btnToggleConnGroup" tabindex="-1" title="Chọn nhóm kết nối">
+                                <button type="button" class="custom-combobox-toggle" id="btnToggleConnGroup"
+                                    tabindex="-1" title="Chọn nhóm kết nối">
                                     <i class="fa-solid fa-chevron-down"></i>
                                 </button>
                                 <ul class="custom-combobox-menu d-none" id="connGroupMenu"></ul>
@@ -1354,7 +1406,8 @@
                                     <div class="custom-combobox position-relative" id="connDbCombobox">
                                         <input type="text" class="form-control form-control-sm" id="connDb"
                                             placeholder="(optional)" autocomplete="off">
-                                        <button type="button" class="custom-combobox-toggle" id="btnToggleConnDb" tabindex="-1" title="Chọn database">
+                                        <button type="button" class="custom-combobox-toggle" id="btnToggleConnDb"
+                                            tabindex="-1" title="Chọn database">
                                             <i class="fa-solid fa-chevron-down"></i>
                                         </button>
                                         <ul class="custom-combobox-menu d-none" id="connDbMenu"></ul>
@@ -1761,13 +1814,23 @@
                         <textarea id="td-modal-diff-sql" class="d-none"></textarea>
                     </div>
                 </div>
-                <div class="modal-footer py-2 px-3 d-flex justify-content-between">
-                    <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">
-                        <i class="fa-solid fa-xmark me-1"></i>Cancel
-                    </button>
-                    <button type="button" class="btn btn-sm btn-success px-3" id="td-modal-btn-apply">
-                        <i class="fa-solid fa-check me-1"></i>Apply Changes
-                    </button>
+                <div class="modal-footer py-2 px-3 d-flex justify-content-between align-items-center">
+                    <div class="d-flex align-items-center gap-2">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" id="td-modal-btn-copy-script" title="Sao chép toàn bộ script vào bộ nhớ tạm">
+                            <i class="fa-solid fa-copy me-1"></i>Copy Script
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-info" id="td-modal-btn-script-to-query" title="Mở script này trong tab truy vấn mới để kiểm tra hoặc chạy tay">
+                            <i class="fa-solid fa-arrow-up-right-from-square me-1"></i>Script to Query Window
+                        </button>
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">
+                            <i class="fa-solid fa-xmark me-1"></i>Cancel
+                        </button>
+                        <button type="button" class="btn btn-sm btn-success px-3" id="td-modal-btn-apply">
+                            <i class="fa-solid fa-check me-1"></i>Apply Changes
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1827,6 +1890,7 @@
     <script src="../static/js/syntax-check/position-mapper.js"></script>
     <script src="../static/js/syntax-check/structured-syntax-checker.js"></script>
     <script src="../static/js/syntax-check/syntax-check-service.js"></script>
+    <script src="../static/js/syntax-check/quick-fix-provider.js"></script>
     <script src="../static/js/sql-block-analyzer.js"></script>
     <script src="../static/js/sql-style-metadata.js"></script>
     <script src="../static/js/sql-formatter.js"></script>
@@ -1859,10 +1923,13 @@
     <script src="../static/js/app.js"></script>
     <script src="../static/js/activity-monitor.js"></script>
     <script src="../static/js/schema-compare.js"></script>
+    <script src="../static/js/user-permissions.js"></script>
+    <script src="../static/js/syntax-catalog.js"></script>
 
     <!-- SQL Formatter & Style Management Modules -->
     <script src="../static/js/sql-tokenizer.js"></script>
     <script src="../static/js/sql-formatter.js"></script>
+    <script src="../static/js/sql-refactor.js"></script>
     <script src="../static/js/sql-style-metadata.js"></script>
     <script src="../static/js/sql-style-editor.js"></script>
 
@@ -2447,8 +2514,8 @@
                 }
 
                 var btnSheets = document.getElementById('ide-google-sheets-btn');
-                if (btnSheets && !btnSheets._scBound) {
-                    btnSheets._scBound = true;
+                if (btnSheets && !btnSheets._gsBound) {
+                    btnSheets._gsBound = true;
                     btnSheets.addEventListener('click', function (e) {
                         e.preventDefault();
                         e.stopPropagation();
@@ -2457,8 +2524,8 @@
                 }
 
                 var menuSheets = document.getElementById('ide-menu-google-sheets');
-                if (menuSheets && !menuSheets._scBound) {
-                    menuSheets._scBound = true;
+                if (menuSheets && !menuSheets._gsBound) {
+                    menuSheets._gsBound = true;
                     menuSheets.addEventListener('click', function (e) {
                         e.preventDefault();
                         e.stopPropagation();
@@ -2467,15 +2534,17 @@
                 }
 
                 window.triggerGoogleSheets = async function () {
+                    if (window._isOpeningSheets) return;
+                    if (window.GoogleSheetsManager && typeof window.GoogleSheetsManager.openManager === 'function') {
+                        return window.GoogleSheetsManager.openManager();
+                    }
+                    window._isOpeningSheets = true;
+                    setTimeout(function () { window._isOpeningSheets = false; }, 1500);
                     if (window.AppLoader) window.AppLoader.show('Đang mở Google Sheets Manager...');
                     try {
                         if (window.pywebview && window.pywebview.api && typeof window.pywebview.api.gs_open_manager_window === 'function') {
                             const res = await window.pywebview.api.gs_open_manager_window();
                             if (res && res.success) return;
-                        }
-                        if (window.GoogleSheetsManager && typeof window.GoogleSheetsManager.openManager === 'function') {
-                            await window.GoogleSheetsManager.openManager();
-                            return;
                         }
                     } catch (e) {
                         console.warn('[GoogleSheets] Bridge open failed:', e);
@@ -2525,7 +2594,7 @@
                     return;
                 }
                 var gsBtn = e.target.closest('#ide-menu-google-sheets, #ide-google-sheets-btn');
-                if (gsBtn && !gsBtn._scBound) {
+                if (gsBtn && !gsBtn._gsBound) {
                     e.preventDefault();
                     triggerGoogleSheets();
                     return;
@@ -2542,9 +2611,6 @@
                 } else if ((e.ctrlKey || e.metaKey) && e.altKey && (e.key === 'c' || e.key === 'C')) {
                     e.preventDefault();
                     triggerSchemaCompare();
-                } else if ((e.ctrlKey || e.metaKey) && e.altKey && (e.key === 'g' || e.key === 'G')) {
-                    e.preventDefault();
-                    triggerGoogleSheets();
                 }
             });
         })();

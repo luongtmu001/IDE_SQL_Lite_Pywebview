@@ -63,6 +63,8 @@ from app.api.session_api import SessionApiMixin as _SessionApiMixin
 from app.api.activity_api import ActivityApiMixin as _ActivityApiMixin
 from app.api.schema_compare_api import SchemaCompareApiMixin as _SchemaCompareApiMixin
 from app.api.google_sheets_api import GoogleSheetsApiMixin as _GoogleSheetsApiMixin
+from app.api.database_users_api import DatabaseUsersApiMixin as _DatabaseUsersApiMixin
+from app.api.syntax_catalog_api import SyntaxCatalogApiMixin as _SyntaxCatalogApiMixin
 
 logger = logging.getLogger("luobtool.main")
 connection_manager = ConnectionManager()
@@ -105,6 +107,8 @@ class MainApi(
     _ActivityApiMixin,
     _SchemaCompareApiMixin,
     _GoogleSheetsApiMixin,
+    _DatabaseUsersApiMixin,
+    _SyntaxCatalogApiMixin,
     BravoApi,
 ):
     def __init__(self, cm: ConnectionManager = connection_manager):
@@ -180,7 +184,14 @@ def main():
     splash_html = (BASE_DIR / "templates" / "splash.html").resolve().as_uri()
     main_api = MainApi(connection_manager)
     cur_theme = settings.get("appearance", {}).get("theme") or settings.get("theme", "dark")
-    bg_color = "#ffffff" if cur_theme in ["light", "win-nt", "win-xp"] else "#1e1e1e"
+    if cur_theme == "win-nt":
+        bg_color = "#000080"
+    elif cur_theme == "win-xp":
+        bg_color = "#0055ea"
+    elif cur_theme == "light":
+        bg_color = "#dcdcdc"
+    else:
+        bg_color = "#202228"
 
     import ctypes
     try:
@@ -252,7 +263,32 @@ def main():
                 except Exception:
                     pass
 
+            def _post_show_editor_layout():
+                try:
+                    window.evaluate_js("""
+                        if (window.AppEditor && typeof window.AppEditor.layout === 'function') {
+                            window.AppEditor.layout();
+                        }
+                        if (typeof monaco !== 'undefined' && monaco.editor) {
+                            monaco.editor.getEditors().forEach(function(ed) { ed.layout(); });
+                        }
+                        if (window.AppTabs && typeof window.AppTabs.syncActiveTabWithEditor === 'function') {
+                            window.AppTabs.syncActiveTabWithEditor();
+                        }
+                        if (typeof window.remeasureMonacoFonts === 'function') {
+                            window.remeasureMonacoFonts();
+                        }
+                    """)
+                except Exception:
+                    pass
+
             _sync_titlebar()
+            _post_show_editor_layout()
+            import threading
+            threading.Timer(0.05, _post_show_editor_layout).start()
+            threading.Timer(0.15, _post_show_editor_layout).start()
+            threading.Timer(0.4, _post_show_editor_layout).start()
+            threading.Timer(0.9, _post_show_editor_layout).start()
             import threading
             threading.Timer(0.1, _sync_titlebar).start()
             threading.Timer(0.35, _sync_titlebar).start()

@@ -199,6 +199,36 @@
                     type: 'switch'
                 },
                 {
+                    key: 'intellisenseMru',
+                    label: 'Ưu tiên gợi ý theo lịch sử dùng (IntelliSense MRU History)',
+                    desc: 'Biến cấu hình: editor.intellisenseMru (intellisense.v2.mru). Tự động học thói quen sử dụng từ khóa, bảng và cột để ưu tiên xếp hạng lên đầu danh sách gợi ý.',
+                    type: 'switch'
+                },
+                {
+                    key: 'clearIntellisenseMru',
+                    label: 'Xóa lịch sử gợi ý IntelliSense (Clear Suggestion History)',
+                    desc: 'Xóa toàn bộ lịch sử tần suất sử dụng từ gợi ý đã lưu trên thiết bị này.',
+                    type: 'action-button',
+                    icon: 'fa-solid fa-trash-can',
+                    buttonText: 'Xóa Lịch sử Gợi ý...',
+                    onClick: () => {
+                        try {
+                            if (window.CompletionRanker && typeof window.CompletionRanker.clearMruHistory === 'function') {
+                                window.CompletionRanker.clearMruHistory();
+                            } else if (typeof localStorage !== 'undefined') {
+                                localStorage.removeItem('intellisense_mru_history');
+                            }
+                            if (window.NotificationModal && typeof window.NotificationModal.show === 'function') {
+                                window.NotificationModal.show('Đã xóa thành công lịch sử gợi ý IntelliSense.', 'success');
+                            } else {
+                                alert('Đã xóa thành công lịch sử gợi ý IntelliSense.');
+                            }
+                        } catch (e) {
+                            console.error('[Settings] Failed to clear MRU:', e);
+                        }
+                    }
+                },
+                {
                     key: 'codeStylesManager',
                     label: 'Quản lý Định dạng Mã SQL (SQL Code Styles)',
                     desc: 'Cấu hình chi tiết kiểu dáng thụt lề, dấu phẩy, mệnh đề JOIN, WHERE, CASE cho formatter.',
@@ -349,6 +379,13 @@
                     label: 'Dừng khi gặp lỗi (Stop on Error)',
                     desc: 'Biến cấu hình: sql.stopOnError. Tự động dừng thực thi các câu lệnh tiếp theo trong script nếu câu lệnh trước xảy ra lỗi.',
                     type: 'switch'
+                },
+                {
+                    key: 'perTabSession',
+                    label: 'Mỗi tab một phiên kết nối riêng biệt (Per-Tab Session)',
+                    desc: 'Biến cấu hình: sql.perTabSession. Mở một phiên kết nối thực thi độc lập cho mỗi tab (như SSMS). Tránh xung đột bảng tạm (#temp) giữa các file/tab. Mặc định: Bật.',
+                    type: 'switch',
+                    default: true
                 }
             ]
         },
@@ -546,7 +583,8 @@
             wordWrap: false,
             minimap: true,
             keywordCase: 'upper',
-            syntaxCheck: true
+            syntaxCheck: true,
+            intellisenseMru: true
         },
         grid: {
             fontFamily: 'Segoe UI',
@@ -565,7 +603,8 @@
         sql: {
             maxRows: 1000,
             timeoutSeconds: 30,
-            sqlprotection: 1
+            sqlprotection: 1,
+            perTabSession: true
         },
         addons: {
             bravo_tool: {
@@ -906,6 +945,13 @@
         if (window.SqlSyntaxCheckService && typeof window.SqlSyntaxCheckService.setEnabled === 'function') {
             const isSyntaxCheck = settings.editor?.syntaxCheck !== undefined ? Boolean(settings.editor.syntaxCheck) : true;
             window.SqlSyntaxCheckService.setEnabled(isSyntaxCheck);
+        }
+
+        // 2.6. IntelliSense MRU History Toggle (Spec GĐ5)
+        if (settings.editor?.intellisenseMru !== undefined) {
+            try {
+                localStorage.setItem('intellisense.v2.mru', String(settings.editor.intellisenseMru));
+            } catch (_) {}
         }
 
         // 3. Grid Result font & size (Truyền biến CSS cho bảng kết quả)

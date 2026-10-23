@@ -66,7 +66,159 @@
 
         cleanIdentifier(name) {
             if (!name) return '';
-            return CompletionEngine.cleanIdentifier(name);
+            if (typeof CompletionEngine !== 'undefined' && typeof CompletionEngine.cleanIdentifier === 'function') {
+                return CompletionEngine.cleanIdentifier(name);
+            }
+            return name.replace(/^[\["']+|[\]"']+$/g, '');
+        }
+
+        formatParamInfo(p, dbType) {
+            const rawName = p.name || '';
+            const isPg = (dbType === 'postgres' || dbType === 'postgresql');
+            let pName = rawName;
+            if (isPg) {
+                if (pName.startsWith('@')) pName = pName.slice(1);
+            } else {
+                if (pName && !pName.startsWith('@')) pName = `@${pName}`;
+            }
+
+            const dt = p.data_type || p.dataType || p.type || 'any';
+            const isOut = Boolean(p.is_output || p.isOutput || (p.direction && p.direction.toUpperCase().includes('OUT')));
+            const dir = p.direction ? ` [${p.direction}]` : (isOut ? ' [OUTPUT]' : '');
+            const defVal = (p.default_value !== undefined && p.default_value !== null)
+                ? p.default_value
+                : (p.defaultValue !== undefined ? p.defaultValue : null);
+
+            const docParts = [`Type: ${dt}`];
+            if (dir) docParts.push(dir.trim());
+            if (defVal !== null && defVal !== undefined) docParts.push(`Default: ${defVal}`);
+
+            return {
+                name: pName,
+                rawName: rawName,
+                dataType: dt,
+                isOutput: isOut,
+                defaultValue: defVal,
+                label: pName,
+                documentation: docParts.join(' | ')
+            };
+        }
+
+        async fetchParameters(connectionId, database, schema, name, dbType) {
+            if (!name) return [];
+
+            // 1. Check local in-memory cache if metadataCache provided
+            const metaCache = this.getMetadataCache();
+            if (metaCache && typeof metaCache.getParameters === 'function') {
+                try {
+                    const cached = metaCache.getParameters(connectionId, database, schema, name);
+                    if (cached && Array.isArray(cached) && cached.length > 0) {
+                        return cached;
+                    }
+                } catch (e) {}
+            }
+
+            // 2. Try AppIntelliSense.fetchParameters
+            if (typeof window !== 'undefined' && window.AppIntelliSense && typeof window.AppIntelliSense.fetchParameters === 'function') {
+                try {
+                    const res = await window.AppIntelliSense.fetchParameters(connectionId, database, schema, name, dbType);
+                    if (res && Array.isArray(res) && res.length > 0) {
+                        return res;
+                    }
+                } catch (e) {}
+            }
+
+            // 3. Try dataProvider (fetchParameters or getParameters)
+            const provider = this.getDataProvider();
+            if (provider) {
+                if (typeof provider.fetchParameters === 'function') {
+                    try {
+                        const res = await provider.fetchParameters(connectionId, database, schema, name, dbType);
+                        if (res && Array.isArray(res) && res.length > 0) {
+                            if (metaCache && typeof metaCache.setParameters === 'function') {
+                                metaCache.setParameters(connectionId, database, schema, name, res);
+                            }
+                            return res;
+                        }
+                    } catch (e) {}
+                }
+                if (typeof provider.getParameters === 'function') {
+                    try {
+                        const res = await provider.getParameters(connectionId, database, schema, name, dbType);
+                        if (res && Array.isArray(res) && res.length > 0) {
+                            if (metaCache && typeof metaCache.setParameters === 'function') {
+                                metaCache.setParameters(connectionId, database, schema, name, res);
+                            }
+                            return res;
+                        }
+                    } catch (e) {}
+                }
+            }
+
+            // 4. Try window.pywebview.api or window.api desktop bridge
+            if (typeof window !== 'undefined') {
+                const api = (window.pywebview && window.pywebview.api) || window.api;
+                if (api) {
+                    if (typeof api.get_proc_params === 'function') {
+                        try {
+                            const res = await api.get_proc_params(connectionId, database, schema, name);
+                            if (res && res.success && Array.isArray(res.params) && res.params.length > 0) {
+                                if (metaCache && typeof metaCache.setParameters === 'function') {
+                                    metaCache.setParameters(connectionId, database, schema, name, res.params);
+                                }
+                                return res.params;
+                            }
+                        } catch (e) {}
+                    }
+                    if (typeof api.get_intellisense_parameters === 'function') {
+                        try {
+                            const res = await api.get_intellisense_parameters(connectionId, database, schema, name);
+                            if (res && res.success && Array.isArray(res.items) && res.items.length > 0) {
+                                if (metaCache && typeof metaCache.setParameters === 'function') {
+                                    metaCache.setParameters(connectionId, database, schema, name, res.items);
+                                }
+                                return res.items;
+                            }
+                        } catch (e) {}
+                    }
+                }
+
+                // 5. Try HTTP fetch fallbacks (POST /proc-params or GET /api/metadata/.../parameters)
+                if (typeof fetch === 'function') {
+                    try {
+                        const postRes = await fetch('/proc-params', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ connection_id: connectionId, database, schema, proc_name: name })
+                        });
+                        if (postRes.ok) {
+                            const data = await postRes.json();
+                            if (data && data.success && Array.isArray(data.params) && data.params.length > 0) {
+                                if (metaCache && typeof metaCache.setParameters === 'function') {
+                                    metaCache.setParameters(connectionId, database, schema, name, data.params);
+                                }
+                                return data.params;
+                            }
+                        }
+                    } catch (e) {}
+
+                    try {
+                        const getUrl = `/api/metadata/${connectionId}/intellisense/parameters?database=${encodeURIComponent(database || '')}&schema=${encodeURIComponent(schema || '')}&name=${encodeURIComponent(name)}`;
+                        const getRes = await fetch(getUrl);
+                        if (getRes.ok) {
+                            const data = await getRes.json();
+                            if (data && data.success && Array.isArray(data.items) && data.items.length > 0) {
+                                if (metaCache && typeof metaCache.setParameters === 'function') {
+                                    metaCache.setParameters(connectionId, database, schema, name, data.items);
+                                }
+                                return data.items;
+                            }
+                        }
+                    } catch (e) {}
+                }
+            }
+
+            return [];
         }
 
         async resolve(fullSql, cursorOffset, tabCtx = {}) {
@@ -117,12 +269,21 @@
                 if (tk.value === '(') {
                     let funcName = null;
                     let funcSchema = null;
+                    let callKeyword = null;
                     const k = i - 1;
                     if (k >= 0 && (tokensBefore[k].type === 'IDENTIFIER' || tokensBefore[k].type === 'KEYWORD')) {
                         funcName = this.cleanIdentifier(tokensBefore[k].value);
+                        let nameIdx = k;
                         if (k >= 2 && tokensBefore[k - 1].value === '.' &&
                             (tokensBefore[k - 2].type === 'IDENTIFIER' || tokensBefore[k - 2].type === 'KEYWORD')) {
                             funcSchema = this.cleanIdentifier(tokensBefore[k - 2].value);
+                            nameIdx = k - 2;
+                        }
+                        if (nameIdx >= 1) {
+                            const prevUp = tokensBefore[nameIdx - 1].value.toUpperCase();
+                            if (prevUp === 'EXEC' || prevUp === 'EXECUTE' || prevUp === 'CALL') {
+                                callKeyword = prevUp;
+                            }
                         }
                     }
                     const isFunc = Boolean(funcName && !nonFuncKeywords.has(funcName.toUpperCase()));
@@ -130,8 +291,11 @@
                         isFunc,
                         funcName: isFunc ? funcName : null,
                         funcSchema: isFunc ? funcSchema : null,
+                        callKeyword: isFunc ? callKeyword : null,
+                        tokenIndex: i,
                         openIndex: tk.start,
-                        commaCount: 0
+                        commaCount: 0,
+                        currentArgNamedParam: null
                     });
                 } else if (tk.value === ')') {
                     if (parenStack.length > 0) {
@@ -140,6 +304,13 @@
                 } else if (tk.value === ',') {
                     if (parenStack.length > 0) {
                         parenStack[parenStack.length - 1].commaCount++;
+                        parenStack[parenStack.length - 1].currentArgNamedParam = null;
+                    }
+                } else {
+                    if (parenStack.length > 0) {
+                        if (i + 1 < tokensBefore.length && (tokensBefore[i + 1].value === '=' || tokensBefore[i + 1].value === '=>' || tokensBefore[i + 1].value === ':=')) {
+                            parenStack[parenStack.length - 1].currentArgNamedParam = tk.value;
+                        }
                     }
                 }
             }
@@ -155,15 +326,16 @@
 
             const effectiveTabCtx = this.getTabContext(tabCtx);
 
-            // 4A. Function call found
+            // 4A. Function or Parenthesized Procedure call found
             if (activeFuncCall) {
                 const fnName = activeFuncCall.funcName;
                 const fnSchema = activeFuncCall.funcSchema;
-                const activeParamIdx = activeFuncCall.commaCount;
+                const callKeyword = activeFuncCall.callKeyword;
+                let activeParamIdx = activeFuncCall.commaCount;
                 const fnUpper = fnName.toUpperCase();
 
-                // Check built-in function signatures first
-                if (FUNCTION_SIGNATURES[fnUpper]) {
+                // Check built-in function signatures first (if not an explicit EXEC/CALL)
+                if (!callKeyword && FUNCTION_SIGNATURES[fnUpper]) {
                     const info = FUNCTION_SIGNATURES[fnUpper];
                     const params = info.parameters || [];
                     const clamped = (params.length > 0) 
@@ -182,44 +354,60 @@
                     };
                 }
 
-                // Check User-Defined Function (UDF) via dataProvider
-                const dataProvider = this.getDataProvider();
-                if (dataProvider && typeof dataProvider.fetchParameters === 'function' && effectiveTabCtx.connectionId) {
-                    try {
-                        const uParams = await dataProvider.fetchParameters(
-                            effectiveTabCtx.connectionId,
-                            effectiveTabCtx.database,
-                            fnSchema || effectiveTabCtx.schema,
-                            fnName,
-                            effectiveTabCtx.dbType
-                        );
-                        if (uParams && Array.isArray(uParams) && uParams.length > 0) {
-                            const paramList = uParams.map(p => {
-                                const pName = p.name.startsWith('@') ? p.name : `@${p.name}`;
-                                const dt = p.data_type || 'any';
-                                const dir = p.direction ? ` [${p.direction}]` : (p.is_output ? ' [OUTPUT]' : '');
-                                return {
-                                    label: pName,
-                                    documentation: `Type: ${dt}${dir}${p.default_value ? ` | Default: ${p.default_value}` : ''}`
-                                };
-                            });
-                            const sigLabel = `${fnSchema ? `${fnSchema}.` : ''}${fnName}(${uParams.map(p => `${p.name.startsWith('@') ? p.name : `@${p.name}`} ${p.data_type || ''}`).join(', ')})`;
-                            const clamped = Math.max(0, Math.min(activeParamIdx, paramList.length - 1));
+                // Check User-Defined Function (UDF) or Stored Procedure via fetchParameters
+                try {
+                    const uParams = await this.fetchParameters(
+                        effectiveTabCtx.connectionId,
+                        effectiveTabCtx.database,
+                        fnSchema || effectiveTabCtx.schema,
+                        fnName,
+                        effectiveTabCtx.dbType
+                    );
+                    if (uParams && Array.isArray(uParams) && uParams.length > 0) {
+                        const formattedParams = uParams.map(p => this.formatParamInfo(p, effectiveTabCtx.dbType));
+                        const paramList = formattedParams.map(p => ({
+                            label: p.label,
+                            documentation: p.documentation
+                        }));
 
-                            return {
-                                signatures: [{
-                                    label: sigLabel,
-                                    documentation: `User-defined function ${fnSchema ? `${fnSchema}.` : ''}${fnName}`,
-                                    parameters: paramList,
-                                    activeParameter: clamped
-                                }],
-                                activeSignature: 0,
-                                activeParameter: clamped
-                            };
+                        if (activeFuncCall.currentArgNamedParam) {
+                            const cleanSearch = activeFuncCall.currentArgNamedParam.replace(/^[@"']+|["']+$/g, '').toLowerCase();
+                            const matchIdx = formattedParams.findIndex(p => {
+                                const pClean = p.name.replace(/^[@"']+|["']+$/g, '').toLowerCase();
+                                const rClean = p.rawName.replace(/^[@"']+|["']+$/g, '').toLowerCase();
+                                return pClean === cleanSearch || rClean === cleanSearch;
+                            });
+                            if (matchIdx !== -1) {
+                                activeParamIdx = matchIdx;
+                            }
                         }
-                    } catch (e) {
-                        console.warn('[SignatureHelp] UDF parameters error:', e);
+
+                        const clamped = Math.max(0, Math.min(activeParamIdx, paramList.length - 1));
+                        const prefix = callKeyword ? `${callKeyword} ` : '';
+                        const paramSigStrs = formattedParams.map(p => {
+                            let s = `${p.label} ${p.dataType}`;
+                            if (p.isOutput) s += ' OUTPUT';
+                            if (p.defaultValue !== null && p.defaultValue !== undefined) s += ` = ${p.defaultValue}`;
+                            return s;
+                        });
+                        const sigLabel = `${prefix}${fnSchema ? `${fnSchema}.` : ''}${fnName}(${paramSigStrs.join(', ')})`;
+                        const docDesc = callKeyword 
+                            ? `Stored procedure ${fnSchema ? `${fnSchema}.` : ''}${fnName}`
+                            : `User-defined function ${fnSchema ? `${fnSchema}.` : ''}${fnName}`;
+
+                        return {
+                            signatures: [{
+                                label: sigLabel,
+                                documentation: docDesc,
+                                parameters: paramList,
+                                activeParameter: clamped
+                            }],
+                            activeSignature: 0,
+                            activeParameter: clamped
+                        };
                     }
+                } catch (e) {
+                    console.warn('[SignatureHelp] UDF parameters error:', e);
                 }
 
                 // Fallback for unknown function call
@@ -238,12 +426,14 @@
                 };
             }
 
-            // 4B. Check EXEC / Stored Procedure context
-            let execIdx = -1;
+            // 4B. Check EXEC / EXECUTE / CALL Stored Procedure context (without parentheses)
+            let callIdx = -1;
+            let callKeyword = null;
             for (let i = tokensBefore.length - 1; i >= 0; i--) {
                 const up = tokensBefore[i].value.toUpperCase();
-                if (up === 'EXEC' || up === 'EXECUTE') {
-                    execIdx = i;
+                if (up === 'EXEC' || up === 'EXECUTE' || up === 'CALL') {
+                    callIdx = i;
+                    callKeyword = up;
                     break;
                 }
                 if (tokensBefore[i].value === ';' || up === 'GO' ||
@@ -252,8 +442,8 @@
                 }
             }
 
-            if (execIdx !== -1) {
-                let j = execIdx + 1;
+            if (callIdx !== -1) {
+                let j = callIdx + 1;
                 // Skip return status variable: EXEC @ret = proc
                 if (j + 1 < tokensBefore.length && tokensBefore[j].value.startsWith('@') && tokensBefore[j + 1].value === '=') {
                     j += 2;
@@ -286,67 +476,95 @@
                 if (procName) {
                     // Tokens between proc name and cursor:
                     let commaCount = 0;
-                    let lastNamedParam = null;
+                    let currentArgNamedParam = null;
+                    let parenDepth = 0;
+
                     for (let k = j; k < tokensBefore.length; k++) {
                         const tk = tokensBefore[k];
-                        if (tk.value === ',') {
-                            commaCount++;
-                        } else if (tk.value.startsWith('@') && k + 1 < tokensBefore.length && tokensBefore[k + 1].value === '=') {
-                            lastNamedParam = tk.value;
+                        if (tk.value === '(') {
+                            parenDepth++;
+                        } else if (tk.value === ')') {
+                            if (parenDepth > 0) parenDepth--;
+                        } else if (parenDepth === 0) {
+                            if (tk.value === ',') {
+                                commaCount++;
+                                currentArgNamedParam = null;
+                            } else if (k + 1 < tokensBefore.length && (tokensBefore[k + 1].value === '=' || tokensBefore[k + 1].value === '=>' || tokensBefore[k + 1].value === ':=')) {
+                                currentArgNamedParam = tk.value;
+                            }
                         }
                     }
 
-                    const dataProvider = this.getDataProvider();
-                    if (dataProvider && typeof dataProvider.fetchParameters === 'function' && effectiveTabCtx.connectionId) {
-                        try {
-                            const procParams = await dataProvider.fetchParameters(
-                                effectiveTabCtx.connectionId,
-                                effectiveTabCtx.database,
-                                procSchema || effectiveTabCtx.schema,
-                                procName,
-                                effectiveTabCtx.dbType
-                            );
-                            if (procParams && Array.isArray(procParams) && procParams.length > 0) {
-                                const paramList = procParams.map(p => {
-                                    const pName = p.name.startsWith('@') ? p.name : `@${p.name}`;
-                                    const dt = p.data_type || 'any';
-                                    const dir = p.direction ? ` [${p.direction}]` : (p.is_output ? ' [OUTPUT]' : '');
-                                    return {
-                                        label: pName,
-                                        documentation: `Type: ${dt}${dir}${p.default_value ? ` | Default: ${p.default_value}` : ''}`
-                                    };
+                    try {
+                        const procParams = await this.fetchParameters(
+                            effectiveTabCtx.connectionId,
+                            effectiveTabCtx.database,
+                            procSchema || effectiveTabCtx.schema,
+                            procName,
+                            effectiveTabCtx.dbType
+                        );
+                        if (procParams && Array.isArray(procParams) && procParams.length > 0) {
+                            const formattedParams = procParams.map(p => this.formatParamInfo(p, effectiveTabCtx.dbType));
+                            const paramList = formattedParams.map(p => ({
+                                label: p.label,
+                                documentation: p.documentation
+                            }));
+
+                            let activeParamIdx = commaCount;
+                            if (currentArgNamedParam) {
+                                const cleanSearch = currentArgNamedParam.replace(/^[@"']+|["']+$/g, '').toLowerCase();
+                                const matchIdx = formattedParams.findIndex(p => {
+                                    const pClean = p.name.replace(/^[@"']+|["']+$/g, '').toLowerCase();
+                                    const rClean = p.rawName.replace(/^[@"']+|["']+$/g, '').toLowerCase();
+                                    return pClean === cleanSearch || rClean === cleanSearch;
                                 });
-
-                                let activeParamIdx = commaCount;
-                                if (lastNamedParam) {
-                                    const matchIdx = procParams.findIndex(p => {
-                                        const pn = p.name.startsWith('@') ? p.name : `@${p.name}`;
-                                        return pn.toLowerCase() === lastNamedParam.toLowerCase();
-                                    });
-                                    if (matchIdx !== -1) activeParamIdx = matchIdx;
+                                if (matchIdx !== -1) {
+                                    activeParamIdx = matchIdx;
                                 }
-                                const clamped = Math.max(0, Math.min(activeParamIdx, paramList.length - 1));
-                                const sigLabel = `EXEC ${procSchema ? `${procSchema}.` : ''}${procName} ${procParams.map(p => `${p.name.startsWith('@') ? p.name : `@${p.name}`} ${p.data_type || ''}${p.is_output ? ' OUTPUT' : ''}`).join(', ')}`;
-
-                                return {
-                                    signatures: [{
-                                        label: sigLabel,
-                                        documentation: `Stored procedure ${procSchema ? `${procSchema}.` : ''}${procName}`,
-                                        parameters: paramList,
-                                        activeParameter: clamped
-                                    }],
-                                    activeSignature: 0,
-                                    activeParameter: clamped
-                                };
                             }
-                        } catch (e) {
-                            console.warn('[SignatureHelp] Procedure parameters error:', e);
+                            const clamped = Math.max(0, Math.min(activeParamIdx, paramList.length - 1));
+
+                            const isCall = (callKeyword === 'CALL');
+                            let sigLabel = '';
+                            if (isCall) {
+                                const paramStrs = formattedParams.map(p => {
+                                    let s = `${p.label} ${p.dataType}`;
+                                    if (p.defaultValue !== null && p.defaultValue !== undefined) s += ` = ${p.defaultValue}`;
+                                    return s;
+                                });
+                                sigLabel = `CALL ${procSchema ? `${procSchema}.` : ''}${procName}(${paramStrs.join(', ')})`;
+                            } else {
+                                const paramStrs = formattedParams.map(p => {
+                                    let s = `${p.label} ${p.dataType}`;
+                                    if (p.isOutput) s += ' OUTPUT';
+                                    if (p.defaultValue !== null && p.defaultValue !== undefined) s += ` = ${p.defaultValue}`;
+                                    return s;
+                                });
+                                sigLabel = `EXEC ${procSchema ? `${procSchema}.` : ''}${procName} ${paramStrs.join(', ')}`;
+                            }
+
+                            return {
+                                signatures: [{
+                                    label: sigLabel,
+                                    documentation: `Stored procedure ${procSchema ? `${procSchema}.` : ''}${procName}`,
+                                    parameters: paramList,
+                                    activeParameter: clamped
+                                }],
+                                activeSignature: 0,
+                                activeParameter: clamped
+                            };
                         }
+                    } catch (e) {
+                        console.warn('[SignatureHelp] Procedure parameters error:', e);
                     }
                 }
             }
 
             return null;
+        }
+
+        registerMonacoProvider() {
+            return SqlSignatureHelpResolver.registerMonacoProvider();
         }
 
         static registerMonacoProvider() {
@@ -357,8 +575,8 @@
             window._sqlSignatureHelpRegistered = true;
 
             monaco.languages.registerSignatureHelpProvider('sql', {
-                signatureHelpTriggerCharacters: ['(', ','],
-                signatureHelpRetriggerCharacters: [','],
+                signatureHelpTriggerCharacters: ['(', ',', ' ', '@'],
+                signatureHelpRetriggerCharacters: [',', ' ', '@'],
                 provideSignatureHelp: async function (model, position, token, context) {
                     try {
                         if (!model) return null;

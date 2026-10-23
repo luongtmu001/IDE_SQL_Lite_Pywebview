@@ -411,4 +411,39 @@ class ConnectionsApiMixin:
             return {"success": True, "file_path": str(selected_file)}
         return {"success": False, "cancelled": True}
 
+    def get_or_create_tab_session(self, tab_id, connection_id=None, config=None):
+        clean_tab = str(tab_id or "").strip()
+        if not clean_tab:
+            return {"success": False, "error": "tab_id is required"}
+        try:
+            owner_id = getattr(self, "owner_session_id", "desktop_user")
+            cm = getattr(self, "cm", None)
+            if not cm:
+                from main import connection_manager
+                cm = connection_manager
+            conn = cm.get_or_create_for_tab(owner_id, clean_tab, source_conn_id=connection_id, config=config)
+            info = conn.public_info()
+            info["is_alive"] = conn.is_alive()
+            return {"success": True, "connection": info}
+        except Exception as exc:
+            logger.error("[get_or_create_tab_session] failed: %s", exc)
+            return {"success": False, "error": str(exc)}
+
+    def close_tab_session(self, tab_id):
+        clean_tab = str(tab_id or "").strip()
+        if not clean_tab:
+            return {"success": False, "error": "tab_id is required"}
+        try:
+            owner_id = getattr(self, "owner_session_id", "desktop_user")
+            cm = getattr(self, "cm", None)
+            if not cm:
+                from main import connection_manager
+                cm = connection_manager
+            closed = cm.close_for_tab(owner_id, clean_tab)
+            return {"success": True, "closed_count": closed}
+        except Exception as exc:
+            logger.error("[close_tab_session] failed: %s", exc)
+            return {"success": False, "error": str(exc)}
+
+
 

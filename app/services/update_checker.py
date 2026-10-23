@@ -145,10 +145,16 @@ def check_for_updates(
                     result["releaseNotes"] = str(data.get("releaseNotes", ""))
                     result["highlights"] = list(data.get("highlights", []))
                     result["fileName"] = str(data.get("fileName", f"LLTool_v{remote_ver}.zip"))
+                    result["patchFileName"] = str(data.get("patchFileName", ""))
+                    result["patchDownloadUrl"] = str(data.get("patchDownloadUrl", ""))
                     try:
                         result["fileSize"] = int(data.get("fileSize", 0))
                     except Exception:
                         result["fileSize"] = 0
+                    try:
+                        result["patchFileSize"] = int(data.get("patchFileSize", 0))
+                    except Exception:
+                        result["patchFileSize"] = 0
                     result["success"] = True
                     result["hasUpdate"] = compare_versions(remote_ver, current_ver) > 0
                     result["error"] = None
@@ -179,10 +185,16 @@ def check_for_updates(
                             result["releaseNotes"] = str(data.get("releaseNotes", ""))
                             result["highlights"] = list(data.get("highlights", []))
                             result["fileName"] = str(data.get("fileName", ""))
+                            result["patchFileName"] = str(data.get("patchFileName", ""))
+                            result["patchDownloadUrl"] = str(data.get("patchDownloadUrl", ""))
                             try:
                                 result["fileSize"] = int(data.get("fileSize", 0))
                             except Exception:
                                 result["fileSize"] = 0
+                            try:
+                                result["patchFileSize"] = int(data.get("patchFileSize", 0))
+                            except Exception:
+                                result["patchFileSize"] = 0
                             result["success"] = True
 
                             # Compare versions (remote > current)
@@ -403,12 +415,20 @@ def start_download_update(
                 "data": dict(_download_state),
             }
 
-        # Resolve URL
+        # Resolve URL & filename
         url = download_url
         if not url:
             with _check_lock:
-                if _latest_check_result and _latest_check_result.get("downloadUrl"):
-                    url = _latest_check_result.get("downloadUrl")
+                if _latest_check_result:
+                    # For in-place auto update, prefer patch package when available (lighter, no exe lock)
+                    if getattr(sys, "frozen", False) and _latest_check_result.get("patchDownloadUrl"):
+                        url = _latest_check_result.get("patchDownloadUrl")
+                        if not file_name:
+                            file_name = _latest_check_result.get("patchFileName")
+                    elif _latest_check_result.get("downloadUrl"):
+                        url = _latest_check_result.get("downloadUrl")
+                        if not file_name:
+                            file_name = _latest_check_result.get("fileName")
         if not url:
             url = __release_url__
 
@@ -419,11 +439,7 @@ def start_download_update(
         except Exception:
             pass
 
-        # Resolve filename
-        if not file_name:
-            with _check_lock:
-                if _latest_check_result and _latest_check_result.get("fileName"):
-                    file_name = _latest_check_result.get("fileName")
+        # Resolve filename fallback
         if not file_name:
             raw_name = url.split("?")[0].rstrip("/").split("/")[-1]
             if raw_name and ("." in raw_name) and not raw_name.endswith(".html"):
@@ -565,14 +581,70 @@ def start_download_update(
 def apply_update(file_path: Optional[str] = None, new_version: Optional[str] = None) -> Dict[str, Any]:
     """
     Apply downloaded update:
-    1. Determine target version from argument, check result, or filename.
-    2. Persist new version to settings.json and local version.json files.
+    1. Guard against stale or downgraded archives before modifying any files or runtime state.
+    2. Determine target version from argument, archive version.json, check result, or filename.
     3. Update runtime version and in-memory update check status to up-to-date.
-    4. If downloaded file is an executable/installer (.exe / .msi), run it.
+    4. Persist new version to settings.json and local version.json files.
+    5. Dual-tier extraction into app_dir and app_dir/_internal.
     """
     global _latest_check_result, _download_state
 
-    target_ver = new_version
+    # 1. Capture current running version before any state mutations
+    current_running_ver = get_version()
+
+    archive_path = file_path
+    if not archive_path:
+        with _download_lock:
+            archive_path = _download_state.get("savedPath")
+
+    zip_ver = None
+    single_prefix = ""
+
+    # 2. Inspect archive if it exists and is a zip
+    if archive_path and os.path.exists(archive_path) and str(archive_path).lower().endswith(".zip"):
+        try:
+            import zipfile
+            with zipfile.ZipFile(archive_path, "r") as zf:
+                namelist = zf.namelist()
+                top_prefixes = set()
+                for name in namelist:
+                    parts = name.split("/")
+                    if len(parts) > 1 and parts[0]:
+                        top_prefixes.add(parts[0])
+                single_prefix = (list(top_prefixes)[0] + "/") if len(top_prefixes) == 1 else ""
+
+                for candidate_name in ["version.json", "_internal/version.json"]:
+                    full_cand = (single_prefix + candidate_name) if single_prefix else candidate_name
+                    if full_cand in namelist:
+                        try:
+                            v_bytes = zf.read(full_cand)
+                            v_data = json.loads(v_bytes.decode("utf-8"))
+                            zip_ver = v_data.get("version")
+                            if zip_ver:
+                                break
+                        except Exception:
+                            pass
+        except Exception as exc:
+            logger.warning("[UpdateChecker] Archive inspection failed for %s: %s", archive_path, exc)
+
+        # Stale Archive Guardrail:
+        # If the archive contains a version or the caller specified an update version older than current running,
+        # reject immediately to protect application source integrity.
+        check_ver = zip_ver or (new_version.strip().lstrip("vV") if new_version else None)
+        if check_ver and compare_versions(check_ver, current_running_ver) < 0:
+            err_msg = (
+                f"Gói cập nhật chứa phiên bản cũ hơn (v{check_ver}) so với phiên bản hiện tại (v{current_running_ver}). "
+                "Hủy trích xuất để bảo vệ toàn vẹn mã nguồn ứng dụng."
+            )
+            logger.warning("[UpdateChecker] Stale archive rejected! %s", err_msg)
+            return {
+                "success": False,
+                "version": current_running_ver,
+                "error": err_msg,
+            }
+
+    # 3. Determine target version
+    target_ver = new_version or zip_ver
     if not target_ver:
         with _check_lock:
             if _latest_check_result and _latest_check_result.get("latestVersion"):
@@ -585,11 +657,11 @@ def apply_update(file_path: Optional[str] = None, new_version: Optional[str] = N
             if m:
                 target_ver = m.group(1)
     if not target_ver:
-        target_ver = get_version()
+        target_ver = current_running_ver
 
     target_ver = str(target_ver).strip().lstrip("vV")
 
-    # Set in-memory runtime version immediately
+    # 4. Set in-memory runtime version
     set_runtime_version(target_ver)
 
     with _check_lock:
@@ -600,7 +672,7 @@ def apply_update(file_path: Optional[str] = None, new_version: Optional[str] = N
         _latest_check_result["latestVersion"] = target_ver
         _latest_check_result["isUpToDate"] = True
 
-    # Persist to settings.json
+    # 5. Persist to settings.json
     try:
         from app.services.settings_store import load_settings_file, save_settings_file
         settings = load_settings_file()
@@ -615,7 +687,7 @@ def apply_update(file_path: Optional[str] = None, new_version: Optional[str] = N
     except Exception as exc:
         logger.warning("[UpdateChecker] Could not persist to settings.json: %s", exc)
 
-    # Persist to version.json files
+    # 6. Persist to version.json files
     try:
         from app.utils.paths import get_app_dir, get_user_data_dir
         app_d = get_app_dir()
@@ -637,12 +709,7 @@ def apply_update(file_path: Optional[str] = None, new_version: Optional[str] = N
     except Exception as exc:
         logger.warning("[UpdateChecker] Could not persist to version.json: %s", exc)
 
-    # Auto-extract downloaded zip archive into installation directory if applicable
-    archive_path = file_path
-    if not archive_path:
-        with _download_lock:
-            archive_path = _download_state.get("savedPath")
-
+    # 7. Auto-extract downloaded zip archive into installation directory if applicable
     if archive_path and os.path.exists(archive_path) and str(archive_path).lower().endswith(".zip"):
         try:
             import zipfile
@@ -651,15 +718,7 @@ def apply_update(file_path: Optional[str] = None, new_version: Optional[str] = N
             app_d = get_app_dir()
             logger.info("[UpdateChecker] Auto-extracting update archive %s into %s", archive_path, app_d)
             with zipfile.ZipFile(archive_path, "r") as zf:
-                # Detect if archive has a single top-level folder (e.g. IDE_SQL_Lite_Pywebview-main/)
-                namelist = zf.namelist()
-                top_prefixes = set()
-                for name in namelist:
-                    parts = name.split("/")
-                    if len(parts) > 1 and parts[0]:
-                        top_prefixes.add(parts[0])
-                single_prefix = (list(top_prefixes)[0] + "/") if len(top_prefixes) == 1 else ""
-
+                # Comprehensive Dual-Tier Extraction
                 for member in zf.infolist():
                     rel_name = member.filename
                     if single_prefix and rel_name.startswith(single_prefix):
@@ -667,22 +726,32 @@ def apply_update(file_path: Optional[str] = None, new_version: Optional[str] = N
                     if not rel_name or rel_name.endswith("/"):
                         continue
 
-                    # Targets: static and templates need to go to both app_dir and app_dir/_internal
-                    target_destinations = [app_d / rel_name]
-                    if rel_name.startswith("static/") or rel_name.startswith("templates/"):
-                        target_destinations.append(app_d / "_internal" / rel_name)
-                    elif rel_name == "version.json":
-                        target_destinations.append(app_d / "_internal" / "version.json")
-                    elif rel_name.startswith("app/"):
-                        target_destinations.append(app_d / "_internal" / rel_name)
+                    # Normalize relative path: remove _internal/ prefix if present in patch archive
+                    clean_rel = rel_name
+                    if clean_rel.startswith("_internal/"):
+                        clean_rel = clean_rel[len("_internal/"):]
+
+                    # Ignore development/test artifacts when extracting into dist
+                    if clean_rel.startswith(("tests/", ".git", ".pytest_cache/", "build/")):
+                        continue
+
+                    # Targets: Sync into BOTH app_d and app_d/_internal for all runtime assets & python sources
+                    target_destinations = [
+                        app_d / clean_rel,
+                        app_d / "_internal" / clean_rel,
+                    ]
 
                     for dest_path in target_destinations:
                         try:
-                            # Protect against path traversal
                             resolved = dest_path.resolve()
                             if not str(resolved).startswith(str(app_d.resolve())):
                                 continue
                             dest_path.parent.mkdir(parents=True, exist_ok=True)
+                            if dest_path.exists():
+                                try:
+                                    os.chmod(dest_path, 0o666)
+                                except Exception:
+                                    pass
                             with zf.open(member) as src, open(dest_path, "wb") as dst:
                                 shutil.copyfileobj(src, dst)
                         except PermissionError:

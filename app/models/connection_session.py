@@ -211,6 +211,8 @@ class ConnectionSession:
             "read_only": self.read_only,
             "in_transaction": self.in_transaction,
             "tx_duration_seconds": tx_duration,
+            "spid": getattr(self.adapter, "spid", None),
+            "tab_id": getattr(self, "tab_id", None),
             "config": {
                 "name":   self.config.get("name"),
                 "type":   self.config.get("type"),

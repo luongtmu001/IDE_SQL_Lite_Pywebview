@@ -33,6 +33,23 @@
 - Kiểm tra riêng keyword, table/column, alias, variable, parameter, function và context-aware completion.
 - Chỉ gợi ý theo dialect và ngữ cảnh phù hợp.
 - Không thêm keyword vào danh sách dùng chung nếu có thể gây gợi ý sai cho hệ quản trị còn lại.
+- **Nhận diện Vị trí Cú pháp (11 Positions & Alias Slot)**:
+  - Phân tích vị trí con trỏ thông qua trường `position` độc lập (`statement_start`, `after_source`, `after_operand`, `is_predicate`, `order_direction`, `value_expression`, `column_definition_type`, `table_hint`, `aggregate_arg`, `alias_name`, `on_conflict`).
+  - Phân định rõ `aliasSlot` trong mệnh đề `FROM`/`JOIN`: chỉ gợi ý đặt tên alias mới khi `aliasSlot === true`, không đè lên từ khóa nối `JOIN`/`ON` khi đã có alias (`aliasSlot === false`).
+- **Lọc Ứng viên Theo Vị trí (Candidate Generation & Expected Keywords)**:
+  - Chỉ sinh từ khóa thuộc danh sách `EXPECTED_KEYWORDS[(dialect, position)]`. Tuyệt đối không nạp ồ ạt toàn bộ 220+ từ khóa vào mọi vị trí.
+  - Gắn cờ `isExpected: true` (+90 điểm) cho từ khóa mong đợi tại vị trí cú pháp và `isFollowUp: true` (+120 điểm) cho từ khóa tiếp theo của cụm cú pháp.
+  - Cấm sinh hàm tại các vị trí không cho phép biểu thức (`statement_start`, `after_source`, `table_hint`, `order_direction`, `is_predicate`, trừ trường hợp đặc thù trong khối `BEGIN CATCH`).
+- **Quy Tắc Xếp Hạng Ranker v2**:
+  - Ưu tiên tuyệt đối khớp chính xác: +150 điểm cho từ khóa mong đợi khớp chính xác (đảm bảo `OR`, `AND`, `IN`, `IS`, `ASC`, `DESC` luôn đứng #1), +80 điểm cho các đối tượng khác khớp chính xác.
+  - Cắt danh sách theo hạn mức nhóm (Group Quotas): giữ toàn bộ expected keywords, tối đa 30 keywords khác, 40 functions, 100 DB objects (hoặc 1.000 đối với qualifier bảng cụ thể).
+  - Khống chế trần Fuzzy $\le 70$ (luôn thấp hơn Subword 72–79). Không áp dụng tỷ lệ thưởng độ dài làm thiên vị từ khóa quá ngắn.
+- **Học Thứ Tự Gợi Ý Theo Lịch Sử Sử Dụng (MRU)**:
+  - Điểm thưởng MRU chỉ áp dụng trong cùng nhóm loại ứng viên và tối đa không quá `+15` điểm.
+  - Điểm MRU tuyệt đối không được vượt qua điểm thưởng của expected keywords (+90/+120) hoặc exact match (+80/+150).
+  - Phân lập lịch sử theo `${dbType}::${connectionId}::${type}::${nameLower}` với chu kỳ bán rã 72 giờ và giới hạn tối đa 500 mục.
+- **Kiến Trúc Đơn Nguồn Chân Lý (Single Source of Truth)**:
+  - Không sao chép hay nạp đè lớp `CandidateFilter`, `CompletionRanker`, `CandidateGenerator` bên trong `completion-engine.js`. `completion-engine.js` chỉ giữ vai trò orchestrator.
 - Không thay đổi thứ tự xếp hạng ngoài phạm vi đã kiểm thử.
 - Không bật gợi ý trong mọi string literal chỉ để hỗ trợ Dynamic SQL.
 - Khi chưa xác định được schema hoặc bảng liên quan, không tự đoán tên cột.

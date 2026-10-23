@@ -114,7 +114,7 @@ CLASS BravoApi (109 public methods):
   - validate_table_row(self, connection_id, database=None, schema=None, table=None, values=None, keys=None, is_new=True, target_column=None)
   - validate_table_rows(self, connection_id, database=None, schema=None, table=None, rows=None)
 
-CLASS MainApi (201 public methods):
+CLASS MainApi (214 public methods):
   - activity_cancel_session(self, connection_id: str, session_id: int) -> Dict[str, Any]
   - activity_get_current_spid(self, connection_id: str) -> Dict[str, Any]
   - activity_get_sessions(self, connection_id: str, database: str | None = None, active_only: bool = False) -> Dict[str, Any]
@@ -127,6 +127,7 @@ CLASS MainApi (201 public methods):
   - check_credential(self, config)
   - check_for_updates(self, force=True, custom_url=None)
   - clear_credential(self, config)
+  - compare_syntax_selection(self, sql_text: str, source_db: str = 'postgresql', target_db: str = 'sqlserver') -> Dict[str, Any]
   - create_connection(self, config)
   - create_session(self, config=None, connection_id=None, window_id=None)
   - delete_connection(self, connection_id)
@@ -144,6 +145,9 @@ CLASS MainApi (201 public methods):
   - get_code_styles(self)
   - get_config(self)
   - get_connection_password(self, profile_id_or_name)
+  - get_database_user_memberships(self, connection_id, principal_name, database=None)
+  - get_database_user_permissions(self, connection_id, principal_name, database=None)
+  - get_database_user_properties(self, connection_id, principal_name, database=None)
   - get_databases(self, connection_id, search=None)
   - get_definition(self, connection_id, database=None, schema=None, name=None, type=None)
   - get_download_progress(self)
@@ -160,6 +164,7 @@ CLASS MainApi (201 public methods):
   - get_log_info(self)
   - get_object_children(self, connection_id, database=None, schema=None, name=None, type=None, child_type=None)
   - get_objects(self, connection_id, database=None, schema=None, type='tables', search=None)
+  - get_proc_params(self, connection_id, database=None, schema=None, proc_name=None, name=None)
   - get_program_groups(self)
   - get_program_list(self)
   - get_query_plan(self, sql, conn_id=None, plan_type='estimated', database=None, schema=None, dialect=None)
@@ -172,6 +177,9 @@ CLASS MainApi (201 public methods):
   - get_session(self, bravo_session_id)
   - get_settings(self)
   - get_snippets(self)
+  - get_syntax_concept(self, concept_id: str) -> Dict[str, Any]
+  - get_syntax_entry(self, syntax_id: str) -> Dict[str, Any]
+  - get_syntax_manifest(self) -> Dict[str, Any]
   - get_system_fonts(self)
   - get_table_columns(self, connection_id, database=None, schema=None, table_name=None)
   - get_table_design(self, connection_id, database=None, schema=None, table=None)
@@ -239,6 +247,7 @@ CLASS MainApi (201 public methods):
   - layout_editor_payload(self, connection_id, form_id, database=None, platform='Win', version='Bravo 10')
   - layout_editor_search_xml(self, connection_id, keyword, form_ids=None, database=None, platform='Win', version='Bravo 10', is_regex=False)
   - list_connections(self)
+  - list_database_users(self, connection_id, database=None)
   - list_features(self)
   - notify_app_ready(self)
   - open_about_window(self)
@@ -255,6 +264,7 @@ CLASS MainApi (201 public methods):
   - open_result_comparator_window(self, payload=None)
   - open_schema_compare_window(self, source_conn_id: str | None = None, source_db: str | None = None, source_schema: str | None = None, target_conn_id: str | None = None, target_db: str | None = None, target_schema: str | None = None) -> Dict[str, Any]
   - open_settings_window(self)
+  - open_syntax_reference_window(self, initial_filter: Dict[str, Any] | None = None) -> Dict[str, Any]
   - open_update_window(self)
   - parse_query_parameters(self, sql, dialect='sqlserver')
   - pg_dependency_get_column(self, conn_id, schema, table, column, direction='dependents', depth=2, database=None, include_source=True)
@@ -292,7 +302,9 @@ CLASS MainApi (201 public methods):
   - schema_compare_get_connections(self) -> Dict[str, Any]
   - schema_compare_get_schemas(self, connection_id: str, database: str | None = None) -> Dict[str, Any]
   - schema_compare_run(self, source_conn_id: str, source_db: str, source_schema: str, target_conn_id: str, target_db: str, target_schema: str, object_types: List[str] | None = None) -> Dict[str, Any]
+  - script_database_user(self, connection_id, principal_name, action='CREATE', mode='basic', database=None)
   - script_object(self, connection_id, database=None, schema=None, name=None, type='table', action='CREATE')
+  - search_syntax_catalog(self, query: str = '', database: str | None = None, category: str | None = None, status: str | None = None, is_exclusive: bool | None = None) -> Dict[str, Any]
   - select_program_file(self)
   - select_sqlite_file(self)
   - session_clear(self)
@@ -307,6 +319,7 @@ CLASS MainApi (201 public methods):
   - sql_object_search(self, conn_id=None, keyword='', database=None, object_types=None, case_sensitive=False, whole_word=False, is_regex=False, schema=None)
   - start_download_update(self, download_url=None, file_name=None, total_bytes_hint=0)
   - submit_table_changes(self, connection_id, database=None, schema=None, table=None, changes=None, concurrency_mode='optimistic')
+  - syntax_catalog_insert_to_editor(self, sql_content: str) -> Dict[str, Any]
   - syntax_check(self, connection_id=None, sql='', dialect='sqlserver', database=None, schema=None, is_debug=False, cached_tables=None)
   - test_linked_server(self, connection_id, server)
   - tx_begin(self, connection_id)
@@ -428,7 +441,7 @@ CLASS EventListenerSubwindowApi (11 public methods):
   - set_clipboard_text(self, text)
   - set_window(self, win)
 
-FLASK ROUTES (107 endpoints):
+FLASK ROUTES (108 endpoints):
   - / [GET] -> main.index
   - /api/bravo/config [GET] -> bravo.get_config
   - /api/bravo/connections [GET] -> bravo.list_connections
@@ -522,6 +535,7 @@ FLASK ROUTES (107 endpoints):
   - /api/query/execute [POST] -> query.execute
   - /api/query/explain [POST] -> query.explain
   - /api/query/parse-parameters [POST] -> query.parse_parameters
+  - /api/query/proc-params [POST] -> query.proc_params
   - /api/query/syntax-check [POST] -> query.syntax_check
   - /api/session/clear [POST] -> session.api_clear_session
   - /api/session/load [GET] -> session.api_load_session

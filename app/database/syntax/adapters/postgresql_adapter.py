@@ -234,8 +234,8 @@ def check_offline_postgres_structural_blocks(sql: str) -> list[dict[str, Any]]:
                         })
                         return diags
 
-            # Match words or symbols
-            word_match = re.match(r"[a-zA-Z_][a-zA-Z0-9_]*|[;(),]", block_text[j:])
+            # Match words, symbols, and operators
+            word_match = re.match(r"[a-zA-Z_][a-zA-Z0-9_]*|::|:=|<>|!=|<=|>=|\|\||[;(),=<>+\-*/]", block_text[j:])
             if word_match:
                 tok_str = word_match.group(0)
                 abs_pos = c_start + j
@@ -252,13 +252,50 @@ def check_offline_postgres_structural_blocks(sql: str) -> list[dict[str, Any]]:
         begin_stack: list[tuple[str, int, int, int]] = []
         if_stack: list[tuple[str, int, int, int]] = []
         loop_stack: list[tuple[str, int, int, int]] = []
-        case_stack_count = 0
+        for_loop_pending: list[tuple[str, int, int, int]] = []
+        case_stack: list[tuple[str, int, int, int]] = []
         k = 0
         num_toks = len(tokens)
+
+        # Expression continuation tokens that can follow a scalar CASE's END
+        EXPR_FOLLOWS = {
+            "AS", "||", ",", ")", "+", "-", "*", "/", "=", "<>", "!=", "<=", ">=", "<", ">",
+            "FROM", "WHERE", "GROUP", "HAVING", "ORDER", "LIMIT", "AND", "OR", "WHEN", "THEN",
+            "ELSE", "LIKE", "ILIKE", "IN", "NOT", "IS", "BETWEEN", "OVER", "FILTER", "::"
+        }
+
+        paren_depth = 0
 
         while k < num_toks:
             tok_text, tok_pos, tok_line, tok_col = tokens[k]
             upper = tok_text.upper()
+            prev_tok = tokens[k - 1][0].upper() if k > 0 else ""
+
+            # Track parenthesis nesting
+            if upper == "(":
+                paren_depth += 1
+                k += 1
+                continue
+            if upper == ")":
+                if paren_depth > 0:
+                    paren_depth -= 1
+                k += 1
+                continue
+
+            # Check if pending FOR loop was terminated without LOOP keyword
+            if upper in (";", "BEGIN", "END", "EXCEPTION") and for_loop_pending:
+                for f_tok, f_pos, f_line, f_col in for_loop_pending:
+                    diags.append({
+                        "severity": "error",
+                        "message": "Missing LOOP keyword after FOR loop header",
+                        "code": "SQL_SYNTAX_ERROR",
+                        "line": f_line,
+                        "column": f_col,
+                        "end_column": f_col + len(f_tok),
+                        "token": "FOR",
+                        "source": "postgresql",
+                    })
+                for_loop_pending.clear()
 
             if upper == "BEGIN":
                 begin_stack.append((tok_text, tok_pos, tok_line, tok_col))
@@ -267,7 +304,6 @@ def check_offline_postgres_structural_blocks(sql: str) -> list[dict[str, Any]]:
 
             if upper == "IF":
                 # Ensure not DDL "DROP ... IF EXISTS" inside block
-                prev_tok = tokens[k - 1][0].upper() if k > 0 else ""
                 if prev_tok in ("DROP", "CREATE", "TABLE", "VIEW", "INDEX", "SCHEMA", "DATABASE", "EXTENSION"):
                     pass
                 else:
@@ -275,18 +311,149 @@ def check_offline_postgres_structural_blocks(sql: str) -> list[dict[str, Any]]:
                 k += 1
                 continue
 
+            if upper == "FOR":
+                next_upper = tokens[k + 1][0].upper() if k + 1 < num_toks else ""
+                next_next_upper = tokens[k + 2][0].upper() if k + 2 < num_toks else ""
+
+                # 1. Skip if inside parentheses (e.g. SUBSTRING(str FROM pos FOR len) or subquery (SELECT ... FOR UPDATE))
+                if paren_depth > 0:
+                    k += 1
+                    continue
+
+                # 2. Skip locking / row clauses: FOR UPDATE, FOR SHARE, FOR KEY SHARE, FOR NO KEY UPDATE, FOR EACH ROW
+                if (
+                    next_upper in ("UPDATE", "SHARE", "KEY", "EACH")
+                    or (next_upper == "NO" and next_next_upper in ("KEY", "SCROLL"))
+                    or prev_tok in ("FROM", "EXTRACT", "SUBSTRING")
+                ):
+                    k += 1
+                    continue
+
+                # 3. Skip OPEN cursor FOR ... statement:
+                #    OPEN cursor_name [ [ NO ] SCROLL ] FOR query;
+                #    OPEN cursor_name [ [ NO ] SCROLL ] FOR EXECUTE query_string ...;
+                is_open_cursor = False
+                p = k - 1
+                p_paren = 0
+                while p >= 0:
+                    p_tok = tokens[p][0]
+                    if p_tok == ")":
+                        p_paren += 1
+                    elif p_tok == "(":
+                        p_paren -= 1
+                    elif p_paren == 0:
+                        p_u = p_tok.upper()
+                        if p_u in (";", "BEGIN", "THEN", "LOOP", "ELSE", "EXCEPTION", "DO"):
+                            break
+                        if p_u == "OPEN":
+                            is_open_cursor = True
+                            break
+                    p -= 1
+
+                if is_open_cursor:
+                    k += 1
+                    continue
+
+                # 4. Skip cursor declaration in DECLARE block:
+                #    cursor_name [ [ NO ] SCROLL ] CURSOR [ ( arguments ) ] FOR query;
+                is_cursor_decl = False
+                p = k - 1
+                p_paren = 0
+                while p >= 0:
+                    p_tok = tokens[p][0]
+                    if p_tok == ")":
+                        p_paren += 1
+                    elif p_tok == "(":
+                        p_paren -= 1
+                    elif p_paren == 0:
+                        p_u = p_tok.upper()
+                        if p_u in (";", "BEGIN", "DECLARE", "EXCEPTION"):
+                            break
+                        if p_u == "CURSOR":
+                            is_cursor_decl = True
+                            break
+                    p -= 1
+
+                if is_cursor_decl:
+                    k += 1
+                    continue
+
+                for_loop_pending.append((tok_text, tok_pos, tok_line, tok_col))
+                k += 1
+                continue
+
             if upper == "LOOP":
                 loop_stack.append((tok_text, tok_pos, tok_line, tok_col))
+                if for_loop_pending:
+                    for_loop_pending.pop()
                 k += 1
                 continue
 
             if upper == "CASE":
-                case_stack_count += 1
+                case_stack.append((tok_text, tok_pos, tok_line, tok_col))
+                k += 1
+                continue
+
+            if upper == "EXCEPTION":
+                if not begin_stack:
+                    diags.append({
+                        "severity": "error",
+                        "message": "Unmatched EXCEPTION: no corresponding BEGIN block",
+                        "code": "SQL_SYNTAX_ERROR",
+                        "line": tok_line,
+                        "column": tok_col,
+                        "end_column": tok_col + len(tok_text),
+                        "token": "EXCEPTION",
+                        "source": "postgresql",
+                    })
+                else:
+                    # Clear unclosed internal constructs before EXCEPTION with appropriate errors
+                    while case_stack:
+                        c_tok, c_pos, c_line, c_col = case_stack.pop()
+                        diags.append({
+                            "severity": "error",
+                            "message": "Unclosed CASE expression: missing corresponding END before EXCEPTION",
+                            "code": "SQL_SYNTAX_ERROR",
+                            "line": c_line,
+                            "column": c_col,
+                            "end_column": c_col + 4,
+                            "token": "CASE",
+                            "source": "postgresql",
+                        })
+                    while if_stack:
+                        i_tok, i_pos, i_line, i_col = if_stack.pop()
+                        diags.append({
+                            "severity": "error",
+                            "message": "Unmatched IF block: missing corresponding END IF before EXCEPTION",
+                            "code": "SQL_SYNTAX_ERROR",
+                            "line": i_line,
+                            "column": i_col,
+                            "end_column": i_col + 2,
+                            "token": "IF",
+                            "source": "postgresql",
+                        })
+                    while loop_stack:
+                        l_tok, l_pos, l_line, l_col = loop_stack.pop()
+                        diags.append({
+                            "severity": "error",
+                            "message": "Unmatched LOOP block: missing corresponding END LOOP before EXCEPTION",
+                            "code": "SQL_SYNTAX_ERROR",
+                            "line": l_line,
+                            "column": l_col,
+                            "end_column": l_col + 4,
+                            "token": "LOOP",
+                            "source": "postgresql",
+                        })
+                k += 1
+                continue
+
+            if upper == ";":
                 k += 1
                 continue
 
             if upper == "END":
                 next_tok = tokens[k + 1][0].upper() if k + 1 < num_toks else ""
+
                 if next_tok == "IF":
                     if if_stack:
                         if_stack.pop()
@@ -322,30 +489,106 @@ def check_offline_postgres_structural_blocks(sql: str) -> list[dict[str, Any]]:
                     if k < num_toks and tokens[k][0] not in (";", ",", "(", ")") and tokens[k][0].upper() not in ("BEGIN", "END", "IF", "CASE", "LOOP"):
                         k += 1
                     continue
-                elif next_tok == "CASE":
-                    if case_stack_count > 0:
-                        case_stack_count -= 1
-                    else:
-                        diags.append({
-                            "severity": "error",
-                            "message": "Unmatched END CASE: no corresponding CASE block",
-                            "code": "SQL_SYNTAX_ERROR",
-                            "line": tok_line,
-                            "column": tok_col,
-                            "end_column": tok_col + 8,
-                            "token": "END CASE",
-                            "source": "postgresql",
-                        })
-                    k += 2
-                    continue
                 else:
-                    if case_stack_count > 0:
-                        case_stack_count -= 1
+                    # Check for genuine procedural END CASE;
+                    # Criteria: next_tok == "CASE", next token after CASE is NOT "WHEN",
+                    # and between END and CASE there is only whitespace (checked via raw offsets).
+                    tok_offset = tok_pos - c_start
+                    next_tok_offset = tokens[k + 1][1] - c_start if k + 1 < num_toks else tok_offset
+                    raw_between = block_text[tok_offset + len(tok_text):next_tok_offset].strip()
+                    tok_after_case = tokens[k + 2][0].upper() if k + 2 < num_toks else ""
+
+                    if next_tok == "CASE" and raw_between == "" and tok_after_case != "WHEN":
+                        if case_stack:
+                            case_stack.pop()
+                        else:
+                            diags.append({
+                                "severity": "error",
+                                "message": "Unmatched END CASE: no corresponding CASE block",
+                                "code": "SQL_SYNTAX_ERROR",
+                                "line": tok_line,
+                                "column": tok_col,
+                                "end_column": tok_col + 8,
+                                "token": "END CASE",
+                                "source": "postgresql",
+                            })
+                        k += 2
+                        # Skip optional label, e.g. END CASE my_case;
+                        if k < num_toks and tokens[k][0] not in (";", ",", "(", ")") and tokens[k][0].upper() not in ("BEGIN", "END", "IF", "CASE", "LOOP"):
+                            k += 1
+                        continue
+
+                    # Plain END: Could close a scalar CASE expression, or a BEGIN block
+                    # 1. If next_tok is an expression continuation (AS, ||, comma, etc.), it MUST be closing a CASE!
+                    if next_tok in EXPR_FOLLOWS:
+                        if case_stack:
+                            case_stack.pop()
+                        else:
+                            diags.append({
+                                "severity": "error",
+                                "message": "Unmatched END: no corresponding CASE expression",
+                                "code": "SQL_SYNTAX_ERROR",
+                                "line": tok_line,
+                                "column": tok_col,
+                                "end_column": tok_col + 3,
+                                "token": "END",
+                                "source": "postgresql",
+                            })
+                        k += 1
+                        continue
+
+                    # 2. If prev_tok was ";" (or "BEGIN" or "EXCEPTION"), the previous statement was already terminated by ";".
+                    # A scalar CASE expression can never have ";" immediately before its END!
+                    # Therefore, this END; is closing the BEGIN block!
+                    if prev_tok in (";", "BEGIN", "EXCEPTION", ""):
+                        if case_stack:
+                            for c_tok, c_pos, c_line, c_col in case_stack:
+                                diags.append({
+                                    "severity": "error",
+                                    "message": "Unclosed CASE expression: missing corresponding END",
+                                    "code": "SQL_SYNTAX_ERROR",
+                                    "line": c_line,
+                                    "column": c_col,
+                                    "end_column": c_col + 4,
+                                    "token": "CASE",
+                                    "source": "postgresql",
+                                    })
+                            case_stack.clear()
+
+                        if begin_stack:
+                            begin_stack.pop()
+                            # Skip optional block label after END, e.g. END lbl;
+                            if (
+                                k + 1 < num_toks
+                                and tokens[k + 1][0] not in (";", ",", "(", ")")
+                                and tokens[k + 1][0].upper() not in ("BEGIN", "END", "IF", "CASE", "LOOP")
+                            ):
+                                k += 2
+                            else:
+                                k += 1
+                            continue
+                        else:
+                            diags.append({
+                                "severity": "error",
+                                "message": "Unmatched END: no corresponding BEGIN block",
+                                "code": "SQL_SYNTAX_ERROR",
+                                "line": tok_line,
+                                "column": tok_col,
+                                "end_column": tok_col + 3,
+                                "token": "END",
+                                "source": "postgresql",
+                            })
+                            k += 1
+                            continue
+
+                    # 3. Otherwise (e.g. PERFORM CASE ... END; or x := CASE ... END;):
+                    # prev_tok is NOT ";", so END is at the end of an expression!
+                    if case_stack:
+                        case_stack.pop()
                         k += 1
                         continue
                     elif begin_stack:
                         begin_stack.pop()
-                        # Skip optional block label after END, e.g. END lbl;
                         if (
                             k + 1 < num_toks
                             and tokens[k + 1][0] not in (";", ",", "(", ")")
@@ -358,7 +601,7 @@ def check_offline_postgres_structural_blocks(sql: str) -> list[dict[str, Any]]:
                     else:
                         diags.append({
                             "severity": "error",
-                            "message": "Unmatched END: no corresponding BEGIN block",
+                            "message": "Unmatched END: no corresponding block",
                             "code": "SQL_SYNTAX_ERROR",
                             "line": tok_line,
                             "column": tok_col,
@@ -370,6 +613,30 @@ def check_offline_postgres_structural_blocks(sql: str) -> list[dict[str, Any]]:
                         continue
 
             k += 1
+
+        for f_tok, f_pos, f_line, f_col in for_loop_pending:
+            diags.append({
+                "severity": "error",
+                "message": "Missing LOOP keyword after FOR loop header",
+                "code": "SQL_SYNTAX_ERROR",
+                "line": f_line,
+                "column": f_col,
+                "end_column": f_col + len(f_tok),
+                "token": "FOR",
+                "source": "postgresql",
+            })
+
+        for c_tok, c_pos, c_line, c_col in case_stack:
+            diags.append({
+                "severity": "error",
+                "message": "Unclosed CASE expression: missing corresponding END",
+                "code": "SQL_SYNTAX_ERROR",
+                "line": c_line,
+                "column": c_col,
+                "end_column": c_col + 4,
+                "token": "CASE",
+                "source": "postgresql",
+            })
 
         for i_tok, i_pos, i_line, i_col in if_stack:
             diags.append({
@@ -438,24 +705,32 @@ class PostgreSqlAdapter(BaseSyntaxAdapter):
             is_debug=is_debug,
         )
 
-        # In offline mode, supplement sqlglot with structural block validation
+        # In offline mode or for procedural/DDL SQL, supplement with structural block validation
         has_active_conn = False
         if connection_session and getattr(connection_session, "adapter", None):
             has_active_conn = getattr(connection_session.adapter, "connection", None) is not None
 
-        if not has_active_conn:
+        from app.database.syntax.validator_pg import _is_destructive_or_locking_ddl
+        from app.database.syntax.proc_body_detector import is_procedural_sql
+
+        is_procedural_or_ddl = _is_destructive_or_locking_ddl(sql) or is_procedural_sql(sql, dialect="postgres")
+        if not has_active_conn or is_procedural_or_ddl:
             block_diags = check_offline_postgres_structural_blocks(sql)
             raw_diags.extend(block_diags)
 
-            # Honest status marking: If routine contains procedural elements and no syntax errors were found,
-            # note that full semantic validation requires database connection (PARTIAL)
+            # Honest status marking: If routine contains procedural elements and no syntax errors were found
             has_errors = any(d.get("severity") == "error" for d in raw_diags)
             if not has_errors and ("$$" in sql or "plpgsql" in sql.lower()):
                 upper_sql = sql.upper()
                 if any(kw in upper_sql for kw in ("BEGIN", "IF", "LOOP", "PERFORM", "RAISE", "DECLARE", "EXCEPTION")):
+                    status_msg = (
+                        "PL/pgSQL block structure validated."
+                        if has_active_conn
+                        else "PL/pgSQL block structure validated (offline mode). Full semantic validation requires active database connection."
+                    )
                     raw_diags.append({
                         "severity": "info",
-                        "message": "PL/pgSQL block structure validated (offline mode). Full semantic validation requires active database connection.",
+                        "message": status_msg,
                         "code": "SQL_SYNTAX_PARTIAL",
                         "line": 1,
                         "column": 1,

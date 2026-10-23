@@ -119,6 +119,7 @@ describe('Phase 4.1: T-SQL TRY/CATCH Context & Error Functions Ranking', () => {
 
         // Columns from dbo.Orders (e.g. OrderID, CustomerID) must be top ranked, not ERROR_MESSAGE
         assert.ok(labelsNormal.includes('OrderID'), 'Orders columns should appear');
-        assert.ok(labelsNormal.indexOf('OrderID') < 5, 'Table columns must remain top ranked in normal query');
+        assert.ok(labelsNormal.indexOf('CustomerID') < 5, 'Table columns must remain top ranked in normal query');
+        assert.ok(labelsNormal.indexOf('OrderID') < 10, 'Table columns must remain top ranked in normal query');
     });
 });

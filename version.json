@@ -1,18 +1,21 @@
 {
-  "version": "1.0.5",
-  "releaseDate": "2026-10-20",
+  "version": "1.1.4",
+  "releaseDate": "2026-10-24",
   "minSupportedVersion": "1.0.0",
-  "title": "LLTool IDE v1.0.5",
-  "downloadUrl": "https://github.com/luongtmu001/IDE_SQL_Lite_Pywebview/archive/refs/heads/main.zip",
-  "fileName": "LLTool_v1.0.5.zip",
-  "fileSize": 83292085,
-  "releaseNotes": "Bản phát hành v1.0.5 chính thức tích hợp Trình quản lý & Soạn thảo Google Sheets trực tiếp trong IDE, công cụ So sánh Bravo Layout XML, mở So sánh Schema dạng Tab từ Object Explorer, sửa lỗi dropdown zoom % bị che khuất, bo viền accent tab kết quả và khôi phục hoàn chỉnh bộ quản lý Tab.",
+  "title": "LLTool IDE v1.1.4",
+  "downloadUrl": "https://github.com/luongtmu001/IDE_SQL_Lite_Pywebview/releases/download/v1.1.4/LLTool_v1.1.4.zip",
+  "patchDownloadUrl": "https://github.com/luongtmu001/IDE_SQL_Lite_Pywebview/releases/download/v1.1.4/LLTool_v1.1.4_patch.zip",
+  "fileName": "LLTool_v1.1.4.zip",
+  "fileSize": 61601478,
+  "releaseNotes": "Bản phát hành v1.1.4 kích hoạt mô hình phiên kết nối độc lập theo từng tab (Per-Tab Dedicated Session Model) trên môi trường Native Desktop PyWebview; Khắc phục lỗi rò rỉ và chia sẻ bảng tạm cục bộ (#temp trên SQL Server và CREATE TEMP TABLE trên PostgreSQL) giữa các tab; Tự động giải phóng kết nối và thu hồi bảng tạm khi đóng tab; Hiển thị SPID/PID thời gian thực trên thanh trạng thái ngay khi tạo tab.",
   "highlights": [
-    "Tích hợp Google Sheets Manager & Inline Editor: mở, quản lý và chỉnh sửa trực tiếp bảng tính Google Sheets trong IDE với điều hướng tab mượt mà",
-    "Tích hợp công cụ So sánh Bravo Layout XML: phân tích và so sánh trực quan cấu trúc giao diện Form/Layout",
-    "Mở So sánh Schema từ Object Explorer trực tiếp dưới dạng Tab mới trong cửa sổ chính",
-    "Sửa lỗi dropdown tỷ lệ % zoom tại thanh trạng thái SQL Editor bị ẩn dưới Result Grid, đảm bảo menu luôn nổi lên trên",
-    "Tinh chỉnh đường viền bo chân (border-bottom) màu accent của tab kết quả (Result/Messages/Plan) chạy liền mạch đè lên chân các tab lân cận",
-    "Khôi phục hoàn toàn bộ quản lý Tab: sửa lỗi hàm createTab, mở lại tạo tab mới (+), phím tắt, New Query và Search Object"
-  ]
+    "Kích hoạt Mô hình Phiên Độc lập theo Tab (Per-Tab Session Model on Desktop IPC): Đấu nối hoàn chỉnh IPC bridge /api/connections/tab-session, mỗi tab sở hữu kết nối thực thi độc lập với SPID/PID riêng tương tự SSMS.",
+    "Cô lập Triệt để Bảng tạm Cục bộ: Khắc phục lỗi dùng chung kết nối khiến #temp (SQL Server) và CREATE TEMP TABLE (PostgreSQL) bị nhìn thấy xuyên tab; đảm bảo bảng tạm chỉ có hiệu lực duy nhất trong tab tạo nó.",
+    "Thu hồi Tài nguyên Tự động: Đóng tab sẽ tự động ngắt kết nối thực thi và thu hồi toàn bộ bảng tạm trên database server.",
+    "Hiển thị Badge SPID/PID Thời gian thực: Thanh trạng thái cập nhật chính xác SPID (SQL Server) hoặc PID (PostgreSQL pg_backend_pid) ngay khi tab vừa được khởi tạo và tự động cập nhật khi đổi kết nối."
+  ],
+  "sha256": "0dba77651fb3c9ee6e2850cd2e9d5b32e6b4665a3055fdb587f6cbc635f31bea",
+  "patchFileName": "LLTool_v1.1.4_patch.zip",
+  "patchFileSize": 27873425,
+  "patchSha256": "b9597cd877cf2661a91684e7a9d66b29f585bbe8ef0f80bc0e46b314983ca066"
 }

@@ -525,6 +525,52 @@
         return Boolean(colMeta?.default_value && String(colMeta.default_value).trim().length > 0);
     }
 
+    // Helper: Find column index in session.columns (case-insensitive)
+    function findColumnIndex(session, colName) {
+        if (!colName || !session?.columns) return -1;
+        const lower = String(colName).trim().toLowerCase();
+        return session.columns.findIndex(c => String(c).trim().toLowerCase() === lower);
+    }
+
+    // Helper: Detect whether a column is boolean / bit data type
+    function isBooleanColumn(session, colName) {
+        if (!colName || !session?.metadata) return false;
+        const nameLower = String(colName).trim().toLowerCase();
+        const colMeta = (session.metadata.columns || []).find(c => String(c.name).trim().toLowerCase() === nameLower);
+        const colType = String(colMeta?.type || colMeta?.type_name || '').toLowerCase();
+        return colType === 'bit' || colType === 'boolean' || colType === 'bool';
+    }
+
+    // Helper: Toggle boolean / bit cell between True -> False -> NULL (or 1 -> 0 -> NULL)
+    function toggleBooleanCell(session, td) {
+        if (!td) return;
+        const rIdx = Number(td.dataset.rowIdx);
+        const cIdx = Number(td.dataset.colIdx);
+        const colName = td.dataset.colName;
+        if (isIdentityColumn(session, colName) || isComputedColumn(session, colName)) return;
+
+        const curVal = session.rows[rIdx]?.[cIdx];
+        const colMeta = (session.metadata?.columns || []).find(c => String(c.name).trim().toLowerCase() === String(colName).trim().toLowerCase());
+        const isNullable = colMeta?.is_nullable ?? colMeta?.nullable ?? true;
+
+        let nextVal;
+        if (curVal === null || curVal === undefined) {
+            nextVal = 1;
+        } else {
+            const sVal = String(curVal).toLowerCase();
+            const isTrue = (curVal === 1 || curVal === true || sVal === '1' || sVal === 'true' || sVal === 't');
+            if (isTrue) {
+                nextVal = 0;
+            } else {
+                nextVal = isNullable ? null : 1;
+            }
+        }
+
+        applyCellValue(session, rIdx, cIdx, nextVal);
+        const tr = td.closest('tr');
+        if (tr) populateGridRow(session, tr, rIdx, session.columns);
+    }
+
     // Helper: Identify all UNIQUE constraint specifications (manual PKs, unique constraints, unique indexes)
     // with composite column groupings preserved.
     function getUniqueSpecsForDuplicate(session) {
@@ -672,7 +718,6 @@
 
     function triggerUndo(session) {
         if (!session.undoStack || session.undoStack.length === 0) {
-            if (typeof showToast === 'function') showToast('Không có hành động nào để Undo.', 'info');
             return;
         }
         // Push current state to redo before undoing
@@ -698,12 +743,10 @@
             renderSessionUI(session);
         }
         if (window.AppTabs) window.AppTabs.setTabDirty(session.tabId, session.dirtyRows.size > 0);
-        if (typeof showToast === 'function') showToast(`Đã Undo. Còn ${session.undoStack.length} bước.`, 'secondary');
     }
 
     function triggerRedo(session) {
         if (!session.redoStack || session.redoStack.length === 0) {
-            if (typeof showToast === 'function') showToast('Không có hành động nào để Redo.', 'info');
             return;
         }
         const currentSnap = {
@@ -728,7 +771,6 @@
             renderSessionUI(session);
         }
         if (window.AppTabs) window.AppTabs.setTabDirty(session.tabId, session.dirtyRows.size > 0);
-        if (typeof showToast === 'function') showToast(`Đã Redo. Còn ${session.redoStack.length} bước.`, 'secondary');
     }
 
     // Helper: Resolve canvas measurement font according to IDE UI typography settings
@@ -922,13 +964,17 @@
                 if (isSeq && isNull && isNew) {
                     displayContent = '<span class="tde-sequence-tag">&lt;Seq&gt;</span>';
                     cellTitle = 'Cột Sequence — để trống để CSDL tự sinh, hoặc nhập giá trị tùy chỉnh';
+                } else if (isNull) {
+                    cellClasses.push('tde-cell-null');
+                    displayContent = 'NULL';
+                } else if (isBooleanColumn(session, col) && !isIdent && !isComp) {
+                    const sVal = String(val).toLowerCase();
+                    const isTrue = (val === 1 || val === true || sVal === '1' || sVal === 'true' || sVal === 't');
+                    displayContent = isTrue
+                        ? '<span class="tde-bool-badge tde-bool-true"><i class="fa-solid fa-check me-1"></i>True</span>'
+                        : '<span class="tde-bool-badge tde-bool-false"><i class="fa-solid fa-xmark me-1"></i>False</span>';
                 } else {
-                    if (isNull) {
-                        cellClasses.push('tde-cell-null');
-                        displayContent = 'NULL';
-                    } else {
-                        displayContent = (val === '' ? '' : esc(val));
-                    }
+                    displayContent = (val === '' ? '' : esc(val));
                 }
                 if (isCellDirty) cellClasses.push('tde-cell-dirty');
 
@@ -1594,6 +1640,20 @@
                 e.preventDefault();
                 e.stopPropagation();
                 triggerDeleteRow(session);
+            } else if (e.key === 'F4' && !['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName)) {
+                e.preventDefault();
+                e.stopPropagation();
+                showValueInspector(session, session.activeRowIndex, session.activeColIndex);
+            } else if (e.key === ' ' && !['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName)) {
+                const activeTd = container.querySelector('#tde-grid-table td.tde-cell-active');
+                if (activeTd && !activeTd.classList.contains('tde-rowhead-cell')) {
+                    const colName = activeTd.dataset.colName;
+                    if (isBooleanColumn(session, colName) && !isIdentityColumn(session, colName) && !isComputedColumn(session, colName)) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        toggleBooleanCell(session, activeTd);
+                    }
+                }
             } else if ((e.key === 'Enter' || e.key === 'F2') && !['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName)) {
                 // Item 3: Enter or F2 to enter edit mode on focused cell
                 const activeTd = container.querySelector('#tde-grid-table td.tde-cell-active');
@@ -1936,6 +1996,12 @@
         gridTable.addEventListener('dblclick', (e) => {
             const td = e.target.closest('td');
             if (!td || td.classList.contains('tde-rowhead-cell')) return;
+            const colName = td.dataset.colName;
+            if (isBooleanColumn(session, colName) && !isIdentityColumn(session, colName) && !isComputedColumn(session, colName)) {
+                e.preventDefault();
+                toggleBooleanCell(session, td);
+                return;
+            }
             startCellEditing(session, td);
         });
 
@@ -2064,7 +2130,7 @@
 
                 let match = true;
                 for (const colName of filterKeys) {
-                    const cIdx = columns.indexOf(colName);
+                    const cIdx = findColumnIndex(session, colName);
                     if (cIdx === -1) continue;
                     const filterRule = session.columnFilters[colName];
                     const val = rowData[cIdx];
@@ -3357,7 +3423,7 @@
                 if (valResult && valResult.valid === false) {
                     const cleanMsg = cleanSqlErrorMessage(valResult.error || 'Dữ liệu vi phạm ràng buộc CSDL.');
                     const errorCols = Array.isArray(valResult.columns) ? valResult.columns : [colName];
-                    const errorCIdxList = errorCols.map(c => session.columns.indexOf(c)).filter(i => i >= 0);
+                    const errorCIdxList = errorCols.map(c => findColumnIndex(session, c)).filter(i => i >= 0);
                     if (!errorCIdxList.includes(cIdx)) errorCIdxList.push(cIdx);
 
                     const constraintKey = `${valResult.constraint_type || 'DB'}::${valResult.constraint_name || colName}`;
@@ -3531,7 +3597,11 @@
 
         input.addEventListener('blur', () => commit(false));
         input.addEventListener('keydown', async (e) => {
-            if (e.key === 'Tab') {
+            if (e.key === 'F4') {
+                e.preventDefault();
+                await commit(false);
+                showValueInspector(session, rIdx, cIdx);
+            } else if (e.key === 'Tab') {
                 e.preventDefault();
                 await commit(false);
                 if (session.rowErrors?.has(rIdx)) return;
@@ -3691,6 +3761,7 @@
             <div class="tde-menu-item ${!colName ? 'disabled' : ''}" data-action="value-inspector">
                 <span class="tde-menu-icon text-info"><i class="fa-solid fa-magnifying-glass-plus"></i></span>
                 <span class="tde-menu-label">Value Inspector (JSON/XML/Text)...</span>
+                <span class="tde-menu-shortcut">F4</span>
             </div>
             <div class="tde-menu-item ${!colName ? 'disabled' : ''}" data-action="bulk-edit">
                 <span class="tde-menu-icon text-primary"><i class="fa-solid fa-layer-group"></i></span>
@@ -4082,7 +4153,7 @@
             // Requirement 3: Highlight unique cells in RED without blocking popup
             const uniqueSpecs = getUniqueSpecsForDuplicate(session);
             uniqueSpecs.forEach(spec => {
-                const cIdxList = spec.fields.map(f => session.columns.indexOf(f)).filter(i => i >= 0);
+                const cIdxList = spec.fields.map(f => findColumnIndex(session, f)).filter(i => i >= 0);
                 const allFilled = cIdxList.length > 0 && cIdxList.every(ci => gridRowArray[ci] !== null && gridRowArray[ci] !== '');
                 if (allFilled) {
                     const isSingle = spec.fields.length === 1;
@@ -4246,7 +4317,7 @@
             // Requirement 3: Highlight unique cells in RED without blocking popup
             const uniqueSpecs = getUniqueSpecsForDuplicate(session);
             uniqueSpecs.forEach(spec => {
-                const cIdxList = spec.fields.map(f => session.columns.indexOf(f)).filter(i => i >= 0);
+                const cIdxList = spec.fields.map(f => findColumnIndex(session, f)).filter(i => i >= 0);
                 const allFilled = cIdxList.length > 0 && cIdxList.every(ci => duplicatedRow[ci] !== null && duplicatedRow[ci] !== '');
                 if (allFilled) {
                     const isSingle = spec.fields.length === 1;
@@ -4405,7 +4476,7 @@
                         <thead><tr><th>Cột</th><th>Giá trị cũ</th><th>Giá trị mới</th></tr></thead>
                         <tbody>
                             ${Object.keys(changes).map(c => {
-                                const colIdx = session.columns.indexOf(c);
+                                const colIdx = findColumnIndex(session, c);
                                 const oldV = dirtyInfo.originalRow[colIdx];
                                 const newV = changes[c];
                                 return `
@@ -4728,10 +4799,8 @@
             renderSessionUI(session);
         }
 
-        if (typeof showToast === 'function') {
-            if (unsavedCount > 0) showToast(`Đã xóa ${unsavedCount} dòng mới chưa lưu`, 'secondary');
-            if (stagedDeleteCount > 0) showToast(`Đã đánh dấu xóa ${stagedDeleteCount} dòng (Bấm Save để xác nhận commit)`, 'warning');
-            if (stagedUnmarkCount > 0) showToast(`Đã hủy đánh dấu xóa ${stagedUnmarkCount} dòng`, 'info');
+        if (typeof showToast === 'function' && stagedDeleteCount > 0) {
+            showToast(`Đã đánh dấu xóa ${stagedDeleteCount} dòng (Bấm Save để xác nhận commit)`, 'warning');
         }
     }
 
@@ -4759,7 +4828,6 @@
         const dirtyInfo = session.dirtyRows.get(rIdx);
         const hasErrors = session.rowErrors?.has(rIdx);
         if (!dirtyInfo && !hasErrors) {
-            if (typeof showToast === 'function') showToast('Dòng này chưa có thay đổi nào để hoàn tác', 'info');
             return;
         }
 
@@ -4794,9 +4862,7 @@
                     }
                     if (errMap.size === 0) session.rowErrors.delete(rIdx);
                 }
-                if (typeof showToast === 'function') showToast(`Đã hoàn tác ô [${colName}] về giá trị ban đầu`, 'info');
             } else {
-                if (typeof showToast === 'function') showToast(`Ô [${colName}] chưa có thay đổi`, 'info');
                 return;
             }
         } else {
@@ -4804,7 +4870,6 @@
             pushUndoSnapshot(session);
             if (dirtyInfo?.isNew) {
                 removeUnsavedRow(session, rIdx);
-                if (typeof showToast === 'function') showToast('Đã hoàn tác và gỡ bỏ dòng mới', 'info');
             } else {
                 const origRow = dirtyInfo?.originalRow || session.originalRows[rIdx];
                 if (origRow) session.rows[rIdx] = [...origRow];
@@ -4879,11 +4944,18 @@
                         <textarea class="tde-inspector-textarea" id="tde-insp-text" spellcheck="false">${esc(rawValStr)}</textarea>
                     </div>
                 </div>
-                <div class="tde-modal-footer">
-                    <button class="btn btn-sm btn-secondary" id="tde-insp-btn-cancel">Đóng</button>
-                    <button class="btn btn-sm btn-success px-3" id="tde-insp-btn-apply">
-                        <i class="fa-solid fa-check me-1"></i>Áp dụng vào ô
-                    </button>
+                <div class="tde-modal-footer d-flex align-items-center justify-content-between">
+                    <div>
+                        <button class="btn btn-sm btn-outline-warning" id="tde-insp-btn-null" title="Gán giá trị NULL cho ô">
+                            <i class="fa-solid fa-ban me-1"></i>Gán NULL
+                        </button>
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                        <button class="btn btn-sm btn-secondary" id="tde-insp-btn-cancel">Đóng (Esc)</button>
+                        <button class="btn btn-sm btn-success px-3" id="tde-insp-btn-apply">
+                            <i class="fa-solid fa-check me-1"></i>Áp dụng vào ô (Ctrl+Enter)
+                        </button>
+                    </div>
                 </div>
             </div>
         `;
@@ -4894,8 +4966,26 @@
         const statusDiv = modalBackdrop.querySelector('#tde-insp-status');
         const closeModal = () => modalBackdrop.remove();
 
-        modalBackdrop.querySelector('#tde-inspector-close-x')?.addEventListener('click', closeModal);
+        modalBackdrop.querySelector('#tde-insp-close-x')?.addEventListener('click', closeModal);
         modalBackdrop.querySelector('#tde-insp-btn-cancel')?.addEventListener('click', closeModal);
+
+        // Keyboard shortcuts inside Value Inspector (Ctrl+Enter to apply, Escape to close)
+        modalBackdrop.addEventListener('keydown', (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                e.preventDefault();
+                modalBackdrop.querySelector('#tde-insp-btn-apply')?.click();
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                closeModal();
+            }
+        });
+
+        modalBackdrop.querySelector('#tde-insp-btn-null')?.addEventListener('click', () => {
+            closeModal();
+            applyCellValue(session, rIdx, cIdx, null);
+        });
+
+        setTimeout(() => { textarea?.focus(); }, 50);
 
         // Format JSON
         modalBackdrop.querySelector('#tde-insp-fmt-json')?.addEventListener('click', () => {
@@ -5009,7 +5099,7 @@
 
         if (pkCols.length > 0) {
             pkCols.forEach(col => {
-                const cIdx = session.columns.indexOf(col);
+                const cIdx = findColumnIndex(session, col);
                 if (cIdx !== -1) {
                     conds[col] = row[cIdx];
                 }

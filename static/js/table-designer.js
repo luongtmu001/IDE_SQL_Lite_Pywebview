@@ -195,6 +195,12 @@
                 }
             }
 
+            if (json.data && Array.isArray(json.data.columns)) {
+                json.data.columns.forEach(c => {
+                    if (!c.original_name) c.original_name = c.name;
+                });
+            }
+
             const session = {
                 tabId,
                 connId,
@@ -920,6 +926,25 @@
             detail: idxsChanged ? `Đã chỉnh sửa indexes (${modIdxs.length})` : (origIdxs.length > 0 ? `Chưa sửa (${origIdxs.length} index hiện có)` : 'Không có index')
         });
 
+        // Comments
+        const origTblCmt = (orig.comment || orig.description || '').trim();
+        const modTblCmt = (mod.comment || mod.description || '').trim();
+        let colCommentsChanged = false;
+        modCols.forEach(mc => {
+            const oc = origCols.find(c => c.name === mc.name || (mc.original_name && c.name === mc.original_name));
+            const ocCmt = oc ? (oc.comment || oc.description || '').trim() : '';
+            const mcCmt = (mc.comment || mc.description || '').trim();
+            if (ocCmt !== mcCmt) colCommentsChanged = true;
+        });
+        const commentsChanged = (origTblCmt !== modTblCmt) || colCommentsChanged;
+        items.push({
+            type: 'comments',
+            name: 'Comments (Mô tả bảng & cột)',
+            count: 1,
+            modified: commentsChanged,
+            detail: commentsChanged ? 'Đã chỉnh sửa mô tả (comment)' : 'Chưa thay đổi mô tả'
+        });
+
         // Warning if columns changed but triggers or foreign keys exist and were untouched
         const hasUnmodifiedAudit = colsChanged && ((origTrigs.length > 0 && !trigsChanged) || (origFks.length > 0 && !fksChanged));
 
@@ -1138,6 +1163,7 @@
                                 tables: 'Table & Columns',
                                 constraints: 'Constraints',
                                 indexes: 'Indexes',
+                                comments: 'Comments',
                                 triggers: 'Triggers'
                             };
                             script = `-- No pending changes for: ${filterLabels[filter] || filter}\n`;
@@ -1220,6 +1246,29 @@
             else inspSeqBox.classList.add('d-none');
         }
         if (inspSeqName) inspSeqName.value = col?.sequence_name || '';
+
+        // Computed column inspector
+        const inspIsComputed = container.querySelector('#td-insp-is-computed');
+        const inspComputedBox = container.querySelector('#td-insp-computed-box');
+        const inspFormula = container.querySelector('#td-insp-formula');
+        const inspIsPersisted = container.querySelector('#td-insp-is-persisted');
+
+        if (inspIsComputed) {
+            inspIsComputed.checked = !!col?.is_computed;
+            inspIsComputed.disabled = !col;
+        }
+        if (inspComputedBox) {
+            if (col?.is_computed) inspComputedBox.classList.remove('d-none');
+            else inspComputedBox.classList.add('d-none');
+        }
+        if (inspFormula) {
+            inspFormula.value = col?.formula || '';
+            inspFormula.disabled = !col?.is_computed;
+        }
+        if (inspIsPersisted) {
+            inspIsPersisted.checked = !!col?.is_persisted;
+            inspIsPersisted.disabled = !col?.is_computed;
+        }
     }
 
     function selectFieldRow(session, idx, isShift = false, isCtrl = false) {
@@ -1321,7 +1370,9 @@
                         <span class="badge bg-secondary">${escapeHtml(session.schema)}</span>
                         <span class="text-muted">.</span>
                         <span class="text-muted" style="font-weight: 600;">Table Name:</span>
-                        <input type="text" id="td-table-name-input" class="form-control form-control-sm td-name-input" style="width: 220px; height: 26px; font-weight: 600;" value="${escapeHtml(session.table)}" placeholder="Table name..." />
+                        <input type="text" id="td-table-name-input" class="form-control form-control-sm td-name-input" style="width: 200px; height: 26px; font-weight: 600;" value="${escapeHtml(session.table)}" placeholder="Table name..." />
+                        <span class="text-muted ms-2" style="font-weight: 600;">Comment:</span>
+                        <input type="text" id="td-table-comment-input" class="form-control form-control-sm td-name-input" style="width: 240px; height: 26px;" value="${escapeHtml(session.modifiedData.comment || session.modifiedData.description || '')}" placeholder="Table description..." />
                         ${session.isNew ? '<span class="badge bg-success"><i class="fa-solid fa-sparkles me-1"></i>New Table</span>' : ''}
                     </div>
                     <div id="td-notification-area" class="text-info" style="transition: opacity 0.3s ease;"></div>
@@ -1389,6 +1440,7 @@
                                     <option value="tables" ${session.liveSqlFilter === 'tables' ? 'selected' : ''}>Tables</option>
                                     <option value="constraints" ${session.liveSqlFilter === 'constraints' ? 'selected' : ''}>Constraints</option>
                                     <option value="indexes" ${session.liveSqlFilter === 'indexes' ? 'selected' : ''}>Indexes</option>
+                                    <option value="comments" ${session.liveSqlFilter === 'comments' ? 'selected' : ''}>Comments</option>
                                     <option value="triggers" ${session.liveSqlFilter === 'triggers' ? 'selected' : ''}>Triggers</option>
                                 </select>
                             </div>
@@ -1611,6 +1663,25 @@
                         <div id="td-insp-seq-box" class="d-flex align-items-center gap-1 ${selectedCol?.sequence_name ? '' : 'd-none'}">
                             <span class="text-muted">Tên Seq:</span>
                             <input type="text" id="td-insp-sequence-name" class="form-control form-control-sm td-insp-input" style="width: 170px; height: 22px;" placeholder="schema.seq_name" value="${escapeHtml(selectedCol?.sequence_name || '')}" />
+                        </div>
+                    </div>
+                </div>
+                <div class="td-inspector-row">
+                    <span class="td-inspector-label">Computed:</span>
+                    <div class="td-inspector-control d-flex align-items-center flex-wrap gap-2">
+                        <label class="form-check-label d-flex align-items-center gap-1">
+                            <input type="checkbox" id="td-insp-is-computed" class="td-checkbox" ${selectedCol?.is_computed ? 'checked' : ''} ${!selectedCol ? 'disabled' : ''} />
+                            <span class="fw-semibold">Computed Column</span>
+                        </label>
+                        <div id="td-insp-computed-box" class="d-flex align-items-center gap-2 ${selectedCol?.is_computed ? '' : 'd-none'}">
+                            <span class="text-muted">Formula:</span>
+                            <input type="text" id="td-insp-formula" class="form-control form-control-sm td-insp-input" style="width: 220px; height: 22px;" placeholder="e.g. [Qty] * [Price]" value="${escapeHtml(selectedCol?.formula || '')}" ${!selectedCol?.is_computed ? 'disabled' : ''} />
+                            ${session.dbType === 'sqlserver' ? `
+                            <label class="form-check-label d-flex align-items-center gap-1 ms-1">
+                                <input type="checkbox" id="td-insp-is-persisted" class="td-checkbox" ${selectedCol?.is_persisted ? 'checked' : ''} ${!selectedCol?.is_computed ? 'disabled' : ''} />
+                                <span>Persisted</span>
+                            </label>
+                            ` : ''}
                         </div>
                     </div>
                 </div>
@@ -2326,6 +2397,18 @@
             });
         }
 
+        // Table Comment Input
+        const tableCommentInput = container.querySelector('#td-table-comment-input');
+        if (tableCommentInput) {
+            tableCommentInput.addEventListener('input', e => {
+                const val = e.target.value.trim();
+                session.modifiedData.comment = val;
+                session.modifiedData.description = val;
+                markDirty(session);
+                updateLiveSql(session);
+            });
+        }
+
         // Save button
         const saveBtn = container.querySelector('#td-btn-save');
         if (saveBtn) {
@@ -2603,6 +2686,54 @@
                 if (col) {
                     col.sequence_name = e.target.value.trim();
                     markDirty(session);
+                }
+            });
+        }
+
+        const inspIsComputed = container.querySelector('#td-insp-is-computed');
+        const inspComputedBox = container.querySelector('#td-insp-computed-box');
+        const inspFormula = container.querySelector('#td-insp-formula');
+        const inspIsPersisted = container.querySelector('#td-insp-is-persisted');
+
+        if (inspIsComputed) {
+            inspIsComputed.addEventListener('change', e => {
+                const col = session.modifiedData.columns[session.selectedFieldIndex];
+                if (!col) return;
+                col.is_computed = e.target.checked;
+                if (col.is_computed) {
+                    if (inspComputedBox) inspComputedBox.classList.remove('d-none');
+                    if (inspFormula) inspFormula.disabled = false;
+                    if (inspIsPersisted) inspIsPersisted.disabled = false;
+                } else {
+                    if (inspComputedBox) inspComputedBox.classList.add('d-none');
+                    if (inspFormula) inspFormula.disabled = true;
+                    if (inspIsPersisted) inspIsPersisted.disabled = true;
+                    col.formula = '';
+                    col.is_persisted = false;
+                }
+                markDirty(session);
+                updateLiveSql(session);
+            });
+        }
+
+        if (inspFormula) {
+            inspFormula.addEventListener('input', e => {
+                const col = session.modifiedData.columns[session.selectedFieldIndex];
+                if (col) {
+                    col.formula = e.target.value.trim();
+                    markDirty(session);
+                    updateLiveSql(session);
+                }
+            });
+        }
+
+        if (inspIsPersisted) {
+            inspIsPersisted.addEventListener('change', e => {
+                const col = session.modifiedData.columns[session.selectedFieldIndex];
+                if (col) {
+                    col.is_persisted = e.target.checked;
+                    markDirty(session);
+                    updateLiveSql(session);
                 }
             });
         }
@@ -3067,7 +3198,8 @@
                     triggers: 'Triggers',
                     foreign_keys: 'Foreign Keys',
                     constraints: 'Constraints',
-                    indexes: 'Indexes'
+                    indexes: 'Indexes',
+                    comments: 'Comments (Mô tả bảng & cột)'
                 };
                 if (filterStatusBadge) {
                     filterStatusBadge.className = 'badge bg-info text-dark';
@@ -3079,6 +3211,7 @@
                     const stType = (typeof st === 'object' ? st.type : null) || 'tables';
                     if (type === 'fields' || type === 'tables') return stType === 'fields' || stType === 'tables';
                     if (type === 'foreign_keys' || type === 'constraints') return stType === 'foreign_keys' || stType === 'constraints';
+                    if (type === 'comments') return stType === 'comments';
                     return stType === type;
                 });
 
@@ -3119,6 +3252,45 @@
 
         setAuditFilter(null);
 
+        // Wire Copy Script button
+        const copyScriptBtn = document.getElementById('td-modal-btn-copy-script');
+        if (copyScriptBtn) {
+            copyScriptBtn.onclick = async () => {
+                const finalSql = getModalDiffValue().trim();
+                if (!finalSql) return;
+                try {
+                    await navigator.clipboard.writeText(finalSql);
+                    const origHtml = copyScriptBtn.innerHTML;
+                    copyScriptBtn.innerHTML = '<i class="fa-solid fa-check text-success me-1"></i>Copied!';
+                    setTimeout(() => {
+                        copyScriptBtn.innerHTML = origHtml;
+                    }, 2000);
+                } catch (e) {
+                    console.error('Copy script error:', e);
+                }
+            };
+        }
+
+        // Wire Script to Query Window button
+        const scriptToQueryBtn = document.getElementById('td-modal-btn-script-to-query');
+        if (scriptToQueryBtn) {
+            scriptToQueryBtn.onclick = () => {
+                const finalSql = getModalDiffValue().trim();
+                if (!finalSql) return;
+                if (window.AppTabs && typeof window.AppTabs.createTab === 'function') {
+                    const tabTitle = `Migration: ${session.table || 'Table'}.sql`;
+                    window.AppTabs.createTab({
+                        title: tabTitle,
+                        content: finalSql,
+                        connectionId: session.connId,
+                        database: session.database,
+                        schema: session.schema
+                    });
+                    if (modalInstance) modalInstance.hide();
+                }
+            };
+        }
+
         // Wire Apply Changes button
         updateApplyBtnState();
         applyBtn.onclick = async () => {
@@ -3147,6 +3319,11 @@
 
                 // Success: Update originalData to match modifiedData
                 session.isNew = false;
+                if (session.modifiedData && Array.isArray(session.modifiedData.columns)) {
+                    session.modifiedData.columns.forEach(c => {
+                        c.original_name = c.name;
+                    });
+                }
                 session.originalData = clone(session.modifiedData);
                 markDirty(session);
 
@@ -3160,6 +3337,11 @@
                     const refreshRes = await fetch(`/api/metadata/${session.connId}/table-design?database=${encodeURIComponent(session.database || '')}&schema=${encodeURIComponent(session.schema)}&table=${encodeURIComponent(session.table)}`);
                     const refJson = await refreshRes.json();
                     if (refJson.success) {
+                        if (refJson.data && Array.isArray(refJson.data.columns)) {
+                            refJson.data.columns.forEach(c => {
+                                if (!c.original_name) c.original_name = c.name;
+                            });
+                        }
                         session.originalData = clone(refJson.data);
                         session.modifiedData = clone(refJson.data);
                         session.previewSql = refJson.preview_sql;

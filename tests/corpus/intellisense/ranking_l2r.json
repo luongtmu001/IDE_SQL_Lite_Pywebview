@@ -1,0 +1,994 @@
+[
+  {
+    "id": "K-OR",
+    "dialect": "mssql",
+    "sql": "SELECT * FROM dbo.Orders WHERE OrderID = 1 OR‸",
+    "status": "pass",
+    "issue": "RC2",
+    "expect": {
+      "first": [
+        "OR"
+      ]
+    }
+  },
+  {
+    "id": "K-O",
+    "dialect": "mssql",
+    "sql": "SELECT * FROM dbo.Orders WHERE OrderID = 1 O‸",
+    "status": "pass",
+    "expect": {
+      "contains": [
+        "OR"
+      ]
+    }
+  },
+  {
+    "id": "PG-OR",
+    "dialect": "postgresql",
+    "sql": "SELECT * FROM public.orders WHERE id = 1 OR‸",
+    "status": "pass",
+    "issue": "RC2",
+    "expect": {
+      "first": [
+        "OR"
+      ]
+    }
+  },
+  {
+    "id": "AND-A",
+    "dialect": "mssql",
+    "sql": "SELECT * FROM dbo.Orders WHERE Total > 0 A‸",
+    "status": "pass",
+    "issue": "RC2",
+    "expect": {
+      "first": [
+        "AND"
+      ]
+    }
+  },
+  {
+    "id": "AND-EMPTY",
+    "dialect": "mssql",
+    "sql": "SELECT * FROM dbo.Orders WHERE OrderID = 1 AND ‸",
+    "status": "pass",
+    "expect": {
+      "contains": [
+        "CustomerID",
+        "Total",
+        "OrderDate"
+      ]
+    }
+  },
+  {
+    "id": "WHERE-OPERAND-I",
+    "dialect": "mssql",
+    "sql": "SELECT * FROM dbo.Orders WHERE OrderID I‸",
+    "status": "pass",
+    "issue": "RC2",
+    "expect": {
+      "top": {
+        "n": 3,
+        "contains": [
+          "IN",
+          "IS"
+        ]
+      }
+    }
+  },
+  {
+    "id": "WHERE-OPERAND",
+    "dialect": "mssql",
+    "sql": "SELECT * FROM dbo.Orders WHERE OrderID ‸",
+    "status": "pass",
+    "issue": "RC2,RC7",
+    "expect": {
+      "top": {
+        "n": 6,
+        "contains": [
+          "IN",
+          "IS",
+          "LIKE",
+          "BETWEEN"
+        ]
+      }
+    }
+  },
+  {
+    "id": "WHERE-EMPTY",
+    "dialect": "mssql",
+    "sql": "SELECT * FROM dbo.Orders WHERE ‸",
+    "status": "pass",
+    "expect": {
+      "contains": [
+        "OrderID",
+        "CustomerID",
+        "OrderDate",
+        "Total"
+      ]
+    }
+  },
+  {
+    "id": "WHERE-N",
+    "dialect": "mssql",
+    "sql": "SELECT * FROM dbo.Orders WHERE N‸",
+    "status": "pass",
+    "expect": {
+      "contains": [
+        "Notes",
+        "NOT"
+      ]
+    }
+  },
+  {
+    "id": "IS-EMPTY",
+    "dialect": "mssql",
+    "sql": "SELECT * FROM dbo.Orders WHERE OrderDate IS ‸",
+    "status": "pass",
+    "issue": "RC7",
+    "expect": {
+      "top": {
+        "n": 3,
+        "contains": [
+          "NULL",
+          "NOT"
+        ]
+      }
+    }
+  },
+  {
+    "id": "IS-N",
+    "dialect": "mssql",
+    "sql": "SELECT * FROM dbo.Orders WHERE OrderDate IS N‸",
+    "status": "pass",
+    "issue": "RC2,RC7",
+    "expect": {
+      "top": {
+        "n": 3,
+        "contains": [
+          "NOT",
+          "NULL"
+        ]
+      }
+    }
+  },
+  {
+    "id": "ORDER-DIR",
+    "dialect": "mssql",
+    "sql": "SELECT * FROM dbo.Orders ORDER BY OrderDate ‸",
+    "status": "pass",
+    "issue": "RC7",
+    "expect": {
+      "top": {
+        "n": 3,
+        "contains": [
+          "ASC",
+          "DESC"
+        ]
+      }
+    }
+  },
+  {
+    "id": "ORDER-DIR-D",
+    "dialect": "mssql",
+    "sql": "SELECT * FROM dbo.Orders ORDER BY OrderDate D‸",
+    "status": "pass",
+    "issue": "RC2,RC7",
+    "expect": {
+      "first": [
+        "DESC"
+      ]
+    }
+  },
+  {
+    "id": "K-ORDER",
+    "dialect": "mssql",
+    "sql": "SELECT * FROM dbo.Orders o ORDER‸",
+    "status": "pass",
+    "issue": "RC5",
+    "expect": {
+      "first": [
+        "ORDER"
+      ]
+    }
+  },
+  {
+    "id": "GROUP-BY-KW",
+    "dialect": "mssql",
+    "sql": "SELECT * FROM dbo.Orders GROUP ‸",
+    "status": "pass",
+    "issue": "RC6",
+    "expect": {
+      "first": [
+        "BY"
+      ]
+    }
+  },
+  {
+    "id": "GROUPBY",
+    "dialect": "mssql",
+    "sql": "SELECT * FROM dbo.Orders GROUP BY ‸",
+    "status": "pass",
+    "expect": {
+      "contains": [
+        "OrderID",
+        "CustomerID",
+        "OrderDate"
+      ]
+    }
+  },
+  {
+    "id": "HAVING",
+    "dialect": "mssql",
+    "sql": "SELECT CustomerID, COUNT(*) FROM dbo.Orders GROUP BY CustomerID HAVING ‸",
+    "status": "pass",
+    "expect": {
+      "contains": [
+        "CustomerID",
+        "COUNT"
+      ]
+    }
+  },
+  {
+    "id": "JOIN-AFTER-O",
+    "dialect": "mssql",
+    "sql": "SELECT * FROM dbo.Orders o JOIN dbo.Customers c O‸",
+    "status": "pass",
+    "issue": "RC11",
+    "expect": {
+      "first": [
+        "ON"
+      ],
+      "absent": [
+        "Orders",
+        "Customers"
+      ]
+    }
+  },
+  {
+    "id": "JOIN-AFTER",
+    "dialect": "mssql",
+    "sql": "SELECT * FROM dbo.Orders o JOIN dbo.Customers c ‸",
+    "status": "pass",
+    "issue": "RC7",
+    "expect": {
+      "first": [
+        "ON"
+      ]
+    }
+  },
+  {
+    "id": "JOIN-TBL",
+    "dialect": "mssql",
+    "sql": "SELECT * FROM dbo.Orders o JOIN ‸",
+    "status": "pass",
+    "expect": {
+      "contains": [
+        "Customers",
+        "OrderItems"
+      ]
+    }
+  },
+  {
+    "id": "JOIN-FK-TARGET",
+    "dialect": "mssql",
+    "sql": "SELECT * FROM dbo.Orders o JOIN ‸",
+    "status": "pass",
+    "issue": "RC12",
+    "expect": {
+      "top": {
+        "n": 3,
+        "contains": [
+          "Customers"
+        ]
+      }
+    }
+  },
+  {
+    "id": "SRC-EMPTY",
+    "dialect": "mssql",
+    "sql": "SELECT * FROM dbo.Orders o ‸",
+    "status": "pass",
+    "issue": "RC7",
+    "expect": {
+      "top": {
+        "n": 6,
+        "contains": [
+          "WHERE",
+          "JOIN",
+          "INNER",
+          "LEFT"
+        ]
+      }
+    }
+  },
+  {
+    "id": "SRC-W",
+    "dialect": "mssql",
+    "sql": "SELECT * FROM dbo.Orders o W‸",
+    "status": "pass",
+    "expect": {
+      "contains": [
+        "WHERE"
+      ]
+    }
+  },
+  {
+    "id": "SRC-I",
+    "dialect": "mssql",
+    "sql": "SELECT * FROM dbo.Orders o I‸",
+    "status": "pass",
+    "expect": {
+      "contains": [
+        "INNER"
+      ]
+    }
+  },
+  {
+    "id": "SRC-L",
+    "dialect": "mssql",
+    "sql": "SELECT * FROM dbo.Orders o L‸",
+    "status": "pass",
+    "issue": "RC1",
+    "expect": {
+      "first": [
+        "LEFT"
+      ],
+      "before": [
+        [
+          "LEFT",
+          "LEFT()"
+        ]
+      ]
+    }
+  },
+  {
+    "id": "PG-ONCONF",
+    "dialect": "postgresql",
+    "sql": "INSERT INTO public.orders (customer_id) VALUES (1) ON ‸",
+    "status": "pass",
+    "issue": "RC7",
+    "expect": {
+      "first": [
+        "CONFLICT"
+      ]
+    }
+  },
+  {
+    "id": "HINT",
+    "dialect": "mssql",
+    "sql": "SELECT * FROM dbo.Orders WITH (‸",
+    "status": "pass",
+    "issue": "RC7",
+    "expect": {
+      "top": {
+        "n": 3,
+        "contains": [
+          "NOLOCK"
+        ]
+      }
+    }
+  },
+  {
+    "id": "START-EMPTY",
+    "dialect": "mssql",
+    "sql": "‸",
+    "status": "pass",
+    "issue": "RC4,RC7",
+    "expect": {
+      "top": {
+        "n": 10,
+        "contains": [
+          "SELECT",
+          "INSERT",
+          "UPDATE",
+          "DELETE",
+          "WITH",
+          "DECLARE"
+        ]
+      }
+    }
+  },
+  {
+    "id": "START-S",
+    "dialect": "mssql",
+    "sql": "S‸",
+    "status": "pass",
+    "issue": "RC1,RC3",
+    "expect": {
+      "first": [
+        "SELECT"
+      ],
+      "absent": [
+        "SIN",
+        "STR",
+        "SUM"
+      ]
+    }
+  },
+  {
+    "id": "START-U",
+    "dialect": "mssql",
+    "sql": "U‸",
+    "status": "pass",
+    "issue": "RC1,RC3",
+    "expect": {
+      "first": [
+        "UPDATE"
+      ]
+    }
+  },
+  {
+    "id": "NEWSTMT",
+    "dialect": "mssql",
+    "sql": "SELECT * FROM dbo.Orders;\nS‸",
+    "status": "pass",
+    "issue": "RC1,RC3",
+    "expect": {
+      "first": [
+        "SELECT"
+      ]
+    }
+  },
+  {
+    "id": "TRY",
+    "dialect": "mssql",
+    "sql": "BEGIN TRY ‸",
+    "status": "pass",
+    "issue": "RC4,RC7",
+    "expect": {
+      "top": {
+        "n": 5,
+        "contains": [
+          "SELECT",
+          "INSERT",
+          "UPDATE",
+          "DELETE"
+        ]
+      }
+    }
+  },
+  {
+    "id": "UPD-SET",
+    "dialect": "mssql",
+    "sql": "UPDATE dbo.Orders SET ‸",
+    "status": "pass",
+    "expect": {
+      "contains": [
+        "OrderID",
+        "CustomerID",
+        "Total",
+        "IsActive",
+        "Notes"
+      ]
+    }
+  },
+  {
+    "id": "UPD-SET-VAL",
+    "dialect": "mssql",
+    "sql": "UPDATE dbo.Orders SET Total = ‸",
+    "status": "pass",
+    "issue": "RC7",
+    "expect": {
+      "top": {
+        "n": 10,
+        "contains": [
+          "Total",
+          "OrderID",
+          "NULL",
+          "DEFAULT"
+        ]
+      }
+    }
+  },
+  {
+    "id": "INS-INTO",
+    "dialect": "mssql",
+    "sql": "INSERT INTO ‸",
+    "status": "pass",
+    "expect": {
+      "contains": [
+        "Orders",
+        "Customers"
+      ]
+    }
+  },
+  {
+    "id": "INS-VALUES",
+    "dialect": "mssql",
+    "sql": "INSERT INTO dbo.Orders (OrderID) VALUES (‸",
+    "status": "pass",
+    "issue": "RC7",
+    "expect": {
+      "top": {
+        "n": 10,
+        "contains": [
+          "NULL",
+          "DEFAULT"
+        ]
+      }
+    }
+  },
+  {
+    "id": "DEL-FROM",
+    "dialect": "mssql",
+    "sql": "DELETE FROM ‸",
+    "status": "pass",
+    "expect": {
+      "contains": [
+        "Orders",
+        "Customers"
+      ]
+    }
+  },
+  {
+    "id": "CREATE-COLTYPE",
+    "dialect": "mssql",
+    "sql": "CREATE TABLE dbo.X (Id ‸",
+    "status": "pass",
+    "issue": "RC7",
+    "expect": {
+      "top": {
+        "n": 5,
+        "contains": [
+          "int",
+          "bigint",
+          "varchar"
+        ]
+      }
+    }
+  },
+  {
+    "id": "COUNT-ARG",
+    "dialect": "mssql",
+    "sql": "SELECT COUNT(‸) FROM dbo.Orders",
+    "status": "pass",
+    "issue": "RC8",
+    "expect": {
+      "top": {
+        "n": 5,
+        "contains": [
+          "*",
+          "DISTINCT",
+          "OrderID"
+        ]
+      },
+      "absent": [
+        "* (Expand columns)"
+      ]
+    }
+  },
+  {
+    "id": "ALIAS-POS",
+    "dialect": "mssql",
+    "sql": "SELECT OrderID AS ‸ FROM dbo.Orders",
+    "status": "pass",
+    "issue": "RC7",
+    "expect": {
+      "maxCount": 0
+    }
+  },
+  {
+    "id": "EXEC",
+    "dialect": "mssql",
+    "sql": "EXEC ‸",
+    "status": "pass",
+    "expect": {
+      "contains": [
+        "usp_GetOrders"
+      ]
+    }
+  },
+  {
+    "id": "EXEC-PARAMS",
+    "dialect": "mssql",
+    "sql": "EXEC dbo.usp_GetOrders ‸",
+    "status": "pass",
+    "issue": "RC9",
+    "expect": {
+      "first": [
+        "@CustomerID",
+        "@CustomerID = "
+      ],
+      "absent": [
+        "usp_GetOrders"
+      ]
+    }
+  },
+  {
+    "id": "SEL-C",
+    "dialect": "mssql",
+    "sql": "SELECT C‸ FROM dbo.Orders",
+    "status": "pass",
+    "issue": "RC8",
+    "expect": {
+      "first": [
+        "CustomerID"
+      ],
+      "absent": [
+        "* (Expand columns)"
+      ]
+    }
+  },
+  {
+    "id": "SEL-CO",
+    "dialect": "mssql",
+    "sql": "SELECT co‸ FROM dbo.Orders",
+    "status": "pass",
+    "issue": "RC8",
+    "expect": {
+      "absent": [
+        "* (Expand columns)"
+      ]
+    }
+  },
+  {
+    "id": "SEL-T",
+    "dialect": "mssql",
+    "sql": "SELECT T‸ FROM dbo.Orders",
+    "status": "pass",
+    "expect": {
+      "first": [
+        "Total"
+      ]
+    }
+  },
+  {
+    "id": "SEL-EMPTY",
+    "dialect": "mssql",
+    "sql": "SELECT ‸ FROM dbo.Orders",
+    "status": "pass",
+    "expect": {
+      "contains": [
+        "OrderID",
+        "CustomerID",
+        "Total"
+      ]
+    }
+  },
+  {
+    "id": "SEL-COMMA",
+    "dialect": "mssql",
+    "sql": "SELECT OrderID, ‸ FROM dbo.Orders",
+    "status": "pass",
+    "expect": {
+      "contains": [
+        "CustomerID",
+        "Total",
+        "OrderDate"
+      ]
+    }
+  },
+  {
+    "id": "SEL-NOFROM",
+    "dialect": "mssql",
+    "sql": "SELECT ‸",
+    "status": "pass",
+    "issue": "RC4",
+    "expect": {
+      "contains": [
+        "GETDATE",
+        "CASE",
+        "CAST"
+      ]
+    }
+  },
+  {
+    "id": "SEL-NOFROM-C",
+    "dialect": "mssql",
+    "sql": "SELECT C‸",
+    "status": "pass",
+    "expect": {
+      "contains": [
+        "CASE",
+        "CAST",
+        "COUNT"
+      ]
+    }
+  },
+  {
+    "id": "FROM-CUS",
+    "dialect": "mssql",
+    "sql": "SELECT * FROM Cus‸",
+    "status": "pass",
+    "issue": "RC1,RC10",
+    "expect": {
+      "first": [
+        "Customers"
+      ],
+      "absent": [
+        "CURRENT_USER",
+        "CUME_DIST",
+        "CURSOR"
+      ]
+    }
+  },
+  {
+    "id": "FROM-ORD",
+    "dialect": "mssql",
+    "sql": "SELECT * FROM Ord‸",
+    "status": "pass",
+    "issue": "RC1,RC10",
+    "expect": {
+      "first": [
+        "Orders"
+      ],
+      "absent": [
+        "ORDER"
+      ]
+    }
+  },
+  {
+    "id": "VAR-AT",
+    "dialect": "mssql",
+    "sql": "DECLARE @Id INT; SELECT @‸",
+    "status": "pass",
+    "expect": {
+      "first": [
+        "@Id"
+      ]
+    }
+  },
+  {
+    "id": "VAR-NOAT",
+    "dialect": "mssql",
+    "sql": "DECLARE @Id INT; SELECT I‸",
+    "status": "pass",
+    "expect": {
+      "contains": [
+        "@Id"
+      ]
+    }
+  },
+  {
+    "id": "QUAL",
+    "dialect": "mssql",
+    "sql": "SELECT o.‸ FROM dbo.Orders o",
+    "status": "pass",
+    "expect": {
+      "contains": [
+        "OrderID",
+        "CustomerID",
+        "Total"
+      ]
+    }
+  },
+  {
+    "id": "CORREL",
+    "dialect": "mssql",
+    "sql": "SELECT (SELECT ‸ FROM dbo.OrderItems i WHERE i.OrderID = o.OrderID) FROM dbo.Orders o",
+    "status": "pass",
+    "expect": {
+      "contains": [
+        "i",
+        "o"
+      ]
+    }
+  },
+  {
+    "id": "CTE-FROM",
+    "dialect": "mssql",
+    "sql": "WITH c AS (SELECT 1 AS x) SELECT * FROM ‸",
+    "status": "pass",
+    "expect": {
+      "contains": [
+        "c"
+      ]
+    }
+  },
+  {
+    "id": "ON-FK",
+    "dialect": "mssql",
+    "sql": "SELECT * FROM dbo.Orders o JOIN dbo.Customers c ON ‸",
+    "status": "pass",
+    "expect": {
+      "first": [
+        "c.CustomerID = o.CustomerID"
+      ]
+    }
+  },
+  {
+    "id": "FN-GETD",
+    "dialect": "mssql",
+    "sql": "SELECT GETD‸",
+    "status": "pass",
+    "expect": {
+      "first": [
+        "GETDATE"
+      ]
+    }
+  },
+  {
+    "id": "FN-DATEA",
+    "dialect": "mssql",
+    "sql": "SELECT DATEA‸",
+    "status": "pass",
+    "expect": {
+      "first": [
+        "DATEADD"
+      ]
+    }
+  },
+  {
+    "id": "SUB-CID",
+    "dialect": "mssql",
+    "sql": "SELECT cid‸ FROM dbo.Customers",
+    "status": "pass",
+    "expect": {
+      "first": [
+        "CustomerID"
+      ]
+    }
+  },
+  {
+    "id": "SUB-ORDT",
+    "dialect": "mssql",
+    "sql": "SELECT ordt‸ FROM dbo.Orders",
+    "status": "pass",
+    "expect": {
+      "first": [
+        "OrderDate"
+      ]
+    }
+  },
+  {
+    "id": "FUZZ-TTL",
+    "dialect": "mssql",
+    "sql": "SELECT ttl‸ FROM dbo.Orders",
+    "status": "pass",
+    "expect": {
+      "contains": [
+        "Total"
+      ]
+    }
+  },
+  {
+    "id": "ALTER-PROC",
+    "dialect": "mssql",
+    "sql": "ALTER PROCEDURE ‸",
+    "status": "pass",
+    "expect": {
+      "contains": [
+        "usp_GetOrders"
+      ]
+    }
+  },
+  {
+    "id": "DROP-TABLE",
+    "dialect": "mssql",
+    "sql": "DROP TABLE ‸",
+    "status": "pass",
+    "expect": {
+      "contains": [
+        "Orders",
+        "Customers"
+      ]
+    }
+  },
+  {
+    "id": "IN-PAREN",
+    "dialect": "mssql",
+    "sql": "SELECT * FROM dbo.Orders WHERE OrderID IN (‸)",
+    "status": "pass",
+    "issue": "RC7",
+    "expect": {
+      "contains": [
+        "SELECT"
+      ]
+    }
+  },
+  {
+    "id": "PG-SRC",
+    "dialect": "postgresql",
+    "sql": "SELECT * FROM public.orders o ‸",
+    "status": "pass",
+    "expect": {
+      "contains": [
+        "WHERE",
+        "JOIN"
+      ]
+    }
+  },
+  {
+    "id": "PG-LIM",
+    "dialect": "postgresql",
+    "sql": "SELECT * FROM public.orders ‸",
+    "status": "pass",
+    "issue": "RC4,RC7",
+    "expect": {
+      "contains": [
+        "LIMIT"
+      ]
+    }
+  },
+  {
+    "id": "PG-IS",
+    "dialect": "postgresql",
+    "sql": "SELECT * FROM public.orders WHERE order_date IS ‸",
+    "status": "pass",
+    "expect": {
+      "contains": [
+        "NULL"
+      ]
+    }
+  },
+  {
+    "id": "PG-FROM",
+    "dialect": "postgresql",
+    "sql": "SELECT * FROM ‸",
+    "status": "pass",
+    "expect": {
+      "contains": [
+        "orders",
+        "Customers"
+      ]
+    }
+  },
+  {
+    "id": "PG-QUOTED",
+    "dialect": "postgresql",
+    "sql": "SELECT * FROM \"Customers\" ‸",
+    "status": "pass",
+    "expect": {
+      "contains": [
+        "WHERE"
+      ]
+    }
+  },
+  {
+    "id": "PG-UPD-WHERE",
+    "dialect": "postgresql",
+    "sql": "UPDATE public.orders SET total = 0 WHERE ‸",
+    "status": "pass",
+    "expect": {
+      "contains": [
+        "id",
+        "customer_id"
+      ]
+    }
+  },
+  {
+    "id": "PG-NOW",
+    "dialect": "postgresql",
+    "sql": "SELECT NO‸",
+    "status": "pass",
+    "expect": {
+      "first": [
+        "NOW",
+        "now()"
+      ]
+    }
+  },
+  {
+    "id": "PG-TOCH",
+    "dialect": "postgresql",
+    "sql": "SELECT to_c‸",
+    "status": "pass",
+    "expect": {
+      "first": [
+        "to_char"
+      ]
+    }
+  },
+  {
+    "id": "PG-GETD",
+    "dialect": "postgresql",
+    "sql": "SELECT GETD‸",
+    "status": "pass",
+    "expect": {
+      "absent": [
+        "GETDATE"
+      ]
+    }
+  },
+  {
+    "id": "MS-LIMIT",
+    "dialect": "mssql",
+    "sql": "SELECT * FROM dbo.Orders LIM‸",
+    "status": "pass",
+    "expect": {
+      "absent": [
+        "LIMIT"
+      ]
+    }
+  }
+]

@@ -73,6 +73,8 @@
     flex: 1;
     font-family: var(--ide-ui-font-family, inherit);
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .ide-ctx-shortcut {
@@ -110,6 +112,11 @@
     text-transform: uppercase;
     color: var(--ide-text-dim);
     user-select: none;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: block;
+    max-width: 100%;
 }
 
 /* Submenu container */

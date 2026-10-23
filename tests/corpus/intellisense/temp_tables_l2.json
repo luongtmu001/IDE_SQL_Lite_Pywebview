@@ -1,0 +1,27 @@
+[
+  {
+    "id": "L2-TEMP-ALTER-ADD",
+    "dialect": "mssql",
+    "sql": "CREATE TABLE #Kqt (Id INT);\nALTER TABLE #Kqt ADD IsCheck NVARCHAR(1);\nSELECT k.‸ FROM #Kqt k;",
+    "issue": "J2 - ScopeResolver handles ALTER TABLE ADD",
+    "expect": { "contains": ["Id", "IsCheck"] }
+  },
+  {
+    "id": "L2-TEMP-INSERT-NO-WIPE",
+    "dialect": "mssql",
+    "sql": "CREATE TABLE #Kqt (Id INT);\nINSERT INTO #Kqt (Id, Foo) VALUES (1, 2);\nSELECT k.‸ FROM #Kqt k;",
+    "expect": { "contains": ["Id"] }
+  },
+  {
+    "id": "L2-TEMP-NO-SELF-SUGGEST",
+    "dialect": "mssql",
+    "sql": "SELECT * FROM #K‸",
+    "expect": { "not": ["#K"] }
+  },
+  {
+    "id": "L2-TEMP-BASIC-COLS",
+    "dialect": "mssql",
+    "sql": "CREATE TABLE #TempOrders (OrderID INT, Total DECIMAL(18,2));\nSELECT t.‸ FROM #TempOrders t;",
+    "expect": { "contains": ["OrderID", "Total"] }
+  }
+]

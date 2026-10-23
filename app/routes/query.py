@@ -103,6 +103,17 @@ def execute():
             sql,
             **exec_kwargs
         )
+
+        # Invalidate statement syntax cache on successful DDL execution (Sprint 3 - C3)
+        if result and (result.get("success") is True or result.get("rows") is not None):
+            try:
+                import re
+                if re.search(r"\b(?:CREATE|ALTER|DROP|TRUNCATE)\b", sql, re.IGNORECASE):
+                    from app.database.syntax.coordinator import invalidate_syntax_cache
+                    invalidate_syntax_cache(connection_id)
+            except Exception:
+                pass
+
         return jsonify(result)
 
     except PermissionError:
@@ -229,6 +240,7 @@ def syntax_check():
     sql = data.get("sql", "")
     dialect = data.get("dialect", "sqlserver")
     connection_id = data.get("connection_id")
+    tab_id = data.get("tab_id")
     database = data.get("database")
     schema = data.get("schema")
     is_debug = bool(data.get("is_debug", False))
@@ -237,12 +249,15 @@ def syntax_check():
         return jsonify(success=True, diagnostics=[])
 
     conn_session = None
-    if connection_id:
+    if connection_id or tab_id:
         try:
             cm = get_connection_manager()
             session_id = get_owner_session_id()
-            conn_session = cm.get(session_id, connection_id)
-            if not dialect or dialect == "sqlserver":
+            if tab_id:
+                conn_session = cm.get_for_tab(session_id, tab_id)
+            if not conn_session and connection_id:
+                conn_session = cm.get(session_id, connection_id)
+            if conn_session and (not dialect or dialect == "sqlserver"):
                 conn_db_type = conn_session.config.get("type", "sqlserver")
                 if conn_db_type:
                     dialect = conn_db_type
@@ -254,7 +269,7 @@ def syntax_check():
 
     # Phase 1: Check syntax.pipeline and shadow mode toggles (default: True for pipeline, False for shadow)
     use_pipeline = True
-    shadow_mode = False
+    include_bp = True
     try:
         from app.services.settings_store import load_settings
         settings = load_settings()
@@ -263,6 +278,8 @@ def syntax_check():
             if isinstance(syntax_cfg, dict):
                 use_pipeline = bool(syntax_cfg.get("pipeline", True))
                 shadow_mode = bool(syntax_cfg.get("shadow", False))
+                if "best_practice" in syntax_cfg:
+                    include_bp = bool(syntax_cfg.get("best_practice"))
     except Exception:
         pass
 
@@ -277,6 +294,7 @@ def syntax_check():
                 schema=schema,
                 is_debug=is_debug,
                 cached_tables_dict=cached_tables,
+                include_best_practice=include_bp,
             )
         else:
             from app.database.syntax.validator import validate_sql
@@ -316,4 +334,28 @@ def syntax_check():
         return jsonify(success=True, diagnostics=diagnostics)
     except Exception as exc:
         return jsonify(success=False, error=str(exc), diagnostics=[]), 400
+
+
+@query_bp.post("/proc-params")
+def proc_params():
+    data = request.get_json(silent=True) or {}
+    connection_id = data.get("connection_id")
+    proc_name = data.get("proc_name") or data.get("name")
+    database = data.get("database")
+    schema = data.get("schema")
+
+    if not connection_id or not proc_name:
+        return jsonify(success=False, error="connection_id and proc_name are required", params=[]), 400
+
+    cm = get_connection_manager()
+    owner = get_owner_session_id()
+    try:
+        connection = cm.get(owner, connection_id)
+        if not connection:
+            return jsonify(success=False, error=f"Connection {connection_id} not found", params=[]), 404
+        items = connection.metadata_service.get_intellisense_parameters(database, schema, proc_name)
+        return jsonify(success=True, params=items or [])
+    except Exception as exc:
+        return jsonify(success=False, error=str(exc), params=[]), 400
+
 

@@ -239,6 +239,7 @@
                 signal: controller.signal,
                 body: JSON.stringify({
                     connection_id: connectionId || null,
+                    tab_id: tabId || null,
                     sql: sql,
                     dialect: targetDialect,
                     database: targetDatabase,
@@ -278,7 +279,7 @@
                     severity: d.severity || 'error',
                     message: d.message || 'Syntax error',
                     code: d.code || 'SQL_SYNTAX_ERROR',
-                    source: dialect || 'sql',
+                    source: d.source || dialect || 'sql',
                     startLine: range.startLine,
                     startColumn: range.startColumn,
                     endLine: range.endLine,

@@ -20,7 +20,7 @@
             this.dbType = dbType;
         }
 
-        async getDatabases(connectionId) {
+        async getDatabases(connectionId, accessibleOnly = false) {
             throw new Error('[MetadataProvider] getDatabases must be implemented by subclass');
         }
 
@@ -116,16 +116,18 @@
             }
         }
 
-        async getDatabases(connectionId) {
+        async getDatabases(connectionId, accessibleOnly = false) {
             if (!connectionId) return [];
-            const data = await this._fetchJson(`/api/metadata/${connectionId}/databases`);
+            const q = accessibleOnly ? '?accessible_only=1' : '';
+            const data = await this._fetchJson(`/api/metadata/${connectionId}/databases${q}`);
             if (!data && this._lastError) {
                 const errResult = [];
                 errResult.hasError = true;
                 errResult.error = this._lastError;
                 return errResult;
             }
-            return data && Array.isArray(data.databases) ? data.databases : [];
+            if (!data) return [];
+            return Array.isArray(data.items) ? data.items : (Array.isArray(data.databases) ? data.databases : []);
         }
 
         async getSchemas(connectionId, database) {
@@ -138,7 +140,8 @@
                 errResult.error = this._lastError;
                 return errResult;
             }
-            return data && Array.isArray(data.schemas) ? data.schemas : [];
+            if (!data) return [];
+            return Array.isArray(data.items) ? data.items : (Array.isArray(data.schemas) ? data.schemas : []);
         }
 
         async getObjects(connectionId, database, schema) {

@@ -1,0 +1,14 @@
+{
+    "catalog_version": "1.0.0",
+    "schema_version": "1.0",
+    "updated_at": "2026-10-22",
+    "supported_databases": [
+        "postgresql",
+        "sqlserver"
+    ],
+    "description": "Cross-Database Syntax Reference and Comparison Catalog (PostgreSQL & Microsoft SQL Server)",
+    "total_concepts": 32,
+    "total_syntax_entries": 60,
+    "total_mappings": 29,
+    "total_sources": 63
+}

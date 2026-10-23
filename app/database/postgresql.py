@@ -39,6 +39,18 @@ class PostgreSqlAdapter(DatabaseAdapter):
         self.connection = _PSYCOPG_MODULE.connect(**conn_params)
         self.connection.autocommit = True
         self._current_search_path = None
+        try:
+            if hasattr(self.connection, "backend_pid"):
+                self.spid = int(self.connection.backend_pid)
+            elif hasattr(self.connection, "get_backend_pid"):
+                self.spid = int(self.connection.get_backend_pid())
+            else:
+                with self.connection.cursor() as cur:
+                    cur.execute("SELECT pg_backend_pid();")
+                    row = cur.fetchone()
+                    self.spid = int(row[0]) if row and row[0] else None
+        except Exception:
+            self.spid = None
 
     def _build_conn_params(self):
         c = self.config
@@ -1055,6 +1067,91 @@ class PostgreSqlAdapter(DatabaseAdapter):
 
         return None
 
+    def get_routine_signatures(
+        self,
+        schema: Optional[str] = None,
+        name: str = "",
+        database: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """
+        Returns all parameter signatures / overloads for a stored procedure or function in PostgreSQL.
+        Includes detailed parameter data types via pg_get_function_identity_arguments.
+        """
+        target_schema = (schema or "public").strip()
+        pure_name = (name or "").strip()
+        identity_filter = ""
+        if "(" in pure_name and pure_name.endswith(")"):
+            parts = pure_name.split("(", 1)
+            pure_name = parts[0].strip()
+            identity_filter = parts[1].rstrip(")").strip()
+
+        sql = """
+            SELECT p.proname,
+                   n.nspname,
+                   pg_catalog.oidvectortypes(p.proargtypes) AS type_args,
+                   pg_catalog.pg_get_function_identity_arguments(p.oid) AS identity_args,
+                   CASE WHEN p.prokind = 'p' THEN 'procedure' ELSE 'function' END AS routine_type,
+                   p.pronargs,
+                   p.oid
+            FROM pg_catalog.pg_proc p
+            JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace
+            WHERE (n.nspname = %s OR lower(n.nspname) = lower(%s))
+              AND (p.proname = %s OR lower(p.proname) = lower(%s))
+        """
+        params = [target_schema, target_schema, pure_name, pure_name]
+        if identity_filter:
+            sql += """
+              AND (
+                  pg_catalog.pg_get_function_identity_arguments(p.oid) = %s
+                  OR lower(pg_catalog.pg_get_function_identity_arguments(p.oid)) = lower(%s)
+                  OR pg_catalog.oidvectortypes(p.proargtypes) = %s
+                  OR lower(pg_catalog.oidvectortypes(p.proargtypes)) = lower(%s)
+              )
+            """
+            params.extend([identity_filter, identity_filter, identity_filter, identity_filter])
+
+        sql += "\n            ORDER BY p.pronargs ASC, identity_args ASC"
+
+        try:
+            res = self.execute(sql, tuple(params), limit=0, database=database)
+            rows = res.get("rows", [])
+            if not rows and identity_filter:
+                # Fallback if identity_filter didn't match exactly (e.g. whitespace or case difference)
+                fallback_sql = """
+                    SELECT p.proname,
+                           n.nspname,
+                           pg_catalog.oidvectortypes(p.proargtypes) AS type_args,
+                           pg_catalog.pg_get_function_identity_arguments(p.oid) AS identity_args,
+                           CASE WHEN p.prokind = 'p' THEN 'procedure' ELSE 'function' END AS routine_type,
+                           p.pronargs,
+                           p.oid
+                    FROM pg_catalog.pg_proc p
+                    JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace
+                    WHERE (n.nspname = %s OR lower(n.nspname) = lower(%s))
+                      AND (p.proname = %s OR lower(p.proname) = lower(%s))
+                    ORDER BY p.pronargs ASC, identity_args ASC
+                """
+                fb_res = self.execute(fallback_sql, (target_schema, target_schema, pure_name, pure_name), limit=0, database=database)
+                rows = fb_res.get("rows", [])
+
+            items = []
+            for row in rows:
+                type_args = (row[2] or "").strip()
+                ident_args = (row[3] or "").strip()
+                items.append({
+                    "name": row[0],
+                    "schema": row[1],
+                    "type_args": type_args,
+                    "identity_args": type_args if type_args else ident_args,
+                    "routine_type": row[4] or "function",
+                    "pronargs": row[5],
+                    "oid": row[6] if len(row) > 6 else None,
+                })
+            return items
+        except Exception as exc:
+            logger.warning("Error fetching routine signatures for %s.%s: %s", target_schema, pure_name, exc)
+            return []
+
     def get_intellisense_objects(self, database=None, schema=None):
         items = []
         try:
@@ -1184,25 +1281,58 @@ class PostgreSqlAdapter(DatabaseAdapter):
         except Exception:
             return []
 
-    def get_intellisense_parameters(self, database=None, schema=None, object_name=None):
-        if not object_name:
+    def get_intellisense_parameters(self, database=None, schema=None, object_name=None, name=None):
+        target_name = object_name or name
+        if not target_name:
             return []
-        target_schema = schema or "public"
-        query = """
-            SELECT parameter_name, data_type, parameter_mode
+        clean_name = target_name.strip("\"' ")
+        clean_schema = schema.strip("\"' ") if schema else None
+
+        schema_clause = "AND (LOWER(specific_schema) = LOWER(%s) OR LOWER(routine_schema) = LOWER(%s))" if clean_schema else ""
+        query_params = [clean_schema, clean_schema, clean_name, clean_name] if clean_schema else [clean_name, clean_name]
+
+        query = f"""
+            SELECT parameter_name, data_type, parameter_mode, parameter_default, ordinal_position
             FROM information_schema.parameters
-            WHERE specific_schema = %s AND specific_name LIKE %s
+            WHERE 1=1 {schema_clause}
+              AND (LOWER(routine_name) = LOWER(%s) OR LOWER(specific_name) = LOWER(%s))
             ORDER BY ordinal_position
         """
         try:
-            res = self.execute(query, [target_schema, f"{object_name}%"], limit=0, database=database)
+            res = self.execute(query, query_params, limit=0, database=database)
             params_list = []
             for row in res.get("rows", []):
-                p_name, d_type, p_mode = row[0] or "param", row[1], row[2]
+                p_name = row[0] or f"param{row[4] if len(row) > 4 else ''}"
+                d_type = row[1] or ""
+                p_mode = (row[2] or "IN").upper()
+                def_val = row[3] if len(row) > 3 else None
+                is_out = p_mode in ["OUT", "INOUT"]
                 params_list.append({
                     "name": p_name,
                     "data_type": d_type,
-                    "is_output": p_mode in ["OUT", "INOUT"]
+                    "is_output": is_out,
+                    "direction": p_mode,
+                    "default_value": def_val,
+                })
+            if params_list:
+                return params_list
+
+            # Fallback: specific_name LIKE object_name% if exact name yielded nothing
+            fb_params = [clean_schema, f"{clean_name}%"] if clean_schema else ["public", f"{clean_name}%"]
+            fb_query = """
+                SELECT parameter_name, data_type, parameter_mode
+                FROM information_schema.parameters
+                WHERE specific_schema = %s AND specific_name LIKE %s
+                ORDER BY ordinal_position
+            """
+            fb_res = self.execute(fb_query, fb_params, limit=0, database=database)
+            for row in fb_res.get("rows", []):
+                p_name, d_type, p_mode = row[0] or "param", row[1] or "", (row[2] or "IN").upper()
+                params_list.append({
+                    "name": p_name,
+                    "data_type": d_type,
+                    "is_output": p_mode in ["OUT", "INOUT"],
+                    "direction": p_mode,
                 })
             return params_list
         except Exception:
@@ -1421,6 +1551,16 @@ class PostgreSqlAdapter(DatabaseAdapter):
         if not check_res.get("rows"):
             return None
 
+        # 0. Table comment
+        tbl_desc_sql = """
+            SELECT obj_description(c_tbl.oid, 'pg_class') AS table_comment
+            FROM pg_class c_tbl
+            JOIN pg_namespace n_tbl ON n_tbl.oid = c_tbl.relnamespace
+            WHERE n_tbl.nspname = %s AND c_tbl.relname = %s
+        """
+        tbl_desc_res = self.execute(tbl_desc_sql, (schema_name, table), database=database)
+        table_comment = tbl_desc_res["rows"][0][0] if tbl_desc_res.get("rows") and tbl_desc_res["rows"][0] else ""
+
         # 1. Columns
         col_sql = """
             SELECT 
@@ -1437,7 +1577,9 @@ class PostgreSqlAdapter(DatabaseAdapter):
                 c.collation_name,
                 CASE WHEN pk_cols.attname IS NOT NULL THEN 1 ELSE 0 END AS is_pk,
                 col_description(c_tbl.oid, c.ordinal_position) AS description,
-                pk_cols.pk_name
+                pk_cols.pk_name,
+                c.generation_expression,
+                c.is_generated
             FROM information_schema.columns c
             JOIN pg_class c_tbl ON c_tbl.relname = c.table_name
             JOIN pg_namespace n_tbl ON n_tbl.oid = c_tbl.relnamespace AND n_tbl.nspname = c.table_schema
@@ -1511,6 +1653,10 @@ class PostgreSqlAdapter(DatabaseAdapter):
             if col_pk_name and not table_pk_name:
                 table_pk_name = col_pk_name
 
+            gen_expr = r[14] if len(r) > 14 and r[14] else ""
+            is_gen_flag = (r[15] == "ALWAYS") if len(r) > 15 and r[15] else False
+            is_computed = is_gen_flag or bool(gen_expr)
+
             columns.append({
                 "name": r[1],
                 "type": norm_type,
@@ -1520,6 +1666,8 @@ class PostgreSqlAdapter(DatabaseAdapter):
                 "is_pk": bool(r[11]),
                 "pk_name": col_pk_name,
                 "is_identity": is_identity,
+                "is_computed": is_computed,
+                "formula": gen_expr,
                 "identity_seed": 1,
                 "identity_increment": 1,
                 "default_value": default_val,
@@ -1708,6 +1856,7 @@ class PostgreSqlAdapter(DatabaseAdapter):
             "schema": schema_name,
             "table": table,
             "engine": "postgresql",
+            "comment": table_comment,
             "pk_name": table_pk_name,
             "columns": columns,
             "indexes": indexes,

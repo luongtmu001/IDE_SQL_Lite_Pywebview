@@ -266,8 +266,9 @@ function initApp() {
 
             const actionBar = editorPane ? editorPane.querySelector('.ide-action-bar') : null;
             const tabsBar = editorPane ? editorPane.querySelector('.ide-tabs-container') : null;
-            minEditorH = (actionBar ? actionBar.offsetHeight : 34) + (tabsBar ? tabsBar.offsetHeight : 31);
-            maxEditorH = containerH - 60; // Leave 60px minimum for status bar (25px) + result tabs bar (30px)
+            const editorSb = editorPane ? editorPane.querySelector('#ide-editor-status-bar') : null;
+            minEditorH = (actionBar ? actionBar.offsetHeight : 34) + (tabsBar ? tabsBar.offsetHeight : 32) + (editorSb ? editorSb.offsetHeight : 25) + 30;
+            maxEditorH = containerH - 65; // Leave 65px minimum for result panel
         });
 
         hResizer.addEventListener('pointermove', e => {
@@ -371,7 +372,7 @@ function initApp() {
         }
         if (editorPane) {
             editorPane.style.setProperty('flex', '1 1 auto', 'important');
-            editorPane.style.height = 'calc(100% - 25px)';
+            editorPane.style.height = '100%';
         }
         isResultPanelHidden = true;
 

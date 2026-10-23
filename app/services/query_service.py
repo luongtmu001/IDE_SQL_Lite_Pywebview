@@ -32,6 +32,11 @@ class QueryService:
                     stop_on_error=stop_on_error
                 )
             self.session.touch()
+            try:
+                from app.database.syntax.semantic_analyzer import invalidate_physical_table_columns_cache
+                invalidate_physical_table_columns_cache(connection_id=self.session.connection_id)
+            except Exception:
+                pass
             return result
 
     def cancel(self):

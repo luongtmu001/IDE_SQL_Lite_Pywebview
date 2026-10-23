@@ -57,14 +57,26 @@ class DesignerApiMixin:
             if getattr(conn, "read_only", False):
                 return {"success": False, "error_code": "ERR_READ_ONLY", "error": "Kết nối đang ở chế độ CHỈ ĐỌC (Read-Only). Không thể áp dụng thay đổi thiết kế bảng (DDL)."}
             batches = []
+            trans_keywords = ("BEGIN", "BEGIN TRANSACTION", "BEGIN TRAN", "COMMIT", "COMMIT TRANSACTION", "COMMIT TRAN", "SET XACT_ABORT ON")
             if migration_sql and migration_sql.strip():
                 raw_batches = re.split(r'^\s*GO\s*;?\s*(?:--.*)?$', migration_sql, flags=re.MULTILINE | re.IGNORECASE)
-                batches = [b.strip() for b in raw_batches if b.strip()]
+                for b in raw_batches:
+                    clean_b = b.strip()
+                    if not clean_b:
+                        continue
+                    lines = [l.strip().rstrip(';').upper() for l in clean_b.splitlines() if l.strip()]
+                    if lines and all(l in trans_keywords for l in lines):
+                        continue
+                    batches.append(clean_b)
             elif statements:
                 for stmt in statements:
                     sql = stmt.get("sql") if isinstance(stmt, dict) else str(stmt)
                     if sql and sql.strip():
-                        batches.append(sql.strip())
+                        clean_sql = sql.strip()
+                        lines = [l.strip().rstrip(';').upper() for l in clean_sql.splitlines() if l.strip()]
+                        if lines and all(l in trans_keywords for l in lines):
+                            continue
+                        batches.append(clean_sql)
             if not batches:
                 return {"success": False, "error": "No statements provided to apply"}
             conn.adapter.execute_migration_transaction(batches, database=database)

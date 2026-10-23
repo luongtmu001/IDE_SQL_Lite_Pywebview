@@ -8,7 +8,7 @@
     // 1. SYMBOL & SYMBOL TABLE (Hierarchical Scope Tree)
     // ─────────────────────────────────────────────────────────────────────────────
     class SqlSymbol {
-        constructor({ name, type = 'table', schema = '', database = '', server = '', sourceType = '', alias = '', columns = [], dataType = '', targetObject = '', hasStar = false, underlyingTables = [] }) {
+        constructor({ name, type = 'table', schema = '', database = '', server = '', sourceType = '', alias = '', columns = [], dataType = '', targetObject = '', hasStar = false, underlyingTables = [], isDeclared = true }) {
             this.name = name;
             this.type = type; // 'table', 'view', 'cte', 'subquery', 'temp_table', 'table_variable', 'scalar_variable', 'pseudo_table', 'remote_table', 'foreign_table'
             this.schema = schema;
@@ -21,6 +21,7 @@
             this.targetObject = targetObject || this.name;
             this.hasStar = Boolean(hasStar);
             this.underlyingTables = underlyingTables || [];
+            this.isDeclared = Boolean(isDeclared);
         }
 
         toContextObject() {
@@ -37,7 +38,8 @@
                 columns: this.columns,
                 dataType: this.dataType,
                 hasStar: Boolean(this.hasStar),
-                underlyingTables: this.underlyingTables || []
+                underlyingTables: this.underlyingTables || [],
+                isDeclared: this.isDeclared !== false
             };
         }
     }
@@ -125,11 +127,11 @@
         }
 
         getAllVisibleVariables() {
-            return [...this.getSymbolsByType('scalar_variable'), ...this.getSymbolsByType('table_variable')];
+            return [...this.getSymbolsByType('scalar_variable'), ...this.getSymbolsByType('table_variable')].filter(s => s.isDeclared !== false && s.sourceType !== 'QUERY_REFERENCE');
         }
 
         getAllVisibleTempTables() {
-            return this.getSymbolsByType('temp_table');
+            return this.getSymbolsByType('temp_table').filter(s => s.isDeclared !== false && s.sourceType !== 'QUERY_REFERENCE');
         }
 
         getAllVisibleTables() {
@@ -615,11 +617,187 @@
             }
         }
 
-        extractTempTablesAndVariables(codeTokens, symbolTable) {
+        detectRoutinesInTokens(codeTokens) {
+            const routines = [];
+            const routineMap = new Map();
+            if (!codeTokens) return { routines, routineMap };
+
+            for (let rIdx = 0; rIdx < codeTokens.length; rIdx++) {
+                const rUpper = (codeTokens[rIdx].upper || codeTokens[rIdx].value).toUpperCase();
+                if (['CREATE', 'ALTER'].includes(rUpper)) {
+                    let k = rIdx + 1;
+                    if (k < codeTokens.length && (codeTokens[k].upper || codeTokens[k].value).toUpperCase() === 'OR') {
+                        k++;
+                        if (k < codeTokens.length && ['ALTER', 'REPLACE'].includes((codeTokens[k].upper || codeTokens[k].value).toUpperCase())) {
+                            k++;
+                        }
+                    }
+                    if (k < codeTokens.length) {
+                        const rTypeUp = (codeTokens[k].upper || codeTokens[k].value).toUpperCase();
+                        if (['PROCEDURE', 'PROC', 'FUNCTION', 'FUNC', 'TRIGGER'].includes(rTypeUp)) {
+                            const rType = (rTypeUp === 'PROC' || rTypeUp === 'PROCEDURE') ? 'procedure'
+                                : (rTypeUp === 'FUNC' || rTypeUp === 'FUNCTION') ? 'function' : 'trigger';
+                            k++;
+                            let rSchema = '';
+                            let rName = '';
+                            if (k < codeTokens.length && codeTokens[k].value !== '(' && !codeTokens[k].value.startsWith('@')) {
+                                let firstIdent = this.cleanIdentifier(codeTokens[k].value);
+                                k++;
+                                if (k + 1 < codeTokens.length && codeTokens[k].value === '.') {
+                                    rSchema = firstIdent;
+                                    rName = this.cleanIdentifier(codeTokens[k + 1].value);
+                                    k += 2;
+                                } else {
+                                    rName = firstIdent;
+                                }
+                            }
+                            if (!rName) continue;
+
+                            let bodyStartTokenIdx = -1;
+                            let dollarTag = null;
+                            let singleQuoteString = null;
+                            for (let b = k; b < codeTokens.length; b++) {
+                                const bUp = (codeTokens[b].upper || codeTokens[b].value).toUpperCase();
+                                const bVal = codeTokens[b].value || '';
+                                if (bVal === '$$' || (bVal.startsWith('$') && bVal.endsWith('$') && bVal.length >= 2)) {
+                                    bodyStartTokenIdx = b + 1;
+                                    dollarTag = bVal;
+                                    break;
+                                } else if (bUp === 'AS' && b + 1 < codeTokens.length) {
+                                    const nTok = codeTokens[b + 1];
+                                    const nVal = nTok.value || '';
+                                    if (nVal === '$$' || (nVal.startsWith('$') && nVal.endsWith('$') && nVal.length >= 2)) {
+                                        bodyStartTokenIdx = b + 2;
+                                        dollarTag = nVal;
+                                        break;
+                                    } else if (nTok.type === 'STRING') {
+                                        bodyStartTokenIdx = b + 1;
+                                        singleQuoteString = nTok;
+                                        break;
+                                    } else {
+                                        bodyStartTokenIdx = b + 1;
+                                        break;
+                                    }
+                                } else if (bUp === 'BEGIN' && bodyStartTokenIdx === -1) {
+                                    bodyStartTokenIdx = b + 1;
+                                    break;
+                                }
+                            }
+                            if (bodyStartTokenIdx === -1) bodyStartTokenIdx = k;
+
+                            let bodyEndTokenIdx = codeTokens.length - 1;
+                            if (dollarTag) {
+                                for (let m = bodyStartTokenIdx; m < codeTokens.length; m++) {
+                                    if (codeTokens[m].value === dollarTag) {
+                                        bodyEndTokenIdx = m;
+                                        if (m + 1 < codeTokens.length && codeTokens[m + 1].value === ';') {
+                                            bodyEndTokenIdx = m + 1;
+                                        }
+                                        break;
+                                    }
+                                }
+                            } else if (singleQuoteString) {
+                                for (let m = bodyStartTokenIdx; m < codeTokens.length; m++) {
+                                    if (codeTokens[m] === singleQuoteString) {
+                                        bodyEndTokenIdx = m;
+                                        break;
+                                    }
+                                }
+                            } else {
+                                let depth = 0;
+                                let hasBegin = false;
+                                for (let m = bodyStartTokenIdx; m < codeTokens.length; m++) {
+                                    const mUp = (codeTokens[m].upper || codeTokens[m].value).toUpperCase();
+                                    if (mUp === 'GO') {
+                                        bodyEndTokenIdx = m > 0 ? m - 1 : m;
+                                        break;
+                                    }
+                                    if (mUp === 'BEGIN') {
+                                        depth++;
+                                        hasBegin = true;
+                                    } else if (mUp === 'END') {
+                                        if (depth > 0) depth--;
+                                        if (hasBegin && depth === 0) {
+                                            bodyEndTokenIdx = m;
+                                            if (m + 1 < codeTokens.length && codeTokens[m + 1].value === ';') {
+                                                bodyEndTokenIdx = m + 1;
+                                            }
+                                            break;
+                                        }
+                                    } else if (hasBegin && depth === 0 && ['CREATE', 'ALTER'].includes(mUp)) {
+                                        bodyEndTokenIdx = m > 0 ? m - 1 : m;
+                                        break;
+                                    }
+                                }
+                            }
+
+                            const rtnObj = {
+                                type: rType,
+                                name: rName.toLowerCase(),
+                                schema: rSchema.toLowerCase(),
+                                fullName: (rSchema ? rSchema + '.' + rName : rName).toLowerCase(),
+                                startTokenIdx: rIdx,
+                                endTokenIdx: bodyEndTokenIdx,
+                                startChar: codeTokens[rIdx].start,
+                                endChar: codeTokens[bodyEndTokenIdx].end,
+                                bodyStartTokenIdx: bodyStartTokenIdx,
+                                bodyEndTokenIdx: bodyEndTokenIdx,
+                                tempTables: [],
+                                calledRoutines: []
+                            };
+                            routines.push(rtnObj);
+                            routineMap.set(rtnObj.name, rtnObj);
+                            if (rtnObj.fullName !== rtnObj.name) {
+                                routineMap.set(rtnObj.fullName, rtnObj);
+                            }
+                        }
+                    }
+                }
+            }
+            return { routines, routineMap };
+        }
+
+        extractTempTablesAndVariables(codeTokens, symbolTable, cursorOffset = 0, dialect = '') {
             if (!codeTokens || !symbolTable) return;
+
+            const isPostgres = (dialect && (dialect.toLowerCase().includes('postgr') || dialect.toLowerCase() === 'pgsql'))
+                || codeTokens.some(t => t.value === '$$' || (t.upper || t.value).toUpperCase() === 'PLPGSQL');
+            const isSqlServer = (dialect && (dialect.toLowerCase().includes('sqlserver') || dialect.toLowerCase().includes('mssql') || dialect.toLowerCase() === 'tsql'))
+                || (!isPostgres && codeTokens.some(t => (t.upper || t.value).toUpperCase() === 'GO' || (t.value && (t.value.startsWith('@') || t.value.startsWith('#')))));
+
+            const { routines, routineMap } = this.detectRoutinesInTokens(codeTokens);
+            const activeRoutine = routines.find(r => cursorOffset >= r.startChar && cursorOffset <= r.endChar);
+            const topLevelTempTables = [];
+            const topLevelCalls = [];
 
             for (let i = 0; i < codeTokens.length; i++) {
                 const upper = (codeTokens[i].upper || codeTokens[i].value).toUpperCase();
+
+                // Detect routine calls: CALL proc(...) / PERFORM func(...) (Postgres) or EXEC proc (SQL Server)
+                if (upper === 'CALL' || upper === 'PERFORM' || upper === 'EXEC' || upper === 'EXECUTE') {
+                    let n = i + 1;
+                    if (n < codeTokens.length && codeTokens[n].value !== '(') {
+                        let cFirst = this.cleanIdentifier(codeTokens[n].value);
+                        let cSchema = '';
+                        let cName = cFirst;
+                        if (n + 2 < codeTokens.length && codeTokens[n + 1].value === '.') {
+                            cSchema = cFirst;
+                            cName = this.cleanIdentifier(codeTokens[n + 2].value);
+                        }
+                        if (cName) {
+                            const cFullName = (cSchema ? cSchema + '.' + cName : cName).toLowerCase();
+                            const encCall = routines.find(r => i >= r.bodyStartTokenIdx && i <= r.endTokenIdx);
+                            if (encCall) {
+                                encCall.calledRoutines.push(cName.toLowerCase());
+                                if (cFullName !== cName.toLowerCase()) {
+                                    encCall.calledRoutines.push(cFullName);
+                                }
+                            } else {
+                                topLevelCalls.push({ name: cName.toLowerCase(), fullName: cFullName, tokenIdx: i, charPos: codeTokens[i].start });
+                            }
+                        }
+                    }
+                }
 
                 // 1. CREATE [LOCAL|GLOBAL] TABLE / TEMP TABLE (#temp in SQL Server, temp_tbl in Postgres/SQLite)
                 if (upper === 'CREATE') {
@@ -681,7 +859,7 @@
                                     sourceTables = this.extractSubquerySourceTables(codeTokens, asIdx + 1, stmtEnd);
                                 }
                                 const primarySource = sourceTables.length > 0 ? sourceTables[0] : null;
-                                symbolTable.addSymbol(new SqlSymbol({
+                                const createdSym = new SqlSymbol({
                                     name: tableName,
                                     type: isTempTable ? 'temp_table' : 'table',
                                     columns: columns,
@@ -690,7 +868,17 @@
                                     targetObject: primarySource ? primarySource.table : tableName,
                                     schema: primarySource ? primarySource.schema : '',
                                     underlyingTables: sourceTables
-                                }));
+                                });
+                                if (isTempTable) {
+                                    const encRoutine = routines.find(r => i >= r.bodyStartTokenIdx && i <= r.endTokenIdx);
+                                    if (encRoutine) {
+                                        encRoutine.tempTables.push(createdSym);
+                                    } else {
+                                        topLevelTempTables.push(createdSym);
+                                    }
+                                } else {
+                                    symbolTable.addSymbol(createdSym);
+                                }
                             }
                         }
                     }
@@ -712,34 +900,160 @@
                         if ((isTemp || tbl.startsWith('#')) && tbl && !/^#+$/.test(tbl)) {
                             let selectIdx = -1;
                             for (let b = i - 1; b >= 0; b--) {
-                                if (codeTokens[b].value === ';') break;
-                                if ((codeTokens[b].upper || codeTokens[b].value).toUpperCase() === 'SELECT') {
+                                const bUp = (codeTokens[b].upper || codeTokens[b].value).toUpperCase();
+                                if (codeTokens[b].value === ';' || bUp === 'GO' || ['INSERT', 'UPDATE', 'DELETE', 'MERGE', 'CREATE', 'ALTER', 'DROP'].includes(bUp)) {
+                                    break;
+                                }
+                                if (bUp === 'SELECT') {
                                     selectIdx = b;
                                     break;
                                 }
                             }
-                            let columns = [];
+                            // Only process if preceded by SELECT in the same statement (J1 fix)
                             if (selectIdx !== -1) {
-                                columns = this.parseSelectProjection(codeTokens, selectIdx, i);
-                            }
-                            let sourceTables = [];
-                            let stmtEnd = codeTokens.length;
-                            for (let m = k + 1; m < codeTokens.length; m++) {
-                                if (codeTokens[m].value === ';') { stmtEnd = m; break; }
-                            }
-                            sourceTables = this.extractSubquerySourceTables(codeTokens, k + 1, stmtEnd);
-                            const primarySource = sourceTables.length > 0 ? sourceTables[0] : null;
+                                const columns = this.parseSelectProjection(codeTokens, selectIdx, i);
+                                let sourceTables = [];
+                                let stmtEnd = codeTokens.length;
+                                for (let m = k + 1; m < codeTokens.length; m++) {
+                                    if (codeTokens[m].value === ';') { stmtEnd = m; break; }
+                                }
+                                sourceTables = this.extractSubquerySourceTables(codeTokens, k + 1, stmtEnd);
+                                const primarySource = sourceTables.length > 0 ? sourceTables[0] : null;
 
-                            symbolTable.addSymbol(new SqlSymbol({
-                                name: tbl,
-                                type: 'temp_table',
-                                columns: columns,
-                                displayType: 'Temp Table',
-                                hasStar: Boolean(columns.hasStar),
-                                targetObject: primarySource ? primarySource.table : tbl,
-                                schema: primarySource ? primarySource.schema : '',
-                                underlyingTables: sourceTables
-                            }));
+                                const intoSym = new SqlSymbol({
+                                    name: tbl,
+                                    type: 'temp_table',
+                                    columns: columns,
+                                    displayType: 'Temp Table',
+                                    hasStar: Boolean(columns.hasStar),
+                                    targetObject: primarySource ? primarySource.table : tbl,
+                                    schema: primarySource ? primarySource.schema : '',
+                                    underlyingTables: sourceTables
+                                });
+                                const encRoutine = routines.find(r => i >= r.bodyStartTokenIdx && i <= r.endTokenIdx);
+                                if (encRoutine) {
+                                    encRoutine.tempTables.push(intoSym);
+                                } else {
+                                    topLevelTempTables.push(intoSym);
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // 2b. ALTER TABLE #temp / tbl ADD ... / DROP COLUMN ...
+                if (upper === 'ALTER') {
+                    let k = i + 1;
+                    if (k < codeTokens.length && (codeTokens[k].upper || codeTokens[k].value).toUpperCase() === 'TABLE') {
+                        k++;
+                        if (k < codeTokens.length && (codeTokens[k].upper || codeTokens[k].value).toUpperCase() === 'ONLY') {
+                            k++;
+                        }
+                        if (k < codeTokens.length) {
+                            const tblName = this.cleanIdentifier(codeTokens[k].value);
+                            k++;
+                            const tblKey = tblName ? tblName.toLowerCase() : '';
+                            const encRoutine = routines.find(r => i >= r.bodyStartTokenIdx && i <= r.endTokenIdx);
+                            const routineTempMatch = encRoutine ? encRoutine.tempTables.find(s => s.name.toLowerCase() === tblKey) : null;
+                            const topTempMatch = topLevelTempTables.find(s => s.name.toLowerCase() === tblKey);
+                            const isTemp = tblName && (tblName.startsWith('#') || routineTempMatch || topTempMatch || (symbolTable.symbols.has(tblKey) && symbolTable.symbols.get(tblKey).type === 'temp_table'));
+                            if (isTemp) {
+                                let action = '';
+                                if (k < codeTokens.length) {
+                                    const actionWord = (codeTokens[k].upper || codeTokens[k].value).toUpperCase();
+                                    if (actionWord === 'ADD') {
+                                        action = 'ADD';
+                                        k++;
+                                    } else if (actionWord === 'DROP') {
+                                        action = 'DROP';
+                                        k++;
+                                        if (k < codeTokens.length && (codeTokens[k].upper || codeTokens[k].value).toUpperCase() === 'COLUMN') {
+                                            k++;
+                                        }
+                                    }
+                                }
+
+                                if (action === 'ADD') {
+                                    if (k < codeTokens.length && (codeTokens[k].upper || codeTokens[k].value).toUpperCase() === 'COLUMN') {
+                                        k++;
+                                    }
+                                    if (k < codeTokens.length && (codeTokens[k].upper || codeTokens[k].value).toUpperCase() === 'IF' && k + 2 < codeTokens.length) {
+                                        k += 3; // skip IF NOT EXISTS
+                                    }
+                                    const maxScan = Math.min(codeTokens.length, k + 60);
+                                    let stmtEnd = maxScan;
+                                    for (let m = k; m < maxScan; m++) {
+                                        const mUp = (codeTokens[m].upper || codeTokens[m].value).toUpperCase();
+                                        if (codeTokens[m].value === ';' || mUp === 'GO' || ['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'CREATE', 'ALTER', 'DROP'].includes(mUp)) {
+                                            stmtEnd = m;
+                                            break;
+                                        }
+                                    }
+
+                                    let newCols = [];
+                                    if (k < stmtEnd && codeTokens[k].value === '(') {
+                                        let closeParen = stmtEnd;
+                                        let depth = 1;
+                                        for (let m = k + 1; m < stmtEnd; m++) {
+                                            if (codeTokens[m].value === '(') depth++;
+                                            else if (codeTokens[m].value === ')') {
+                                                depth--;
+                                                if (depth === 0) { closeParen = m; break; }
+                                            }
+                                        }
+                                        newCols = this.parseColumnDefinitions(codeTokens, k, closeParen);
+                                    } else {
+                                        newCols = this.parseColumnDefinitions(codeTokens, k - 1, stmtEnd);
+                                    }
+
+                                    const targetSym = routineTempMatch || topTempMatch || symbolTable.resolve(tblName);
+                                    if (targetSym) {
+                                        const existingCols = targetSym.columns || [];
+                                        for (const nc of newCols) {
+                                            if (!existingCols.some(c => (c.name || '').toLowerCase() === (nc.name || '').toLowerCase())) {
+                                                existingCols.push(nc);
+                                            }
+                                        }
+                                        targetSym.columns = existingCols;
+                                    } else {
+                                        const newSym = new SqlSymbol({
+                                            name: tblName,
+                                            type: 'temp_table',
+                                            columns: newCols,
+                                            displayType: 'Temp Table'
+                                        });
+                                        if (encRoutine) {
+                                            encRoutine.tempTables.push(newSym);
+                                        } else {
+                                            topLevelTempTables.push(newSym);
+                                        }
+                                    }
+                                    i = stmtEnd - 1;
+                                } else if (action === 'DROP') {
+                                    const maxScan = Math.min(codeTokens.length, k + 60);
+                                    let stmtEnd = maxScan;
+                                    for (let m = k; m < maxScan; m++) {
+                                        const mUp = (codeTokens[m].upper || codeTokens[m].value).toUpperCase();
+                                        if (codeTokens[m].value === ';' || mUp === 'GO' || ['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'CREATE', 'ALTER', 'DROP'].includes(mUp)) {
+                                            stmtEnd = m;
+                                            break;
+                                        }
+                                    }
+                                    const droppedColNames = new Set();
+                                    for (let m = k; m < stmtEnd; m++) {
+                                        if (codeTokens[m].value === ',') continue;
+                                        const wUp = (codeTokens[m].upper || codeTokens[m].value).toUpperCase();
+                                        if (wUp === 'COLUMN' || wUp === 'IF' || wUp === 'EXISTS') continue;
+                                        const cName = this.cleanIdentifier(codeTokens[m].value);
+                                        if (cName) droppedColNames.add(cName.toLowerCase());
+                                    }
+                                    const targetSym = routineTempMatch || topTempMatch || symbolTable.resolve(tblName);
+                                    if (targetSym && targetSym.columns) {
+                                        targetSym.columns = targetSym.columns.filter(c => !droppedColNames.has((c.name || '').toLowerCase()));
+                                    }
+                                    i = stmtEnd - 1;
+                                }
+                            }
                         }
                     }
                 }
@@ -1086,6 +1400,52 @@
                     }
                 }
             }
+
+            // 5. Populate Symbol Table with visible temporary tables based on active scope and database dialect
+            const getExportedTempTables = (routineName, visited = new Set()) => {
+                const norm = (routineName || '').toLowerCase().trim();
+                if (!norm || visited.has(norm)) return [];
+                visited.add(norm);
+                const r = routineMap.get(norm) || (norm.includes('.') ? routineMap.get(norm.split('.').pop()) : null);
+                if (!r) return [];
+                const res = [...r.tempTables];
+                for (const child of r.calledRoutines) {
+                    res.push(...getExportedTempTables(child, visited));
+                }
+                return res;
+            };
+
+            if (activeRoutine) {
+                // Inside a routine:
+                topLevelTempTables.forEach(s => symbolTable.addSymbol(s));
+                activeRoutine.tempTables.forEach(s => symbolTable.addSymbol(s));
+
+                // PostgreSQL: temp tables created in called procedures survive and are visible to caller
+                if (isPostgres) {
+                    for (const called of activeRoutine.calledRoutines) {
+                        const exp = getExportedTempTables(called);
+                        exp.forEach(s => symbolTable.addSymbol(s));
+                    }
+                }
+                // SQL Server: callee temp tables #temp are destroyed upon exit, caller CANNOT use them
+            } else if (routines.length > 0) {
+                // Outside any routine (top-level script):
+                topLevelTempTables.forEach(s => symbolTable.addSymbol(s));
+
+                // PostgreSQL: if top-level script executes CALL/PERFORM before cursor, export those temp tables
+                if (isPostgres) {
+                    for (const topCall of topLevelCalls) {
+                        if (topCall.charPos <= cursorOffset) {
+                            const exp = getExportedTempTables(topCall.name);
+                            exp.forEach(s => symbolTable.addSymbol(s));
+                        }
+                    }
+                }
+                // SQL Server: local #temp inside procedures are not visible at top level
+            } else {
+                // No routines: all temp tables belong to batch
+                topLevelTempTables.forEach(s => symbolTable.addSymbol(s));
+            }
         }
 
         extractDerivedTables(codeTokens, symbolTable, subquerySpans) {
@@ -1375,6 +1735,7 @@
                     let targetObj = tableName;
                     let symUnderlying = [];
                     let symHasStar = false;
+                    let isDeclared = true;
                     if (existingSym) {
                         if (existingSym.columns && existingSym.columns.length > 0) {
                             initialCols = [...existingSym.columns];
@@ -1384,6 +1745,10 @@
                         if (existingSym.targetObject) targetObj = existingSym.targetObject;
                         if (existingSym.underlyingTables) symUnderlying = existingSym.underlyingTables;
                         symHasStar = Boolean(existingSym.hasStar);
+                        isDeclared = existingSym.isDeclared !== false;
+                    } else if (tableName.startsWith('#') || tableName.startsWith('@')) {
+                        isDeclared = false;
+                        sourceType = 'QUERY_REFERENCE';
                     }
 
                     if (!tableName || /^#+$/.test(tableName) || /^@+$/.test(tableName)) {
@@ -1401,7 +1766,8 @@
                         columns: initialCols,
                         targetObject: targetObj,
                         underlyingTables: symUnderlying,
-                        hasStar: symHasStar
+                        hasStar: symHasStar,
+                        isDeclared: isDeclared
                     });
 
                     symbolTable.addSymbol(sym);
@@ -1601,7 +1967,7 @@
             this.qualifiedResolver = new QualifiedIdentifierResolver(this.aliasResolver);
         }
 
-        buildScopeTree(tokens, fullLength = Infinity, cursorOffset = 0, statementRange = null) {
+        buildScopeTree(tokens, fullLength = Infinity, cursorOffset = 0, statementRange = null, dialect = '') {
             const rootScope = new SymbolTable(null, { start: 0, end: fullLength });
             if (!tokens || tokens.length === 0) return rootScope;
 
@@ -1610,7 +1976,7 @@
             if (codeTokens.length === 0) return rootScope;
 
             // 1. Extract Temp Tables & Variable declarations (#temp, @tbl, @var, routine params) into batch scope
-            this.aliasResolver.extractTempTablesAndVariables(codeTokens, rootScope);
+            this.aliasResolver.extractTempTablesAndVariables(codeTokens, rootScope, cursorOffset, dialect);
 
             // 2. Identify statement tokens for statement isolation
             let stmtTokens = codeTokens;

@@ -369,7 +369,90 @@
             { separator: true },
             { id: 'refresh', label: 'Refresh', icon: 'fa-rotate-right' },
         ],
+        database_user: [
+            { id: 'new-query', label: 'New Query', icon: 'fa-plus' },
+            { separator: true },
+            { id: 'view-user-permissions', label: 'View Permissions', icon: 'fa-shield-halved' },
+            { separator: true },
+            {
+                id: 'script-user-as',
+                label: 'Script User as',
+                icon: 'fa-code',
+                submenu: [
+                    { id: 'script-user-create', label: 'CREATE To', icon: 'fa-file-lines' },
+                    { id: 'script-user-drop', label: 'DROP To', icon: 'fa-trash', danger: true },
+                ]
+            },
+            { separator: true },
+            { id: 'copy-name', label: 'Copy User Name', icon: 'fa-copy' },
+            { separator: true },
+            { id: 'refresh', label: 'Refresh', icon: 'fa-rotate-right' },
+        ],
+        sqlserver_users_group: [
+            { id: 'new-query', label: 'New Query', icon: 'fa-plus' },
+            { separator: true },
+            { id: 'refresh', label: 'Refresh', icon: 'fa-rotate-right' },
+        ],
+        postgres_role: [
+            { id: 'new-query', label: 'New Query', icon: 'fa-plus' },
+            { separator: true },
+            { id: 'view-role-permissions', label: 'View Permissions', icon: 'fa-shield-halved' },
+            { separator: true },
+            {
+                id: 'script-role-as',
+                label: 'Script Role as',
+                icon: 'fa-code',
+                submenu: [
+                    { id: 'script-role-create', label: 'CREATE To', icon: 'fa-file-lines' },
+                    { id: 'script-role-drop', label: 'DROP To', icon: 'fa-trash', danger: true },
+                ]
+            },
+            { separator: true },
+            { id: 'copy-name', label: 'Copy Role Name', icon: 'fa-copy' },
+            { separator: true },
+            { id: 'refresh', label: 'Refresh', icon: 'fa-rotate-right' },
+        ],
+        postgres_roles_group: [
+            { id: 'new-query', label: 'New Query', icon: 'fa-plus' },
+            { separator: true },
+            { id: 'refresh', label: 'Refresh', icon: 'fa-rotate-right' },
+        ],
     };
+
+    function cleanPgTypes(argsStr) {
+        if (!argsStr || !argsStr.trim()) return '';
+        const args = [];
+        let curr = '';
+        let depth = 0;
+        for (let i = 0; i < argsStr.length; i++) {
+            const ch = argsStr[i];
+            if (ch === '(' || ch === '[' || ch === '{') depth++;
+            else if (ch === ')' || ch === ']' || ch === '}') depth = Math.max(0, depth - 1);
+            else if (ch === ',' && depth === 0) {
+                if (curr.trim()) args.push(curr.trim());
+                curr = '';
+                continue;
+            }
+            curr += ch;
+        }
+        if (curr.trim()) args.push(curr.trim());
+
+        const multiWords = [
+            'double precision', 'character varying',
+            'timestamp with time zone', 'timestamp without time zone',
+            'time with time zone', 'time without time zone', 'bit varying'
+        ];
+
+        return args.map(arg => {
+            let t = arg.replace(/^(?:IN|INOUT|OUT|VARIADIC)\s+/i, '').trim();
+            const lower = t.toLowerCase();
+            for (const mw of multiWords) {
+                if (lower === mw || lower.startsWith(mw + '(') || lower.startsWith(mw + '[')) return t;
+            }
+            const m = t.match(/^(?:"[^"]+"|[a-zA-Z_][a-zA-Z0-9_]*)\s+(.+)$/);
+            return m ? m[1].trim() : t;
+        }).filter(Boolean).join(', ');
+    }
 
     // ── Unified Script As Handler ─────────────────────────────────────────────
     async function handleScriptAs(nodeData, action, dest = 'tab') {
@@ -383,7 +466,6 @@
 
         if (!connId || !name) return;
 
-        if (window.AppLoader) window.AppLoader.show(`Đang tạo script ${action} [${name}]...`);
         try {
             let data = null;
             if (window.pywebview && window.pywebview.api && typeof window.pywebview.api.script_object === 'function') {
@@ -393,7 +475,6 @@
                 const res = await fetch(url, { cache: 'no-store' });
                 data = await res.json();
             }
-            if (window.AppLoader) window.AppLoader.hide();
 
             if (data && data.success && data.script) {
                 const sql = data.script;
@@ -430,7 +511,6 @@
                 else alert(`Lỗi sinh script: ${err}`);
             }
         } catch (err) {
-            if (window.AppLoader) window.AppLoader.hide();
             const errMsg = err ? (err.message || String(err)) : 'Unknown error';
             if (typeof showToast === 'function') showToast(`✗ Lỗi kết nối: ${errMsg}`, 'danger');
             else alert(`Lỗi: ${errMsg}`);
@@ -536,6 +616,61 @@
                             if (typeof showToast === 'function') showToast(`✗ Lỗi: ${err.message}`, 'danger');
                             else alert(`✗ Lỗi: ${err.message}`);
                         });
+                }
+                break;
+            case 'script-user-create':
+            case 'script-user-drop':
+            case 'script-role-create':
+            case 'script-role-drop':
+                {
+                    const principalName = nodeData?.principal_name || nodeData?.name;
+                    const cId = nodeData?.connId || nodeData?.connectionId || window.ActiveConnectionId;
+                    const dbName = nodeData?.database || window.ActiveDatabase;
+                    if (!cId || !principalName) break;
+
+                    const isDrop = actionId.endsWith('-drop');
+                    const scriptType = isDrop ? 'DROP' : 'CREATE';
+                    const titlePrefix = isDrop ? 'DROP_' : 'CREATE_';
+
+                    fetch('/api/database-users/script', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            conn_id: cId,
+                            principal_name: principalName,
+                            action: scriptType,
+                            mode: 'full',
+                            database: dbName
+                        })
+                    })
+                    .then(r => r.json())
+                    .then(data => {
+                        if (data && data.success && data.script) {
+                            openScriptInNewTab(data.script, `${titlePrefix}${principalName}`, nodeData, false);
+                        } else {
+                            const err = (data && data.error) || 'Không thể tạo script.';
+                            if (typeof showToast === 'function') showToast(`✗ ${err}`, 'danger');
+                            else alert(`✗ ${err}`);
+                        }
+                    })
+                    .catch(err => {
+                        if (typeof showToast === 'function') showToast(`✗ Lỗi: ${err.message}`, 'danger');
+                        else alert(`✗ Lỗi: ${err.message}`);
+                    });
+                }
+                break;
+            case 'view-user-permissions':
+            case 'view-role-permissions':
+                {
+                    const principalName = nodeData?.principal_name || nodeData?.name;
+                    if (!principalName) break;
+                    if (window.AppTabs && typeof window.AppTabs.createTab === 'function') {
+                        window.AppTabs.createTab({
+                            tabType: 'user-permissions',
+                            title: `Permissions: ${principalName}`,
+                            context: nodeData
+                        });
+                    }
                 }
                 break;
             case 'delete-linked-server':
@@ -800,10 +935,12 @@
                 break;
             case 'copy-name':
                 {
-                    const colNameToCopy = (nodeData?.column || nodeData?.columnName || nodeData?.name || '').split('(')[0].trim();
-                    if (colNameToCopy) {
-                        navigator.clipboard.writeText(colNameToCopy);
-                        if (typeof showToast === 'function') showToast('Đã sao chép tên cột', 'success');
+                    const nameToCopy = (nodeData?.column || nodeData?.columnName || nodeData?.principal_name || nodeData?.name || '').split('(')[0].trim();
+                    if (nameToCopy) {
+                        navigator.clipboard.writeText(nameToCopy);
+                        const isCol = Boolean(nodeData?.column || nodeData?.columnName);
+                        const msg = isCol ? 'Đã sao chép tên cột' : 'Đã sao chép tên vào clipboard';
+                        if (typeof showToast === 'function') showToast(msg, 'success');
                     }
                 }
                 break;
@@ -980,14 +1117,23 @@
             }
         } else if (dbType === 'postgresql' && (type === 'function' || type === 'procedure')) {
             const base = nodeData.baseName || (name.includes('(') ? name.slice(0, name.indexOf('(')).trim() : name);
-            const args = nodeData.identityArgs !== undefined ? nodeData.identityArgs : (name.includes('(') ? name.slice(name.indexOf('(') + 1, -1).trim() : '');
-            sql = `DROP ${dropKeyword} "${schema || 'public'}"."${base}"(${args});`;
+            const args = nodeData.identityArgs !== undefined ? nodeData.identityArgs : (name.includes('(') ? name.slice(name.indexOf('(') + 1, -1).trim() : null);
+            if (args !== null && args !== undefined) {
+                const cleanArgs = cleanPgTypes(args);
+                const safeSchema = schema || 'public';
+                sql = `DROP ${dropKeyword} IF EXISTS ${safeSchema}.${base}(${cleanArgs});`;
+                openScriptInNewTab(sql, `DROP_${base}`, nodeData, true);
+            } else {
+                // If args is unknown, call backend script generator to fetch exact signatures with detailed types
+                handleScriptAs(nodeData, 'DROP', 'tab');
+                return;
+            }
         } else {
             sql = dbType === 'postgresql'
-                ? `DROP ${dropKeyword} "${schema || 'public'}"."${name}";`
-                : `DROP ${dropKeyword} [${schema || 'dbo'}].[${name}];`;
+                ? `DROP ${dropKeyword} IF EXISTS "${schema || 'public'}"."${name}" CASCADE;`
+                : `DROP ${dropKeyword} IF EXISTS [${schema || 'dbo'}].[${name}];`;
+            openScriptInNewTab(sql, `DROP_${name}`, nodeData, true);
         }
-        openScriptInNewTab(sql, `DROP_${name}`, nodeData, true);
     }
 
     // ── Menu rendering ────────────────────────────────────────────────────────
@@ -1048,7 +1194,9 @@
         // Header
         const header = document.createElement('div');
         header.className = 'ide-ctx-header';
-        header.textContent = nodeData?.name || type;
+        const headerText = nodeData?.name || type || '';
+        header.textContent = headerText;
+        header.title = headerText;
         menuEl.appendChild(header);
 
         const sep0 = document.createElement('div');
@@ -1154,10 +1302,23 @@
 
     function hide() {
         if (menuEl) { menuEl.remove(); menuEl = null; }
+        document.querySelectorAll('.ide-context-menu').forEach(el => el.remove());
+        // Clean up any stray backdrop
+        document.querySelectorAll('.modal-backdrop').forEach(b => {
+            if (!document.querySelector('.modal.show')) {
+                b.remove();
+                document.body.classList.remove('modal-open');
+                document.body.style.removeProperty('overflow');
+                document.body.style.removeProperty('padding-right');
+            }
+        });
         focusedIdx = -1;
     }
 
-    // Close on click outside or Esc
+    // Close on click/mousedown outside or Esc (useCapture ensures priority)
+    document.addEventListener('mousedown', e => {
+        if (menuEl && !menuEl.contains(e.target)) hide();
+    }, true);
     document.addEventListener('click', e => {
         if (menuEl && !menuEl.contains(e.target)) hide();
     });

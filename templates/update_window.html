@@ -455,9 +455,16 @@
 
                     if (res && res.success && res.data) {
                         const info = res.data;
-                        _latestDownloadUrl = info.downloadUrl || _latestDownloadUrl;
-                        _latestFileName = info.fileName || '';
-                        _latestFileSize = info.fileSize || 0;
+                        // Prioritize patch archive for fast in-place auto update & automatic file overwrite
+                        if (info.patchDownloadUrl && info.patchFileName) {
+                            _latestDownloadUrl = info.patchDownloadUrl;
+                            _latestFileName = info.patchFileName;
+                            _latestFileSize = info.patchFileSize || 0;
+                        } else {
+                            _latestDownloadUrl = info.downloadUrl || _latestDownloadUrl;
+                            _latestFileName = info.fileName || '';
+                            _latestFileSize = info.fileSize || 0;
+                        }
 
                         if (info.hasUpdate) {
                             document.getElementById('lblLatestVersion').textContent = 'v' + info.latestVersion;

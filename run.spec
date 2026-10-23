@@ -36,6 +36,11 @@ scriptdom_dir = os.path.join(BASE_PATH, 'app', 'database', 'syntax', 'bin')
 if os.path.exists(scriptdom_dir):
     datas.append((scriptdom_dir, 'app/database/syntax/bin'))
 
+# Bundle app/data (e.g. syntax catalog database)
+app_data_dir = os.path.join(BASE_PATH, 'app', 'data')
+if os.path.exists(app_data_dir):
+    datas.append((app_data_dir, 'app/data'))
+
 # Include ONLY safe default data files (snippets, code_styles, default settings)
 # Exclude sensitive user credentials and DBs: connections.json, programlist.json, history.db, .secret.key
 ALLOWED_DEFAULT_DATA_FILES = {'snippets.json', 'code_styles.json', 'settings.json'}
@@ -121,7 +126,17 @@ hiddenimports = [
     'app.services.table_designer_service',
     'app.services.table_data_editor_service',
     'app.services.schema_compare_service',
+    'app.services.google_sheets',
     'app.api.schema_compare_api',
+    'app.api.google_sheets_api',
+    'app.api.database_users_api',
+    'app.api.syntax_catalog_api',
+    'app.services.database_users',
+    'app.services.syntax_catalog',
+    'app.services.syntax_catalog.service',
+    'app.bravo',
+    'app.bravo.api',
+    'app.bravo.xml_codec',
     'app.utils',
     'app.utils.crypto',
     'app.utils.dwm',

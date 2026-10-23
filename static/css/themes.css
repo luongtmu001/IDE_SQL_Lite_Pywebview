@@ -22,7 +22,7 @@ html[data-bs-theme="dark"] {
     --bs-link-hover-color:      #e08b46;
 
     /* IDE surface layers */
-    --ide-bg-main:              #1C1D23;
+    --ide-bg-main:              #101114;
     --ide-bg-sidebar:           #1C1D23;
     --ide-bg-toolbar:           #202228;
     --ide-bg-editor:            #18191E;
@@ -104,7 +104,7 @@ html[data-bs-theme="light"] {
     --bs-link-hover-color:      #b36520;
 
     /* IDE surface layers */
-    --ide-bg-main:              #f0f0f0;
+    --ide-bg-main:              #e2e4e8;
     --ide-bg-sidebar:           #e8e8e8;
     --ide-bg-toolbar:           #dcdcdc;
     --ide-bg-editor:            #ffffff;

@@ -13,7 +13,7 @@ const { createIdeContext } = require('./load.js');
 const corpusPath = path.resolve(__dirname, '../corpus/intellisense/context_l1.json');
 const corpus = JSON.parse(fs.readFileSync(corpusPath, 'utf8'));
 
-test('L1: Context Analyzer Corpus Tests (40 cases)', async (t) => {
+test('L1: Context Analyzer Corpus Tests', async (t) => {
     const ide = createIdeContext();
 
     for (const item of corpus) {
@@ -26,6 +26,12 @@ test('L1: Context Analyzer Corpus Tests (40 cases)', async (t) => {
             }
             if (exp.qualifier !== undefined) {
                 assert.strictEqual(result.qualifier, exp.qualifier, `Expected qualifier ${exp.qualifier}, got ${result.qualifier}`);
+            }
+            if (exp.position !== undefined) {
+                assert.strictEqual(result.position, exp.position, `Expected position ${exp.position}, got ${result.position}`);
+            }
+            if (exp.aliasSlot !== undefined) {
+                assert.strictEqual(result.aliasSlot, exp.aliasSlot, `Expected aliasSlot ${exp.aliasSlot}, got ${result.aliasSlot}`);
             }
             if (exp.isInsert) {
                 assert.ok(result.isInsert, 'Expected isInsert to be true');

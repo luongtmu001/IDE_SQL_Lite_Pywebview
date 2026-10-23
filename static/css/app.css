@@ -7,8 +7,12 @@ body, html {
     font-family: var(--ide-ui-font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif);
     font-size: var(--ide-ui-font-size, 13px);
     line-height: var(--ide-ui-line-height, 1.45);
-    background: var(--ide-bg-main);
+    background: var(--ide-accent, var(--ide-bg-main));
     color: var(--ide-text-main);
+}
+
+body {
+    background-color: var(--ide-accent, var(--ide-bg-main, #1C1D23)) !important;
 }
 
 /* ── Bootstrap input overrides ───────────────────────────────────────────────── */
@@ -26,15 +30,19 @@ body, html {
 }
 .form-control::placeholder { color: var(--ide-text-muted) !important; }
 
-/* ── Toolbar / Navbar ─────────────────────────────────────────────────────────── */
+/* ── Toolbar / Navbar (Floating Card Panel) ──────────────────────────────────── */
 .ide-toolbar {
     position: relative;
     z-index: 10000 !important;
     overflow: visible !important;
     background: var(--ide-bg-toolbar) !important;
-    border-bottom: 1px solid var(--ide-border) !important;
+    border: 1px solid var(--ide-border) !important;
+    border-radius: 8px;
+    margin: 6px 6px 0 6px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
     height: 36px;
     flex-shrink: 0;
+    box-sizing: border-box;
 }
 
 /* Ensure navbar-nav and all sub-navs / dropdown menus float above all content with highest priority */
@@ -134,29 +142,36 @@ nav.navbar .dropdown-menu .dropdown-menu,
 
 /* ── Main Area ────────────────────────────────────────────────────────────────── */
 #ide-main-area {
-    background: var(--ide-bg-main);
+    background: var(--ide-accent, var(--ide-bg-main));
 }
 
-/* ── Common resizer (editor / results) ──────────────────────────────────────── */
+/* ── Common resizer (editor / results - Sash gutter) ────────────────────────── */
 .ide-resizer-horizontal {
-    height: 5px;
-    background: var(--ide-bg-toolbar);
-    border-top: 1px solid var(--ide-border);
-    border-bottom: 1px solid var(--ide-border);
+    height: 6px;
+    min-height: 6px;
+    max-height: 6px;
+    background: transparent;
+    border: none;
+    margin: 0;
     cursor: row-resize;
-    z-index: 10;
+    z-index: 20;
     flex-shrink: 0;
-    transition: background 0.15s;
+    border-radius: 3px;
+    transition: background 0.15s ease;
 }
 .ide-resizer-horizontal:hover,
 .ide-resizer-horizontal.dragging {
-    background: var(--ide-accent);
+    background: var(--ide-accent, #CC7832);
+    filter: brightness(1.25);
 }
 
-/* ── Status bar ──────────────────────────────────────────────────────────────── */
+/* ── Status bar (Floating Card Panel) ────────────────────────────────────────── */
 .ide-statusbar {
-    background: var(--ide-accent);
-    color: #fff;
+    background: var(--ide-bg-toolbar, var(--ide-accent));
+    color: var(--ide-text-main, #fff);
+    border: 1px solid var(--ide-border);
+    border-radius: 6px;
+    margin: 0 6px 6px 6px;
     font-family: var(--ide-ui-font-family, inherit);
     font-size: calc(var(--ide-ui-font-size, 13px) - 2px);
     height: 22px;
@@ -165,6 +180,8 @@ nav.navbar .dropdown-menu .dropdown-menu,
     justify-content: space-between;
     padding: 0 8px;
     flex-shrink: 0;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+    box-sizing: border-box;
 }
 .ide-statusbar-left,
 .ide-statusbar-right {

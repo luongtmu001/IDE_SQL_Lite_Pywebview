@@ -66,18 +66,176 @@ class TableDesignerService:
         return t
 
     @classmethod
+    def format_default_value(cls, default_val: Any, col_type: str, engine: str) -> str:
+        """Formats and sanitizes column default values based on column type and dialect."""
+        if default_val is None:
+            return ""
+        val_str = str(default_val).strip()
+        if not val_str:
+            return ""
+
+        t = (col_type or "").lower().strip()
+        eng = (engine or "sqlserver").lower().strip()
+
+        upper_val = val_str.upper()
+        if upper_val == "NULL":
+            return "NULL"
+        if upper_val.startswith("CURRENT_") or upper_val.startswith("LOCALTIMESTAMP"):
+            return val_str
+
+        is_numeric = t in (
+            "int", "bigint", "smallint", "tinyint", "decimal", "numeric",
+            "float", "real", "money", "smallmoney", "integer", "int2", "int4", "int8"
+        )
+        if is_numeric:
+            cleaned = val_str
+            if "::" in cleaned:
+                cleaned = cleaned.split("::")[0].strip()
+            while (cleaned.startswith("'") and cleaned.endswith("'")) or (cleaned.startswith('"') and cleaned.endswith('"')):
+                cleaned = cleaned[1:-1].strip()
+            while cleaned.startswith("(") and cleaned.endswith(")"):
+                cleaned = cleaned[1:-1].strip()
+            return cleaned or "0"
+
+        if val_str.endswith(")") and ("(" in val_str):
+            return val_str
+
+        if t in ("boolean", "bool"):
+            cleaned = val_str.strip("'\"()").lower()
+            if cleaned in ("1", "true", "t"):
+                return "true"
+            elif cleaned in ("0", "false", "f"):
+                return "false"
+            return val_str
+
+        if eng == "sqlserver" and t == "bit":
+            cleaned = val_str.strip("'\"()").lower()
+            if cleaned in ("1", "true", "t"):
+                return "((1))"
+            elif cleaned in ("0", "false", "f"):
+                return "((0))"
+            return f"(({val_str}))" if not val_str.startswith("(") else val_str
+
+        is_char = t in ("varchar", "nvarchar", "char", "nchar", "text", "ntext")
+        if is_char:
+            if (val_str.startswith("'") and val_str.endswith("'")) or (val_str.startswith("N'") and val_str.endswith("'")):
+                return val_str
+            escaped = val_str.replace("'", "''")
+            return f"'{escaped}'"
+
+        return val_str
+
+    @classmethod
+    def generate_table_comment_statement(
+        cls, schema: str, table: str, comment: Optional[str], engine: str, is_diff: bool = False
+    ) -> Optional[str]:
+        clean_comment = (comment or "").strip()
+        tbl_name = cls._format_table_name(schema, table, engine)
+        clean_schema = schema.strip("[]\" ")
+        clean_table = table.strip("[]\" ")
+
+        if engine == "sqlserver":
+            if clean_comment:
+                escaped_val = clean_comment.replace("'", "''")
+                if is_diff:
+                    return (
+                        f"IF NOT EXISTS (SELECT 1 FROM sys.extended_properties "
+                        f"WHERE major_id = OBJECT_ID(N'{clean_schema}.{clean_table}') AND minor_id = 0 AND name = N'MS_Description')\n"
+                        f"    EXEC sys.sp_addextendedproperty @name = N'MS_Description', @value = N'{escaped_val}', "
+                        f"@level0type = N'SCHEMA', @level0name = N'{clean_schema}', @level1type = N'TABLE', @level1name = N'{clean_table}';\n"
+                        f"ELSE\n"
+                        f"    EXEC sys.sp_updateextendedproperty @name = N'MS_Description', @value = N'{escaped_val}', "
+                        f"@level0type = N'SCHEMA', @level0name = N'{clean_schema}', @level1type = N'TABLE', @level1name = N'{clean_table}';"
+                    )
+                else:
+                    return (
+                        f"EXEC sys.sp_addextendedproperty @name = N'MS_Description', @value = N'{escaped_val}', "
+                        f"@level0type = N'SCHEMA', @level0name = N'{clean_schema}', @level1type = N'TABLE', @level1name = N'{clean_table}';"
+                    )
+            elif is_diff:
+                return (
+                    f"IF EXISTS (SELECT 1 FROM sys.extended_properties "
+                    f"WHERE major_id = OBJECT_ID(N'{clean_schema}.{clean_table}') AND minor_id = 0 AND name = N'MS_Description')\n"
+                    f"    EXEC sys.sp_dropextendedproperty @name = N'MS_Description', "
+                    f"@level0type = N'SCHEMA', @level0name = N'{clean_schema}', @level1type = N'TABLE', @level1name = N'{clean_table}';"
+                )
+            return None
+        else:
+            if clean_comment:
+                escaped_val = clean_comment.replace("'", "''")
+                return f"COMMENT ON TABLE {tbl_name} IS '{escaped_val}';"
+            elif is_diff:
+                return f"COMMENT ON TABLE {tbl_name} IS NULL;"
+            return None
+
+    @classmethod
+    def generate_column_comment_statement(
+        cls, schema: str, table: str, col_name: str, comment: Optional[str], engine: str, is_diff: bool = False
+    ) -> Optional[str]:
+        clean_comment = (comment or "").strip()
+        tbl_name = cls._format_table_name(schema, table, engine)
+        clean_schema = schema.strip("[]\" ")
+        clean_table = table.strip("[]\" ")
+        clean_col = col_name.strip("[]\" ")
+        q_col = cls._quote_ident(clean_col, engine)
+
+        if engine == "sqlserver":
+            if clean_comment:
+                escaped_val = clean_comment.replace("'", "''")
+                if is_diff:
+                    return (
+                        f"IF NOT EXISTS (SELECT 1 FROM sys.fn_listextendedproperty(N'MS_Description', N'SCHEMA', N'{clean_schema}', N'TABLE', N'{clean_table}', N'COLUMN', N'{clean_col}'))\n"
+                        f"    EXEC sys.sp_addextendedproperty @name = N'MS_Description', @value = N'{escaped_val}', "
+                        f"@level0type = N'SCHEMA', @level0name = N'{clean_schema}', @level1type = N'TABLE', @level1name = N'{clean_table}', @level2type = N'COLUMN', @level2name = N'{clean_col}';\n"
+                        f"ELSE\n"
+                        f"    EXEC sys.sp_updateextendedproperty @name = N'MS_Description', @value = N'{escaped_val}', "
+                        f"@level0type = N'SCHEMA', @level0name = N'{clean_schema}', @level1type = N'TABLE', @level1name = N'{clean_table}', @level2type = N'COLUMN', @level2name = N'{clean_col}';"
+                    )
+                else:
+                    return (
+                        f"EXEC sys.sp_addextendedproperty @name = N'MS_Description', @value = N'{escaped_val}', "
+                        f"@level0type = N'SCHEMA', @level0name = N'{clean_schema}', @level1type = N'TABLE', @level1name = N'{clean_table}', @level2type = N'COLUMN', @level2name = N'{clean_col}';"
+                    )
+            elif is_diff:
+                return (
+                    f"IF EXISTS (SELECT 1 FROM sys.fn_listextendedproperty(N'MS_Description', N'SCHEMA', N'{clean_schema}', N'TABLE', N'{clean_table}', N'COLUMN', N'{clean_col}'))\n"
+                    f"    EXEC sys.sp_dropextendedproperty @name = N'MS_Description', "
+                    f"@level0type = N'SCHEMA', @level0name = N'{clean_schema}', @level1type = N'TABLE', @level1name = N'{clean_table}', @level2type = N'COLUMN', @level2name = N'{clean_col}';"
+                )
+            return None
+        else:
+            if clean_comment:
+                escaped_val = clean_comment.replace("'", "''")
+                return f"COMMENT ON COLUMN {tbl_name}.{q_col} IS '{escaped_val}';"
+            elif is_diff:
+                return f"COMMENT ON COLUMN {tbl_name}.{q_col} IS NULL;"
+            return None
+
+    @classmethod
     def generate_column_def(cls, col: Dict[str, Any], engine: str) -> str:
         q_col = cls._quote_ident(col.get("name", ""), engine)
+
+        # Computed / Generated column support
+        is_computed = bool(col.get("is_computed") or col.get("computed"))
+        formula = (col.get("formula") or col.get("computed_formula") or col.get("definition") or "").strip()
+        if is_computed and formula:
+            if not (formula.startswith("(") and formula.endswith(")")):
+                formula_wrapped = f"({formula})"
+            else:
+                formula_wrapped = formula
+            if engine == "sqlserver":
+                persisted = " PERSISTED" if col.get("is_persisted") else ""
+                return f"{q_col} AS {formula_wrapped}{persisted}"
+            else:
+                type_str = cls.format_column_type(col, engine)
+                return f"{q_col} {type_str} GENERATED ALWAYS AS {formula_wrapped} STORED"
+
         type_str = cls.format_column_type(col, engine)
         parts = [q_col, type_str]
 
         # Base type check for string vs numeric
         base_type = (col.get("type") or "").strip().lower()
         is_char_type = base_type in ("varchar", "nvarchar", "char", "nchar", "text", "ntext")
-        is_numeric_type = base_type in (
-            "int", "bigint", "smallint", "tinyint", "decimal", "numeric",
-            "float", "real", "bit", "money", "smallmoney", "integer"
-        )
 
         # Collation - Only valid for standard character string data types in SQL Server / PostgreSQL
         # COLLATE clause cannot be used on user-defined data types (SQL Server Error 452) or non-string types
@@ -104,16 +262,11 @@ class TableDesignerService:
                 parts.append(f"GENERATED BY DEFAULT AS IDENTITY (START WITH {seed} INCREMENT BY {inc})")
 
         # Default (if not using sequence)
-        default_val = (col.get("default_value") or "").strip()
-        if default_val and not seq_name:
-            if is_numeric_type:
-                cleaned_def = default_val
-                if "::" in cleaned_def:
-                    cleaned_def = cleaned_def.split("::")[0].strip()
-                while (cleaned_def.startswith("'") and cleaned_def.endswith("'")) or (cleaned_def.startswith('"') and cleaned_def.endswith('"')):
-                    cleaned_def = cleaned_def[1:-1].strip()
-                default_val = cleaned_def
-            parts.append(f"DEFAULT {default_val}")
+        raw_default = col.get("default_value")
+        if raw_default is not None and str(raw_default).strip() and not seq_name:
+            formatted_def = cls.format_default_value(raw_default, col.get("type"), engine)
+            if formatted_def:
+                parts.append(f"DEFAULT {formatted_def}")
 
         # Nullability
         if col.get("is_pk") or not col.get("nullable", True):
@@ -237,6 +390,20 @@ class TableDesignerService:
             if t_def:
                 stmts.append(t_def)
 
+        # Supplementary Statements: Table & Column Comments
+        tbl_comment = (metadata.get("comment") or metadata.get("description") or "").strip()
+        if tbl_comment:
+            tbl_comment_stmt = cls.generate_table_comment_statement(schema, table, tbl_comment, engine, is_diff=False)
+            if tbl_comment_stmt:
+                stmts.append(tbl_comment_stmt)
+
+        for col in columns:
+            col_comment = (col.get("comment") or col.get("description") or "").strip()
+            if col_comment:
+                col_comment_stmt = cls.generate_column_comment_statement(schema, table, col.get("name", ""), col_comment, engine, is_diff=False)
+                if col_comment_stmt:
+                    stmts.append(col_comment_stmt)
+
         return stmts
 
     @classmethod
@@ -323,6 +490,9 @@ class TableDesignerService:
                 elif s.startswith("CREATE TRIGGER") or s.startswith("CREATE OR REPLACE TRIGGER"):
                     category = "triggers"
                     desc = "Create trigger"
+                elif s.startswith("COMMENT ON") or "sp_addextendedproperty" in s:
+                    category = "comments"
+                    desc = "Add comment/description"
                 elif "FOREIGN KEY" in s:
                     category = "constraints"
                     desc = "Create foreign key"
@@ -352,6 +522,7 @@ class TableDesignerService:
         mod_cols = {c["name"]: c for c in modified.get("columns", [])}
 
         stmts_rename = []
+        stmts_rename_col = []
         stmts_drop_fk = []
         stmts_drop_idx = []
         stmts_drop_uq = []
@@ -603,9 +774,35 @@ class TableDesignerService:
                     "type": "constraints"
                 })
 
+        # Column Renames (Safe rename without dropping data)
+        renamed_cols = {}
+        for mcol in modified.get("columns", []):
+            orig_col_name = mcol.get("original_name") or mcol.get("orig_name")
+            if orig_col_name and orig_col_name in orig_cols and orig_col_name != mcol.get("name"):
+                renamed_cols[orig_col_name] = mcol
+
+        for orig_col_name, mcol in renamed_cols.items():
+            new_col_name = mcol["name"]
+            if engine == "sqlserver":
+                orig_col_target = f"{alt_tbl_name}.{cls._quote_ident(orig_col_name, engine)}"
+                clean_new_name = new_col_name.strip("[]")
+                rename_sql = f"EXEC sp_rename @objname = N'{orig_col_target}', @newname = N'{clean_new_name}', @objtype = N'COLUMN';"
+            else:
+                q_old = cls._quote_ident(orig_col_name, engine)
+                q_new = cls._quote_ident(new_col_name, engine)
+                rename_sql = f"alter table {alt_tbl_name}\n    rename column {q_old} to {q_new};"
+
+            stmts_rename_col.append({
+                "sql": rename_sql,
+                "destructive": False,
+                "description": f"Rename column {orig_col_name} to {new_col_name}",
+                "type": "tables"
+            })
+            warnings.append(f"Column {orig_col_name} was renamed to {new_col_name}. References in external queries or routines may need update.")
+
         # Dropped Columns
         for col_name, ocol in orig_cols.items():
-            if col_name not in mod_cols:
+            if col_name not in mod_cols and col_name not in renamed_cols:
                 q_col = cls._quote_ident(col_name, engine)
                 if engine == "sqlserver" and (ocol.get("default_constraint_name") or ocol.get("default_value")):
                     old_df = ocol.get("default_constraint_name") or f"DF_{table}_{col_name}"
@@ -627,12 +824,14 @@ class TableDesignerService:
 
         # Added Columns
         for col_name, mcol in mod_cols.items():
-            if col_name not in orig_cols:
+            orig_name = mcol.get("original_name") or mcol.get("orig_name")
+            if col_name not in orig_cols and (not orig_name or orig_name not in orig_cols):
                 q_col = cls._quote_ident(col_name, engine)
                 type_str = cls.format_column_type(mcol, engine).lower()
                 
                 parts = [f"    add {q_col} {type_str}"]
-                default_val = (mcol.get("default_value") or "").strip()
+                raw_default = mcol.get("default_value")
+                default_val = cls.format_default_value(raw_default, mcol.get("type"), engine) if raw_default is not None and str(raw_default).strip() else ""
                 if default_val:
                     parts.append(f"default {default_val}")
                 if mcol.get("is_pk") or not mcol.get("nullable", True):
@@ -652,13 +851,19 @@ class TableDesignerService:
 
         # Modified Columns
         for col_name, mcol in mod_cols.items():
+            orig_name = mcol.get("original_name") or mcol.get("orig_name")
+            ocol = None
             if col_name in orig_cols:
                 ocol = orig_cols[col_name]
+            elif orig_name and orig_name in orig_cols:
+                ocol = orig_cols[orig_name]
+
+            if ocol:
                 ocol_null = ocol.get("nullable", True)
                 mcol_null = mcol.get("nullable", True)
                 type_changed = (mcol.get("type") != ocol.get("type")) or (str(mcol.get("size")) != str(ocol.get("size"))) or (str(mcol.get("scale")) != str(ocol.get("scale")))
                 null_changed = (bool(mcol_null) != bool(ocol_null))
-                def_changed = (str(mcol.get("default_value")).strip() != str(ocol.get("default_value")).strip())
+                def_changed = (str(mcol.get("default_value") or "").strip() != str(ocol.get("default_value") or "").strip())
 
                 is_narrowed = cls.is_type_narrowed(ocol, mcol, engine)
                 if is_narrowed:
@@ -681,11 +886,20 @@ class TableDesignerService:
                     else:
                         type_str = cls.format_column_type(mcol, engine).lower()
                         if type_changed:
-                            sql = f"alter table {alt_tbl_name}\n    alter column {q_col} type {type_str} using {q_col}::{type_str};"
+                            pg_type_map = {
+                                "serial": "integer",
+                                "bigserial": "bigint",
+                                "smallserial": "smallint",
+                                "serial4": "integer",
+                                "serial8": "bigint",
+                                "serial2": "smallint"
+                            }
+                            norm_target_type = pg_type_map.get(type_str, type_str)
+                            sql = f"alter table {alt_tbl_name}\n    alter column {q_col} type {norm_target_type} using {q_col}::{norm_target_type};"
                             stmts_alter_col.append({
                                 "sql": sql,
                                 "destructive": is_narrowed,
-                                "description": f"Alter column {col_name} data type to {type_str}",
+                                "description": f"Alter column {col_name} data type to {norm_target_type}",
                                 "type": "tables"
                             })
                         if null_changed:
@@ -699,16 +913,11 @@ class TableDesignerService:
                             })
 
                 if def_changed:
-                    new_def = str(mcol.get("default_value") or "").strip()
-                    mtype = (mcol.get("type") or "").strip().lower()
-                    if mtype in ("int", "bigint", "smallint", "tinyint", "decimal", "numeric", "float", "real", "bit", "money", "smallmoney", "integer"):
-                        if "::" in new_def:
-                            new_def = new_def.split("::")[0].strip()
-                        while (new_def.startswith("'") and new_def.endswith("'")) or (new_def.startswith('"') and new_def.endswith('"')):
-                            new_def = new_def[1:-1].strip()
+                    raw_new_def = mcol.get("default_value")
+                    new_def = cls.format_default_value(raw_new_def, mcol.get("type"), engine) if raw_new_def is not None and str(raw_new_def).strip() else ""
 
                     if engine == "sqlserver":
-                        old_df = ocol.get("default_constraint_name") or (f"DF_{table}_{col_name}" if ocol.get("default_value") else "")
+                        old_df = ocol.get("default_constraint_name") or (f"DF_{table}_{ocol.get('name', col_name)}" if ocol.get("default_value") else "")
                         if old_df:
                             q_old_df = cls._quote_ident(old_df, engine)
                             stmts_drop_df.append({
@@ -718,8 +927,8 @@ class TableDesignerService:
                                 "type": "constraints"
                             })
                         if new_def:
-                            new_df = mcol.get("default_constraint_name") or f"DF_{table}_{col_name}"
-                            df_name = cls._quote_ident(new_df, engine)
+                            new_df_name = mcol.get("default_constraint_name") or f"DF_{table}_{col_name}"
+                            df_name = cls._quote_ident(new_df_name, engine)
                             stmts_add_df.append({
                                 "sql": f"alter table {alt_tbl_name}\n    add constraint {df_name} default {new_def} for {q_col};",
                                 "destructive": False,
@@ -765,16 +974,52 @@ class TableDesignerService:
                         "type": "triggers"
                     })
 
+        # Table & Column Comments Diff
+        stmts_comment = []
+        orig_tbl_cmt = (original.get("comment") or original.get("description") or "").strip()
+        mod_tbl_cmt = (modified.get("comment") or modified.get("description") or "").strip()
+        if orig_tbl_cmt != mod_tbl_cmt:
+            t_cmt_sql = cls.generate_table_comment_statement(schema, table, mod_tbl_cmt, engine, is_diff=True)
+            if t_cmt_sql:
+                stmts_comment.append({
+                    "sql": t_cmt_sql,
+                    "destructive": False,
+                    "description": f"Update description for table {table}",
+                    "type": "comments"
+                })
+
+        for col_name, mcol in mod_cols.items():
+            orig_name = mcol.get("original_name") or mcol.get("orig_name")
+            ocol = None
+            if col_name in orig_cols:
+                ocol = orig_cols[col_name]
+            elif orig_name and orig_name in orig_cols:
+                ocol = orig_cols[orig_name]
+
+            orig_col_cmt = (ocol.get("comment") or ocol.get("description") or "").strip() if ocol else ""
+            mod_col_cmt = (mcol.get("comment") or mcol.get("description") or "").strip()
+            if orig_col_cmt != mod_col_cmt:
+                c_cmt_sql = cls.generate_column_comment_statement(schema, table, col_name, mod_col_cmt, engine, is_diff=True)
+                if c_cmt_sql:
+                    stmts_comment.append({
+                        "sql": c_cmt_sql,
+                        "destructive": False,
+                        "description": f"Update description for column {col_name}",
+                        "type": "comments"
+                    })
+
         # Assemble statements in dependency-safe order:
-        # 1. Rename
+        # 1. Rename table
         # 2. Drops: FK -> Index -> Unique -> Check -> Default -> PK
-        # 3. Drop columns
-        # 4. Add columns
-        # 5. Alter columns
-        # 6. Add defaults
-        # 7. Add constraints: PK -> Unique -> Check -> FK
-        # 8. Add indexes
-        # 9. Triggers: Drop -> Add
+        # 3. Rename columns
+        # 4. Drop columns
+        # 5. Add columns
+        # 6. Alter columns
+        # 7. Add defaults
+        # 8. Add constraints: PK -> Unique -> Check -> FK
+        # 9. Add indexes
+        # 10. Table & Column Comments
+        # 11. Triggers: Drop -> Add
         statements = (
             stmts_rename +
             stmts_drop_fk +
@@ -783,6 +1028,7 @@ class TableDesignerService:
             stmts_drop_chk +
             stmts_drop_df +
             stmts_drop_pk +
+            stmts_rename_col +
             stmts_drop_col +
             stmts_add_col +
             stmts_alter_col +
@@ -792,6 +1038,7 @@ class TableDesignerService:
             stmts_add_chk +
             stmts_add_fk +
             stmts_add_idx +
+            stmts_comment +
             stmts_drop_trig +
             stmts_add_trig
         )

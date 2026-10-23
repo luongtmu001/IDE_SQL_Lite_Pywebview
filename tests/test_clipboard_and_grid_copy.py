@@ -99,6 +99,11 @@ class TestClipboardAndGridCopy(unittest.TestCase):
         self.assertIn("e.preventDefault();", self.clipboard_js)
         self.assertIn("e.clipboardData.setData('text/plain'", self.clipboard_js)
 
+    def test_clipboard_bridge_cut_stops_propagation_to_prevent_double_cut(self):
+        """Verify clipboard-bridge.js stops event propagation on cut/copy to prevent Monaco secondary line cut."""
+        self.assertIn("e.stopPropagation();", self.clipboard_js)
+        self.assertIn("e.stopImmediatePropagation();", self.clipboard_js)
+
     def test_clipboard_bridge_does_not_steal_from_unfocused_monaco(self):
         """Verify Monaco text extraction only occurs if editor has text focus."""
         self.assertIn("targetEd = editors.find(ed => ed.hasTextFocus && ed.hasTextFocus());", self.clipboard_js)

@@ -36,16 +36,20 @@
 
             if (_enabled) {
                 wrap.style.display = 'block';
-                launcher.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    BravoManager.launch();
-                });
+                if (!launcher._hasBravoListener) {
+                    launcher._hasBravoListener = true;
+                    launcher.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        BravoManager.launch();
+                    });
+                }
             }
         },
 
         // ── Launch a new independent BRAVO window ────────────────────────────
         async launch() {
-            if (!_enabled) return;
+            if (!_enabled || this._isLaunching) return;
+            this._isLaunching = true;
             try {
                 let connId = window.ActiveConnectionId || null;
                 let connName = window.ActiveConnectionName || null;
@@ -99,6 +103,10 @@
                 }
             } catch (e) {
                 console.error('[BRAVO] Failed to launch independent Bravo window:', e);
+            } finally {
+                setTimeout(() => {
+                    this._isLaunching = false;
+                }, 1000);
             }
         }
     };

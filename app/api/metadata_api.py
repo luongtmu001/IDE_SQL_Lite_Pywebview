@@ -10,10 +10,10 @@ logger = logging.getLogger("luobtool.api.metadata")
 
 
 class MetadataApiMixin:
-    def get_databases(self, connection_id, search=None):
+    def get_databases(self, connection_id, search=None, accessible_only=False):
         try:
             conn = self._get_connection(connection_id)
-            items = conn.metadata_service.list_databases()
+            items = conn.metadata_service.list_databases(accessible_only=accessible_only)
             if search:
                 s = search.strip().lower()
                 items = [d for d in items if s in (d.get("name", d) if isinstance(d, dict) else str(d)).lower()]

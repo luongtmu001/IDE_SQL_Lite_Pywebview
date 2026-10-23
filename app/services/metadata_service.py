@@ -5,6 +5,62 @@ from app.database.sql_utils import quote_ident, quote_qualified
 from app.services.table_designer_service import TableDesignerService
 
 
+def extract_pg_type(token: str) -> str:
+    t = token.strip()
+    t = re.sub(r"^(?:IN|INOUT|OUT|VARIADIC)\s+", "", t, flags=re.IGNORECASE).strip()
+    if not t:
+        return ""
+
+    multi_word_types = [
+        "double precision",
+        "character varying",
+        "timestamp with time zone",
+        "timestamp without time zone",
+        "time with time zone",
+        "time without time zone",
+        "bit varying",
+    ]
+    lower = t.lower()
+    for mwt in multi_word_types:
+        if lower == mwt or lower.startswith(mwt + "(") or lower.startswith(mwt + "["):
+            return t
+
+    m = re.match(r'^(?:"[^"]+"|[a-zA-Z_][a-zA-Z0-9_]*)\s+(.+)$', t)
+    if m:
+        return m.group(1).strip()
+    return t
+
+
+def clean_pg_identity_args(args_str: str) -> str:
+    if not args_str or not args_str.strip():
+        return ""
+
+    args = []
+    curr = []
+    depth = 0
+    for ch in args_str:
+        if ch in "([{":
+            depth += 1
+            curr.append(ch)
+        elif ch in ")]}":
+            depth = max(0, depth - 1)
+            curr.append(ch)
+        elif ch == "," and depth == 0:
+            val = "".join(curr).strip()
+            if val:
+                args.append(val)
+            curr = []
+        else:
+            curr.append(ch)
+    if curr:
+        val = "".join(curr).strip()
+        if val:
+            args.append(val)
+
+    types = [extract_pg_type(arg) for arg in args]
+    return ", ".join(t for t in types if t)
+
+
 class MetadataService:
 
     def __init__(self, connection_session):
@@ -16,14 +72,19 @@ class MetadataService:
             for part in parts
         )
 
-    def list_databases(self):
-        key = self._cache_key("databases")
+    def list_databases(self, accessible_only=False):
+        key = self._cache_key("databases", "accessible" if accessible_only else "all")
 
         if key not in self.session.metadata_cache:
             with self.session.lock:
-                self.session.metadata_cache[key] = (
-                    self.session.adapter.list_databases()
-                )
+                try:
+                    self.session.metadata_cache[key] = (
+                        self.session.adapter.list_databases(accessible_only=accessible_only)
+                    )
+                except TypeError:
+                    self.session.metadata_cache[key] = (
+                        self.session.adapter.list_databases()
+                    )
 
         return self.session.metadata_cache[key]
 
@@ -138,6 +199,14 @@ class MetadataService:
                 else:
                     self.session.metadata_cache[key] = []
         return self.session.metadata_cache[key]
+
+    def get_routine_signatures(self, database=None, schema=None, name=None):
+        with self.session.lock:
+            if hasattr(self.session.adapter, "get_routine_signatures"):
+                return self.session.adapter.get_routine_signatures(
+                    schema, name, database=database
+                )
+        return []
 
     def get_foreign_keys(self, database=None, schema=None, table=None):
         key = self._cache_key("foreign_keys", database, schema, table)
@@ -281,7 +350,11 @@ class MetadataService:
     def _get_engine(self) -> str:
         """Determines whether the connection dialect is 'postgresql' or 'sqlserver'."""
         adapter = getattr(self.session, "adapter", None)
-        db_type = getattr(adapter, "db_type", None)
+        db_type = (
+            getattr(adapter, "db_type", None)
+            or getattr(self.session, "database_type", None)
+            or getattr(self.session, "db_type", None)
+        )
         if not db_type and hasattr(self.session, "config") and self.session.config:
             db_type = self.session.config.get("type", "")
         db_type_str = str(db_type or "").strip().lower()
@@ -380,10 +453,12 @@ class MetadataService:
 
         pure_name = raw_name
         identity_args = ""
+        has_explicit_args = False
         if norm_type in ("procedure", "function", "routine") and "(" in raw_name and raw_name.endswith(")"):
             p = raw_name.split("(", 1)
             pure_name = p[0].strip()
             identity_args = p[1].rstrip(")").strip()
+            has_explicit_args = True
 
         tbl_qualified = quote_qualified(effective_schema, pure_name, engine=engine)
 
@@ -395,16 +470,39 @@ class MetadataService:
                 if norm_type == "materialized_view" and engine == "postgresql":
                     return f"DROP MATERIALIZED VIEW IF EXISTS {tbl_qualified} CASCADE;"
                 return f"DROP VIEW IF EXISTS {tbl_qualified};" if engine == "sqlserver" else f"DROP VIEW IF EXISTS {tbl_qualified} CASCADE;"
-            elif norm_type == "procedure":
+            elif norm_type in ("procedure", "function", "routine"):
                 if engine == "postgresql":
-                    args_clause = f"({identity_args})" if identity_args else ""
-                    return f"DROP PROCEDURE IF EXISTS {tbl_qualified}{args_clause} CASCADE;"
-                return f"DROP PROCEDURE IF EXISTS {tbl_qualified};"
-            elif norm_type == "function":
-                if engine == "postgresql":
-                    args_clause = f"({identity_args})" if identity_args else ""
-                    return f"DROP FUNCTION IF EXISTS {tbl_qualified}{args_clause} CASCADE;"
-                return f"DROP FUNCTION IF EXISTS {tbl_qualified};"
+                    pg_target = f"{effective_schema}.{pure_name}"
+                    if has_explicit_args:
+                        clean_args = clean_pg_identity_args(identity_args)
+                        r_type = norm_type.upper() if norm_type in ("procedure", "function") else "FUNCTION"
+                        return f"DROP {r_type} IF EXISTS {pg_target}({clean_args});"
+
+                    # If no explicit args provided, lookup signatures with detailed data types from DB
+                    signatures = []
+                    try:
+                        signatures = self.get_routine_signatures(database, effective_schema, pure_name)
+                    except Exception:
+                        signatures = []
+
+                    if signatures:
+                        drop_stmts = []
+                        for sig in signatures:
+                            raw_sig_args = sig.get("type_args") or sig.get("identity_args", "")
+                            clean_args = clean_pg_identity_args(raw_sig_args)
+                            r_type = (sig.get("routine_type") or norm_type).upper()
+                            drop_stmts.append(f"DROP {r_type} IF EXISTS {pg_target}({clean_args});")
+                        return "\n".join(drop_stmts)
+
+                    # Fallback if no signature found in DB
+                    r_type = norm_type.upper() if norm_type in ("procedure", "function") else "FUNCTION"
+                    return f"DROP {r_type} IF EXISTS {pg_target}();"
+
+                elif engine == "sqlserver":
+                    r_type = "PROCEDURE" if norm_type == "procedure" else "FUNCTION"
+                    return f"DROP {r_type} IF EXISTS {tbl_qualified};"
+                else:
+                    return f"DROP {norm_type.upper()} IF EXISTS {tbl_qualified};"
             elif norm_type == "trigger":
                 if engine == "postgresql":
                     # In Postgres, DROP TRIGGER requires ON table
@@ -502,11 +600,62 @@ class MetadataService:
 
             if norm_type == "table":
                 new_col = quote_ident("NewColumn", engine)
-                return (
-                    f"-- Template to alter table {tbl_qualified}\n"
-                    f"ALTER TABLE {tbl_qualified}\n"
-                    f"    ADD {new_col} VARCHAR(100) NULL;\n"
-                )
+                if engine == "sqlserver":
+                    return (
+                        f"-- ======================================================================\n"
+                        f"-- Script Table as ALTER: {tbl_qualified}\n"
+                        f"-- ======================================================================\n\n"
+                        f"-- 1. ADD NEW COLUMN(S)\n"
+                        f"ALTER TABLE {tbl_qualified}\n"
+                        f"    ADD {new_col} VARCHAR(100) NULL;\n"
+                        f"GO\n\n"
+                        f"-- 2. ALTER EXISTING COLUMN (DATA TYPE / NULLABILITY)\n"
+                        f"-- ALTER TABLE {tbl_qualified}\n"
+                        f"--     ALTER COLUMN {new_col} NVARCHAR(200) NOT NULL;\n"
+                        f"-- GO\n\n"
+                        f"-- 3. ADD DEFAULT CONSTRAINT\n"
+                        f"-- ALTER TABLE {tbl_qualified}\n"
+                        f"--     ADD CONSTRAINT [DF_{pure_name}_NewColumn] DEFAULT ('') FOR {new_col};\n"
+                        f"-- GO\n\n"
+                        f"-- 4. ADD CONSTRAINT (CHECK / UNIQUE / FOREIGN KEY)\n"
+                        f"-- ALTER TABLE {tbl_qualified}\n"
+                        f"--     ADD CONSTRAINT [CK_{pure_name}_Example] CHECK (1=1);\n"
+                        f"-- GO\n\n"
+                        f"-- 5. RENAME COLUMN\n"
+                        f"-- EXEC sp_rename @objname = N'{tbl_qualified}.[OldColumnName]', @newname = N'NewColumnName', @objtype = N'COLUMN';\n"
+                        f"-- GO\n\n"
+                        f"-- 6. DROP COLUMN\n"
+                        f"-- ALTER TABLE {tbl_qualified}\n"
+                        f"--     DROP COLUMN {new_col};\n"
+                        f"-- GO\n"
+                    )
+                else:
+                    return (
+                        f"-- ======================================================================\n"
+                        f"-- Script Table as ALTER: {tbl_qualified}\n"
+                        f"-- ======================================================================\n\n"
+                        f"-- 1. ADD NEW COLUMN(S)\n"
+                        f"ALTER TABLE {tbl_qualified}\n"
+                        f"    ADD COLUMN {new_col} VARCHAR(100);\n\n"
+                        f"-- 2. ALTER EXISTING COLUMN TYPE (WITH EXPLICIT USING CAST)\n"
+                        f"-- ALTER TABLE {tbl_qualified}\n"
+                        f"--     ALTER COLUMN {new_col} TYPE VARCHAR(200);\n\n"
+                        f"-- 3. SET / DROP NOT NULL\n"
+                        f"-- ALTER TABLE {tbl_qualified}\n"
+                        f"--     ALTER COLUMN {new_col} SET NOT NULL;\n\n"
+                        f"-- 4. SET / DROP DEFAULT\n"
+                        f"-- ALTER TABLE {tbl_qualified}\n"
+                        f"--     ALTER COLUMN {new_col} SET DEFAULT CURRENT_TIMESTAMP;\n\n"
+                        f"-- 5. ADD CONSTRAINT (CHECK / UNIQUE / FOREIGN KEY)\n"
+                        f"-- ALTER TABLE {tbl_qualified}\n"
+                        f"--     ADD CONSTRAINT \"ck_{pure_name}_example\" CHECK (1=1);\n\n"
+                        f"-- 6. RENAME COLUMN\n"
+                        f"-- ALTER TABLE {tbl_qualified}\n"
+                        f"--     RENAME COLUMN \"old_name\" TO \"new_name\";\n\n"
+                        f"-- 7. DROP COLUMN\n"
+                        f"-- ALTER TABLE {tbl_qualified}\n"
+                        f"--     DROP COLUMN {new_col} CASCADE;\n"
+                    )
 
             return f"-- ALTER script for {norm_type} {tbl_qualified} not available.\n"
 

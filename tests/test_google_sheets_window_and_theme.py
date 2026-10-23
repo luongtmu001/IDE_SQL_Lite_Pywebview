@@ -256,6 +256,31 @@ class TestGoogleSheetsSubwindow(unittest.TestCase):
             shutil.rmtree(tmp_dir, ignore_errors=True)
 
 
+    @patch("webview.create_window")
+    @patch("app.desktop.windows._load_settings_file")
+    def test_open_google_sheets_window_single_instance_concurrent_safe(self, mock_load_settings, mock_create_window):
+        """Verify open_google_sheets_window prevents opening multiple instances concurrently."""
+        mock_load_settings.return_value = {"theme": "dark"}
+        mock_win = MagicMock()
+        mock_create_window.return_value = mock_win
+
+        mock_api = MagicMock()
+        mock_api._window = MagicMock()
+        mock_api._google_sheets_manager_window = None
+
+        # Call 1: Opens window
+        res1 = open_google_sheets_window(mock_api, base_dir=Path(__file__).parent.parent)
+        self.assertTrue(res1["success"])
+        self.assertEqual(mock_create_window.call_count, 1)
+
+        # Call 2: Window already exists -> shows and focuses, does not call create_window again
+        res2 = open_google_sheets_window(mock_api, base_dir=Path(__file__).parent.parent)
+        self.assertTrue(res2["success"])
+        self.assertEqual(mock_create_window.call_count, 1)
+        mock_win.show.assert_called_once()
+        mock_win.focus.assert_called_once()
+
+
 if __name__ == "__main__":
     unittest.main()
 

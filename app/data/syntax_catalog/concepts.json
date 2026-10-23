@@ -1,0 +1,502 @@
+[
+    {
+        "id": "concept_lateral_subquery_join",
+        "name": "Correlated Subqueries in FROM Clause (LATERAL / APPLY)",
+        "category": "query",
+        "description": "Cho phép truy vấn con (subquery) hoặc hàm trả về bảng (table-valued function) ở mệnh đề FROM có thể tham chiếu trực tiếp đến các cột của các bảng đứng trước nó trong cùng câu truy vấn.",
+        "search_terms": [
+            "lateral",
+            "apply",
+            "cross apply",
+            "outer apply",
+            "left join lateral",
+            "correlated join",
+            "table-valued function"
+        ],
+        "status": "verified",
+        "updated_at": "2026-10-22"
+    },
+    {
+        "id": "concept_case_insensitive_pattern_matching",
+        "name": "Case-Insensitive Wildcard Pattern Matching",
+        "category": "string",
+        "description": "Tìm kiếm chuỗi theo mẫu ký tự đại diện (wildcard) không phân biệt chữ hoa, chữ thường.",
+        "search_terms": [
+            "ilike",
+            "~~*",
+            "case insensitive like",
+            "so khớp không phân biệt hoa thường",
+            "pattern matching",
+            "like"
+        ],
+        "status": "verified",
+        "updated_at": "2026-10-22"
+    },
+    {
+        "id": "concept_case_sensitive_pattern_matching",
+        "name": "Case-Sensitive Wildcard Pattern Matching",
+        "category": "string",
+        "description": "Tìm kiếm chuỗi theo mẫu ký tự đại diện (wildcard) có phân biệt chữ hoa, chữ thường hoặc phụ thuộc Collation của cột.",
+        "search_terms": [
+            "like",
+            "~~",
+            "pattern match",
+            "wildcard",
+            "case sensitive",
+            "so khớp chuỗi"
+        ],
+        "status": "verified",
+        "updated_at": "2026-10-22"
+    },
+    {
+        "id": "concept_paging_offset_fetch",
+        "name": "Result Set Pagination & Row Limiting",
+        "category": "paging",
+        "description": "Giới hạn số lượng dòng trả về từ truy vấn và bỏ qua một số lượng dòng đầu tiên phục vụ phân trang (Pagination).",
+        "search_terms": [
+            "limit",
+            "offset",
+            "top",
+            "fetch next",
+            "pagination",
+            "phân trang",
+            "giới hạn số dòng"
+        ],
+        "status": "verified",
+        "updated_at": "2026-10-22"
+    },
+    {
+        "id": "concept_string_aggregation",
+        "name": "String Concatenation Aggregation",
+        "category": "aggregate",
+        "description": "Gom nhóm và nối các giá trị chuỗi từ nhiều dòng thành một chuỗi duy nhất với ký tự phân cách (delimiter) và có thể chỉ định thứ tự sắp xếp.",
+        "search_terms": [
+            "string_agg",
+            "group_concat",
+            "listagg",
+            "nối chuỗi theo nhóm",
+            "aggregate string",
+            "within group"
+        ],
+        "status": "verified",
+        "updated_at": "2026-10-22"
+    },
+    {
+        "id": "concept_null_fallback_coalesce",
+        "name": "Null Replacement and Fallback Evaluation",
+        "category": "comparison",
+        "description": "Kiểm tra giá trị NULL và trả về giá trị thay thế hoặc biểu thức không NULL đầu tiên trong danh sách đối số.",
+        "search_terms": [
+            "coalesce",
+            "isnull",
+            "ifnull",
+            "nvl",
+            "xử lý null",
+            "null replacement",
+            "fallback"
+        ],
+        "status": "verified",
+        "updated_at": "2026-10-22"
+    },
+    {
+        "id": "concept_json_scalar_extract",
+        "name": "Extract Scalar Value from JSON Document",
+        "category": "json",
+        "description": "Trích xuất giá trị vô hướng (chuỗi, số, boolean) từ tài liệu JSON theo đường dẫn chỉ định.",
+        "search_terms": [
+            "json_value",
+            "->>",
+            "jsonb",
+            "json path",
+            "extract json",
+            "trích xuất json",
+            "json operator"
+        ],
+        "status": "verified",
+        "updated_at": "2026-10-22"
+    },
+    {
+        "id": "concept_current_timestamp",
+        "name": "Current Date and Time Resolution",
+        "category": "datetime",
+        "description": "Lấy ngày giờ hiện tại của hệ thống cơ sở dữ liệu (thời điểm bắt đầu transaction hoặc thời điểm thực thi câu lệnh).",
+        "search_terms": [
+            "current_timestamp",
+            "now",
+            "getdate",
+            "sysdatetime",
+            "ngày giờ hiện tại",
+            "timestamp"
+        ],
+        "status": "verified",
+        "updated_at": "2026-10-22"
+    },
+    {
+        "id": "concept_string_concat",
+        "name": "String Concatenation (|| vs + vs CONCAT)",
+        "category": "string",
+        "description": "Nối hai hoặc nhiều biểu thức chuỗi lại với nhau, bao gồm xử lý trường hợp giá trị NULL và ép kiểu tự động.",
+        "search_terms": [
+            "concat",
+            "||",
+            "+",
+            "nối chuỗi",
+            "string concatenation",
+            "concat_ws"
+        ],
+        "status": "verified",
+        "updated_at": "2026-10-22"
+    },
+    {
+        "id": "concept_string_substring",
+        "name": "Substring Extraction (SUBSTR vs SUBSTRING)",
+        "category": "string",
+        "description": "Cắt chuỗi con từ một vị trí bắt đầu với độ dài xác định (1-based index).",
+        "search_terms": [
+            "substr",
+            "substring",
+            "cắt chuỗi",
+            "chuỗi con",
+            "extract string"
+        ],
+        "status": "verified",
+        "updated_at": "2026-10-22"
+    },
+    {
+        "id": "concept_string_length",
+        "name": "String Character & Byte Length (LENGTH vs LEN / DATALENGTH)",
+        "category": "string",
+        "description": "Đo độ dài chuỗi ký tự hoặc kích thước byte, với lưu ý khác biệt chí tử về khoảng trắng thừa ở cuối (trailing blanks).",
+        "search_terms": [
+            "length",
+            "len",
+            "datalength",
+            "char_length",
+            "độ dài chuỗi",
+            "trailing spaces"
+        ],
+        "status": "verified",
+        "updated_at": "2026-10-22"
+    },
+    {
+        "id": "concept_datetime_dateadd",
+        "name": "Date & Time Interval Arithmetic (+ INTERVAL vs DATEADD)",
+        "category": "datetime",
+        "description": "Cộng hoặc trừ một khoảng thời gian (ngày, tháng, năm, giờ, phút) vào một giá trị ngày giờ.",
+        "search_terms": [
+            "interval",
+            "dateadd",
+            "cộng ngày",
+            "tính toán ngày giờ",
+            "date arithmetic"
+        ],
+        "status": "verified",
+        "updated_at": "2026-10-22"
+    },
+    {
+        "id": "concept_datetime_datetrunc",
+        "name": "Date & Timestamp Truncation (date_trunc vs DATETRUNC)",
+        "category": "datetime",
+        "description": "Làm tròn/cắt bớt giá trị ngày giờ về mốc đầu kỳ của đơn vị thời gian (đầu ngày, đầu tháng, đầu năm).",
+        "search_terms": [
+            "date_trunc",
+            "datetrunc",
+            "làm tròn ngày",
+            "đầu tháng",
+            "đầu năm",
+            "truncate date"
+        ],
+        "status": "verified",
+        "updated_at": "2026-10-22"
+    },
+    {
+        "id": "concept_type_casting",
+        "name": "Explicit Type Casting (:: vs CAST vs TRY_CAST / CONVERT)",
+        "category": "conversion",
+        "description": "Chuyển đổi kiểu dữ liệu tường minh, bao gồm cơ chế bắt lỗi an toàn (safe casting không crash transaction).",
+        "search_terms": [
+            "::",
+            "cast",
+            "try_cast",
+            "convert",
+            "ép kiểu",
+            "type conversion",
+            "safe cast"
+        ],
+        "status": "verified",
+        "updated_at": "2026-10-22"
+    },
+    {
+        "id": "concept_dml_returning_output",
+        "name": "DML Returning Affected Rows (RETURNING vs OUTPUT INSERTED/DELETED)",
+        "category": "dml",
+        "description": "Trả về dữ liệu của các dòng vừa được thêm (INSERT), sửa (UPDATE) hoặc xóa (DELETE) ngay trong câu lệnh thực thi.",
+        "search_terms": [
+            "returning",
+            "output",
+            "inserted",
+            "deleted",
+            "trả về id vừa insert",
+            "dml return"
+        ],
+        "status": "verified",
+        "updated_at": "2026-10-22"
+    },
+    {
+        "id": "concept_conditional_iif",
+        "name": "Inline Conditional Expression (IIF vs CASE WHEN)",
+        "category": "comparison",
+        "description": "Biểu thức rẽ nhánh điều kiện rút gọn tương tự ternary operator trong các ngôn ngữ lập trình.",
+        "search_terms": [
+            "iif",
+            "case when",
+            "điều kiện rẽ nhánh",
+            "inline if",
+            "ternary"
+        ],
+        "status": "verified",
+        "updated_at": "2026-10-22"
+    },
+    {
+        "id": "concept_random_number",
+        "name": "Random Number Generation (random() vs RAND() / NEWID())",
+        "category": "numeric",
+        "description": "Sinh số ngẫu nhiên hoặc sắp xếp ngẫu nhiên danh sách dòng, với khác biệt về việc sinh số một lần cho toàn query hay theo từng dòng.",
+        "search_terms": [
+            "random",
+            "rand",
+            "newid",
+            "sinh số ngẫu nhiên",
+            "order by random"
+        ],
+        "status": "verified",
+        "updated_at": "2026-10-22"
+    },
+    {
+        "id": "concept_regex_matching",
+        "name": "POSIX Regular Expression Matching (~ vs LIKE)",
+        "category": "string",
+        "description": "Khớp chuỗi theo biểu thức chính quy (regular expressions) nâng cao so với wildcard LIKE thông thường.",
+        "search_terms": [
+            "regex",
+            "regexp",
+            "~",
+            "~*",
+            "regular expression",
+            "biểu thức chính quy"
+        ],
+        "status": "verified",
+        "updated_at": "2026-10-22"
+    },
+    {
+        "id": "concept_generate_series",
+        "name": "Set-Generating Series Function (GENERATE_SERIES)",
+        "category": "generator",
+        "description": "Hàm sinh tập hợp dòng số hoặc ngày tháng liên tục trong PostgreSQL. SQL Server không hỗ trợ trực tiếp mà cần mô phỏng bằng Recursive CTE hoặc bảng đếm phụ.",
+        "search_terms": [
+            "generate_series",
+            "sinh dãy số",
+            "dãy ngày tháng",
+            "srf",
+            "set returning",
+            "recursive cte"
+        ],
+        "status": "verified",
+        "updated_at": "2026-10-22"
+    },
+    {
+        "id": "concept_upsert_atomic",
+        "name": "Atomic Upsert / Merge Statement (ON CONFLICT vs MERGE)",
+        "category": "dml",
+        "description": "Kỹ thuật thêm mới nếu chưa có, cập nhật nếu đã tồn tại (Upsert). PostgreSQL sử dụng INSERT ... ON CONFLICT, SQL Server sử dụng lệnh MERGE INTO.",
+        "search_terms": [
+            "on conflict",
+            "upsert",
+            "merge into",
+            "thêm hoặc cập nhật",
+            "excluded",
+            "when matched"
+        ],
+        "status": "verified",
+        "updated_at": "2026-10-22"
+    },
+    {
+        "id": "concept_distinct_on_group",
+        "name": "First Row per Group Deduplication (DISTINCT ON vs ROW_NUMBER)",
+        "category": "query",
+        "description": "Lấy dòng đầu tiên của mỗi nhóm dữ liệu theo thứ tự xác định. PostgreSQL có cú pháp đặc thù DISTINCT ON, SQL Server sử dụng Window Function ROW_NUMBER() OVER (PARTITION BY).",
+        "search_terms": [
+            "distinct on",
+            "first row per group",
+            "lấy 1 dòng mỗi nhóm",
+            "row_number partition"
+        ],
+        "status": "verified",
+        "updated_at": "2026-10-22"
+    },
+    {
+        "id": "concept_native_arrays",
+        "name": "Native Array Data Type and Operators (ARRAY vs Split/JSON)",
+        "category": "datatype",
+        "description": "Kiểu dữ liệu mảng nguyên bản (Native Arrays), toán tử mảng (@>, &&) và chỉ mục GIN trong PostgreSQL so với giải pháp dùng bảng phụ, JSON hoặc chuỗi trong SQL Server.",
+        "search_terms": [
+            "array",
+            "mảng",
+            "array_agg",
+            "@>",
+            "&&",
+            "array operators"
+        ],
+        "status": "verified",
+        "updated_at": "2026-10-22"
+    },
+    {
+        "id": "concept_temp_tables_select_into",
+        "name": "Local Temporary Tables (SELECT INTO #temp vs CREATE TEMP TABLE)",
+        "category": "query",
+        "description": "Tạo và sử dụng bảng tạm thời (Temporary Tables) trong phiên làm việc. SQL Server dùng tiền tố # (SELECT ... INTO #table), PostgreSQL dùng CREATE TEMP TABLE ... AS SELECT.",
+        "search_terms": [
+            "#temp",
+            "select into",
+            "temp table",
+            "bảng tạm",
+            "create temp table",
+            "local temporary"
+        ],
+        "status": "verified",
+        "updated_at": "2026-10-22"
+    },
+    {
+        "id": "concept_table_variables",
+        "name": "In-Memory Table Variables (DECLARE @table vs TEMP TABLE)",
+        "category": "procedural",
+        "description": "Biến bảng cục bộ trong bộ nhớ của T-SQL (SQL Server), có phạm vi trong batch thực thi, không chịu rollback transaction.",
+        "search_terms": [
+            "table variable",
+            "biến bảng",
+            "@table",
+            "declare table",
+            "in-memory table"
+        ],
+        "status": "verified",
+        "updated_at": "2026-10-22"
+    },
+    {
+        "id": "concept_set_nocount",
+        "name": "Row Count Message Suppression (SET NOCOUNT ON)",
+        "category": "optimization",
+        "description": "Chỉ thị tắt thông báo số lượng dòng bị ảnh hưởng gửi về client trong SQL Server T-SQL để tối ưu hóa lưu lượng mạng cho Stored Procedure và Trigger.",
+        "search_terms": [
+            "set nocount",
+            "nocount on",
+            "rows affected",
+            "tối ưu stored procedure"
+        ],
+        "status": "verified",
+        "updated_at": "2026-10-22"
+    },
+    {
+        "id": "concept_string_split",
+        "name": "String Delimiter Splitting into Rows (STRING_SPLIT vs string_to_table)",
+        "category": "string",
+        "description": "Tách chuỗi ký tự phân cách thành tập hợp dòng (Rowset). SQL Server sử dụng STRING_SPLIT(), PostgreSQL sử dụng string_to_table() hoặc regexp_split_to_table().",
+        "search_terms": [
+            "string_split",
+            "tách chuỗi thành dòng",
+            "string_to_table",
+            "split string"
+        ],
+        "status": "verified",
+        "updated_at": "2026-10-22"
+    },
+    {
+        "id": "concept_safe_conversion_try_convert",
+        "name": "Safe Type Conversion (TRY_CONVERT / TRY_PARSE vs CAST)",
+        "category": "conversion",
+        "description": "Ép kiểu dữ liệu an toàn trả về NULL nếu giá trị không hợp lệ mà không làm crash transaction hoặc dừng batch thực thi.",
+        "search_terms": [
+            "try_convert",
+            "try_parse",
+            "safe conversion",
+            "ép kiểu an toàn",
+            "convert style"
+        ],
+        "status": "verified",
+        "updated_at": "2026-10-22"
+    },
+    {
+        "id": "concept_identity_retrieval",
+        "name": "Generated Identity / Sequence Value Retrieval (SCOPE_IDENTITY vs RETURNING)",
+        "category": "identity",
+        "description": "Lấy giá trị khóa tự tăng (IDENTITY / SERIAL / SEQUENCE) vừa được sinh ra sau câu lệnh INSERT trong cùng phiên làm việc.",
+        "search_terms": [
+            "scope_identity",
+            "@@identity",
+            "ident_current",
+            "currval",
+            "returning id"
+        ],
+        "status": "verified",
+        "updated_at": "2026-10-22"
+    },
+    {
+        "id": "concept_anonymous_blocks",
+        "name": "Anonymous Procedural Execution Blocks (DO $$ BEGIN vs T-SQL Batch)",
+        "category": "procedural",
+        "description": "Khối lệnh thực thi thủ tục ẩn danh không cần định nghĩa hàm/procedure vĩnh viễn trong CSDL.",
+        "search_terms": [
+            "do block",
+            "do $$",
+            "anonymous block",
+            "khối lệnh ẩn danh",
+            "t-sql batch"
+        ],
+        "status": "verified",
+        "updated_at": "2026-10-22"
+    },
+    {
+        "id": "concept_bulk_data_copy",
+        "name": "High-Performance Bulk Data Copy (COPY vs BULK INSERT / BCP)",
+        "category": "utility",
+        "description": "Nhập xuất tập tin dữ liệu (CSV, Text) tốc độ cao trực tiếp giữa CSDL và tệp hệ thống.",
+        "search_terms": [
+            "copy from",
+            "copy to",
+            "bulk insert",
+            "bcp",
+            "nhập xuất csv",
+            "bulk data"
+        ],
+        "status": "verified",
+        "updated_at": "2026-10-22"
+    },
+    {
+        "id": "concept_dbcc_maintenance",
+        "name": "Database Integrity & Consistency Checking (DBCC CHECKDB)",
+        "category": "admin",
+        "description": "Lệnh kiểm tra tính toàn vẹn vật lý và logic của cấu trúc bảng, chỉ mục và trang lưu trữ trong SQL Server.",
+        "search_terms": [
+            "dbcc checkdb",
+            "dbcc",
+            "kiểm tra toàn vẹn",
+            "database consistency"
+        ],
+        "status": "verified",
+        "updated_at": "2026-10-22"
+    },
+    {
+        "id": "concept_async_listen_notify",
+        "name": "Asynchronous Pub/Sub Notification (LISTEN / NOTIFY)",
+        "category": "messaging",
+        "description": "Hệ thống thông báo đẩy bất đồng bộ tích hợp sẵn trong PostgreSQL để thông báo sự kiện cho client mà không cần polling liên tục.",
+        "search_terms": [
+            "listen",
+            "notify",
+            "pubsub",
+            "thông báo bất đồng bộ",
+            "real-time event"
+        ],
+        "status": "verified",
+        "updated_at": "2026-10-22"
+    }
+]

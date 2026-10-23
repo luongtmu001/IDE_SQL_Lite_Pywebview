@@ -30,7 +30,9 @@
         remote_view: 'fa-table-columns text-info',
         remote_column: 'fa-columns text-info',
         remote_database: 'fa-database text-info',
-        remote_schema: 'fa-layer-group text-info'
+        remote_schema: 'fa-layer-group text-info',
+        database: 'fa-database text-primary',
+        schema: 'fa-layer-group text-secondary'
     };
 
     function formatDisplayType(type) {
@@ -59,7 +61,9 @@
             remote_view: 'Remote View',
             remote_column: 'Remote Column',
             remote_database: 'Database',
-            remote_schema: 'Schema'
+            remote_schema: 'Schema',
+            database: 'Database',
+            schema: 'Schema'
         };
         return map[type] || (type.charAt(0).toUpperCase() + type.slice(1));
     }
@@ -414,6 +418,80 @@
             this.objectsCache.delete(objKey);
         }
 
+        async getDatabases(connectionId, dbType, accessibleOnly = false) {
+            if (!connectionId) return [];
+            // Check Multi-Tier Cache
+            if (this.cache && typeof this.cache.getDatabases === 'function') {
+                const cached = this.cache.getDatabases(connectionId);
+                if (cached && Array.isArray(cached) && cached.length > 0) return cached;
+            }
+
+            try {
+                const provider = this.getProvider(connectionId, dbType);
+                if (provider && typeof provider.getDatabases === 'function') {
+                    const items = await provider.getDatabases(connectionId, accessibleOnly);
+                    if (items && Array.isArray(items) && !items.hasError) {
+                        if (this.cache && typeof this.cache.setDatabases === 'function') {
+                            this.cache.setDatabases(connectionId, items);
+                        }
+                        return items;
+                    }
+                }
+                const q = accessibleOnly ? '?accessible_only=1' : '';
+                const res = await fetch(`/api/metadata/${connectionId}/databases${q}`);
+                const data = await res.json();
+                const items = data && (Array.isArray(data.items) ? data.items : (Array.isArray(data.databases) ? data.databases : []));
+                if (items && Array.isArray(items) && items.length > 0 && this.cache && typeof this.cache.setDatabases === 'function') {
+                    this.cache.setDatabases(connectionId, items);
+                }
+                return items || [];
+            } catch (e) {
+                console.warn('[IntelliSense] getDatabases error:', e);
+                return [];
+            }
+        }
+
+        async fetchDatabases(connectionId, dbType, accessibleOnly = false) {
+            return this.getDatabases(connectionId, dbType, accessibleOnly);
+        }
+
+        async getSchemas(connectionId, database, dbType) {
+            if (!connectionId) return [];
+            // Check Multi-Tier Cache
+            if (this.cache && typeof this.cache.getSchemas === 'function') {
+                const cached = this.cache.getSchemas(connectionId, database);
+                if (cached && Array.isArray(cached) && cached.length > 0) return cached;
+            }
+
+            try {
+                const provider = this.getProvider(connectionId, dbType);
+                if (provider && typeof provider.getSchemas === 'function') {
+                    const items = await provider.getSchemas(connectionId, database);
+                    if (items && Array.isArray(items) && !items.hasError) {
+                        if (this.cache && typeof this.cache.setSchemas === 'function') {
+                            this.cache.setSchemas(connectionId, database, items);
+                        }
+                        return items;
+                    }
+                }
+                const q = database ? `?database=${encodeURIComponent(database)}` : '';
+                const res = await fetch(`/api/metadata/${connectionId}/schemas${q}`);
+                const data = await res.json();
+                const items = data && (Array.isArray(data.items) ? data.items : (Array.isArray(data.schemas) ? data.schemas : []));
+                if (items && Array.isArray(items) && items.length > 0 && this.cache && typeof this.cache.setSchemas === 'function') {
+                    this.cache.setSchemas(connectionId, database, items);
+                }
+                return items || [];
+            } catch (e) {
+                console.warn('[IntelliSense] getSchemas error:', e);
+                return [];
+            }
+        }
+
+        async fetchSchemas(connectionId, database, dbType) {
+            return this.getSchemas(connectionId, database, dbType);
+        }
+
         async getLinkedServers(connectionId, dbType) {
             if (!connectionId) return [];
             try {
@@ -755,7 +833,9 @@
                 row.className = `ide-intellisense-item ${cand.type === 'keyword' ? 'is-keyword' : ''}`;
                 row.dataset.index = idx;
 
-                const iconClass = ICON_MAP[cand.type] || (cand.isPk ? ICON_MAP.pk_column : 'fa-circle-dot text-secondary');
+                const iconClass = (cand.type === 'database' && cand.isSystemDb)
+                    ? 'fa-database text-secondary'
+                    : (ICON_MAP[cand.type] || (cand.isPk ? ICON_MAP.pk_column : 'fa-circle-dot text-secondary'));
                 row.innerHTML = `
                     <i class="fa-solid ${iconClass} item-icon"></i>
                     <span class="item-name">${cand.name}</span>
@@ -840,7 +920,8 @@
             // 1. Render Summary View
             if (item.type === 'table' || item.type === 'view') {
                 this.summaryContent.innerHTML = `<div class="p-2 text-center text-muted small"><i class="fa-solid fa-spinner fa-spin me-1"></i>Loading columns...</div>`;
-                const cols = await dataProvider.fetchColumns(tabCtx.connectionId, tabCtx.database, item.schema || tabCtx.schema, item.name);
+                const targetDb = item.database || tabCtx.database;
+                const cols = await dataProvider.fetchColumns(tabCtx.connectionId, targetDb, item.schema || tabCtx.schema, item.name);
                 if (cols.length > 0) {
                     let html = `
                         <div class="mb-1 fw-bold text-truncate" style="font-size: 11px;">
@@ -869,7 +950,8 @@
                 }
             } else if (item.type === 'procedure' || item.type === 'function') {
                 this.summaryContent.innerHTML = `<div class="p-2 text-center text-muted small"><i class="fa-solid fa-spinner fa-spin me-1"></i>Loading parameters...</div>`;
-                const params = await dataProvider.fetchParameters(tabCtx.connectionId, tabCtx.database, item.schema || tabCtx.schema, item.name);
+                const targetDb = item.database || tabCtx.database;
+                const params = await dataProvider.fetchParameters(tabCtx.connectionId, targetDb, item.schema || tabCtx.schema, item.name);
                 if (params.length > 0) {
                     let html = `
                         <div class="mb-1 fw-bold text-truncate" style="font-size: 11px;">
@@ -1005,6 +1087,18 @@
                     </div>
                 `;
                 this.scriptContent.textContent = `-- Foreign Server: "${item.name}"`;
+            } else if (item.type === 'database') {
+                const dbKind = item.isSystemDb ? 'System Database' : 'User Database';
+                const colorClass = item.isSystemDb ? 'text-secondary' : 'text-primary';
+                this.summaryContent.innerHTML = `
+                    <div class="p-2">
+                        <div class="fw-bold mb-1"><i class="fa-solid fa-database ${colorClass} me-1"></i>${item.name}</div>
+                        <div class="small text-muted">Type: <span class="fw-semibold ${colorClass}">${dbKind}</span></div>
+                        ${item.detail ? `<div class="small text-muted mt-1">${item.detail}</div>` : ''}
+                        <div class="small text-muted mt-2">Cross-database query: <code>[${item.name}].[schema].[table]</code></div>
+                    </div>
+                `;
+                this.scriptContent.textContent = `-- Database: [${item.name}]\nUSE [${item.name}];\nGO\n\n-- Or cross-database query:\nSELECT * FROM [${item.name}].[dbo].[table_name];`;
             } else {
                 this.summaryContent.innerHTML = `
                     <div class="p-2">
@@ -1018,9 +1112,10 @@
             // 2. Render Script Definition View
             this.scriptContent.textContent = '-- Loading definition...';
             if (['table', 'view', 'procedure', 'function', 'trigger'].includes(item.type)) {
-                const def = await dataProvider.fetchDefinition(tabCtx.connectionId, tabCtx.database, item.schema || tabCtx.schema, item.name, item.type);
+                const targetDb = item.database || tabCtx.database;
+                const def = await dataProvider.fetchDefinition(tabCtx.connectionId, targetDb, item.schema || tabCtx.schema, item.name, item.type);
                 this.scriptContent.textContent = def || '-- Definition script not available.';
-            } else if (!['column', 'pk_column', 'data_type', 'user_data_type', 'temp_table', 'table_variable', 'scalar_variable', 'parameter'].includes(item.type)) {
+            } else if (!['column', 'pk_column', 'data_type', 'user_data_type', 'temp_table', 'table_variable', 'scalar_variable', 'parameter', 'linked_server', 'foreign_server', 'database'].includes(item.type)) {
                 this.scriptContent.textContent = `-- Definition not available for [${item.displayType}]`;
             }
         }
@@ -1099,6 +1194,8 @@
         _initGlobalListeners() {
             document.addEventListener('ide-tab-switched', () => {
                 this.hidePopup();
+                this.activeContext = null;
+                this.rawCandidates = [];
             });
             document.addEventListener('ide-context-changed', () => {
                 this.hidePopup();
@@ -1332,7 +1429,9 @@
             if (window.AppTabs && typeof window.AppTabs.getActiveTabState === 'function') {
                 const state = window.AppTabs.getActiveTabState();
                 if (state) {
+                    const tabId = state.id || state.tabId || (window.AppTabs.getActiveTabId ? window.AppTabs.getActiveTabId() : null);
                     return {
+                        tabId: tabId || 'default',
                         connectionId: state.connectionId || window.ActiveConnectionId,
                         database: state.database || window.ActiveDatabase,
                         schema: state.schema || window.ActiveSchema,
@@ -1340,7 +1439,11 @@
                     };
                 }
             }
+            const fallbackTabId = (window.AppTabs && typeof window.AppTabs.getActiveTabId === 'function')
+                ? window.AppTabs.getActiveTabId()
+                : ((typeof window.getActiveTabId === 'function') ? window.getActiveTabId() : 'default');
             return {
+                tabId: fallbackTabId || 'default',
                 connectionId: window.ActiveConnectionId,
                 database: window.ActiveDatabase,
                 schema: window.ActiveSchema,
@@ -1545,17 +1648,26 @@
 
                 // SQL Snippets (Templates)
                 if (window.AppSnippets && typeof window.AppSnippets.getSnippets === 'function') {
-                    const allSnips = window.AppSnippets.getSnippets();
+                    const currentDbType = (tabCtx && tabCtx.dbType) || (window.AppTabs && window.AppTabs.getActiveTabState && window.AppTabs.getActiveTabState()?.dbType) || window.ActiveDbType || null;
+                    const allSnips = window.AppSnippets.getSnippets(currentDbType);
                     allSnips.forEach(snip => {
+                        if (window.AppSnippets.matchesDbType && !window.AppSnippets.matchesDbType(snip.dbType, currentDbType)) {
+                            return;
+                        }
                         const prefixLower = (snip.prefix || '').toLowerCase();
                         if (prefixLower && (!wordLower || prefixLower.startsWith(wordLower) || prefixLower.includes(wordLower))) {
+                            const isPinned = Boolean(snip.isPinned);
+                            const normDb = window.AppSnippets.normalizeDbType ? window.AppSnippets.normalizeDbType(snip.dbType) : (snip.dbType || 'all');
+                            const dbBadge = (normDb && normDb !== 'all') ? ` [${normDb === 'sqlserver' ? 'MSSQL' : 'PG'}]` : '';
                             allCandidates.push({
                                 name: snip.prefix,
                                 type: 'snippet',
-                                level: prefixLower.startsWith(wordLower) ? 0.9 : 1.5,
-                                displayType: 'Snippet',
-                                description: snip.description || '',
-                                snippetData: snip
+                                level: isPinned ? 0.5 : (prefixLower.startsWith(wordLower) ? 0.9 : 1.5),
+                                displayType: isPinned ? '📌 Snippet' : 'Snippet',
+                                description: (isPinned ? '★ [Pinned] ' : '') + (snip.description || '') + dbBadge,
+                                snippetData: snip,
+                                isPinned: isPinned,
+                                dbType: normDb
                             });
                         }
                     });
@@ -1865,6 +1977,19 @@
                 this.debounceTimer = null;
             }
             this.popupUI.hide();
+
+            // Spec GĐ5: Record MRU History (dbType::connection::type::nameLower)
+            try {
+                const tabCtx = this.getActiveTabContext ? this.getActiveTabContext() : null;
+                const dbType = (tabCtx && tabCtx.dbType) || (currentContext && currentContext.dbType) || 'common';
+                const connId = (tabCtx && tabCtx.connectionId) || (currentContext && currentContext.connectionId) || 'default';
+                const rankerClass = (typeof window !== 'undefined' && window.CompletionRanker) ? window.CompletionRanker : null;
+                if (rankerClass && typeof rankerClass.recordMru === 'function') {
+                    rankerClass.recordMru(dbType, connId, item.type, item.name || item.label);
+                }
+            } catch (mruErr) {
+                // Non-blocking
+            }
 
             const cursor = adapter.getCursor();
             const line = adapter.getLine(cursor.line);

@@ -1,0 +1,1746 @@
+[
+    {
+        "id": "pg_left_join_lateral",
+        "database": "postgresql",
+        "syntax": "LEFT JOIN LATERAL (subquery) alias ON TRUE",
+        "display_name": "LEFT JOIN LATERAL",
+        "category": "query",
+        "description": "Thực hiện phép nối ngoài với subquery có tham chiếu tương quan đến các bảng đứng trước trong mệnh đề FROM. Giữ lại các dòng bên trái ngay cả khi subquery không trả về kết quả nào (tương tự OUTER APPLY trong SQL Server).",
+        "context": "Mệnh đề FROM",
+        "version_min": "9.3",
+        "version_max": null,
+        "aliases": [
+            "LATERAL LEFT JOIN"
+        ],
+        "examples": [
+            {
+                "title": "Lấy 3 đơn hàng mới nhất của mỗi khách hàng",
+                "sql": "SELECT c.id, c.name, o.id AS order_id, o.amount\nFROM customers c\nLEFT JOIN LATERAL (\n    SELECT o.id, o.amount\n    FROM orders o\n    WHERE o.customer_id = c.id\n    ORDER BY o.order_date DESC\n    LIMIT 3\n) o ON TRUE;",
+                "explanation": "Subquery o tham chiếu c.id. Điều kiện ON TRUE là bắt buộc theo cú pháp SQL chuẩn của PostgreSQL cho LEFT JOIN."
+            }
+        ],
+        "source_ids": [
+            "src_pg_queries_lateral"
+        ],
+        "status": "verified"
+    },
+    {
+        "id": "pg_cross_join_lateral",
+        "database": "postgresql",
+        "syntax": "CROSS JOIN LATERAL (subquery) alias",
+        "display_name": "CROSS JOIN LATERAL",
+        "category": "query",
+        "description": "Thực hiện phép nối trong với subquery có tương quan. Chỉ trả về kết quả khi subquery sinh ra ít nhất một dòng (tương tự CROSS APPLY trong SQL Server).",
+        "context": "Mệnh đề FROM",
+        "version_min": "9.3",
+        "version_max": null,
+        "aliases": [
+            ", LATERAL (subquery) alias"
+        ],
+        "examples": [
+            {
+                "title": "Tách mảng JSON thành từng dòng",
+                "sql": "SELECT d.id, item.value\nFROM documents d\nCROSS JOIN LATERAL jsonb_array_elements_text(d.tags) AS item(value);",
+                "explanation": "Chỉ lấy các document có ít nhất 1 phần tử tags."
+            }
+        ],
+        "source_ids": [
+            "src_pg_queries_lateral"
+        ],
+        "status": "verified"
+    },
+    {
+        "id": "ms_outer_apply",
+        "database": "sqlserver",
+        "syntax": "OUTER APPLY (subquery) alias",
+        "display_name": "OUTER APPLY",
+        "category": "query",
+        "description": "Đánh giá biểu thức bảng hoặc subquery ở vế phải cho từng dòng của bảng bên trái. Giữ lại các dòng bên trái nếu subquery trả về rỗng (các cột của subquery sẽ mang giá trị NULL). Không cần mệnh đề ON.",
+        "context": "Mệnh đề FROM",
+        "version_min": "2005",
+        "version_max": null,
+        "aliases": [],
+        "examples": [
+            {
+                "title": "Lấy 3 đơn hàng mới nhất của mỗi khách hàng",
+                "sql": "SELECT c.id, c.name, o.id AS order_id, o.amount\nFROM customers c\nOUTER APPLY (\n    SELECT TOP (3) o.id, o.amount\n    FROM orders o\n    WHERE o.customer_id = c.id\n    ORDER BY o.order_date DESC\n) o;",
+                "explanation": "Không cần mệnh đề 'ON TRUE' như trong PostgreSQL. Sử dụng TOP thay cho LIMIT."
+            }
+        ],
+        "source_ids": [
+            "src_ms_from_apply"
+        ],
+        "status": "verified"
+    },
+    {
+        "id": "ms_cross_apply",
+        "database": "sqlserver",
+        "syntax": "CROSS APPLY (subquery) alias",
+        "display_name": "CROSS APPLY",
+        "category": "query",
+        "description": "Đánh giá biểu thức bảng ở vế phải cho từng dòng của bảng bên trái. Bỏ qua dòng bên trái nếu subquery trả về tập rỗng (tương tự CROSS JOIN LATERAL trong PostgreSQL).",
+        "context": "Mệnh đề FROM",
+        "version_min": "2005",
+        "version_max": null,
+        "aliases": [],
+        "examples": [
+            {
+                "title": "Tách chuỗi bằng STRING_SPLIT có tương quan",
+                "sql": "SELECT p.id, s.value\nFROM products p\nCROSS APPLY STRING_SPLIT(p.tags, ',') s;",
+                "explanation": "Đánh giá hàm STRING_SPLIT cho từng dòng của products."
+            }
+        ],
+        "source_ids": [
+            "src_ms_from_apply"
+        ],
+        "status": "verified"
+    },
+    {
+        "id": "pg_like",
+        "database": "postgresql",
+        "syntax": "column LIKE pattern [ESCAPE 'escape_char']",
+        "display_name": "LIKE (PostgreSQL)",
+        "category": "string",
+        "description": "So khớp mẫu ký tự theo chuẩn SQL. Mặc định trong PostgreSQL, LIKE luôn phân biệt hoa thường (Case-Sensitive), trừ khi cột sử dụng Collation không phân biệt hoa thường.",
+        "context": "Mệnh đề WHERE, HAVING, CASE, SELECT",
+        "version_min": "8.0",
+        "version_max": null,
+        "aliases": [
+            "~~"
+        ],
+        "examples": [
+            {
+                "title": "Tìm tên bắt đầu bằng 'John'",
+                "sql": "SELECT * FROM users WHERE name LIKE 'John%';",
+                "explanation": "Chỉ khớp các tên viết hoa 'John...', không khớp 'john...'."
+            }
+        ],
+        "source_ids": [
+            "src_pg_pattern_matching"
+        ],
+        "status": "verified"
+    },
+    {
+        "id": "pg_tilde_tilde",
+        "database": "postgresql",
+        "syntax": "column ~~ pattern",
+        "display_name": "~~ (Toán tử nội bộ cho LIKE)",
+        "category": "string",
+        "description": "Toán tử đặc thù của PostgreSQL, hoàn toàn tương đương ngữ nghĩa với từ khóa LIKE.",
+        "context": "Mệnh đề WHERE, HAVING, CASE",
+        "version_min": "8.0",
+        "version_max": null,
+        "aliases": [
+            "LIKE"
+        ],
+        "examples": [
+            {
+                "title": "Sử dụng toán tử ~~ thay cho LIKE",
+                "sql": "SELECT * FROM users WHERE name ~~ 'John%';",
+                "explanation": "Tương đương tuyệt đối với 'name LIKE ''John%''."
+            }
+        ],
+        "source_ids": [
+            "src_pg_pattern_matching"
+        ],
+        "status": "verified"
+    },
+    {
+        "id": "pg_ilike",
+        "database": "postgresql",
+        "syntax": "column ILIKE pattern [ESCAPE 'escape_char']",
+        "display_name": "ILIKE (Case-Insensitive Match)",
+        "category": "string",
+        "description": "Cú pháp mở rộng riêng của PostgreSQL để so khớp mẫu ký tự không phân biệt hoa thường (Case-Insensitive) bất kể Collation của cột.",
+        "context": "Mệnh đề WHERE, HAVING, CASE, SELECT",
+        "version_min": "8.0",
+        "version_max": null,
+        "aliases": [
+            "~~*"
+        ],
+        "examples": [
+            {
+                "title": "Tìm kiếm không phân biệt hoa thường",
+                "sql": "SELECT * FROM users WHERE email ILIKE '%@gmail.com';",
+                "explanation": "Khớp cả '@GMAIL.COM', '@Gmail.com', v.v."
+            }
+        ],
+        "source_ids": [
+            "src_pg_pattern_matching"
+        ],
+        "status": "verified"
+    },
+    {
+        "id": "pg_tilde_tilde_star",
+        "database": "postgresql",
+        "syntax": "column ~~* pattern",
+        "display_name": "~~* (Toán tử nội bộ cho ILIKE)",
+        "category": "string",
+        "description": "Toán tử đặc thù của PostgreSQL, hoàn toàn tương đương ngữ nghĩa với từ khóa ILIKE.",
+        "context": "Mệnh đề WHERE, HAVING, CASE",
+        "version_min": "8.0",
+        "version_max": null,
+        "aliases": [
+            "ILIKE"
+        ],
+        "examples": [
+            {
+                "title": "Sử dụng toán tử ~~*",
+                "sql": "SELECT * FROM users WHERE email ~~* '%@gmail.com';",
+                "explanation": "Tương đương tuyệt đối với 'email ILIKE ''%@gmail.com''."
+            }
+        ],
+        "source_ids": [
+            "src_pg_pattern_matching"
+        ],
+        "status": "verified"
+    },
+    {
+        "id": "ms_like",
+        "database": "sqlserver",
+        "syntax": "column LIKE pattern [ESCAPE 'escape_char']",
+        "display_name": "LIKE (SQL Server)",
+        "category": "string",
+        "description": "So khớp mẫu ký tự trong SQL Server. Tính chất phân biệt hoa thường hay không phụ thuộc hoàn toàn vào Collation của cột/database (mặc định SQL_Latin1_General_CP1_CI_AS là Case-Insensitive). Có thể chỉ định tường minh bằng mệnh đề COLLATE.",
+        "context": "Mệnh đề WHERE, HAVING, CASE, SELECT",
+        "version_min": "2000",
+        "version_max": null,
+        "aliases": [],
+        "examples": [
+            {
+                "title": "So khớp với Collation chỉ định",
+                "sql": "SELECT * FROM users WHERE name LIKE 'John%' COLLATE Latin1_General_CS_AS;",
+                "explanation": "Sử dụng Collation CS (Case Sensitive) để ép phân biệt hoa thường."
+            }
+        ],
+        "source_ids": [
+            "src_ms_like_operator"
+        ],
+        "status": "verified"
+    },
+    {
+        "id": "pg_limit_offset",
+        "database": "postgresql",
+        "syntax": "LIMIT count OFFSET start",
+        "display_name": "LIMIT ... OFFSET",
+        "category": "paging",
+        "description": "Giới hạn số dòng tối đa trả về (LIMIT) và chỉ số dòng bắt đầu (OFFSET) ở cuối câu lệnh SELECT.",
+        "context": "Mệnh đề cuối câu lệnh SELECT",
+        "version_min": "7.0",
+        "version_max": null,
+        "aliases": [],
+        "examples": [
+            {
+                "title": "Phân trang trang thứ 3 (mỗi trang 20 dòng)",
+                "sql": "SELECT * FROM products ORDER BY id LIMIT 20 OFFSET 40;",
+                "explanation": "Bỏ qua 40 dòng đầu và lấy tiếp 20 dòng."
+            }
+        ],
+        "source_ids": [
+            "src_pg_limit_offset"
+        ],
+        "status": "verified"
+    },
+    {
+        "id": "pg_offset_fetch",
+        "database": "postgresql",
+        "syntax": "OFFSET start ROWS FETCH NEXT count ROWS ONLY",
+        "display_name": "OFFSET ... FETCH (ANSI SQL standard)",
+        "category": "paging",
+        "description": "Cú pháp phân trang chuẩn ANSI SQL được hỗ trợ trên PostgreSQL >= 8.4.",
+        "context": "Mệnh đề cuối câu lệnh SELECT",
+        "version_min": "8.4",
+        "version_max": null,
+        "aliases": [],
+        "examples": [
+            {
+                "title": "Cú pháp phân trang chuẩn ANSI",
+                "sql": "SELECT * FROM products ORDER BY id OFFSET 40 ROWS FETCH NEXT 20 ROWS ONLY;",
+                "explanation": "Tương đương ngữ nghĩa với LIMIT 20 OFFSET 40."
+            }
+        ],
+        "source_ids": [
+            "src_pg_limit_offset"
+        ],
+        "status": "verified"
+    },
+    {
+        "id": "ms_top",
+        "database": "sqlserver",
+        "syntax": "TOP (count) [PERCENT] [WITH TIES]",
+        "display_name": "TOP (n)",
+        "category": "paging",
+        "description": "Giới hạn số lượng dòng trả về ngay sau từ khóa SELECT. Không hỗ trợ OFFSET trực tiếp; muốn phân trang phải kết hợp với CTE hoặc ROW_NUMBER().",
+        "context": "Mệnh đề SELECT",
+        "version_min": "2005",
+        "version_max": null,
+        "aliases": [],
+        "examples": [
+            {
+                "title": "Lấy 20 dòng đầu tiên",
+                "sql": "SELECT TOP (20) * FROM products ORDER BY id;",
+                "explanation": "Nằm ngay sau từ khóa SELECT, khác với vị trí cuối câu của LIMIT."
+            }
+        ],
+        "source_ids": [
+            "src_ms_top_clause"
+        ],
+        "status": "verified"
+    },
+    {
+        "id": "ms_offset_fetch",
+        "database": "sqlserver",
+        "syntax": "ORDER BY column OFFSET start ROWS FETCH NEXT count ROWS ONLY",
+        "display_name": "ORDER BY ... OFFSET ... FETCH (SQL Server)",
+        "category": "paging",
+        "description": "Cú pháp phân trang chuẩn ANSI SQL trong SQL Server (hỗ trợ từ SQL Server 2012). Bắt buộc phải có mệnh đề ORDER BY đi kèm.",
+        "context": "Mệnh đề cuối câu lệnh SELECT",
+        "version_min": "2012",
+        "version_max": null,
+        "aliases": [],
+        "examples": [
+            {
+                "title": "Phân trang chuẩn trong SQL Server",
+                "sql": "SELECT * FROM products ORDER BY id OFFSET 40 ROWS FETCH NEXT 20 ROWS ONLY;",
+                "explanation": "Bắt buộc phải có ORDER BY, nếu không sẽ phát sinh lỗi cú pháp 156."
+            }
+        ],
+        "source_ids": [
+            "src_ms_offset_fetch"
+        ],
+        "status": "verified"
+    },
+    {
+        "id": "pg_string_agg",
+        "database": "postgresql",
+        "syntax": "string_agg(expression, delimiter [ORDER BY sort_column])",
+        "display_name": "string_agg (PostgreSQL)",
+        "category": "aggregate",
+        "description": "Gom nhóm và nối các chuỗi với ký tự phân cách. Mệnh đề ORDER BY được viết trực tiếp bên trong danh sách tham số của hàm.",
+        "context": "Mệnh đề SELECT (Aggregate)",
+        "version_min": "9.0",
+        "version_max": null,
+        "aliases": [],
+        "examples": [
+            {
+                "title": "Nối tên kỹ năng theo thứ tự bảng chữ cái",
+                "sql": "SELECT user_id, string_agg(skill_name, ', ' ORDER BY skill_name ASC) AS skills\nFROM user_skills\nGROUP BY user_id;",
+                "explanation": "ORDER BY nằm ngay bên trong dấu ngoặc của hàm string_agg."
+            }
+        ],
+        "source_ids": [
+            "src_pg_string_agg"
+        ],
+        "status": "verified"
+    },
+    {
+        "id": "ms_string_agg",
+        "database": "sqlserver",
+        "syntax": "STRING_AGG(expression, delimiter) [WITHIN GROUP (ORDER BY sort_column)]",
+        "display_name": "STRING_AGG (SQL Server)",
+        "category": "aggregate",
+        "description": "Gom nhóm và nối các chuỗi trong SQL Server (từ phiên bản 2017). Thứ tự sắp xếp nếu có bắt buộc phải dùng mệnh đề WITHIN GROUP (ORDER BY ...).",
+        "context": "Mệnh đề SELECT (Aggregate)",
+        "version_min": "2017",
+        "version_max": null,
+        "aliases": [],
+        "examples": [
+            {
+                "title": "Nối tên kỹ năng theo thứ tự sắp xếp",
+                "sql": "SELECT user_id, STRING_AGG(skill_name, ', ') WITHIN GROUP (ORDER BY skill_name ASC) AS skills\nFROM user_skills\nGROUP BY user_id;",
+                "explanation": "Sử dụng WITHIN GROUP (ORDER BY ...) để chỉ định thứ tự nối."
+            }
+        ],
+        "source_ids": [
+            "src_ms_string_agg"
+        ],
+        "status": "verified"
+    },
+    {
+        "id": "pg_coalesce",
+        "database": "postgresql",
+        "syntax": "COALESCE(value1, value2, ...)",
+        "display_name": "COALESCE (PostgreSQL)",
+        "category": "comparison",
+        "description": "Chuẩn ANSI SQL. Trả về biểu thức không NULL đầu tiên. Kiểu dữ liệu trả về được xác định bằng cách tìm kiểu dữ liệu chung (common type) của tất cả các đối số.",
+        "context": "Biểu thức giá trị (Mọi vị trí)",
+        "version_min": "7.0",
+        "version_max": null,
+        "aliases": [],
+        "examples": [
+            {
+                "title": "Thay thế NULL bằng giá trị mặc định",
+                "sql": "SELECT COALESCE(phone, mobile, 'N/A') AS contact FROM users;",
+                "explanation": "Kiểm tra phone, nếu NULL kiểm tra mobile, nếu cả 2 đều NULL trả về 'N/A'."
+            }
+        ],
+        "source_ids": [
+            "src_pg_conditional_coalesce"
+        ],
+        "status": "verified"
+    },
+    {
+        "id": "ms_coalesce",
+        "database": "sqlserver",
+        "syntax": "COALESCE(value1, value2, ...)",
+        "display_name": "COALESCE (SQL Server)",
+        "category": "comparison",
+        "description": "Chuẩn ANSI SQL trong SQL Server. Trả về đối số không NULL đầu tiên. Tuân thủ quy tắc mức độ ưu tiên kiểu dữ liệu (Data Type Precedence) của tất cả đối số.",
+        "context": "Biểu thức giá trị (Mọi vị trí)",
+        "version_min": "2000",
+        "version_max": null,
+        "aliases": [],
+        "examples": [
+            {
+                "title": "Thay thế NULL với nhiều lựa chọn",
+                "sql": "SELECT COALESCE(phone, mobile, 'N/A') AS contact FROM users;",
+                "explanation": "Chấp nhận từ 2 đối số trở lên."
+            }
+        ],
+        "source_ids": [
+            "src_ms_isnull_coalesce"
+        ],
+        "status": "verified"
+    },
+    {
+        "id": "ms_isnull",
+        "database": "sqlserver",
+        "syntax": "ISNULL(check_expression, replacement_value)",
+        "display_name": "ISNULL (SQL Server specific)",
+        "category": "comparison",
+        "description": "Hàm đặc thù của T-SQL, nhận ĐÚNG 2 đối số. Kiểu dữ liệu trả về bị gán chặt theo kiểu dữ liệu của đối số thứ nhất (check_expression).",
+        "context": "Biểu thức giá trị",
+        "version_min": "2000",
+        "version_max": null,
+        "aliases": [],
+        "examples": [
+            {
+                "title": "Xử lý NULL bằng ISNULL",
+                "sql": "SELECT ISNULL(phone, 'N/A') AS phone FROM users;",
+                "explanation": "Nếu phone là VARCHAR(10) và 'N/A' vượt quá 10 ký tự, chuỗi sẽ bị cắt bớt theo độ dài của phone."
+            }
+        ],
+        "source_ids": [
+            "src_ms_isnull_coalesce"
+        ],
+        "status": "verified"
+    },
+    {
+        "id": "pg_json_arrow_text",
+        "database": "postgresql",
+        "syntax": "json_column ->> 'key'",
+        "display_name": "->> (JSON Extract as Text)",
+        "category": "json",
+        "description": "Toán tử trích xuất trường JSON dưới dạng kiểu dữ liệu văn bản (text).",
+        "context": "Biểu thức giá trị",
+        "version_min": "9.3",
+        "version_max": null,
+        "aliases": [
+            "jsonb_extract_path_text"
+        ],
+        "examples": [
+            {
+                "title": "Lấy trường username từ cột payload",
+                "sql": "SELECT payload ->> 'username' AS uname FROM events;",
+                "explanation": "Trả về chuỗi text thuần túy (không có dấu ngoặc kép bọc ngoài)."
+            }
+        ],
+        "source_ids": [
+            "src_pg_json_ops"
+        ],
+        "status": "verified"
+    },
+    {
+        "id": "ms_json_value",
+        "database": "sqlserver",
+        "syntax": "JSON_VALUE(json_column, '$.key')",
+        "display_name": "JSON_VALUE (SQL Server)",
+        "category": "json",
+        "description": "Hàm trích xuất một giá trị vô hướng (scalar string) từ chuỗi JSON theo đường dẫn JSONPath.",
+        "context": "Biểu thức giá trị",
+        "version_min": "2016",
+        "version_max": null,
+        "aliases": [],
+        "examples": [
+            {
+                "title": "Lấy trường username từ chuỗi JSON",
+                "sql": "SELECT JSON_VALUE(payload, '$.username') AS uname FROM events;",
+                "explanation": "Đường dẫn JSONPath bắt buộc bắt đầu bằng ký tự '$'."
+            }
+        ],
+        "source_ids": [
+            "src_ms_json_value_query"
+        ],
+        "status": "verified"
+    },
+    {
+        "id": "pg_current_timestamp",
+        "database": "postgresql",
+        "syntax": "CURRENT_TIMESTAMP [ (precision) ]",
+        "display_name": "CURRENT_TIMESTAMP (PostgreSQL)",
+        "category": "datetime",
+        "description": "Chuẩn ANSI SQL. Trả về ngày giờ hiện tại cùng múi giờ (timestamp with time zone) tại thời điểm bắt đầu transaction hiện tại.",
+        "context": "Biểu thức giá trị",
+        "version_min": "8.0",
+        "version_max": null,
+        "aliases": [
+            "now()"
+        ],
+        "examples": [
+            {
+                "title": "Lấy ngày giờ hiện tại",
+                "sql": "SELECT CURRENT_TIMESTAMP, now();",
+                "explanation": "Cả hai đều trả về timestamp with time zone của thời điểm bắt đầu transaction."
+            }
+        ],
+        "source_ids": [
+            "src_pg_datetime_now"
+        ],
+        "status": "verified"
+    },
+    {
+        "id": "ms_getdate",
+        "database": "sqlserver",
+        "syntax": "GETDATE()",
+        "display_name": "GETDATE() (SQL Server)",
+        "category": "datetime",
+        "description": "Trả về ngày giờ hiện tại của hệ điều hành máy chủ SQL Server dưới dạng datetime (không có thông tin múi giờ).",
+        "context": "Biểu thức giá trị",
+        "version_min": "2000",
+        "version_max": null,
+        "aliases": [],
+        "examples": [
+            {
+                "title": "Lấy ngày giờ hiện tại của máy chủ",
+                "sql": "SELECT GETDATE() AS cur_time;",
+                "explanation": "Trả về kiểu datetime 8 byte."
+            }
+        ],
+        "source_ids": [
+            "src_ms_datetime_getdate"
+        ],
+        "status": "verified"
+    },
+    {
+        "id": "pg_concat_operator",
+        "database": "postgresql",
+        "syntax": "expr1 || expr2 [ || expr3 ... ]",
+        "display_name": "String Concatenation Operator (||)",
+        "category": "string",
+        "description": "Toán tử nối chuỗi tiêu chuẩn ANSI trong PostgreSQL.",
+        "gotchas": [
+            "Nếu một trong các biểu thức là NULL, kết quả của toán tử || sẽ luôn là NULL ('a' || NULL => NULL).",
+            "Để xử lý an toàn giá trị NULL (coi NULL như chuỗi rỗng ''), nên dùng hàm CONCAT(expr1, expr2) hoặc COALESCE."
+        ],
+        "aliases": [
+            "||",
+            "pg_concat"
+        ],
+        "source_ids": [
+            "src_pg_string_concat"
+        ],
+        "status": "verified",
+        "updated_at": "2026-10-22",
+        "examples": [
+            {
+                "title": "String Concatenation Operator (||)",
+                "sql": "SELECT 'Mã NV: ' || emp_code || ' - ' || emp_name AS full_label FROM employees;"
+            }
+        ],
+        "context": "Mệnh đề SQL chung"
+    },
+    {
+        "id": "ms_concat_operator",
+        "database": "sqlserver",
+        "syntax": "expr1 + expr2 [ + expr3 ... ]",
+        "display_name": "String Concatenation Operator (+)",
+        "category": "string",
+        "description": "Toán tử nối chuỗi trong SQL Server.",
+        "gotchas": [
+            "Toán tử + dùng chung cho cả cộng số học và nối chuỗi. Nếu nối chuỗi với số mà không ép kiểu, SQL Server sẽ cố gắng chuyển chuỗi thành số và báo lỗi: 'Conversion failed when converting the varchar value... to data type int'.",
+            "Mặc định trong SQL Server (SET CONCAT_NULL_YIELDS_NULL ON), bất kỳ biểu thức NULL nào cũng khiến cả chuỗi kết quả trở thành NULL ('a' + NULL => NULL).",
+            "Khuyên dùng hàm CONCAT() (từ SQL Server 2012+) để tự động ép kiểu và tự động bỏ qua NULL."
+        ],
+        "aliases": [
+            "+",
+            "ms_concat_plus"
+        ],
+        "source_ids": [
+            "src_ms_string_concat"
+        ],
+        "status": "verified",
+        "updated_at": "2026-10-22",
+        "examples": [
+            {
+                "title": "String Concatenation Operator (+)",
+                "sql": "SELECT 'Mã NV: ' + emp_code + ' - ' + emp_name AS full_label FROM employees;"
+            }
+        ],
+        "context": "Mệnh đề SQL chung"
+    },
+    {
+        "id": "pg_concat_func",
+        "database": "postgresql",
+        "syntax": "CONCAT(val1, val2, ...)",
+        "display_name": "CONCAT Function (PostgreSQL)",
+        "category": "string",
+        "description": "Hàm nối các giá trị chuỗi, tự động bỏ qua giá trị NULL.",
+        "gotchas": [
+            "Coi NULL như chuỗi rỗng '', không làm mất toàn bộ chuỗi."
+        ],
+        "aliases": [
+            "CONCAT"
+        ],
+        "source_ids": [
+            "src_pg_string_concat"
+        ],
+        "status": "verified",
+        "updated_at": "2026-10-22",
+        "examples": [
+            {
+                "title": "CONCAT Function (PostgreSQL)",
+                "sql": "SELECT CONCAT(first_name, ' ', last_name) AS full_name FROM users;"
+            }
+        ],
+        "context": "Mệnh đề SQL chung"
+    },
+    {
+        "id": "ms_concat_func",
+        "database": "sqlserver",
+        "syntax": "CONCAT(val1, val2, ...)",
+        "display_name": "CONCAT Function (SQL Server)",
+        "category": "string",
+        "description": "Hàm nối chuỗi an toàn trong SQL Server 2012+, tự động chuyển đổi kiểu dữ liệu và bỏ qua NULL.",
+        "gotchas": [
+            "Tự động biến đổi NULL thành chuỗi rỗng và tự động ép kiểu số/ngày về chuỗi mà không báo lỗi conversion."
+        ],
+        "aliases": [
+            "CONCAT"
+        ],
+        "source_ids": [
+            "src_ms_string_concat"
+        ],
+        "status": "verified",
+        "updated_at": "2026-10-22",
+        "examples": [
+            {
+                "title": "CONCAT Function (SQL Server)",
+                "sql": "SELECT CONCAT(first_name, ' ', last_name) AS full_name FROM users;"
+            }
+        ],
+        "context": "Mệnh đề SQL chung"
+    },
+    {
+        "id": "pg_substr",
+        "database": "postgresql",
+        "syntax": "SUBSTR(string, start_position [, length]) / SUBSTRING(string FROM start FOR length)",
+        "display_name": "SUBSTR / SUBSTRING (PostgreSQL)",
+        "category": "string",
+        "description": "Cắt chuỗi con từ vị trí start_position (1-based index).",
+        "gotchas": [
+            "PostgreSQL cho phép bỏ qua tham số thứ 3 (length), khi đó hàm sẽ cắt từ vị trí start đến hết chuỗi.",
+            "Chỉ số bắt đầu từ 1 (1-based indexing).",
+            "Hỗ trợ cả cú pháp chuẩn SQL: SUBSTRING(str FROM start FOR length)."
+        ],
+        "aliases": [
+            "SUBSTR",
+            "SUBSTRING"
+        ],
+        "source_ids": [
+            "src_pg_string_substr"
+        ],
+        "status": "verified",
+        "updated_at": "2026-10-22",
+        "examples": [
+            {
+                "title": "SUBSTR / SUBSTRING (PostgreSQL)",
+                "sql": "SELECT SUBSTR('ABCDEF', 2, 3); -- Trả về 'BCD'\nSELECT SUBSTR('ABCDEF', 3);    -- Bỏ qua length: trả về 'CDEF' từ vị trí 3 đến hết chuỗi"
+            }
+        ],
+        "context": "Mệnh đề SQL chung"
+    },
+    {
+        "id": "ms_substring",
+        "database": "sqlserver",
+        "syntax": "SUBSTRING(expression, start, length)",
+        "display_name": "SUBSTRING (SQL Server)",
+        "category": "string",
+        "description": "Cắt chuỗi con trong SQL Server. Bắt buộc phải có đủ cả 3 tham số.",
+        "gotchas": [
+            "SQL Server KHÔNG có hàm SUBSTR. Sử dụng SUBSTR sẽ bị lỗi 'SUBSTR is not a recognized built-in function name'.",
+            "SQL Server BẮT BUỘC phải truyền đủ 3 tham số (expression, start, length). Không thể bỏ qua length như PostgreSQL. Nếu muốn cắt đến hết chuỗi, phải truyền LEN(expression) hoặc một số nguyên đủ lớn."
+        ],
+        "aliases": [
+            "SUBSTRING"
+        ],
+        "source_ids": [
+            "src_ms_string_substring"
+        ],
+        "status": "verified",
+        "updated_at": "2026-10-22",
+        "examples": [
+            {
+                "title": "SUBSTRING (SQL Server)",
+                "sql": "SELECT SUBSTRING('ABCDEF', 2, 3); -- Trả về 'BCD'\nSELECT SUBSTRING('ABCDEF', 3, LEN('ABCDEF')); -- Cắt đến hết chuỗi"
+            }
+        ],
+        "context": "Mệnh đề SQL chung"
+    },
+    {
+        "id": "pg_length",
+        "database": "postgresql",
+        "syntax": "LENGTH(string) / CHAR_LENGTH(string)",
+        "display_name": "LENGTH / CHAR_LENGTH (PostgreSQL)",
+        "category": "string",
+        "description": "Trả về số lượng ký tự trong chuỗi (bao gồm toàn bộ khoảng trắng ở đầu và cuối).",
+        "gotchas": [
+            "PostgreSQL LENGTH('ABC   ') trả về 6, luôn tính cả trailing spaces.",
+            "OCTET_LENGTH(str) dùng để tính số lượng byte của chuỗi."
+        ],
+        "aliases": [
+            "LENGTH",
+            "CHAR_LENGTH"
+        ],
+        "source_ids": [
+            "src_pg_string_length"
+        ],
+        "status": "verified",
+        "updated_at": "2026-10-22",
+        "examples": [
+            {
+                "title": "LENGTH / CHAR_LENGTH (PostgreSQL)",
+                "sql": "SELECT LENGTH('ABC   '); -- Trả về 6 (tính cả 3 khoảng trắng cuối)"
+            }
+        ],
+        "context": "Mệnh đề SQL chung"
+    },
+    {
+        "id": "ms_len",
+        "database": "sqlserver",
+        "syntax": "LEN(string)",
+        "display_name": "LEN (SQL Server)",
+        "category": "string",
+        "description": "Trả về số lượng ký tự trong chuỗi, TỰ ĐỘNG BỎ QUA khoảng trắng ở cuối.",
+        "gotchas": [
+            "CẢNH BÁO CHÍ TỬ (GOTCHA): SQL Server LEN('ABC   ') trả về 3 chứ KHÔNG phải 6 vì LEN tự động loại bỏ khoảng trắng thừa ở cuối (trailing blanks)!",
+            "Nếu muốn tính độ dài bao gồm cả khoảng trắng thừa ở cuối trong SQL Server, bạn phải dùng DATALENGTH(str) (lưu ý DATALENGTH tính theo byte, với nvarchar phải chia 2: DATALENGTH(str)/2)."
+        ],
+        "aliases": [
+            "LEN"
+        ],
+        "source_ids": [
+            "src_ms_string_len_datalength"
+        ],
+        "status": "verified",
+        "updated_at": "2026-10-22",
+        "examples": [
+            {
+                "title": "LEN (SQL Server)",
+                "sql": "SELECT LEN('ABC   '); -- Trả về 3! (SQL Server bỏ qua trailing spaces)\nSELECT DATALENGTH('ABC   '); -- Trả về 6 (tính cả byte khoảng trắng)"
+            }
+        ],
+        "context": "Mệnh đề SQL chung"
+    },
+    {
+        "id": "ms_datalength",
+        "database": "sqlserver",
+        "syntax": "DATALENGTH(expression)",
+        "display_name": "DATALENGTH (SQL Server)",
+        "category": "string",
+        "description": "Trả về số byte thực tế dùng để lưu trữ biểu thức trong SQL Server.",
+        "gotchas": [
+            "Tính bằng byte, không phải số ký tự (với nvarchar mỗi ký tự 2 byte, với varchar 1 byte)."
+        ],
+        "aliases": [
+            "DATALENGTH"
+        ],
+        "source_ids": [
+            "src_ms_string_len_datalength"
+        ],
+        "status": "verified",
+        "updated_at": "2026-10-22",
+        "examples": [
+            {
+                "title": "DATALENGTH (SQL Server)",
+                "sql": "SELECT DATALENGTH(N'ABC   ') / 2; -- Trả về 6 ký tự unicode tính cả trailing spaces"
+            }
+        ],
+        "context": "Mệnh đề SQL chung"
+    },
+    {
+        "id": "pg_interval_add",
+        "database": "postgresql",
+        "syntax": "date_col + INTERVAL 'count unit' / date_col - INTERVAL 'count unit'",
+        "display_name": "Interval Arithmetic (+ INTERVAL) (PostgreSQL)",
+        "category": "datetime",
+        "description": "Cộng trừ khoảng thời gian theo chuẩn ANSI SQL trong PostgreSQL.",
+        "gotchas": [
+            "PostgreSQL hỗ trợ biểu thức chuỗi INTERVAL rất linh hoạt ('7 days', '1 month', '30 minutes').",
+            "Cũng có thể cộng số nguyên trực tiếp với kiểu DATE: current_date + 7 (tương đương cộng 7 ngày)."
+        ],
+        "aliases": [
+            "INTERVAL",
+            "+ INTERVAL",
+            "- INTERVAL"
+        ],
+        "source_ids": [
+            "src_pg_datetime_interval_math"
+        ],
+        "status": "verified",
+        "updated_at": "2026-10-22",
+        "examples": [
+            {
+                "title": "Interval Arithmetic (+ INTERVAL) (PostgreSQL)",
+                "sql": "SELECT CURRENT_TIMESTAMP + INTERVAL '7 days';\nSELECT CURRENT_DATE - INTERVAL '1 month 2 hours';"
+            }
+        ],
+        "context": "Mệnh đề SQL chung"
+    },
+    {
+        "id": "ms_dateadd",
+        "database": "sqlserver",
+        "syntax": "DATEADD(datepart, number, date)",
+        "display_name": "DATEADD (SQL Server)",
+        "category": "datetime",
+        "description": "Cộng một khoảng thời gian (number) của đơn vị (datepart) vào giá trị ngày trong SQL Server.",
+        "gotchas": [
+            "SQL Server KHÔNG hỗ trợ cú pháp từ khóa ANSI INTERVAL (date + INTERVAL '7 days' sẽ gây lỗi cú pháp).",
+            "Tham số datepart là từ khóa (day, month, year, hour, minute), không đặt trong dấu nháy đơn."
+        ],
+        "aliases": [
+            "DATEADD"
+        ],
+        "source_ids": [
+            "src_ms_datetime_dateadd"
+        ],
+        "status": "verified",
+        "updated_at": "2026-10-22",
+        "examples": [
+            {
+                "title": "DATEADD (SQL Server)",
+                "sql": "SELECT DATEADD(day, 7, GETDATE());\nSELECT DATEADD(month, -1, GETDATE());"
+            }
+        ],
+        "context": "Mệnh đề SQL chung"
+    },
+    {
+        "id": "pg_date_trunc",
+        "database": "postgresql",
+        "syntax": "date_trunc('precision', timestamp_col [, timezone])",
+        "display_name": "date_trunc (PostgreSQL)",
+        "category": "datetime",
+        "description": "Cắt bớt timestamp về đầu chu kỳ thời gian (day, month, year, quarter, hour, minute).",
+        "gotchas": [
+            "Đơn vị precision trong PostgreSQL là CHUỖI trong dấu nháy đơn ('day', 'month', 'year', 'hour').",
+            "Kết quả trả về giữ nguyên kiểu timestamp with/without time zone ở mốc 00:00:00 của đầu kỳ."
+        ],
+        "aliases": [
+            "date_trunc"
+        ],
+        "source_ids": [
+            "src_pg_datetime_datetrunc"
+        ],
+        "status": "verified",
+        "updated_at": "2026-10-22",
+        "examples": [
+            {
+                "title": "date_trunc (PostgreSQL)",
+                "sql": "SELECT date_trunc('month', created_at) AS month_start, COUNT(*) \nFROM orders \nGROUP BY date_trunc('month', created_at);"
+            }
+        ],
+        "context": "Mệnh đề SQL chung"
+    },
+    {
+        "id": "ms_datetrunc",
+        "database": "sqlserver",
+        "syntax": "DATETRUNC(datepart, date)",
+        "display_name": "DATETRUNC (SQL Server 2022+)",
+        "category": "datetime",
+        "description": "Hàm cắt ngày về đầu chu kỳ tương đương date_trunc, được Microsoft bổ sung từ SQL Server 2022.",
+        "gotchas": [
+            "Chỉ khả dụng trên SQL Server 2022 (16.x) và Azure SQL. Trên các bản cũ hơn (2019, 2016...), phải dùng công thức: DATEADD(month, DATEDIFF(month, 0, date), 0) hoặc CONVERT(date, date).",
+            "Khác với PostgreSQL, datepart trong SQL Server là định danh KHÔNG có dấu nháy đơn (day, month, year), không phải chuỗi 'month'."
+        ],
+        "aliases": [
+            "DATETRUNC"
+        ],
+        "source_ids": [
+            "src_ms_datetime_datetrunc"
+        ],
+        "status": "verified",
+        "updated_at": "2026-10-22",
+        "examples": [
+            {
+                "title": "DATETRUNC (SQL Server 2022+)",
+                "sql": "SELECT DATETRUNC(month, created_at) AS month_start, COUNT(*) \nFROM orders \nGROUP BY DATETRUNC(month, created_at);"
+            }
+        ],
+        "context": "Mệnh đề SQL chung"
+    },
+    {
+        "id": "pg_cast_double_colon",
+        "database": "postgresql",
+        "syntax": "expression::target_type",
+        "display_name": "Double Colon Cast Operator (::) (PostgreSQL)",
+        "category": "conversion",
+        "description": "Cú pháp ép kiểu rút gọn đặc trưng của PostgreSQL.",
+        "gotchas": [
+            "Cú pháp :: là tính năng độc quyền của PostgreSQL (có từ thời Postgres 4.2). Nó hoàn toàn không tương thích với SQL Server (gây lỗi cú pháp Incorrect syntax near '::').",
+            "Nếu dữ liệu không thể chuyển đổi (ví dụ: 'abc'::integer), PostgreSQL sẽ ném Exception và hủy bỏ toàn bộ Transaction hiện tại."
+        ],
+        "aliases": [
+            "::"
+        ],
+        "source_ids": [
+            "src_pg_type_casting"
+        ],
+        "status": "verified",
+        "updated_at": "2026-10-22",
+        "examples": [
+            {
+                "title": "Double Colon Cast Operator (::) (PostgreSQL)",
+                "sql": "SELECT user_id::text, amount::numeric(10,2), '2026-10-22'::date FROM transactions;"
+            }
+        ],
+        "context": "Mệnh đề SQL chung"
+    },
+    {
+        "id": "ms_try_cast",
+        "database": "sqlserver",
+        "syntax": "TRY_CAST(expression AS data_type) / TRY_CONVERT(data_type, expression [, style])",
+        "display_name": "TRY_CAST / TRY_CONVERT (SQL Server)",
+        "category": "conversion",
+        "description": "Ép kiểu an toàn trong SQL Server: trả về NULL nếu việc chuyển đổi thất bại thay vì ném lỗi văng query.",
+        "gotchas": [
+            "Rất hữu ích khi làm sạch dữ liệu (data cleansing) chứa các giá trị bẩn hoặc không đồng nhất.",
+            "PostgreSQL không có TRY_CAST nguyên bản (phải dùng hàm tự định nghĩa hoặc PG 16+ kiểm tra regex trước)."
+        ],
+        "aliases": [
+            "TRY_CAST",
+            "TRY_CONVERT"
+        ],
+        "source_ids": [
+            "src_ms_type_casting"
+        ],
+        "status": "verified",
+        "updated_at": "2026-10-22",
+        "examples": [
+            {
+                "title": "TRY_CAST / TRY_CONVERT (SQL Server)",
+                "sql": "SELECT TRY_CAST('12345' AS int) AS valid_num, \n       TRY_CAST('invalid_string' AS int) AS safe_null;"
+            }
+        ],
+        "context": "Mệnh đề SQL chung"
+    },
+    {
+        "id": "ms_convert_func",
+        "database": "sqlserver",
+        "syntax": "CONVERT(data_type, expression [, style])",
+        "display_name": "CONVERT (SQL Server)",
+        "category": "conversion",
+        "description": "Hàm ép kiểu mở rộng trong SQL Server hỗ trợ tham số style định dạng ngày tháng và tiền tệ.",
+        "gotchas": [
+            "Hàm CONVERT với tham số style (ví dụ: 120 cho ISO format, 103 cho dd/mm/yyyy) là độc quyền của SQL Server.",
+            "Trong PostgreSQL, định dạng ngày tháng chuỗi sử dụng hàm TO_CHAR(date, 'YYYY-MM-DD HH24:MI:SS')."
+        ],
+        "aliases": [
+            "CONVERT"
+        ],
+        "source_ids": [
+            "src_ms_type_casting"
+        ],
+        "status": "verified",
+        "updated_at": "2026-10-22",
+        "examples": [
+            {
+                "title": "CONVERT (SQL Server)",
+                "sql": "SELECT CONVERT(varchar(20), GETDATE(), 120) AS iso_datetime; -- 'YYYY-MM-DD HH:MI:SS'"
+            }
+        ],
+        "context": "Mệnh đề SQL chung"
+    },
+    {
+        "id": "pg_dml_returning",
+        "database": "postgresql",
+        "syntax": "INSERT INTO ... VALUES (...) RETURNING * | col1, col2\nUPDATE ... SET ... RETURNING * | col1, col2\nDELETE FROM ... WHERE ... RETURNING *",
+        "display_name": "RETURNING Clause (PostgreSQL)",
+        "category": "dml",
+        "description": "Mệnh đề trả về dữ liệu các dòng bị tác động trong câu lệnh DML của PostgreSQL.",
+        "gotchas": [
+            "Mệnh đề RETURNING luôn đặt ở CUỐI CÙNG của câu lệnh SQL trong PostgreSQL.",
+            "Có thể trả về biểu thức hoặc bí danh (RETURNING id, UPPER(username) AS u_name)."
+        ],
+        "aliases": [
+            "RETURNING"
+        ],
+        "source_ids": [
+            "src_pg_dml_returning"
+        ],
+        "status": "verified",
+        "updated_at": "2026-10-22",
+        "examples": [
+            {
+                "title": "RETURNING Clause (PostgreSQL)",
+                "sql": "INSERT INTO users (username, email) \nVALUES ('alex', 'alex@example.com') \nRETURNING id, created_at;"
+            }
+        ],
+        "context": "Mệnh đề SQL chung"
+    },
+    {
+        "id": "ms_dml_output",
+        "database": "sqlserver",
+        "syntax": "INSERT INTO ... OUTPUT inserted.col1, inserted.col2 VALUES (...)\nUPDATE ... SET ... OUTPUT deleted.col, inserted.col WHERE ...\nDELETE FROM ... OUTPUT deleted.* WHERE ...",
+        "display_name": "OUTPUT Clause (SQL Server)",
+        "category": "dml",
+        "description": "Mệnh đề trả về dữ liệu các dòng bị tác động trong câu lệnh DML của SQL Server qua hai bảng ảo inserted và deleted.",
+        "gotchas": [
+            "VỊ TRÍ ĐẶT (GOTCHA): Trong INSERT, OUTPUT nằm TRƯỚC mệnh đề VALUES. Trong UPDATE/DELETE, OUTPUT nằm TRƯỚC mệnh đề WHERE! (Khác với PostgreSQL đặt RETURNING ở cuối cùng).",
+            "Bắt buộc phải chỉ rõ tiền tố bảng ảo: inserted (giá trị mới tạo/cập nhật) hoặc deleted (giá trị cũ bị sửa/xóa).",
+            "Nếu bảng có Trigger, SQL Server yêu cầu dùng cú pháp OUTPUT INTO @tempTable."
+        ],
+        "aliases": [
+            "OUTPUT",
+            "OUTPUT INSERTED",
+            "OUTPUT DELETED"
+        ],
+        "source_ids": [
+            "src_ms_dml_output"
+        ],
+        "status": "verified",
+        "updated_at": "2026-10-22",
+        "examples": [
+            {
+                "title": "OUTPUT Clause (SQL Server)",
+                "sql": "INSERT INTO users (username, email) \nOUTPUT inserted.id, inserted.created_at \nVALUES ('alex', 'alex@example.com');"
+            }
+        ],
+        "context": "Mệnh đề SQL chung"
+    },
+    {
+        "id": "ms_iif",
+        "database": "sqlserver",
+        "syntax": "IIF(boolean_expression, true_value, false_value)",
+        "display_name": "IIF Function (SQL Server 2012+)",
+        "category": "comparison",
+        "description": "Hàm điều kiện rút gọn trong SQL Server tương đương cú pháp ternary operator.",
+        "gotchas": [
+            "SQL Server biên dịch IIF thành biểu thức CASE WHEN nội bộ.",
+            "PostgreSQL KHÔNG có hàm IIF. Để tương đương trên PostgreSQL, bắt buộc phải dùng cú pháp chuẩn ANSI: CASE WHEN score >= 50 THEN 'Đậu' ELSE 'Trượt' END."
+        ],
+        "aliases": [
+            "IIF"
+        ],
+        "source_ids": [
+            "src_ms_conditional_iif"
+        ],
+        "status": "verified",
+        "updated_at": "2026-10-22",
+        "examples": [
+            {
+                "title": "IIF Function (SQL Server 2012+)",
+                "sql": "SELECT id, IIF(score >= 50, 'Đậu', 'Trượt') AS ket_qua FROM students;"
+            }
+        ],
+        "context": "Mệnh đề SQL chung"
+    },
+    {
+        "id": "pg_random",
+        "database": "postgresql",
+        "syntax": "RANDOM()",
+        "display_name": "random() (PostgreSQL)",
+        "category": "numeric",
+        "description": "Trả về số thực dấu phẩy động ngẫu nhiên nằm trong khoảng 0.0 <= x < 1.0.",
+        "gotchas": [
+            "PostgreSQL đánh giá hàm random() RIÊNG BIỆT CHO TỪNG DÒNG. Do đó có thể dùng ORDER BY random() để lấy ngẫu nhiên N dòng."
+        ],
+        "aliases": [
+            "random()",
+            "RANDOM"
+        ],
+        "source_ids": [
+            "src_pg_numeric_random"
+        ],
+        "status": "verified",
+        "updated_at": "2026-10-22",
+        "examples": [
+            {
+                "title": "random() (PostgreSQL)",
+                "sql": "SELECT id, name, RANDOM() AS lucky_num FROM members ORDER BY RANDOM() LIMIT 5;"
+            }
+        ],
+        "context": "Mệnh đề SQL chung"
+    },
+    {
+        "id": "ms_rand",
+        "database": "sqlserver",
+        "syntax": "RAND([seed]) / NEWID() / CHECKSUM(NEWID())",
+        "display_name": "RAND() & NEWID() (SQL Server)",
+        "category": "numeric",
+        "description": "Sinh số ngẫu nhiên trong SQL Server. Lưu ý đặc biệt về việc RAND() chỉ được tính toán 1 lần cho toàn bộ truy vấn.",
+        "gotchas": [
+            "CẢNH BÁO CHÍ TỬ (GOTCHA): Trong SQL Server, hàm RAND() được tối ưu hóa chỉ tính toán MỘT LẦN DUY NHẤT cho toàn bộ câu lệnh SELECT. Do đó: SELECT RAND(), * FROM table sẽ trả về CÙNG MỘT CON SỐ cho tất cả các dòng!",
+            "Để tạo số ngẫu nhiên theo từng dòng hoặc lấy ngẫu nhiên dòng (ORDER BY RAND()), lập trình viên SQL Server bắt buộc phải dùng NEWID() hoặc CHECKSUM(NEWID())."
+        ],
+        "aliases": [
+            "RAND",
+            "NEWID",
+            "CHECKSUM(NEWID())"
+        ],
+        "source_ids": [
+            "src_ms_numeric_rand"
+        ],
+        "status": "verified",
+        "updated_at": "2026-10-22",
+        "examples": [
+            {
+                "title": "RAND() & NEWID() (SQL Server)",
+                "sql": "SELECT TOP (5) id, name FROM members ORDER BY NEWID();\nSELECT id, name, ABS(CHECKSUM(NEWID())) % 100 AS rand_0_99 FROM members;"
+            }
+        ],
+        "context": "Mệnh đề SQL chung"
+    },
+    {
+        "id": "pg_regex_match",
+        "database": "postgresql",
+        "syntax": "string ~ pattern / string ~* pattern (case-insensitive)",
+        "display_name": "POSIX Regular Expression Operator (~) (PostgreSQL)",
+        "category": "string",
+        "description": "Toán tử so khớp chuỗi theo biểu thức chính quy POSIX đầy đủ trong PostgreSQL.",
+        "gotchas": [
+            "~: khớp regex có phân biệt chữ hoa thường.",
+            "~*: khớp regex KHÔNG phân biệt chữ hoa thường.",
+            "!~ và !~*: không khớp regex.",
+            "SQL Server KHÔNG hỗ trợ các toán tử regex ~ này. Nếu chạy trên SQL Server sẽ gây lỗi cú pháp."
+        ],
+        "aliases": [
+            "~",
+            "~*",
+            "!~",
+            "!~*"
+        ],
+        "source_ids": [
+            "src_pg_string_posix_regex"
+        ],
+        "status": "verified",
+        "updated_at": "2026-10-22",
+        "examples": [
+            {
+                "title": "POSIX Regular Expression Operator (~) (PostgreSQL)",
+                "sql": "SELECT * FROM users WHERE email ~* '^[a-z0-9._%+-]+@[a-z0-9.-]+\\.[a-z]{2,}$';"
+            }
+        ],
+        "context": "Mệnh đề SQL chung"
+    },
+    {
+        "id": "pg_generate_series",
+        "database": "postgresql",
+        "syntax": "SELECT * FROM generate_series(start, stop [, step]);",
+        "display_name": "generate_series() (Hàm sinh tập hợp dòng)",
+        "category": "query",
+        "description": "Hàm sinh tập hợp dòng (Set-Returning Function) nguyên bản của PostgreSQL. Thường dùng để tạo dãy số nguyên, chuỗi ngày giờ liên tục phục vụ báo cáo lấp khoảng trống (gap-filling), hoặc tạo dữ liệu mẫu kiểm thử.",
+        "context": "Mệnh đề FROM / SELECT",
+        "version_min": "8.0",
+        "version_max": null,
+        "is_exclusive": true,
+        "aliases": [
+            "generate_series",
+            "sinh dãy số",
+            "dãy ngày tháng",
+            "srf"
+        ],
+        "examples": [
+            {
+                "title": "Sinh chuỗi ngày liên tục trong tháng 10/2026",
+                "sql": "SELECT date_val::date AS calendar_date\nFROM generate_series('2026-10-01'::timestamp, '2026-10-31'::timestamp, INTERVAL '1 day') AS date_val;",
+                "explanation": "Tạo 31 dòng tương ứng 31 ngày, rất hữu ích khi LEFT JOIN với bảng doanh thu để tránh mất ngày không có đơn hàng."
+            },
+            {
+                "title": "Sinh danh sách 10 số chẵn đầu tiên",
+                "sql": "SELECT num FROM generate_series(2, 20, 2) AS num;",
+                "explanation": "Sinh dãy số từ 2 đến 20 với bước nhảy step = 2."
+            }
+        ],
+        "gotchas": [
+            "SQL Server không có hàm generate_series tích hợp sẵn (trừ Azure SQL / SQL Server 2022 gần đây với cú pháp hạn chế). Phải dùng Recursive CTE hoặc bảng số hệ thống.",
+            "Cần ép kiểu rõ ràng (ví dụ: '2026-10-01'::timestamp) khi sinh chuỗi ngày giờ để PostgreSQL suy diễn chính xác kiểu dữ liệu."
+        ],
+        "workaround": "Trong SQL Server, sử dụng Recursive CTE:\nWITH Numbers AS (\n    SELECT 1 AS n UNION ALL SELECT n + 1 FROM Numbers WHERE n < 10\n)\nSELECT n FROM Numbers OPTION (MAXRECURSION 0);",
+        "ai_insights": "Khuyến nghị từ AI: Khi sinh chuỗi ngày tháng dài trên PostgreSQL, generate_series chạy rất nhanh và tiết kiệm bộ nhớ nhờ cơ chế iterator streaming. Khi chuyển đổi sang SQL Server, hãy cẩn thận với giới hạn mặc định MAXRECURSION 100 của Recursive CTE.",
+        "source_ids": [
+            "src_pg_generate_series",
+            "src_pgt_generate_series",
+            "src_ai_pg_exclusive_guide"
+        ],
+        "status": "verified"
+    },
+    {
+        "id": "pg_on_conflict_upsert",
+        "database": "postgresql",
+        "syntax": "INSERT INTO tbl (cols) VALUES (...) ON CONFLICT (target_col) DO UPDATE SET col = EXCLUDED.col [WHERE ...] | DO NOTHING;",
+        "display_name": "ON CONFLICT DO UPDATE / DO NOTHING (Atomic Upsert)",
+        "category": "dml",
+        "description": "Cú pháp Upsert (thêm hoặc cập nhật) an toàn luồng và tối ưu của PostgreSQL từ phiên bản 9.5+. Khi xảy ra trùng lặp khóa chính hoặc Unique Constraint, câu lệnh tự động cập nhật bản ghi bằng bảng giả lập EXCLUDED mà không gây lỗi hoặc treo transaction.",
+        "context": "Mệnh đề INSERT",
+        "version_min": "9.5",
+        "version_max": null,
+        "is_exclusive": true,
+        "aliases": [
+            "ON CONFLICT",
+            "UPSERT",
+            "DO UPDATE",
+            "DO NOTHING",
+            "EXCLUDED"
+        ],
+        "examples": [
+            {
+                "title": "Upsert hồ sơ người dùng (Cập nhật nếu đã có)",
+                "sql": "INSERT INTO users (id, email, full_name, updated_at)\nVALUES (101, 'user@example.com', 'Nguyen Van A', NOW())\nON CONFLICT (id) DO UPDATE\nSET full_name = EXCLUDED.full_name,\n    updated_at = NOW();",
+                "explanation": "Bảng giả EXCLUDED chứa các giá trị mới được cung cấp trong mệnh đề VALUES."
+            },
+            {
+                "title": "Bỏ qua bản ghi trùng lặp (DO NOTHING)",
+                "sql": "INSERT INTO tags (tag_name)\nVALUES ('database'), ('postgresql')\nON CONFLICT (tag_name) DO NOTHING;",
+                "explanation": "Nếu tag_name đã tồn tại trong bảng thì bỏ qua, không phát sinh lỗi Unique Violation."
+            }
+        ],
+        "gotchas": [
+            "Bắt buộc target_col phải có Unique Index hoặc Primary Key tương ứng xác định.",
+            "Khác với MERGE của SQL Server, ON CONFLICT chỉ xử lý chèn/cập nhật, không hỗ trợ DELETE trực tiếp."
+        ],
+        "workaround": "Trong SQL Server, tính năng tương đương là câu lệnh MERGE INTO ... USING ... WHEN MATCHED THEN UPDATE ... WHEN NOT MATCHED THEN INSERT.",
+        "ai_insights": "Khuyến nghị từ AI: ON CONFLICT của PostgreSQL có hiệu năng vượt trội hơn MERGE của SQL Server trong môi trường concurrency cao vì nó là một atomic row-level operation được quản lý trực tiếp bởi b-tree index lock.",
+        "source_ids": [
+            "src_pg_insert_on_conflict",
+            "src_pgt_upsert",
+            "src_ai_upsert_strategy"
+        ],
+        "status": "verified"
+    },
+    {
+        "id": "pg_distinct_on",
+        "database": "postgresql",
+        "syntax": "SELECT DISTINCT ON (col1 [, col2...]) column_list FROM table_name ORDER BY col1, sort_col [DESC];",
+        "display_name": "DISTINCT ON (Lọc 1 dòng đầu tiên mỗi nhóm)",
+        "category": "query",
+        "description": "Cú pháp đặc trưng riêng của PostgreSQL cho phép giữ lại duy nhất dòng đầu tiên của mỗi nhóm xác định bởi biểu thức trong ngoặc. Dòng được chọn phụ thuộc vào thứ tự sắp xếp trong mệnh đề ORDER BY.",
+        "context": "Mệnh đề SELECT",
+        "version_min": "8.0",
+        "version_max": null,
+        "is_exclusive": true,
+        "aliases": [
+            "DISTINCT ON",
+            "Lọc 1 dòng đầu mỗi nhóm"
+        ],
+        "examples": [
+            {
+                "title": "Lấy đơn hàng mới nhất của mỗi khách hàng",
+                "sql": "SELECT DISTINCT ON (customer_id) customer_id, order_id, order_date, total_amount\nFROM orders\nORDER BY customer_id, order_date DESC;",
+                "explanation": "DISTINCT ON (customer_id) kết hợp ORDER BY customer_id, order_date DESC đảm bảo lấy đơn hàng có ngày lớn nhất cho từng khách hàng."
+            }
+        ],
+        "gotchas": [
+            "Biểu thức trong DISTINCT ON (...) bắt buộc phải khớp với các cột đứng đầu tiên trong mệnh đề ORDER BY.",
+            "SQL Server không có cú pháp này, bắt buộc phải dùng ROW_NUMBER() OVER (PARTITION BY ...)."
+        ],
+        "workaround": "Trong SQL Server, sử dụng Window Function ROW_NUMBER():\nWITH Ranked AS (\n    SELECT customer_id, order_id, order_date, total_amount,\n           ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY order_date DESC) AS rn\n    FROM orders\n)\nSELECT customer_id, order_id, order_date, total_amount FROM Ranked WHERE rn = 1;",
+        "ai_insights": "Khuyến nghị từ AI: DISTINCT ON trong PostgreSQL chạy rất nhanh nếu có sẵn Composite Index trên (customer_id, order_date DESC). Trong SQL Server, giải pháp ROW_NUMBER() tương đương về mặt logic nhưng có thể tốn bộ nhớ sort trong tempdb nếu tập dữ liệu lớn.",
+        "source_ids": [
+            "src_pg_distinct_on",
+            "src_pgt_distinct",
+            "src_ai_pg_exclusive_guide"
+        ],
+        "status": "verified"
+    },
+    {
+        "id": "pg_array_construct_ops",
+        "database": "postgresql",
+        "syntax": "ARRAY[val1, val2] / col @> ARRAY['a'] / col && ARRAY['b', 'c']",
+        "display_name": "Native Array (Mảng dữ liệu & Toán tử @>, &&)",
+        "category": "datatype",
+        "description": "PostgreSQL hỗ trợ kiểu dữ liệu mảng nguyên bản (Native Array Type) cho bất kỳ kiểu cơ sở nào (TEXT[], INT[], UUID[]). Cung cấp các toán tử tối ưu như @> (chứa mảng), && (giao mảng), kết hợp chỉ mục GIN để tìm kiếm phần tử với tốc độ O(log N).",
+        "context": "Kiểu dữ liệu & Mệnh đề WHERE",
+        "version_min": "8.0",
+        "version_max": null,
+        "is_exclusive": true,
+        "aliases": [
+            "ARRAY[]",
+            "Mảng PostgreSQL",
+            "@>",
+            "&&",
+            "array_agg"
+        ],
+        "examples": [
+            {
+                "title": "Tìm bài viết chứa cả 2 thẻ 'sql' và 'database'",
+                "sql": "SELECT id, title, tags\nFROM articles\nWHERE tags @> ARRAY['sql', 'database'];",
+                "explanation": "Toán tử @> (contains) kiểm tra cột mảng tags có chứa tất cả các phần tử trong mảng bên phải hay không."
+            },
+            {
+                "title": "Tìm người dùng có bất kỳ quyền nào trong danh sách",
+                "sql": "SELECT username, roles\nFROM user_accounts\nWHERE roles && ARRAY['admin', 'moderator'];",
+                "explanation": "Toán tử && (overlap) kiểm tra xem 2 mảng có phần tử chung nào hay không."
+            }
+        ],
+        "gotchas": [
+            "Chỉ số mảng trong PostgreSQL theo mặc định tính từ 1 (1-based index), không phải 0.",
+            "SQL Server không có kiểu mảng nguyên bản; phải dùng bảng liên kết phụ hoặc chuỗi JSON."
+        ],
+        "workaround": "Trong SQL Server, sử dụng kiểu chuỗi phân cách kết hợp STRING_SPLIT, hoặc lưu mảng dưới dạng JSON string và truy vấn bằng OPENJSON().",
+        "ai_insights": "Khuyến nghị từ AI: Kiểu Array của PostgreSQL cực kỳ tiện lợi cho các thuộc tính dạng tags, roles, permissions. Nếu cần tương thích đa hệ CSDL, nên cân nhắc lưu dạng JSON hoặc bảng quan hệ chuẩn.",
+        "source_ids": [
+            "src_pg_arrays",
+            "src_pgt_arrays",
+            "src_ai_pg_exclusive_guide"
+        ],
+        "status": "verified"
+    },
+    {
+        "id": "pg_anonymous_do_block",
+        "database": "postgresql",
+        "syntax": "DO $$ DECLARE ... BEGIN ... EXCEPTION WHEN ... THEN ... END $$;",
+        "display_name": "Khối lệnh ẩn danh (DO $$ Anonymous Block)",
+        "category": "procedural",
+        "description": "Cho phép thực thi một đoạn mã PL/pgSQL độc lập (có biến, vòng lặp, xử lý ngoại lệ EXCEPTION) mà không cần phải tạo hàm (Stored Function / Procedure) vĩnh viễn trong schema.",
+        "context": "Script thực thi thủ tục",
+        "version_min": "9.0",
+        "version_max": null,
+        "is_exclusive": true,
+        "aliases": [
+            "DO $$",
+            "DO BLOCK",
+            "Anonymous Block",
+            "PL/pgSQL Block"
+        ],
+        "examples": [
+            {
+                "title": "Script cập nhật dữ liệu có bẫy lỗi Exception",
+                "sql": "DO $$\nDECLARE\n    v_count INT := 0;\nBEGIN\n    UPDATE accounts SET balance = balance - 100 WHERE id = 1;\n    GET DIAGNOSTICS v_count = ROW_COUNT;\n    RAISE NOTICE 'Đã trừ tiền cho % tài khoản', v_count;\nEXCEPTION WHEN OTHERS THEN\n    RAISE WARNING 'Lỗi khi cập nhật tài khoản: %', SQLERRM;\nEND $$;",
+                "explanation": "Thực thi trọn vẹn logic PL/pgSQL độc lập mà không lưu vào catalog hàm hệ thống."
+            }
+        ],
+        "gotchas": [
+            "Khối DO không thể trả về tập kết quả dạng SELECT (ResultSet) cho client, chỉ trả về void.",
+            "Có thể dùng các ngôn ngữ thủ tục khác nếu đã cài đặt (ví dụ: DO LANGUAGE plpythonu $$...$$)."
+        ],
+        "workaround": "Trong SQL Server, T-SQL cho phép viết biến DECLARE và lệnh IF/WHILE/BEGIN...END trực tiếp ở cấp độ batch mà không cần bọc trong khối DO.",
+        "ai_insights": "Khuyến nghị từ AI: DO Block rất thích hợp cho việc viết migration script (DDL/DML patching), kiểm tra điều kiện dữ liệu trước khi nâng cấp cấu trúc bảng.",
+        "source_ids": [
+            "src_pg_do_block",
+            "src_w3s_postgresql",
+            "src_ai_pg_exclusive_guide"
+        ],
+        "status": "verified"
+    },
+    {
+        "id": "pg_copy_command",
+        "database": "postgresql",
+        "syntax": "COPY table_name (cols) FROM '/path/file.csv' WITH (FORMAT csv, HEADER true);",
+        "display_name": "COPY (Nạp & Xuất dữ liệu Bulk Copy)",
+        "category": "utility",
+        "description": "Lệnh sao chép dữ liệu khối lượng lớn (Bulk Data Transfer) tốc độ cao giữa các bảng PostgreSQL và tập tin hệ thống hoặc luồng mạng.",
+        "context": "Lệnh tiện ích hệ thống",
+        "version_min": "8.0",
+        "version_max": null,
+        "is_exclusive": true,
+        "aliases": [
+            "COPY FROM",
+            "COPY TO",
+            "\\copy",
+            "Bulk copy postgres"
+        ],
+        "examples": [
+            {
+                "title": "Nạp dữ liệu từ file CSV vào bảng",
+                "sql": "COPY customers (id, full_name, email, created_at)\nFROM '/var/data/customers.csv'\nWITH (FORMAT csv, HEADER true, DELIMITER ',');",
+                "explanation": "Nạp trực tiếp từ file trên server với tốc độ cực nhanh, bỏ qua overhead của từng dòng INSERT."
+            },
+            {
+                "title": "Xuất kết quả truy vấn ra file CSV",
+                "sql": "COPY (SELECT id, full_name, total_spent FROM top_customers)\nTO '/var/data/export_top.csv'\nWITH (FORMAT csv, HEADER true);",
+                "explanation": "Xuất tập kết quả của subquery ra tệp tin CSV có dòng tiêu đề."
+            }
+        ],
+        "gotchas": [
+            "Lệnh COPY chạy trên server filesystem, yêu cầu quyền superuser hoặc role pg_read_server_files/pg_write_server_files.",
+            "Để chạy từ máy client, trong psql sử dụng meta-command \\copy thay thế."
+        ],
+        "workaround": "Trong SQL Server, lệnh tương đương là BULK INSERT table_name FROM 'C:\\path\\file.csv' WITH (...) hoặc công cụ dòng lệnh BCP (Bulk Copy Program).",
+        "ai_insights": "Khuyến nghị từ AI: Khi nạp dữ liệu lớn (hàng triệu dòng), lệnh COPY là lựa chọn nhanh nhất trên PostgreSQL, vượt trội hơn hàng nghìn lần so với INSERT thông thường.",
+        "source_ids": [
+            "src_pg_copy",
+            "src_ai_pg_exclusive_guide"
+        ],
+        "status": "verified"
+    },
+    {
+        "id": "pg_listen_notify",
+        "database": "postgresql",
+        "syntax": "LISTEN channel_name; / NOTIFY channel_name, 'payload_message';",
+        "display_name": "LISTEN / NOTIFY (Message Queue bất đồng bộ)",
+        "category": "messaging",
+        "description": "Hệ thống truyền phát thông điệp Pub/Sub bất đồng bộ (Asynchronous Messaging) tích hợp sẵn trong PostgreSQL. Cho phép ứng dụng backend nhận sự kiện tức thì (real-time notification) khi có thay đổi dữ liệu mà không cần polling liên tục.",
+        "context": "Lệnh giao tiếp client",
+        "version_min": "8.0",
+        "version_max": null,
+        "is_exclusive": true,
+        "aliases": [
+            "LISTEN",
+            "NOTIFY",
+            "pg_notify",
+            "pub-sub"
+        ],
+        "examples": [
+            {
+                "title": "Đăng ký lắng nghe kênh thông báo sự kiện",
+                "sql": "LISTEN new_order_events;",
+                "explanation": "Client giữ kết nối sẽ nhận được tín hiệu ngay khi có tiến trình khác gửi NOTIFY vào kênh này."
+            },
+            {
+                "title": "Phát thông báo kèm payload JSON từ Trigger",
+                "sql": "NOTIFY new_order_events, '{\"order_id\": 5001, \"status\": \"paid\"}';",
+                "explanation": "Gửi thông điệp payload tối đa 8000 bytes tới tất cả các client đang LISTEN kênh new_order_events."
+            }
+        ],
+        "gotchas": [
+            "Thông điệp NOTIFY chỉ được gửi đi thực sự khi transaction chứa nó COMMIT thành công. Nếu ROLLBACK, thông điệp sẽ bị hủy bỏ.",
+            "Độ dài tối đa của payload là 8000 bytes."
+        ],
+        "workaround": "Trong SQL Server, không có lệnh tương đương trực tiếp. Các ứng dụng thường sử dụng Service Broker, Query Notifications (SqlDependency), hoặc tích hợp message broker ngoài như RabbitMQ/Redis.",
+        "ai_insights": "Khuyến nghị từ AI: LISTEN/NOTIFY kết hợp với PostgreSQL Trigger là giải pháp siêu nhẹ để thông báo cache invalidation hoặc cập nhật WebSocket dashboard mà không cần cài thêm message broker phụ.",
+        "source_ids": [
+            "src_pg_listen_notify",
+            "src_ai_pg_exclusive_guide"
+        ],
+        "status": "verified"
+    },
+    {
+        "id": "pg_regexp_split_to_table",
+        "database": "postgresql",
+        "syntax": "SELECT * FROM regexp_split_to_table(string, pattern_regex);",
+        "display_name": "regexp_split_to_table() (Tách chuỗi bằng Regex)",
+        "category": "string",
+        "description": "Tách một chuỗi văn bản thành các dòng độc lập dựa trên biểu thức chính quy (Regular Expression) phức tạp, xử lý được nhiều loại ký tự phân cách cùng lúc.",
+        "context": "Mệnh đề FROM / SELECT",
+        "version_min": "8.3",
+        "version_max": null,
+        "is_exclusive": true,
+        "aliases": [
+            "regexp_split_to_table",
+            "split regex",
+            "tách chuỗi regex"
+        ],
+        "examples": [
+            {
+                "title": "Tách chuỗi bằng nhiều loại ký tự phân cách (phẩy, chấm phẩy, khoảng trắng)",
+                "sql": "SELECT item\nFROM regexp_split_to_table('Apple, Orange; Banana Grape', '[,;\\s]+') AS item\nWHERE item <> '';",
+                "explanation": "Biểu thức chính quy '[,;\\s]+' xử lý mượt mà cả dấu phẩy, chấm phẩy và khoảng trắng liên tiếp."
+            }
+        ],
+        "gotchas": [
+            "Nếu pattern regex khớp với chuỗi rỗng có thể sinh ra các dòng rỗng không mong muốn.",
+            "SQL Server STRING_SPLIT chỉ hỗ trợ ký tự phân cách đơn lẻ (1 char), không hỗ trợ regex."
+        ],
+        "workaround": "Trong SQL Server, với ký tự phân cách đơn, sử dụng SELECT value FROM STRING_SPLIT(string, ','). Với ký tự phức tạp, cần dùng CLR User-Defined Function (C#) hoặc logic lặp REPLACE/XML.",
+        "ai_insights": "Khuyến nghị từ AI: regexp_split_to_table cực kỳ mạnh mẽ khi cần chuẩn hóa văn bản chứa nhiều ký tự phân cách không đồng nhất như khoảng trắng, phẩy, chấm phẩy.",
+        "source_ids": [
+            "src_pg_pattern_matching",
+            "src_w3s_postgresql",
+            "src_ai_pg_exclusive_guide"
+        ],
+        "status": "verified"
+    },
+    {
+        "id": "ms_select_into_temp",
+        "database": "sqlserver",
+        "syntax": "SELECT col1, col2 INTO #LocalTempTable FROM SourceTable WHERE condition;",
+        "display_name": "SELECT INTO #TempTable (Tạo bảng tạm tự động)",
+        "category": "query",
+        "description": "Cú pháp cực kỳ phổ biến trong T-SQL để tạo nhanh một bảng tạm thời cục bộ (Local Temporary Table có tiền tố #) trong TempDB dựa trên cấu trúc kiểu dữ liệu của tập kết quả SELECT.",
+        "context": "Mệnh đề SELECT INTO",
+        "version_min": "2000",
+        "version_max": null,
+        "is_exclusive": true,
+        "aliases": [
+            "SELECT INTO #",
+            "#temp",
+            "#TempTable",
+            "Bảng tạm T-SQL"
+        ],
+        "examples": [
+            {
+                "title": "Trích xuất nhân viên lương cao vào bảng tạm",
+                "sql": "SELECT id, emp_name, salary, department_id\nINTO #HighEarners\nFROM employees\nWHERE salary > 50000;\n\n-- Truy vấn từ bảng tạm vừa tạo\nSELECT * FROM #HighEarners WHERE department_id = 10;",
+                "explanation": "Bảng #HighEarners được tự động định nghĩa kiểu dữ liệu dựa theo các cột của employees và lưu trong TempDB của phiên hiện tại."
+            }
+        ],
+        "gotchas": [
+            "Bảng tạm #TempTable tự động bị giải phóng khi phiên kết nối (session) kết thúc hoặc Stored Procedure thực thi xong.",
+            "Không thể chạy lại câu lệnh SELECT INTO #TempTable lần 2 trong cùng 1 session nếu bảng #TempTable chưa được DROP TABLE."
+        ],
+        "workaround": "Trong PostgreSQL, cú pháp là CREATE TEMP TABLE TempTable AS SELECT ... hoặc CREATE TEMPORARY TABLE. PostgreSQL không sử dụng tiền tố #.",
+        "ai_insights": "Khuyến nghị từ AI: #TempTable trong SQL Server hỗ trợ tạo Index, thống kê Statistics và rất hữu ích cho các thủ tục xử lý dữ liệu phức tạp nhiều bước.",
+        "source_ids": [
+            "src_ms_select_into",
+            "src_w3s_select_into",
+            "src_ai_ms_exclusive_guide"
+        ],
+        "status": "verified"
+    },
+    {
+        "id": "ms_merge_statement",
+        "database": "sqlserver",
+        "syntax": "MERGE INTO target_table USING source ON cond WHEN MATCHED THEN UPDATE ... WHEN NOT MATCHED THEN INSERT ...;",
+        "display_name": "MERGE Statement (Tích hợp INSERT / UPDATE / DELETE)",
+        "category": "dml",
+        "description": "Câu lệnh DML mạnh mẽ trong SQL Server cho phép đồng bộ hóa dữ liệu giữa bảng nguồn và bảng đích: vừa INSERT dòng mới, vừa UPDATE dòng thay đổi, và thậm chí DELETE dòng không còn tồn tại trong một lượt quét.",
+        "context": "Câu lệnh DML",
+        "version_min": "2008",
+        "version_max": null,
+        "is_exclusive": true,
+        "aliases": [
+            "MERGE INTO",
+            "WHEN MATCHED",
+            "WHEN NOT MATCHED",
+            "MERGE T-SQL"
+        ],
+        "examples": [
+            {
+                "title": "Đồng bộ hóa danh mục sản phẩm từ bảng Staging",
+                "sql": "MERGE INTO products AS target\nUSING staging_products AS source\nON (target.product_code = source.product_code)\nWHEN MATCHED AND (target.price <> source.price OR target.stock <> source.stock)\n    THEN UPDATE SET target.price = source.price, target.stock = source.stock\nWHEN NOT MATCHED BY TARGET\n    THEN INSERT (product_code, product_name, price, stock)\n         VALUES (source.product_code, source.product_name, source.price, source.stock)\nWHEN NOT MATCHED BY SOURCE AND target.is_active = 1\n    THEN UPDATE SET target.is_active = 0;\n",
+                "explanation": "Vừa cập nhật giá/kho, vừa thêm sản phẩm mới, vừa đánh dấu ngưng hoạt động cho sản phẩm không còn trong nguồn."
+            }
+        ],
+        "gotchas": [
+            "Câu lệnh MERGE trong SQL Server bắt buộc phải kết thúc bằng dấu chấm phẩy (;).",
+            "Cần cẩn thận với Deadlock và Race Condition khi chạy MERGE đồng thời từ nhiều luồng nếu không có gợi ý WITH (HOLDLOCK)."
+        ],
+        "workaround": "Trong PostgreSQL, đối chiếu thường dùng là INSERT ... ON CONFLICT DO UPDATE. Với trường hợp cần cả DELETE, PostgreSQL sử dụng kỹ thuật kết hợp CTE với FULL OUTER JOIN.",
+        "ai_insights": "Khuyến nghị từ AI: Câu lệnh MERGE trong SQL Server bắt buộc phải kết thúc bằng dấu chấm phẩy (;). Trong môi trường đa luồng, nên thêm gợi ý WITH (HOLDLOCK) để ngăn chặn race condition.",
+        "source_ids": [
+            "src_ms_merge",
+            "src_w3s_sql_server",
+            "src_ai_upsert_strategy"
+        ],
+        "status": "verified"
+    },
+    {
+        "id": "ms_table_variable",
+        "database": "sqlserver",
+        "syntax": "DECLARE @TableName TABLE (id INT PRIMARY KEY, name NVARCHAR(100), val DECIMAL(18,2));",
+        "display_name": "DECLARE @Table (Biến bảng trong bộ nhớ)",
+        "category": "procedural",
+        "description": "Biến kiểu bảng trong T-SQL có phạm vi cục bộ bên trong Stored Procedure hoặc batch lệnh. Không phát sinh nhiều transaction log như bảng thông thường và không bị rollback nếu transaction bị ROLLBACK.",
+        "context": "Khai báo biến trong Batch / Stored Proc",
+        "version_min": "2000",
+        "version_max": null,
+        "is_exclusive": true,
+        "aliases": [
+            "@table",
+            "Table Variable",
+            "Biến bảng T-SQL",
+            "DECLARE TABLE"
+        ],
+        "examples": [
+            {
+                "title": "Khai báo và sử dụng biến bảng để lưu dữ liệu trung gian",
+                "sql": "DECLARE @DiscountedUsers TABLE (\n    user_id INT PRIMARY KEY,\n    discount_pct DECIMAL(5,2)\n);\n\nINSERT INTO @DiscountedUsers (user_id, discount_pct)\nSELECT id, 0.15 FROM users WHERE total_orders > 10;\n\nSELECT u.email, d.discount_pct\nFROM users u\nINNER JOIN @DiscountedUsers d ON u.id = d.user_id;",
+                "explanation": "Biến @DiscountedUsers chỉ tồn tại trong suốt quá trình chạy của batch này rồi tự động giải phóng."
+            }
+        ],
+        "gotchas": [
+            "Biến bảng không có statistics cột; Query Optimizer luôn giả định số dòng là 1 (trên các bản SQL cũ trước 2019).",
+            "Không thể chạy lệnh ALTER TABLE trên biến bảng sau khi đã khai báo."
+        ],
+        "workaround": "PostgreSQL không có khái niệm biến bảng trực tiếp; giải pháp thay thế là sử dụng CREATE TEMP TABLE hoặc mảng đối tượng JSON / Composite Types.",
+        "ai_insights": "Khuyến nghị từ AI: Biến bảng @Table tối ưu nhất cho tập dữ liệu nhỏ (dưới 1000 dòng). Với tập dữ liệu lớn, nên dùng #TempTable vì #TempTable có bộ đếm Statistics giúp Query Optimizer chọn Execution Plan chuẩn xác hơn.",
+        "source_ids": [
+            "src_ms_table_variable",
+            "src_ai_ms_exclusive_guide"
+        ],
+        "status": "verified"
+    },
+    {
+        "id": "ms_set_nocount",
+        "database": "sqlserver",
+        "syntax": "SET NOCOUNT ON; / SET NOCOUNT OFF;",
+        "display_name": "SET NOCOUNT ON (Tắt thông báo số dòng)",
+        "category": "optimization",
+        "description": "Chỉ thị tắt thông báo '(n rows affected)' được gửi từ SQL Server về client sau mỗi câu lệnh DML. Giúp giảm lưu lượng mạng đáng kể, đặc biệt khi Stored Procedure có nhiều vòng lặp hoặc nhiều câu lệnh con.",
+        "context": "Đầu Stored Procedure / Trigger / Batch",
+        "version_min": "2000",
+        "version_max": null,
+        "is_exclusive": true,
+        "aliases": [
+            "SET NOCOUNT",
+            "NOCOUNT ON",
+            "rows affected"
+        ],
+        "examples": [
+            {
+                "title": "Sử dụng SET NOCOUNT ON trong Stored Procedure",
+                "sql": "CREATE OR ALTER PROCEDURE dbo.usp_ProcessOrderBatch\nAS\nBEGIN\n    SET NOCOUNT ON;\n\n    UPDATE orders SET status = 'PROCESSING' WHERE status = 'PENDING';\n    INSERT INTO audit_logs (log_message) VALUES ('Batch processed');\nEND;",
+                "explanation": "Ngăn không cho SQL Server gửi các thông điệp DONE_IN_PROC về client, giảm round-trips và tăng tốc độ xử lý."
+            }
+        ],
+        "gotchas": [
+            "Một số ứng dụng ORM cũ (như ADO.NET cũ) có thể cần kiểm tra Recordset Count; khi đó SET NOCOUNT ON có thể khiến chúng hiểu nhầm không có dòng nào bị ảnh hưởng.",
+            "Chỉ có hiệu lực trong scope của session hoặc procedure hiện tại."
+        ],
+        "workaround": "PostgreSQL không cần chỉ thị này vì kiến trúc giao thức mạng libpq của PostgreSQL truyền tải CommandComplete tag một cách tự nhiên và nhẹ nhàng.",
+        "ai_insights": "Khuyến nghị từ AI: Đặt SET NOCOUNT ON ở dòng đầu tiên của mọi Stored Procedure và Trigger trong SQL Server là Best Practice chuẩn công nghiệp.",
+        "source_ids": [
+            "src_ms_set_nocount",
+            "src_w3s_sql_server",
+            "src_ai_ms_exclusive_guide"
+        ],
+        "status": "verified"
+    },
+    {
+        "id": "ms_string_split",
+        "database": "sqlserver",
+        "syntax": "SELECT value [, ordinal] FROM STRING_SPLIT(string, separator [, enable_ordinal]);",
+        "display_name": "STRING_SPLIT() (Tách chuỗi thành tập dòng)",
+        "category": "string",
+        "description": "Hàm bảng (Table-Valued Function) tích hợp từ SQL Server 2016 giúp phân tách chuỗi có ký tự phân cách thành các dòng dữ liệu. SQL Server 2022 bổ sung thêm cột vị trí ordinal (enable_ordinal = 1).",
+        "context": "Mệnh đề FROM / CROSS APPLY",
+        "version_min": "2016",
+        "version_max": null,
+        "is_exclusive": true,
+        "aliases": [
+            "STRING_SPLIT",
+            "tách chuỗi T-SQL",
+            "split string sql server"
+        ],
+        "examples": [
+            {
+                "title": "Tách danh sách ID dạng chuỗi và JOIN với bảng Users",
+                "sql": "DECLARE @UserList NVARCHAR(100) = '101,102,105,108';\n\nSELECT u.id, u.full_name, u.email\nFROM STRING_SPLIT(@UserList, ',') AS s\nINNER JOIN users u ON u.id = TRY_CONVERT(INT, s.value);",
+                "explanation": "Chuyển chuỗi '101,102,105,108' thành 4 dòng dữ liệu độc lập để JOIN."
+            },
+            {
+                "title": "Lấy thứ tự phần tử bằng enable_ordinal (SQL Server 2022+)",
+                "sql": "SELECT value, ordinal\nFROM STRING_SPLIT('Red,Green,Blue', ',', 1);",
+                "explanation": "Cột ordinal trả về số thứ tự vị trí xuất hiện (1, 2, 3)."
+            }
+        ],
+        "gotchas": [
+            "Ký tự phân cách (separator) chỉ được phép là 1 ký tự duy nhất (nchar(1) hoặc nvarchar(1)).",
+            "Trước SQL Server 2022, thứ tự các dòng trả về không được đảm bảo trừ khi tự đánh số."
+        ],
+        "workaround": "Trong PostgreSQL, hàm tương đương là string_to_table(string, delimiter) hoặc unnest(string_to_array(string, delimiter)).",
+        "ai_insights": "Khuyến nghị từ AI: Trước SQL Server 2016, lập trình viên phải viết hàm tách chuỗi qua XML hoặc vòng lặp WHILE rất chậm. STRING_SPLIT chạy bằng native C++ code cho hiệu năng cao hơn gấp nhiều lần.",
+        "source_ids": [
+            "src_ms_string_split",
+            "src_ai_ms_exclusive_guide"
+        ],
+        "status": "verified"
+    },
+    {
+        "id": "ms_try_convert_parse",
+        "database": "sqlserver",
+        "syntax": "TRY_CONVERT(data_type, expression [, style]) / TRY_PARSE(expression AS data_type [USING culture])",
+        "display_name": "TRY_CONVERT() / TRY_PARSE() (Ép kiểu an toàn)",
+        "category": "conversion",
+        "description": "Cơ chế ép kiểu an toàn của T-SQL: nếu giá trị đầu vào sai định dạng (ví dụ 'abc' sang INT, hoặc '2026-02-30' sang DATE), hàm trả về NULL thay vì sinh lỗi làm dừng transaction.",
+        "context": "Mệnh đề SELECT / WHERE",
+        "version_min": "2012",
+        "version_max": null,
+        "is_exclusive": true,
+        "aliases": [
+            "TRY_CONVERT",
+            "TRY_PARSE",
+            "Ép kiểu an toàn",
+            "safe cast"
+        ],
+        "examples": [
+            {
+                "title": "Ép kiểu chuỗi sang số nguyên và ngày giờ an toàn",
+                "sql": "SELECT \n    TRY_CONVERT(INT, '12345') AS valid_num,\n    TRY_CONVERT(INT, '123a') AS invalid_num,\n    TRY_CONVERT(DATE, '2026-02-30') AS invalid_date;\n-- Kết quả: 12345, NULL, NULL",
+                "explanation": "Các giá trị sai định dạng tự động trả về NULL thay vì báo lỗi 'Conversion failed'."
+            }
+        ],
+        "gotchas": [
+            "TRY_PARSE dựa trên .NET CLR và có chi phí CPU cao hơn TRY_CONVERT.",
+            "Không bảo vệ khỏi các lỗi tràn số học như chia cho 0 (divide by zero)."
+        ],
+        "workaround": "PostgreSQL trước phiên bản 16 không có hàm try_cast tích hợp; người dùng thường phải viết hàm PL/pgSQL với khối EXCEPTION hoặc dùng regex kiểm tra trước khi ép kiểu.",
+        "ai_insights": "Khuyến nghị từ AI: Sử dụng TRY_CONVERT rất tiện lợi khi làm sạch dữ liệu (Data Cleaning) từ file text hoặc staging table trước khi nạp vào kho dữ liệu Data Warehouse.",
+        "source_ids": [
+            "src_ms_try_convert",
+            "src_w3s_sql_server",
+            "src_ai_ms_exclusive_guide"
+        ],
+        "status": "verified"
+    },
+    {
+        "id": "ms_scope_identity",
+        "database": "sqlserver",
+        "syntax": "SCOPE_IDENTITY() / @@IDENTITY / IDENT_CURRENT('table_name')",
+        "display_name": "SCOPE_IDENTITY() (Lấy khóa tự tăng vừa tạo)",
+        "category": "identity",
+        "description": "Hàm trả về giá trị IDENTITY cuối cùng được tạo ra trong cùng một phạm vi (scope) thực thi hiện tại trong SQL Server. Tránh được lỗi đọc nhầm ID do Trigger sinh ra (vốn là nhược điểm của @@IDENTITY).",
+        "context": "Ngay sau câu lệnh INSERT",
+        "version_min": "2000",
+        "version_max": null,
+        "is_exclusive": true,
+        "aliases": [
+            "SCOPE_IDENTITY",
+            "@@IDENTITY",
+            "IDENT_CURRENT",
+            "lấy id vừa chèn"
+        ],
+        "examples": [
+            {
+                "title": "Chèn bản ghi đơn hàng và lấy mã OrderID vừa tạo",
+                "sql": "INSERT INTO orders (customer_id, order_date, total_amount)\nVALUES (1001, GETDATE(), 250.00);\n\nDECLARE @NewOrderID INT = SCOPE_IDENTITY();\n\nINSERT INTO order_items (order_id, product_id, quantity)\nVALUES (@NewOrderID, 50, 2);",
+                "explanation": "@NewOrderID chứa chính xác giá trị IDENTITY vừa sinh trong bảng orders của lệnh INSERT trên."
+            }
+        ],
+        "gotchas": [
+            "@@IDENTITY có thể bị sai lệch nếu bảng có Trigger tự động chèn sang bảng nhật ký audit khác.",
+            "SCOPE_IDENTITY() trả về NULL nếu câu lệnh INSERT không sinh ra giá trị IDENTITY nào."
+        ],
+        "workaround": "Trong PostgreSQL, cách hiện đại và chuẩn xác nhất là dùng mệnh đề INSERT ... RETURNING id. Ngoài ra có thể dùng hàm LASTVAL() hoặc currval('sequence_name').",
+        "ai_insights": "Khuyến nghị từ AI: Luôn ưu tiên dùng SCOPE_IDENTITY() thay cho @@IDENTITY trong SQL Server để đảm bảo an toàn tuyệt đối khi bảng có AFTER INSERT Trigger.",
+        "source_ids": [
+            "src_ms_scope_identity",
+            "src_ai_ms_exclusive_guide"
+        ],
+        "status": "verified"
+    },
+    {
+        "id": "ms_dbcc_checkdb",
+        "database": "sqlserver",
+        "syntax": "DBCC CHECKDB ('DatabaseName') WITH NO_INFOMSGS, ALL_ERRORMSGS;",
+        "display_name": "DBCC CHECKDB (Kiểm tra toàn vẹn CSDL)",
+        "category": "admin",
+        "description": "Lệnh điều khiển bảng điều khiển CSDL (Database Console Command) cốt lõi của SQL Server nhằm kiểm tra tính toàn vẹn vật lý và logic của tất cả các đối tượng, trang cấp phát (allocation pages), chuỗi B-tree và catalog.",
+        "context": "Lệnh quản trị hệ thống",
+        "version_min": "2000",
+        "version_max": null,
+        "is_exclusive": true,
+        "aliases": [
+            "DBCC CHECKDB",
+            "DBCC",
+            "Database Consistency Checker"
+        ],
+        "examples": [
+            {
+                "title": "Kiểm tra toàn vẹn CSDL SalesDB và chỉ in thông báo lỗi",
+                "sql": "DBCC CHECKDB ('SalesDB') WITH NO_INFOMSGS, ALL_ERRORMSGS;",
+                "explanation": "Quét toàn bộ cấu trúc vật lý của SalesDB và xuất báo cáo nếu phát hiện trang dữ liệu bị hỏng (corrupt page)."
+            }
+        ],
+        "gotchas": [
+            "DBCC CHECKDB có thể gây tiêu tốn nhiều tài nguyên I/O và CPU trên các CSDL lớn (hàng Terabytes); nên chạy vào ban đêm hoặc trên bản sao lưu.",
+            "Tự động tạo ra một snapshot ẩn của CSDL để kiểm tra trong lúc người dùng vẫn đang truy vấn."
+        ],
+        "workaround": "Trong PostgreSQL, công cụ tương đương là extension amcheck (kiểm tra btree index), lệnh VACUUM và tiện ích dòng lệnh pg_checksums.",
+        "ai_insights": "Khuyến nghị từ AI: Chạy DBCC CHECKDB định kỳ (hàng tuần hoặc hàng tháng) là quy trình bắt buộc của các DBA SQL Server để phát hiện sớm các hiện tượng hỏng ổ cứng (disk corruption).",
+        "source_ids": [
+            "src_ms_dbcc_checkdb",
+            "src_ai_ms_exclusive_guide"
+        ],
+        "status": "verified"
+    }
+]

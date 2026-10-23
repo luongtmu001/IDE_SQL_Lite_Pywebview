@@ -168,6 +168,13 @@ class SqlServerAdapter(DatabaseAdapter):
                     self.connection.add_output_converter(-25, _convert_sql_variant)
                 except Exception:
                     pass
+                try:
+                    with self.connection.cursor() as cur:
+                        cur.execute("SELECT @@SPID;")
+                        row = cur.fetchone()
+                        self.spid = int(row[0]) if row and row[0] else None
+                except Exception:
+                    self.spid = None
                 return
             except pyodbc.Error as exc:
                 last_exc = exc
@@ -491,17 +498,53 @@ class SqlServerAdapter(DatabaseAdapter):
             self._active_cursor = None
             cursor.close()
 
-    def list_databases(self):
-        result = self.execute(
-            "SELECT name, state_desc "
-            "FROM sys.databases ORDER BY name",
-            limit=0
-        )
-
-        return [
-            {"name": row[0], "state": row[1]}
-            for row in result["rows"]
-        ]
+    def list_databases(self, accessible_only=False):
+        sys_dbs = ("master", "model", "msdb", "tempdb")
+        try:
+            result = self.execute(
+                "SELECT name, state_desc, "
+                "CASE WHEN LOWER(name) IN ('master', 'model', 'msdb', 'tempdb') THEN 1 ELSE 0 END AS is_system, "
+                "HAS_DBACCESS(name) AS has_access "
+                "FROM sys.databases ORDER BY name",
+                limit=0
+            )
+            items = []
+            for row in result.get("rows", []):
+                name = row[0]
+                state = row[1]
+                is_system = bool(row[2]) if len(row) > 2 else (name.lower() in sys_dbs)
+                has_access = bool(row[3]) if len(row) > 3 and row[3] is not None else True
+                if accessible_only:
+                    if state != "ONLINE" or not has_access:
+                        continue
+                items.append({
+                    "name": name,
+                    "state": state,
+                    "is_system": is_system,
+                    "has_access": has_access
+                })
+            return items
+        except Exception:
+            # Fallback for limited permissions / older SQL Server
+            result = self.execute(
+                "SELECT name, state_desc "
+                "FROM sys.databases ORDER BY name",
+                limit=0
+            )
+            items = []
+            for row in result.get("rows", []):
+                name = row[0]
+                state = row[1]
+                is_system = name.lower() in sys_dbs
+                if accessible_only and state != "ONLINE":
+                    continue
+                items.append({
+                    "name": name,
+                    "state": state,
+                    "is_system": is_system,
+                    "has_access": True
+                })
+            return items
 
     def list_schemas(self, database=None):
         db_prefix = f"{quote_ident(database, 'sqlserver')}." if database else ""
@@ -879,6 +922,14 @@ class SqlServerAdapter(DatabaseAdapter):
                 NULL AS base_object_name
             FROM {db_prefix}sys.triggers tr
             WHERE tr.parent_id = 0
+            UNION ALL
+            SELECT
+                t.name,
+                'dbo' AS schema_name,
+                'U' AS type,
+                NULL AS base_object_name
+            FROM tempdb.sys.tables t
+            WHERE t.name LIKE '##%'
             ORDER BY 1
         """
         try:
@@ -924,9 +975,14 @@ class SqlServerAdapter(DatabaseAdapter):
     def get_intellisense_columns(self, database=None, schema=None, table_name=None):
         if not table_name:
             return []
-        db_prefix = f"{quote_ident(database, 'sqlserver')}." if database else ""
-        schema_filter = "AND LOWER(s.name) = LOWER(?)" if schema else ""
-        params = [schema, table_name] if schema else [table_name]
+        if table_name.startswith('##'):
+            db_prefix = "tempdb."
+            schema_filter = ""
+            params = [table_name]
+        else:
+            db_prefix = f"{quote_ident(database, 'sqlserver')}." if database else ""
+            schema_filter = "AND LOWER(s.name) = LOWER(?)" if schema else ""
+            params = [schema, table_name] if schema else [table_name]
 
         query = f"""
             SELECT 
@@ -1017,39 +1073,90 @@ class SqlServerAdapter(DatabaseAdapter):
         except Exception:
             return []
 
-    def get_intellisense_parameters(self, database=None, schema=None, object_name=None):
-        if not object_name:
+    def get_intellisense_parameters(self, database=None, schema=None, object_name=None, name=None):
+        target_name = object_name or name
+        if not target_name:
             return []
+        clean_name = target_name.strip("[]\" ")
+        clean_schema = schema.strip("[]\" ") if schema else None
         db_prefix = f"{quote_ident(database, 'sqlserver')}." if database else ""
-        schema_filter = "AND LOWER(s.name) = LOWER(?)" if schema else ""
-        params = [schema, object_name] if schema else [object_name]
+        schema_filter = "AND LOWER(s.name) = LOWER(?)" if clean_schema else ""
+        query_params = [clean_schema, clean_name, clean_name] if clean_schema else [clean_name, clean_name]
 
         query = f"""
             SELECT 
                 p.name,
                 t.name AS type_name,
                 p.max_length,
-                p.is_output
+                p.precision,
+                p.scale,
+                p.is_output,
+                p.has_default_value,
+                p.default_value
             FROM {db_prefix}sys.parameters p
             JOIN {db_prefix}sys.types t ON p.user_type_id = t.user_type_id
             JOIN {db_prefix}sys.objects o ON p.object_id = o.object_id
             JOIN {db_prefix}sys.schemas s ON o.schema_id = s.schema_id
-            WHERE 1=1 {schema_filter} AND o.name = ?
+            WHERE p.parameter_id > 0 {schema_filter} AND (LOWER(o.name) = LOWER(?) OR o.name = ?)
             ORDER BY p.parameter_id
         """
         try:
-            res = self.execute(query, params, limit=0, database=database)
+            res = self.execute(query, query_params, limit=0, database=database)
             params_list = []
             for row in res.get("rows", []):
-                p_name, t_name, max_len, is_out = row[0], row[1], row[2], bool(row[3])
+                p_name = row[0] or ""
+                t_name = (row[1] or "").lower()
+                max_len = row[2]
+                prec = row[3]
+                scale = row[4]
+                is_out = bool(row[5])
+                has_def = bool(row[6]) if len(row) > 6 else False
+                def_val = str(row[7]) if len(row) > 7 and row[7] is not None else None
+
+                # Format human-readable data type
+                if t_name in ("varchar", "char", "varbinary", "binary"):
+                    dt_formatted = f"{t_name}(MAX)" if max_len == -1 else (f"{t_name}({max_len})" if max_len and max_len > 0 else t_name)
+                elif t_name in ("nvarchar", "nchar"):
+                    dt_formatted = f"{t_name}(MAX)" if max_len == -1 else (f"{t_name}({max_len // 2})" if max_len and max_len > 0 else t_name)
+                elif t_name in ("decimal", "numeric") and prec:
+                    dt_formatted = f"{t_name}({prec},{scale or 0})"
+                else:
+                    dt_formatted = t_name
+
                 params_list.append({
                     "name": p_name,
-                    "data_type": t_name,
-                    "is_output": is_out
+                    "data_type": dt_formatted,
+                    "is_output": is_out,
+                    "direction": "OUT" if is_out else "IN",
+                    "has_default_value": has_def,
+                    "default_value": def_val,
                 })
             return params_list
         except Exception:
-            return []
+            # Fallback for simpler sys.parameters query
+            try:
+                fb_query = f"""
+                    SELECT p.name, t.name AS type_name, p.is_output
+                    FROM {db_prefix}sys.parameters p
+                    JOIN {db_prefix}sys.types t ON p.user_type_id = t.user_type_id
+                    JOIN {db_prefix}sys.objects o ON p.object_id = o.object_id
+                    JOIN {db_prefix}sys.schemas s ON o.schema_id = s.schema_id
+                    WHERE p.parameter_id > 0 {schema_filter} AND (LOWER(o.name) = LOWER(?) OR o.name = ?)
+                    ORDER BY p.parameter_id
+                """
+                res = self.execute(fb_query, query_params, limit=0, database=database)
+                params_list = []
+                for row in res.get("rows", []):
+                    p_name, t_name, is_out = row[0] or "", row[1] or "", bool(row[2])
+                    params_list.append({
+                        "name": p_name,
+                        "data_type": t_name,
+                        "is_output": is_out,
+                        "direction": "OUT" if is_out else "IN",
+                    })
+                return params_list
+            except Exception:
+                return []
 
     def get_object_definition(
         self,
@@ -1435,6 +1542,15 @@ class SqlServerAdapter(DatabaseAdapter):
             return None
         object_id = obj_res["rows"][0][0]
 
+        # 0. Table Description
+        tbl_desc_sql = f"""
+            SELECT CAST(value AS NVARCHAR(MAX))
+            FROM {db_prefix}sys.extended_properties
+            WHERE major_id = ? AND minor_id = 0 AND name = 'MS_Description'
+        """
+        tbl_desc_res = self.execute(tbl_desc_sql, (object_id,), database=database)
+        table_comment = tbl_desc_res["rows"][0][0] if tbl_desc_res.get("rows") and tbl_desc_res["rows"][0] else ""
+
         # 1. Columns
         col_sql = f"""
             SELECT 
@@ -1457,10 +1573,14 @@ class SqlServerAdapter(DatabaseAdapter):
                 t.name AS type_raw_name,
                 c.is_computed,
                 pk_cols.pk_name,
-                OBJECT_NAME(c.default_object_id) AS default_constraint_name
+                OBJECT_NAME(c.default_object_id) AS default_constraint_name,
+                CAST(cc.definition AS NVARCHAR(MAX)) AS computed_definition,
+                cc.is_persisted
             FROM {db_prefix}sys.columns c
             JOIN {db_prefix}sys.types t ON t.user_type_id = c.user_type_id
             JOIN {db_prefix}sys.schemas st ON st.schema_id = t.schema_id
+            LEFT JOIN {db_prefix}sys.computed_columns cc
+                ON cc.object_id = c.object_id AND cc.column_id = c.column_id
             LEFT JOIN {db_prefix}sys.identity_columns ic 
                 ON ic.object_id = c.object_id AND ic.column_id = c.column_id
             LEFT JOIN (
@@ -1533,6 +1653,8 @@ class SqlServerAdapter(DatabaseAdapter):
                 "pk_name": col_pk_name,
                 "is_identity": bool(r[7]),
                 "is_computed": bool(r[17]) if len(r) > 17 else False,
+                "formula": r[20] if len(r) > 20 and r[20] else "",
+                "is_persisted": bool(r[21]) if len(r) > 21 and r[21] else False,
                 "identity_seed": int(r[8]) if r[8] is not None else 1,
                 "identity_increment": int(r[9]) if r[9] is not None else 1,
                 "sequence_name": seq_name,
@@ -1715,6 +1837,7 @@ class SqlServerAdapter(DatabaseAdapter):
             "schema": schema,
             "table": table,
             "engine": "sqlserver",
+            "comment": table_comment,
             "pk_name": table_pk_name,
             "columns": columns,
             "indexes": indexes,

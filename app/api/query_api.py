@@ -130,6 +130,17 @@ class QueryApiMixin:
         except Exception as exc:
             return {"success": False, "error": str(exc), "parameters": []}
 
+    def get_proc_params(self, connection_id, database=None, schema=None, proc_name=None, name=None):
+        try:
+            target_name = proc_name or name
+            conn = self._get_connection(connection_id)
+            if not conn:
+                return {"success": False, "error": f"Connection {connection_id} not found", "params": []}
+            items = conn.metadata_service.get_intellisense_parameters(database, schema, target_name)
+            return {"success": True, "params": items or []}
+        except Exception as exc:
+            return {"success": False, "error": str(exc), "params": []}
+
 
     def cancel_query(self, connection_id):
         try:
@@ -179,14 +190,19 @@ class QueryApiMixin:
             return {"success": False, "error": str(exc)}
 
 
-    def syntax_check(self, connection_id=None, sql="", dialect="sqlserver", database=None, schema=None, is_debug=False, cached_tables=None):
+    def syntax_check(self, connection_id=None, sql="", dialect="sqlserver", database=None, schema=None, is_debug=False, cached_tables=None, tab_id=None):
         try:
             if not sql or not str(sql).strip():
                 return {"success": True, "diagnostics": []}
 
             conn_session = None
             try:
-                conn_session = self._get_connection(connection_id)
+                if tab_id:
+                    cm = self._get_cm()
+                    session_id = self._get_session_id()
+                    conn_session = cm.get_for_tab(session_id, tab_id)
+                if not conn_session and connection_id:
+                    conn_session = self._get_connection(connection_id)
                 if conn_session:
                     if not dialect or dialect == "sqlserver":
                         conn_db_type = getattr(conn_session, "config", {}).get("type", "sqlserver")

@@ -203,11 +203,14 @@ def test_download_update_flow(tmp_path):
 def test_apply_update_and_dismiss_indicator(tmp_path):
     """Verify apply_update updates runtime version and dismisses toolbar indicator."""
     import app.version
+    import app.services.update_checker as uc
     from app.services.update_checker import apply_update
     from app.desktop.windows import UpdateSubwindowApi
     from app.version import get_version
 
     orig_runtime = app.version._runtime_version
+    orig_download_state = dict(uc._download_state)
+    uc._download_state.clear()
     try:
         mock_settings = {}
         with patch("app.utils.paths.get_app_dir", return_value=tmp_path), \
@@ -215,11 +218,11 @@ def test_apply_update_and_dismiss_indicator(tmp_path):
              patch("app.services.settings_store.load_settings_file", return_value=mock_settings), \
              patch("app.services.settings_store.save_settings_file") as mock_save, \
              patch("pathlib.Path.exists", return_value=False):
-            # Call apply_update with a new target version
-            res = apply_update(new_version="1.0.5")
+            # Call apply_update with a new target version (1.1.2 > current 1.1.1)
+            res = apply_update(new_version="1.1.2")
             assert res["success"] is True
-            assert res["version"] == "1.0.5"
-            assert get_version() == "1.0.5"
+            assert res["version"] == "1.1.2"
+            assert get_version() == "1.1.2"
             mock_save.assert_called_once()
 
         # Verify UpdateSubwindowApi open_downloaded_file dismisses main window indicator
@@ -236,4 +239,77 @@ def test_apply_update_and_dismiss_indicator(tmp_path):
         assert "ide-update-btn" in mock_main_win.evaluate_js.call_args[0][0]
     finally:
         app.version._runtime_version = orig_runtime
+        uc._download_state.clear()
+        uc._download_state.update(orig_download_state)
+
+
+def test_apply_update_stale_archive_rejected(tmp_path):
+    """Verify that an older update archive is rejected and does not overwrite local files."""
+    import zipfile
+    import app.version
+    from app.services.update_checker import apply_update
+
+    orig_runtime = app.version._runtime_version
+    # Create dummy stale zip containing version 1.0.1
+    stale_zip = tmp_path / "stale_update.zip"
+    with zipfile.ZipFile(stale_zip, "w") as zf:
+        zf.writestr("version.json", json.dumps({"version": "1.0.1"}))
+        zf.writestr("app/api/dummy.py", "print('stale')")
+
+    try:
+        mock_settings = {}
+        with patch("app.utils.paths.get_app_dir", return_value=tmp_path), \
+             patch("app.utils.paths.get_user_data_dir", return_value=tmp_path), \
+             patch("app.services.settings_store.load_settings_file", return_value=mock_settings), \
+             patch("app.services.settings_store.save_settings_file"):
+            res = apply_update(file_path=str(stale_zip), new_version="1.0.1")
+            assert res["success"] is False
+            assert "cũ hơn" in res["error"] or "older" in res["error"]
+            # Dummy file must not be extracted
+            assert not (tmp_path / "app" / "api" / "dummy.py").exists()
+    finally:
+        app.version._runtime_version = orig_runtime
+
+
+def test_apply_update_dual_tier_extraction(tmp_path):
+    """Verify update archives extract into both app_dir and app_dir/_internal."""
+    import zipfile
+    import app.version
+    from app.services.update_checker import apply_update
+
+    orig_runtime = app.version._runtime_version
+    # Create dummy update zip with newer version 9.9.9
+    new_zip = tmp_path / "patch_update.zip"
+    with zipfile.ZipFile(new_zip, "w") as zf:
+        zf.writestr("version.json", json.dumps({"version": "9.9.9"}))
+        zf.writestr("app/api/new_api.py", "# new api")
+        zf.writestr("static/js/new_script.js", "// new js")
+        zf.writestr("main.py", "# new main")
+
+    app_dir = tmp_path / "app_install"
+    app_dir.mkdir()
+    (app_dir / "_internal").mkdir()
+
+    try:
+        mock_settings = {}
+        with patch("app.utils.paths.get_app_dir", return_value=app_dir), \
+             patch("app.utils.paths.get_user_data_dir", return_value=tmp_path), \
+             patch("app.services.settings_store.load_settings_file", return_value=mock_settings), \
+             patch("app.services.settings_store.save_settings_file"):
+            res = apply_update(file_path=str(new_zip), new_version="9.9.9")
+            assert res["success"] is True
+
+            # Must exist in root
+            assert (app_dir / "app" / "api" / "new_api.py").exists()
+            assert (app_dir / "static" / "js" / "new_script.js").exists()
+            assert (app_dir / "main.py").exists()
+
+            # Must also exist in _internal
+            assert (app_dir / "_internal" / "app" / "api" / "new_api.py").exists()
+            assert (app_dir / "_internal" / "static" / "js" / "new_script.js").exists()
+            assert (app_dir / "_internal" / "main.py").exists()
+    finally:
+        app.version._runtime_version = orig_runtime
+
+
 

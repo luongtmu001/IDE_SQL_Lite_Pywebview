@@ -128,6 +128,32 @@ def _clean_sqlserver_message(raw_msg: str) -> str:
     return msg.strip() or raw_msg.strip()
 
 
+def _compute_token_position(target_line: str, token: str, default_col: int = 1) -> tuple[int, int]:
+    """
+    Compute 1-indexed (col, end_col) of token on target_line.
+    Handles exact word boundaries for alphanumeric tokens, substring matches,
+    non-empty stripped fallback, and line-length bounds.
+    """
+    if not target_line:
+        return default_col, default_col + max(1, len(token))
+
+    if token and token in target_line:
+        if re.match(r"^\w+$", token):
+            m = re.search(rf"\b{re.escape(token)}\b", target_line, re.IGNORECASE)
+            if m:
+                return m.start() + 1, m.end() + 1
+        idx = target_line.find(token)
+        if idx != -1:
+            return idx + 1, idx + 1 + len(token)
+
+    stripped = target_line.strip()
+    if stripped:
+        idx = target_line.find(stripped)
+        return idx + 1, idx + 1 + len(stripped)
+
+    return 1, max(2, len(target_line) + 1)
+
+
 def _find_all_empty_select_tokens(sql: str, dialect: str) -> list[dict[str, Any]]:
     """Find all lines and columns of invalid SELECTs without projection expressions."""
     diagnostics = []
@@ -225,6 +251,264 @@ def _find_all_trailing_comma_tokens(sql: str, dialect: str) -> list[dict[str, An
     return diagnostics
 
 
+def _clean_sql_code(sql: str) -> str:
+    """Mask comments, quoted identifiers, and string literals with spaces, preserving newlines."""
+    if not sql:
+        return ""
+    n = len(sql)
+    i = 0
+    clean_chars = list(sql)
+    while i < n:
+        if sql[i:i + 2] == "--":
+            j = i + 2
+            while j < n and sql[j] != "\n":
+                j += 1
+            for k in range(i, j):
+                clean_chars[k] = " "
+            i = j
+            continue
+        if sql[i:i + 2] == "/*":
+            j = i + 2
+            depth = 1
+            while j < n and depth > 0:
+                if sql[j:j + 2] == "/*":
+                    depth += 1
+                    j += 2
+                elif sql[j:j + 2] == "*/":
+                    depth -= 1
+                    j += 2
+                else:
+                    j += 1
+            for k in range(i, min(n, j)):
+                if clean_chars[k] != "\n":
+                    clean_chars[k] = " "
+            i = j
+            continue
+        if sql[i] in ("E", "e") and i + 1 < n and sql[i + 1] == "'":
+            j = i + 2
+            while j < n:
+                if sql[j] == "\\":
+                    j += 2
+                elif sql[j] == "'":
+                    if j + 1 < n and sql[j + 1] == "'":
+                        j += 2
+                    else:
+                        j += 1
+                        break
+                else:
+                    j += 1
+            for k in range(i, min(n, j)):
+                if clean_chars[k] != "\n":
+                    clean_chars[k] = " "
+            i = j
+            continue
+        if sql[i] == "'":
+            j = i + 1
+            while j < n:
+                if sql[j] == "'":
+                    if j + 1 < n and sql[j + 1] == "'":
+                        j += 2
+                    else:
+                        j += 1
+                        break
+                else:
+                    j += 1
+            for k in range(i, min(n, j)):
+                if clean_chars[k] != "\n":
+                    clean_chars[k] = " "
+            i = j
+            continue
+        if sql[i] == '"':
+            j = i + 1
+            while j < n:
+                if sql[j] == '"':
+                    if j + 1 < n and sql[j + 1] == '"':
+                        j += 2
+                    else:
+                        j += 1
+                        break
+                else:
+                    j += 1
+            for k in range(i, min(n, j)):
+                if clean_chars[k] != "\n":
+                    clean_chars[k] = " "
+            i = j
+            continue
+        if sql[i] == "[":
+            j = i + 1
+            while j < n and sql[j] != "]":
+                j += 1
+            j = min(n, j + 1)
+            for k in range(i, j):
+                if clean_chars[k] != "\n":
+                    clean_chars[k] = " "
+            i = j
+            continue
+        if sql[i] == "$":
+            tag_match = re.match(r"\$[a-zA-Z0-9_]*\$", sql[i:])
+            if tag_match:
+                tag = tag_match.group(0)
+                closing = sql.find(tag, i + len(tag))
+                if closing != -1:
+                    j = closing + len(tag)
+                    for k in range(i, j):
+                        if clean_chars[k] != "\n":
+                            clean_chars[k] = " "
+                    i = j
+                    continue
+        i += 1
+    return "".join(clean_chars)
+
+
+def find_unclosed_case_in_sql(sql: str) -> list[dict[str, Any]]:
+    """Scan SQL for unclosed CASE expressions and return their locations."""
+    if not sql:
+        return []
+    clean_sql = _clean_sql_code(sql)
+    pattern = re.compile(r"\b(CASE|END(?:\s+IF|\s+LOOP|\s+CASE)?)\b|;", re.IGNORECASE)
+    stack = []
+    unclosed = []
+    for m in pattern.finditer(clean_sql):
+        tok = m.group(0).upper()
+        pos = m.start()
+        line = sql[:pos].count("\n") + 1
+        last_nl = sql[:pos].rfind("\n")
+        col = (pos + 1) if last_nl == -1 else (pos - last_nl)
+
+        if tok == "CASE":
+            stack.append({"line": line, "col": col, "pos": pos})
+        elif tok in ("END", "END CASE"):
+            if stack:
+                stack.pop()
+        elif tok == ";":
+            if stack:
+                unclosed.extend(stack)
+                stack = []
+    if stack:
+        unclosed.extend(stack)
+    return unclosed
+
+
+def _find_all_tsql_try_catch_blocks(sql: str) -> list[dict[str, Any]]:
+    """Validate paired BEGIN TRY ... END TRY BEGIN CATCH ... END CATCH blocks in T-SQL."""
+    clean_sql = _clean_sql_code(sql)
+    pattern = re.compile(r"\b(BEGIN\s+TRY|END\s+TRY|BEGIN\s+CATCH|END\s+CATCH)\b", re.IGNORECASE)
+    try_stack = []
+    catch_stack = []
+    expecting_catch = None
+    diags = []
+
+    for m in pattern.finditer(clean_sql):
+        raw_tok = m.group(0)
+        tok = re.sub(r"\s+", " ", raw_tok.upper())
+        pos = m.start()
+        line = sql[:pos].count("\n") + 1
+        last_nl = sql[:pos].rfind("\n")
+        col = (pos + 1) if last_nl == -1 else (pos - last_nl)
+        end_col = col + len(raw_tok)
+
+        if tok == "BEGIN TRY":
+            if expecting_catch:
+                diags.append({
+                    "severity": "error",
+                    "message": "Missing BEGIN CATCH block: END TRY must be followed immediately by BEGIN CATCH",
+                    "code": "SQL_SYNTAX_ERROR",
+                    "line": expecting_catch["line"],
+                    "column": expecting_catch["col"],
+                    "end_column": expecting_catch["end_col"],
+                    "token": "END TRY",
+                    "source": "sqlserver",
+                })
+                expecting_catch = None
+            try_stack.append({"line": line, "col": col, "end_col": end_col, "pos": pos})
+
+        elif tok == "END TRY":
+            if try_stack:
+                try_stack.pop()
+                expecting_catch = {"line": line, "col": col, "end_col": end_col, "pos": pos}
+            else:
+                diags.append({
+                    "severity": "error",
+                    "message": "Unmatched END TRY: no corresponding BEGIN TRY block",
+                    "code": "SQL_SYNTAX_ERROR",
+                    "line": line,
+                    "column": col,
+                    "end_column": end_col,
+                    "token": raw_tok,
+                    "source": "sqlserver",
+                })
+
+        elif tok == "BEGIN CATCH":
+            if expecting_catch:
+                expecting_catch = None
+                catch_stack.append({"line": line, "col": col, "end_col": end_col, "pos": pos})
+            else:
+                diags.append({
+                    "severity": "error",
+                    "message": "BEGIN CATCH must follow immediately after an END TRY block",
+                    "code": "SQL_SYNTAX_ERROR",
+                    "line": line,
+                    "column": col,
+                    "end_column": end_col,
+                    "token": raw_tok,
+                    "source": "sqlserver",
+                })
+                catch_stack.append({"line": line, "col": col, "end_col": end_col, "pos": pos})
+
+        elif tok == "END CATCH":
+            if catch_stack:
+                catch_stack.pop()
+            else:
+                diags.append({
+                    "severity": "error",
+                    "message": "Unmatched END CATCH: no corresponding BEGIN CATCH block",
+                    "code": "SQL_SYNTAX_ERROR",
+                    "line": line,
+                    "column": col,
+                    "end_column": end_col,
+                    "token": raw_tok,
+                    "source": "sqlserver",
+                })
+
+    if expecting_catch:
+        diags.append({
+            "severity": "error",
+            "message": "Missing BEGIN CATCH block: END TRY must be followed by BEGIN CATCH",
+            "code": "SQL_SYNTAX_ERROR",
+            "line": expecting_catch["line"],
+            "column": expecting_catch["col"],
+            "end_column": expecting_catch["end_col"],
+            "token": "END TRY",
+            "source": "sqlserver",
+        })
+
+    for item in try_stack:
+        diags.append({
+            "severity": "error",
+            "message": "Unclosed BEGIN TRY block: missing corresponding END TRY",
+            "code": "SQL_SYNTAX_ERROR",
+            "line": item["line"],
+            "column": item["col"],
+            "end_column": item["end_col"],
+            "token": "BEGIN TRY",
+            "source": "sqlserver",
+        })
+
+    for item in catch_stack:
+        diags.append({
+            "severity": "error",
+            "message": "Unclosed BEGIN CATCH block: missing corresponding END CATCH",
+            "code": "SQL_SYNTAX_ERROR",
+            "line": item["line"],
+            "column": item["col"],
+            "end_column": item["end_col"],
+            "token": "BEGIN CATCH",
+            "source": "sqlserver",
+        })
+
+    return diags
+
+
 def _validate_with_sqlglot(sql: str, dialect: str = "tsql") -> list[dict[str, Any]]:
     """Fallback or local validation using sqlglot parser with structural AST verification."""
     diagnostics: list[dict[str, Any]] = []
@@ -234,6 +518,8 @@ def _validate_with_sqlglot(sql: str, dialect: str = "tsql") -> list[dict[str, An
         # 1. Structural token checks across all statements (including inside procedures/functions)
         diagnostics.extend(_find_all_empty_select_tokens(sql, dialect))
         diagnostics.extend(_find_all_trailing_comma_tokens(sql, dialect))
+        if dialect == "tsql":
+            diagnostics.extend(_find_all_tsql_try_catch_blocks(sql))
 
         # 2. Check Joins without ON clause
         for expr in expressions:
@@ -268,27 +554,28 @@ def _validate_with_sqlglot(sql: str, dialect: str = "tsql") -> list[dict[str, An
             token = (err.get("highlight") or "").strip()
             desc = err.get("description") or str(e)
 
-            # Determine end column and align col with token start if found on line
-            end_col = col + max(1, len(token))
-            if 0 < line <= len(lines):
-                line_text = lines[line - 1]
-                if token and token in line_text:
-                    if re.match(r"^\w+$", token):
-                        m = re.search(rf"\b{re.escape(token)}\b", line_text, re.IGNORECASE)
-                        if m:
-                            col = m.start() + 1
-                            end_col = m.end() + 1
+            # Special handling for "Expected END after CASE":
+            # sqlglot often points to the next token (which may be a valid END of another CASE or AS).
+            # We locate the actual unclosed CASE expression in the SQL text.
+            if "Expected END after CASE" in desc or "missing end" in desc.lower():
+                unclosed = find_unclosed_case_in_sql(sql)
+                if unclosed:
+                    chosen = unclosed[0]
+                    for item in unclosed:
+                        if item["line"] <= line:
+                            chosen = item
                         else:
-                            idx = line_text.find(token)
-                            col = idx + 1
-                            end_col = col + len(token)
-                    else:
-                        idx = line_text.find(token)
-                        col = idx + 1
-                        end_col = col + len(token)
-                elif col > len(line_text):
-                    col = max(1, len(line_text))
-                    end_col = col + 1
+                            break
+                    line = chosen["line"]
+                    col = chosen["col"]
+                    token = "CASE"
+                    desc = "Unclosed CASE expression: missing corresponding END"
+
+            # Determine end column and align col with token start if found on line
+            if 0 < line <= len(lines):
+                col, end_col = _compute_token_position(lines[line - 1], token, default_col=col)
+            else:
+                end_col = col + max(1, len(token))
 
             diagnostics.append(
                 {
@@ -367,6 +654,10 @@ def validate_sql_server(
                     except Exception:
                         pass
 
+                from app.database.syntax.proc_body_detector import clean_ident, extract_proc_bodies
+                proc_bodies = extract_proc_bodies(sql, dialect="sqlserver")
+                proc_map = {p["clean_name"]: p["start_line"] for p in proc_bodies}
+
                 batches = split_sqlserver_batches(sql)
                 if not batches:
                     batches = [{"text": sql, "start_line": 1, "line_count": len(all_lines)}]
@@ -416,14 +707,20 @@ def validate_sql_server(
                             token = token_match.group(1) if token_match else ""
                             token = token.rstrip(".'\"").strip("'\"").strip()
 
-                            proc_match = re.search(r"Procedure\s+[^\s,]+,\s*Line\s+(\d+)", err_msg, re.IGNORECASE)
+                            proc_match = re.search(r"Procedure\s+([^\s,]+),\s*Line\s+(\d+)", err_msg, re.IGNORECASE)
                             if proc_match:
-                                proc_rel_line = int(proc_match.group(1))
-                                proc_start_line = batch_start_line
-                                for idx_l, l_text in enumerate(all_lines):
-                                    if re.search(r"\b(?:CREATE|ALTER)\s+(?:PROCEDURE|PROC|FUNCTION|TRIGGER)\b", l_text, re.IGNORECASE):
-                                        proc_start_line = idx_l + 1
-                                        break
+                                raw_p_name = proc_match.group(1).strip()
+                                p_clean = clean_ident(raw_p_name.split(".")[-1]).lower()
+                                proc_rel_line = int(proc_match.group(2))
+                                if p_clean in proc_map:
+                                    proc_start_line = proc_map[p_clean]
+                                else:
+                                    proc_start_line = batch_start_line
+                                    batch_lines = batch_text.splitlines()
+                                    for idx_bl, bl_text in enumerate(batch_lines):
+                                        if re.search(r"\b(?:CREATE|ALTER)\s+(?:PROCEDURE|PROC|FUNCTION|TRIGGER)\b", bl_text, re.IGNORECASE):
+                                            proc_start_line = batch_start_line + idx_bl
+                                            break
                                 doc_line = proc_start_line + proc_rel_line - 1
                             else:
                                 doc_line = batch_start_line + batch_rel_line - 1
@@ -437,33 +734,9 @@ def validate_sql_server(
                                         doc_line += 1
 
                             # Calculate column based on token position in target line
-                            col = 1
-                            end_col = 2
+                            col, end_col = 1, 2
                             if 0 < doc_line <= len(all_lines):
-                                target_line = all_lines[doc_line - 1]
-                                if token and token in target_line:
-                                    if re.match(r"^\w+$", token):
-                                        m = re.search(rf"\b{re.escape(token)}\b", target_line, re.IGNORECASE)
-                                        if m:
-                                            col = m.start() + 1
-                                            end_col = m.end() + 1
-                                        else:
-                                            idx = target_line.find(token)
-                                            col = idx + 1
-                                            end_col = col + len(token)
-                                    else:
-                                        idx = target_line.find(token)
-                                        col = idx + 1
-                                        end_col = col + len(token)
-                                else:
-                                    stripped = target_line.strip()
-                                    if stripped:
-                                        idx = target_line.find(stripped)
-                                        col = idx + 1
-                                        end_col = col + len(stripped)
-                                    else:
-                                        col = 1
-                                        end_col = max(2, len(target_line) + 1)
+                                col, end_col = _compute_token_position(all_lines[doc_line - 1], token)
 
                             clean_msg = _clean_sqlserver_message(err_msg)
 
@@ -510,14 +783,20 @@ def validate_sql_server(
                                 token = token_match.group(1) if token_match else ""
                                 token = token.rstrip(".'\"").strip("'\"").strip()
 
-                                proc_match = re.search(r"Procedure\s+[^\s,]+,\s*Line\s+(\d+)", raw_err, re.IGNORECASE)
+                                proc_match = re.search(r"Procedure\s+([^\s,]+),\s*Line\s+(\d+)", raw_err, re.IGNORECASE)
                                 if proc_match:
-                                    proc_rel_line = int(proc_match.group(1))
-                                    proc_start_line = batch_start_line
-                                    for idx_l, l_text in enumerate(all_lines):
-                                        if re.search(r"\b(?:CREATE|ALTER)\s+(?:PROCEDURE|PROC|FUNCTION|TRIGGER)\b", l_text, re.IGNORECASE):
-                                            proc_start_line = idx_l + 1
-                                            break
+                                    raw_p_name = proc_match.group(1).strip()
+                                    p_clean = clean_ident(raw_p_name.split(".")[-1]).lower()
+                                    proc_rel_line = int(proc_match.group(2))
+                                    if p_clean in proc_map:
+                                        proc_start_line = proc_map[p_clean]
+                                    else:
+                                        proc_start_line = batch_start_line
+                                        batch_lines = batch_text.splitlines()
+                                        for idx_bl, bl_text in enumerate(batch_lines):
+                                            if re.search(r"\b(?:CREATE|ALTER)\s+(?:PROCEDURE|PROC|FUNCTION|TRIGGER)\b", bl_text, re.IGNORECASE):
+                                                proc_start_line = batch_start_line + idx_bl
+                                                break
                                     doc_line = proc_start_line + proc_rel_line - 1
                                 elif line_match:
                                     doc_line = batch_start_line + int(line_match.group(1)) - 1
@@ -531,33 +810,9 @@ def validate_sql_server(
                                 else:
                                     doc_line = batch_start_line
 
-                                col = 1
-                                end_col = 2
+                                col, end_col = 1, 2
                                 if 0 < doc_line <= len(all_lines):
-                                    target_line = all_lines[doc_line - 1]
-                                    if token and token in target_line:
-                                        if re.match(r"^\w+$", token):
-                                            m = re.search(rf"\b{re.escape(token)}\b", target_line, re.IGNORECASE)
-                                            if m:
-                                                col = m.start() + 1
-                                                end_col = m.end() + 1
-                                            else:
-                                                idx = target_line.find(token)
-                                                col = idx + 1
-                                                end_col = col + len(token)
-                                        else:
-                                            idx = target_line.find(token)
-                                            col = idx + 1
-                                            end_col = col + len(token)
-                                    else:
-                                        stripped = target_line.strip()
-                                        if stripped:
-                                            idx = target_line.find(stripped)
-                                            col = idx + 1
-                                            end_col = col + len(stripped)
-                                        else:
-                                            col = 1
-                                            end_col = max(2, len(target_line) + 1)
+                                    col, end_col = _compute_token_position(all_lines[doc_line - 1], token)
 
                                 clean_msg = _clean_sqlserver_message(raw_err)
 

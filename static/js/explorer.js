@@ -332,6 +332,156 @@ function initExplorer() {
         if (item) detectAndApplyTreeContext(item);
     });
 
+    // ── Helper: Extract clean object name for clipboard copying ──────────────
+    function extractCleanObjectName(nodeData, itemEl = null) {
+        if (!nodeData && itemEl) {
+            nodeData = itemEl._nodeData || {};
+        }
+        if (!nodeData) return '';
+
+        // 1. Column
+        if (nodeData.isColumn || nodeData.type === 'column' || nodeData.column || nodeData.columnName) {
+            return (nodeData.column || nodeData.columnName || nodeData.name || '').split('(')[0].trim();
+        }
+        // 2. Procedure / Function with baseName (clean name without parameter signature)
+        if (nodeData.baseName) {
+            return String(nodeData.baseName).trim();
+        }
+        // 3. User / Role (SQL Server User or Postgres Role)
+        if (nodeData.principal_name) {
+            return String(nodeData.principal_name).trim();
+        }
+        // 4. Linked Server
+        if (nodeData.server) {
+            return String(nodeData.server).trim();
+        }
+        // 5. Table
+        if (nodeData.type === 'table' && (nodeData.tableName || nodeData.table || nodeData.name)) {
+            return String(nodeData.tableName || nodeData.table || nodeData.name).trim();
+        }
+        // 6. View / Procedure / Function / Trigger / Sequence / Synonym / User Type
+        let raw = nodeData.name || nodeData.label;
+        if (!raw && itemEl) {
+            const labelEl = itemEl.querySelector('.tree-label');
+            if (labelEl) raw = labelEl.textContent;
+        }
+        if (typeof raw === 'string') {
+            return raw.split('(')[0].trim();
+        }
+        return String(raw || '').trim();
+    }
+    window.getCleanTreeItemName = extractCleanObjectName;
+
+    // ── Helper: Copy object name to Windows clipboard and show toast ─────────
+    async function copyTreeItemName(treeItem) {
+        if (!treeItem) return false;
+        const name = extractCleanObjectName(treeItem._nodeData, treeItem);
+        if (!name) return false;
+
+        let copied = false;
+        if (typeof window.copyToClipboard === 'function') {
+            copied = await window.copyToClipboard(name);
+        } else if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+            try {
+                await navigator.clipboard.writeText(name);
+                copied = true;
+            } catch (_) {}
+        }
+
+        // Native Windows OS clipboard fallback via pywebview Win32 ctypes bridge
+        if (!copied && window.pywebview && window.pywebview.api && typeof window.pywebview.api.set_clipboard_text === 'function') {
+            try {
+                const res = await window.pywebview.api.set_clipboard_text(name);
+                if (res && res.success) copied = true;
+            } catch (_) {}
+        }
+
+        // Visual flash feedback on tree item
+        treeItem.classList.add('tree-item-copied');
+        setTimeout(() => treeItem.classList.remove('tree-item-copied'), 600);
+
+        // Toast notification
+        const objType = treeItem._nodeData?.type || treeItem._nodeData?.object_type || 'object';
+        const typeMap = {
+            table: 'bảng',
+            view: 'view',
+            materialized_view: 'materialized view',
+            procedure: 'stored procedure',
+            function: 'function',
+            trigger: 'trigger',
+            column: 'cột',
+            sequence: 'sequence',
+            synonym: 'synonym',
+            user_type: 'user-defined type',
+            database_user: 'database user',
+            postgres_role: 'role',
+            database: 'database',
+            schema: 'schema'
+        };
+        const typeLabel = typeMap[objType] || 'đối tượng';
+
+        if (typeof showToast === 'function') {
+            showToast(`Đã sao chép tên ${typeLabel}: ${name}`, 'success');
+        }
+
+        return true;
+    }
+    window.copyTreeItemName = copyTreeItemName;
+
+    // ── Global Keyboard shortcut: Ctrl + C on focused/selected tree item ──────
+    if (!window._explorerCopyShortcutBound) {
+        window._explorerCopyShortcutBound = true;
+        window.addEventListener('keydown', (e) => {
+            const isCtrlOrCmd = e.ctrlKey || e.metaKey;
+            if (!isCtrlOrCmd || e.shiftKey || e.altKey) return;
+            if (e.key !== 'c' && e.key !== 'C') return;
+
+            // Never intercept if user is typing or selecting text in an input or textarea
+            const activeEl = document.activeElement;
+            if (activeEl) {
+                if (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.isContentEditable) {
+                    return;
+                }
+                if (activeEl.closest('.monaco-editor, #ide-editor-container, .ide-editor-container, .ide-ag-grid-instance, .ag-root-wrapper, .ide-grid-pane, .tab-pane, #ide-editor-pane')) {
+                    return;
+                }
+            }
+
+            // Also ensure Monaco text focus is respected
+            if (typeof monaco !== 'undefined' && monaco.editor && typeof monaco.editor.getEditors === 'function') {
+                try {
+                    const editors = monaco.editor.getEditors();
+                    if (editors.some(ed => ed.hasTextFocus && ed.hasTextFocus())) {
+                        return;
+                    }
+                } catch (_) {}
+            }
+
+            // Never intercept if user has highlighted text on the page
+            const sel = window.getSelection();
+            if (sel && sel.toString().trim().length > 0) {
+                return;
+            }
+
+            // Only handle if focus is inside Object Explorer tree
+            const isInExplorerTree = activeEl && Boolean(activeEl.closest('.tree-item, .ide-tree, #ide-tree-root, .ide-sidebar-body'));
+            if (!isInExplorerTree) {
+                return;
+            }
+
+            // Find target tree item
+            const targetItem = activeEl?.closest('.tree-item') ||
+                               document.querySelector('.ide-tree .tree-item.selected') ||
+                               document.querySelector('.tree-item.selected');
+
+            if (targetItem) {
+                e.preventDefault();
+                e.stopPropagation();
+                copyTreeItemName(targetItem);
+            }
+        }, true);
+    }
+
     // ── Create Action Menu Button [⋮] (Priority 1) ───────────────────────────
     function createMoreBtn(nodeData) {
         const btn = document.createElement('button');
@@ -372,6 +522,7 @@ function initExplorer() {
         const li   = document.createElement('li');
         const item = document.createElement('div');
         item.className = 'tree-item';
+        item.tabIndex = 0;
         if (title) item.title = title;
         item._nodeData = { ...nodeData, name: nodeData.name || name, type: nodeData.type || type, label: name };
 
@@ -429,10 +580,28 @@ function initExplorer() {
             // Selection highlight
             document.querySelectorAll('.tree-item').forEach(el => el.classList.remove('selected'));
             item.classList.add('selected');
+            item.focus();
 
             // Automatically detect and apply context from focused tree node
             detectAndApplyTreeContext(item);
+        });
 
+        item.addEventListener('focus', () => {
+            document.querySelectorAll('.tree-item').forEach(el => el.classList.remove('selected'));
+            item.classList.add('selected');
+            detectAndApplyTreeContext(item);
+        });
+
+        item.addEventListener('keydown', (e) => {
+            const isCtrlOrCmd = e.ctrlKey || e.metaKey;
+            if (isCtrlOrCmd && (e.key === 'c' || e.key === 'C') && !e.shiftKey && !e.altKey) {
+                e.preventDefault();
+                e.stopPropagation();
+                copyTreeItemName(item);
+            }
+        });
+
+        item.addEventListener('click', async () => {
             if (!hasChildren) return;
 
             // Toggle expand/collapse
@@ -643,6 +812,27 @@ function initExplorer() {
                 rightEl: lsActions
             });
         }
+
+        // ── Render Roles / Users group at the connection level (PostgreSQL) ──
+        const isPg = ['postgresql', 'postgres', 'pg'].includes(String(dbType).toLowerCase());
+        if (isPg) {
+            const rolesActions = document.createElement('div');
+            rolesActions.className = 'tree-node-actions';
+            rolesActions.appendChild(createMoreBtn({
+                connId, connName, dbType, type: 'postgres_roles_group'
+            }));
+
+            renderNode(containerUl, {
+                name: 'Roles / Users',
+                type: 'postgres_roles_group',
+                icon: 'users',
+                iconColor: 'var(--ide-info, #17a2b8)',
+                hasChildren: true,
+                loadCallback: ul => fetchPostgresRoles(ul, connId, connName, dbType),
+                nodeData: { connId, connName, dbType, type: 'postgres_roles_group' },
+                rightEl: rolesActions
+            });
+        }
     }
 
     // ── Fetch Linked Servers ──────────────────────────────────────────────────
@@ -811,25 +1001,218 @@ function initExplorer() {
         if (!schemas.length) {
             const msg = Array.isArray(activeFilter) ? '(No matching schemas)' : '(No schemas)';
             containerUl.innerHTML = `<li><div class="tree-item text-muted" style="font-size:11px;">${msg}</div></li>`;
-            return;
+        } else {
+            schemas.forEach(s => {
+                const schemaName = s.name || s;
+                const schemaActions = document.createElement('div');
+                schemaActions.className = 'tree-node-actions';
+                schemaActions.appendChild(createMoreBtn({
+                    connId, connName, database: dbName, schema: schemaName, type: 'schema', dbType
+                }));
+
+                renderNode(containerUl, {
+                    name: schemaName, type: 'schema', icon: 'folder', iconColor: '#E8C859',
+                    hasChildren: true,
+                    loadCallback: ul => fetchCategories(ul, connId, connName, dbName, schemaName, dbType),
+                    nodeData: { connId, connName, database: dbName, schema: schemaName, dbType },
+                    rightEl: schemaActions,
+                });
+            });
         }
 
-        schemas.forEach(s => {
-            const schemaName = s.name || s;
-            const schemaActions = document.createElement('div');
-            schemaActions.className = 'tree-node-actions';
-            schemaActions.appendChild(createMoreBtn({
-                connId, connName, database: dbName, schema: schemaName, type: 'schema', dbType
+        // ── Render Database Users group (SQL Server) ──
+        const isSqlServer = !dbType || ['sqlserver', 'mssql', 'tsql'].includes(String(dbType).toLowerCase());
+        if (isSqlServer) {
+            const usersActions = document.createElement('div');
+            usersActions.className = 'tree-node-actions';
+            usersActions.appendChild(createMoreBtn({
+                connId, connName, database: dbName, dbType, type: 'sqlserver_users_group'
             }));
 
             renderNode(containerUl, {
-                name: schemaName, type: 'schema', icon: 'folder', iconColor: '#E8C859',
+                name: 'Users',
+                type: 'sqlserver_users_group',
+                icon: 'users',
+                iconColor: 'var(--ide-info, #17a2b8)',
                 hasChildren: true,
-                loadCallback: ul => fetchCategories(ul, connId, connName, dbName, schemaName, dbType),
-                nodeData: { connId, connName, database: dbName, schema: schemaName, dbType },
-                rightEl: schemaActions,
+                loadCallback: ul => fetchDatabaseUsers(ul, connId, connName, dbName, dbType),
+                nodeData: { connId, connName, database: dbName, dbType, type: 'sqlserver_users_group' },
+                rightEl: usersActions
             });
-        });
+        }
+    }
+
+    // ── Fetch Database Users (SQL Server) ────────────────────────────────────
+    async function fetchDatabaseUsers(containerUl, connId, connName, dbName, dbType) {
+        containerUl.innerHTML = '<li><div class="tree-item text-muted" style="font-size:11px;"><i class="fa-solid fa-spinner fa-spin me-1"></i>Đang tải Users...</div></li>';
+        try {
+            const res = await fetch('/api/database-users/list', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ conn_id: connId, database: dbName })
+            });
+            const data = await res.json();
+            containerUl.innerHTML = '';
+            if (!data || !data.success) {
+                const errMsg = (data && data.error) ? data.error : 'Không thể tải danh sách Users';
+                containerUl.innerHTML = `<li><div class="tree-item text-danger" style="font-size:11px;"><i class="fa-solid fa-triangle-exclamation me-1"></i>${escapeHtml(errMsg)}</div></li>`;
+                return;
+            }
+            const items = Array.isArray(data.items) ? data.items : [];
+            if (!items.length) {
+                containerUl.innerHTML = '<li><div class="tree-item text-muted" style="font-size:11px;">(No users)</div></li>';
+                return;
+            }
+
+            items.forEach(u => {
+                const uName = u.name;
+                const pType = u.principal_type || '';
+                const isDisabled = Boolean(u.is_disabled);
+                const isWindows = pType.includes('WINDOWS');
+
+                let icon = 'user';
+                let iconColor = '#61afef';
+                if (isDisabled) {
+                    icon = 'user-slash';
+                    iconColor = '#7f8c8d';
+                } else if (isWindows) {
+                    icon = 'user-shield';
+                    iconColor = '#56b6c2';
+                }
+
+                const uTitle = `${uName} (${u.type_desc || pType})${u.default_schema ? ' - Default Schema: ' + u.default_schema : ''}${isDisabled ? ' [Disabled]' : ''}`;
+
+                const uData = {
+                    connId,
+                    connName,
+                    database: dbName,
+                    dbType,
+                    name: uName,
+                    principal_name: uName,
+                    principal_type: pType,
+                    type_desc: u.type_desc,
+                    is_disabled: isDisabled,
+                    default_schema: u.default_schema,
+                    type: 'database_user'
+                };
+
+                const uActions = document.createElement('div');
+                uActions.className = 'tree-node-actions';
+                uActions.appendChild(createMoreBtn(uData));
+
+                const nodeCtrl = renderNode(containerUl, {
+                    name: uName,
+                    type: 'database_user',
+                    icon: icon,
+                    iconColor: iconColor,
+                    title: uTitle,
+                    hasChildren: false,
+                    nodeData: uData,
+                    rightEl: uActions
+                });
+
+                if (nodeCtrl && nodeCtrl.item) {
+                    nodeCtrl.item.addEventListener('dblclick', (e) => {
+                        e.stopPropagation();
+                        if (window.AppTabs && typeof window.AppTabs.createTab === 'function') {
+                            window.AppTabs.createTab({
+                                tabType: 'user-permissions',
+                                title: `Permissions: ${uName}`,
+                                context: uData
+                            });
+                        }
+                    });
+                }
+            });
+        } catch (err) {
+            console.error('[Explorer] fetchDatabaseUsers error:', err);
+            containerUl.innerHTML = `<li><div class="tree-item text-danger" style="font-size:11px;"><i class="fa-solid fa-triangle-exclamation me-1"></i>Lỗi tải Users: ${escapeHtml(err.message)}</div></li>`;
+        }
+    }
+
+    // ── Fetch Roles (PostgreSQL) ─────────────────────────────────────────────
+    async function fetchPostgresRoles(containerUl, connId, connName, dbType) {
+        containerUl.innerHTML = '<li><div class="tree-item text-muted" style="font-size:11px;"><i class="fa-solid fa-spinner fa-spin me-1"></i>Đang tải Roles...</div></li>';
+        try {
+            const res = await fetch('/api/database-users/list', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ conn_id: connId })
+            });
+            const data = await res.json();
+            containerUl.innerHTML = '';
+            if (!data || !data.success) {
+                const errMsg = (data && data.error) ? data.error : 'Không thể tải danh sách Roles';
+                containerUl.innerHTML = `<li><div class="tree-item text-danger" style="font-size:11px;"><i class="fa-solid fa-triangle-exclamation me-1"></i>${escapeHtml(errMsg)}</div></li>`;
+                return;
+            }
+            const items = Array.isArray(data.items) ? data.items : [];
+            if (!items.length) {
+                containerUl.innerHTML = '<li><div class="tree-item text-muted" style="font-size:11px;">(No roles)</div></li>';
+                return;
+            }
+
+            items.forEach(r => {
+                const rName = r.name;
+                const canLogin = Boolean(r.can_login);
+                const isSuper = Boolean(r.is_superuser);
+
+                let icon = 'user';
+                let iconColor = '#61afef';
+                if (isSuper) {
+                    icon = 'user-shield';
+                    iconColor = '#e5c07b';
+                } else if (!canLogin) {
+                    icon = 'users';
+                    iconColor = '#98c379';
+                }
+
+                const rTitle = `${rName}${isSuper ? ' [Superuser]' : ''}${!canLogin ? ' [Group/NoLogin]' : ' [Can Login]'}`;
+
+                const rData = {
+                    connId,
+                    connName,
+                    dbType,
+                    name: rName,
+                    principal_name: rName,
+                    can_login: canLogin,
+                    is_superuser: isSuper,
+                    is_replication: Boolean(r.is_replication),
+                    type: 'postgres_role'
+                };
+
+                const rActions = document.createElement('div');
+                rActions.className = 'tree-node-actions';
+                rActions.appendChild(createMoreBtn(rData));
+
+                const nodeCtrl = renderNode(containerUl, {
+                    name: rName,
+                    type: 'postgres_role',
+                    icon: icon,
+                    iconColor: iconColor,
+                    title: rTitle,
+                    hasChildren: false,
+                    nodeData: rData,
+                    rightEl: rActions
+                });
+
+                if (nodeCtrl && nodeCtrl.item) {
+                    nodeCtrl.item.addEventListener('dblclick', (e) => {
+                        e.stopPropagation();
+                        if (window.AppTabs && typeof window.AppTabs.createTab === 'function') {
+                            window.AppTabs.createTab({
+                                tabType: 'user-permissions',
+                                title: `Permissions: ${rName}`,
+                                context: rData
+                            });
+                        }
+                    });
+                }
+            });
+        } catch (err) {
+            console.error('[Explorer] fetchPostgresRoles error:', err);
+            containerUl.innerHTML = `<li><div class="tree-item text-danger" style="font-size:11px;"><i class="fa-solid fa-triangle-exclamation me-1"></i>Lỗi tải Roles: ${escapeHtml(err.message)}</div></li>`;
+        }
     }
 
     // ── Fetch categories (Tables, Views, etc.) ────────────────────────────────
@@ -2352,9 +2735,6 @@ function initExplorer() {
                     cToMove.group = targetGroupPath;
                     await saveConnectionProfile(cToMove);
                     loadActiveConnections();
-                    if (typeof showToast === 'function') {
-                        showToast(`✓ Đã chuyển kết nối "${cToMove.name}" vào nhóm "${targetGroupPath}"`, 'success');
-                    }
                 }
             }
         };
@@ -2444,14 +2824,6 @@ function initExplorer() {
         }
 
         loadActiveConnections();
-        const baseName = oldPath.split('/').pop();
-        if (typeof showToast === 'function') {
-            if (newPath === baseName) {
-                showToast(`✓ Đã chuyển nhóm "${baseName}" ra thư mục gốc`, 'success');
-            } else {
-                showToast(`✓ Đã chuyển nhóm "${baseName}" vào "${newPath}"`, 'success');
-            }
-        }
     }
 
     // ── Drop to Root (moves group to root or connection to ungrouped) ─────────
@@ -2497,9 +2869,6 @@ function initExplorer() {
                 cToMove.group = '';
                 await saveConnectionProfile(cToMove);
                 loadActiveConnections();
-                if (typeof showToast === 'function') {
-                    showToast(`✓ Đã chuyển kết nối "${cToMove.name}" về Chưa phân nhóm`, 'success');
-                }
             }
         }
     }
@@ -2734,12 +3103,7 @@ function initExplorer() {
 
         try {
             const res = await fetch(`/api/connections/${targetId}`, { method: 'DELETE' });
-            const data = await res.json().catch(() => ({}));
-            if (data && data.success) {
-                if (typeof showToast === 'function') {
-                    showToast('✓ Disconnected successfully', 'info');
-                }
-            }
+            await res.json().catch(() => ({}));
         } catch (_) {}
 
         if (window.ActiveConnectionId === targetId || !window.ActiveConnectionId) {
@@ -3675,6 +4039,23 @@ function initExplorer() {
                     const d = el._nodeData || {};
                     return (d.connId === connId || el.dataset.connId === connId) &&
                            (d.type === 'connection' || el.dataset.nodeType === 'connection');
+                });
+            }
+            // Match users group (SQL Server)
+            if (!targetItem && (nodeData.type === 'sqlserver_users_group' || nodeData.type === 'database_user')) {
+                targetItem = allItems.find(el => {
+                    const d = el._nodeData || {};
+                    return (d.connId === connId || el.dataset.connId === connId) &&
+                           (!dbName || d.database === dbName || el.dataset.database === dbName) &&
+                           (d.type === 'sqlserver_users_group' || el.dataset.nodeType === 'sqlserver_users_group');
+                });
+            }
+            // Match roles group (PostgreSQL)
+            if (!targetItem && (nodeData.type === 'postgres_roles_group' || nodeData.type === 'postgres_role')) {
+                targetItem = allItems.find(el => {
+                    const d = el._nodeData || {};
+                    return (d.connId === connId || el.dataset.connId === connId) &&
+                           (d.type === 'postgres_roles_group' || el.dataset.nodeType === 'postgres_roles_group');
                 });
             }
         }

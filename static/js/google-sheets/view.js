@@ -492,7 +492,6 @@ window.GoogleSheetsView = (function () {
       _activeTagFilter = null;
     }
 
-    if (!_dom.tagFilterBar) return;
     _dom.tagFilterBar.innerHTML = '';
 
     // "Tất cả" chip
@@ -531,8 +530,6 @@ window.GoogleSheetsView = (function () {
     if (_expandedProjectIds.size === 0 && _cachedProjects.length > 0) {
       _cachedProjects.forEach((p) => _expandedProjectIds.add(p.id));
     }
-
-    if (!_dom.appContainer) return;
 
     renderTagFilterBar(_cachedProjects);
     applyFiltersAndRenderTree();
@@ -905,7 +902,7 @@ window.GoogleSheetsView = (function () {
 
     _dom.tableHead.innerHTML = '';
     const headerTr = document.createElement('tr');
-    
+
     const cornerTh = document.createElement('th');
     cornerTh.className = 'gs-row-num';
     cornerTh.textContent = '';
@@ -1310,7 +1307,7 @@ window.GoogleSheetsView = (function () {
     // Standalone window doesn't require modal toggle
   }
 
-  function hideModal() {}
+  function hideModal() { }
 
   function isVisible() {
     return Boolean(document.getElementById('gs-app-container'));

@@ -97,6 +97,8 @@ def _is_destructive_or_locking_ddl(sql: str) -> bool:
         r"ALTER\s+(?:DATABASE|TABLE|SCHEMA|SYSTEM|ROLE|USER)|"
         r"TRUNCATE(?:\s+TABLE)?|"
         r"CREATE\s+(?:(?:OR\s+REPLACE\s+)?(?:PROCEDURE|FUNCTION|VIEW|TRIGGER)|INDEX\s+CONCURRENTLY|DATABASE|TABLE|SCHEMA|SEQUENCE|TYPE)|"
+        r"DO(?:\s+LANGUAGE\s+[a-zA-Z0-9_]+)?\s*\$|"
+        r"CALL\s+[a-zA-Z0-9_.\"$]+|"
         r"VACUUM|REINDEX|CLUSTER)\b",
         re.IGNORECASE,
     )

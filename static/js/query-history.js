@@ -810,7 +810,6 @@
                 state.filterFavoritesOnly = !state.filterFavoritesOnly;
                 btnFilterFav.classList.toggle('active', state.filterFavoritesOnly);
                 loadDocuments();
-                showToast(state.filterFavoritesOnly ? 'Đang lọc: Chỉ hiện file yêu thích ⭐' : 'Đang hiện: Toàn bộ file');
             });
         }
 
@@ -820,7 +819,6 @@
             btnRefresh.addEventListener('click', async () => {
                 await loadStorageStats();
                 await loadDocuments();
-                showToast('Đã làm mới danh sách lịch sử truy vấn');
             });
         }
 
@@ -924,12 +922,10 @@
                     state.monacoEditor.trigger('fold', 'editor.foldAll');
                     btnToggleFold.innerHTML = '<i class="fa-solid fa-expand"></i><span>Unfold</span>';
                     btnToggleFold.title = 'Mở rộng toàn bộ khối lệnh (Unfold All)';
-                    showToast('Đã thu gọn toàn bộ khối code (Fold All)');
                 } else {
                     state.monacoEditor.trigger('fold', 'editor.unfoldAll');
                     btnToggleFold.innerHTML = '<i class="fa-solid fa-compress"></i><span>Fold</span>';
                     btnToggleFold.title = 'Thu gọn toàn bộ khối lệnh (Fold All)';
-                    showToast('Đã mở rộng toàn bộ khối code (Unfold All)');
                 }
             });
         }
@@ -943,7 +939,6 @@
                 if (state.monacoEditor) {
                     state.monacoEditor.updateOptions({ wordWrap: state.isWrapCode ? 'on' : 'off' });
                 }
-                showToast(state.isWrapCode ? 'Đã bật ngắt dòng tự động (Wrap Lines)' : 'Đã tắt ngắt dòng');
             });
         }
 
@@ -1849,7 +1844,6 @@
             if (data && data.success) {
                 doc.isStarred = Boolean(data.is_starred);
                 renderDocuments();
-                showToast(doc.isStarred ? `Đã thêm "${doc.displayName}" vào Yêu thích ⭐` : `Đã bỏ gắn sao "${doc.displayName}"`);
             }
         } catch (err) {
             showToast('Lỗi toggle star: ' + err.message);
@@ -2055,7 +2049,6 @@
         if (selDate) selDate.value = 'all';
 
         applyFilterChange();
-        showToast('Đã đặt lại toàn bộ bộ lọc');
     }
 
     // ── Phase 5: Diff Mode Engine ─────────────────────────────────────────────
@@ -2291,7 +2284,6 @@
                 ? '<i class="fa-solid fa-table-columns me-1"></i><span>Side-by-side</span>'
                 : '<i class="fa-solid fa-bars-staggered me-1"></i><span>Inline</span>';
         }
-        showToast(state.diffInline ? 'Chuyển sang xem Diff cuộn dòng (Inline)' : 'Chuyển sang xem Diff song song (Side-by-side)');
     }
 
     // ── Phase 5 / 5.7: Note, Multi-Tag & Favorite Handlers ─────────────────
@@ -2321,7 +2313,6 @@
             }
             renderEntries();
             renderPreview();
-            showToast(entry.isFavorite ? 'Đã thêm lần chạy này vào Yêu thích ⭐' : 'Đã bỏ yêu thích lần chạy');
         } catch (err) {
             console.error('[QueryHistory] Failed to toggle favorite:', err);
             showToast('Lỗi cập nhật yêu thích: ' + err.message);
@@ -2338,7 +2329,6 @@
         if (!name) return;
 
         if (currentEntry.tags && currentEntry.tags.includes(name)) {
-            showToast(`Tag "${name}" đã được gắn`);
             return;
         }
 
@@ -2364,7 +2354,6 @@
             renderEntries();
             renderPreview();
             await loadFilterOptions();
-            showToast(`Đã gắn tag "${name}"`);
         } catch (err) {
             console.error('[QueryHistory] Failed to add tag:', err);
             showToast('Lỗi gắn tag: ' + err.message);
@@ -2401,7 +2390,6 @@
             renderEntries();
             renderPreview();
             await loadFilterOptions();
-            showToast(`Đã gỡ tag "${name}"`);
         } catch (err) {
             console.error('[QueryHistory] Failed to remove tag:', err);
             showToast('Lỗi gỡ tag: ' + err.message);

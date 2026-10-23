@@ -101,6 +101,61 @@ function initTabs() {
     }
     window.getUniqueFileName = getUniqueFileName;
 
+    function getDbIconHtml(dbType, fallbackIcon = 'fa-table-list') {
+        const typ = String(dbType || '').toLowerCase().trim();
+        if (typ.includes('postgr') || typ === 'pg') {
+            return `<img class="tab-icon me-1" src="../static/icons/postgresql.png" onerror="this.onerror=null; this.src='https://img.icons8.com/color/48/postgreesql.png';" alt="PostgreSQL" style="width: 13px; height: 13px; object-fit: contain; vertical-align: -1px; flex-shrink: 0;">`;
+        }
+        if (typ.includes('sqlserver') || typ.includes('mssql')) {
+            return `<img class="tab-icon me-1" src="../static/icons/sqlserver.png" onerror="this.onerror=null; this.src='https://img.icons8.com/color/48/microsoft-sql-server.png';" alt="SQL Server" style="width: 13px; height: 13px; object-fit: contain; vertical-align: -1px; flex-shrink: 0;">`;
+        }
+        if (typ.includes('sqlite')) {
+            return `<img class="tab-icon me-1" src="../static/icons/sqlite.svg" onerror="this.onerror=null; this.src='https://img.icons8.com/color/48/sqlite.png';" alt="SQLite" style="width: 13px; height: 13px; object-fit: contain; vertical-align: -1px; flex-shrink: 0;">`;
+        }
+        if (typ.includes('mysql')) {
+            return `<img class="tab-icon me-1" src="https://img.icons8.com/color/48/mysql-logo.png" alt="MySQL" style="width: 13px; height: 13px; object-fit: contain; vertical-align: -1px; flex-shrink: 0;">`;
+        }
+        if (typ.includes('oracle')) {
+            return `<img class="tab-icon me-1" src="https://img.icons8.com/color/48/oracle-logo.png" alt="Oracle" style="width: 13px; height: 13px; object-fit: contain; vertical-align: -1px; flex-shrink: 0;">`;
+        }
+        const activeTyp = String(window.ActiveDbType || defaultContext.dbType || '').toLowerCase().trim();
+        if (activeTyp.includes('postgr') || activeTyp === 'pg') {
+            return `<img class="tab-icon me-1" src="../static/icons/postgresql.png" onerror="this.onerror=null; this.src='https://img.icons8.com/color/48/postgreesql.png';" alt="PostgreSQL" style="width: 13px; height: 13px; object-fit: contain; vertical-align: -1px; flex-shrink: 0;">`;
+        }
+        if (activeTyp.includes('sqlite')) {
+            return `<img class="tab-icon me-1" src="../static/icons/sqlite.svg" onerror="this.onerror=null; this.src='https://img.icons8.com/color/48/sqlite.png';" alt="SQLite" style="width: 13px; height: 13px; object-fit: contain; vertical-align: -1px; flex-shrink: 0;">`;
+        }
+        if (fallbackIcon && fallbackIcon.includes('fa-')) {
+            return `<i class="fa-solid ${fallbackIcon} me-1 tab-icon" style="font-size: 11px;"></i>`;
+        }
+        return `<img class="tab-icon me-1" src="../static/icons/sqlserver.png" onerror="this.onerror=null; this.src='https://img.icons8.com/color/48/microsoft-sql-server.png';" alt="SQL Server" style="width: 13px; height: 13px; object-fit: contain; vertical-align: -1px; flex-shrink: 0;">`;
+    }
+
+    function updateTabIcon(tabId) {
+        if (!tabId) return;
+        const data = tabsData.get(tabId);
+        if (!data) return;
+        const tabEl = tabsBar ? tabsBar.querySelector(`.ide-tab[data-tab-id="${tabId}"]`) : null;
+        if (!tabEl) return;
+
+        if (data.tabType === 'designer' || data.tabType === 'diff' || data.tabType === 'dependency-graph' || data.tabType === 'object-search' || data.tabType === 'activity-monitor' || data.tabType === 'query-designer') {
+            return;
+        }
+
+        const oldIcon = tabEl.querySelector('.tab-icon');
+        const effectiveDbType = data.dbType || defaultContext.dbType || window.ActiveDbType;
+        const temp = document.createElement('div');
+        temp.innerHTML = getDbIconHtml(effectiveDbType);
+        const newIcon = temp.firstElementChild;
+        if (newIcon) {
+            if (oldIcon) {
+                oldIcon.replaceWith(newIcon);
+            } else {
+                tabEl.prepend(newIcon);
+            }
+        }
+    }
+
     function serializeSession() {
         const list = [];
         if (activeTabId && tabsData.has(activeTabId)) {
@@ -183,7 +238,7 @@ function initTabs() {
     function isTextEditorTab(tabState) {
         if (!tabState) return false;
         if (tabState.isTextEditor !== undefined) return Boolean(tabState.isTextEditor);
-        const nonTextEditorTypes = ['object-search', 'designer', 'data-editor', 'dependency-graph', 'query-designer', 'activity-monitor', 'schema-compare'];
+        const nonTextEditorTypes = ['object-search', 'designer', 'data-editor', 'dependency-graph', 'query-designer', 'activity-monitor', 'schema-compare', 'user-permissions'];
         return !nonTextEditorTypes.includes(tabState.tabType);
     }
     window.isTextEditorTab = isTextEditorTab;
@@ -269,6 +324,8 @@ function initTabs() {
         const filePath = opts.filePath || null;
 
         tabsData.set(tabId, {
+            id:             tabId,
+            tabId:          tabId,
             tabType:        tabType,
             isTextEditor:   isTextEditorTab({ tabType, isTextEditor: opts.isTextEditor }),
             savedCursorPosition: opts.savedCursorPosition || { lineNumber: 1, column: 1 },
@@ -347,8 +404,25 @@ function initTabs() {
 
         const roBadgeHtml = tabData?.read_only ? '<i class="fa-solid fa-lock ms-1 text-warning tab-ro-badge" style="font-size: 9px; cursor: pointer;" title="Chỉ đọc - Click để chuyển sang chế độ Ghi"></i>' : '';
 
+        let tabIconHtml = '';
+        if (opts.icon) {
+            tabIconHtml = `<i class="fa-solid ${opts.icon} me-1 tab-icon" style="font-size: 11px;"></i>`;
+        } else if (tabType === 'designer') {
+            tabIconHtml = `<i class="fa-solid fa-drafting-compass me-1 tab-icon" style="font-size: 11px;"></i>`;
+        } else if (tabType === 'dependency-graph' || tabType === 'query-designer') {
+            tabIconHtml = `<i class="fa-solid fa-diagram-project me-1 tab-icon" style="font-size: 11px;"></i>`;
+        } else if (tabType === 'object-search') {
+            tabIconHtml = `<i class="fa-solid fa-magnifying-glass me-1 tab-icon" style="font-size: 11px;"></i>`;
+        } else if (tabType === 'activity-monitor') {
+            tabIconHtml = `<i class="fa-solid fa-heart-pulse me-1 tab-icon" style="font-size: 11px;"></i>`;
+        } else if (tabType === 'diff') {
+            tabIconHtml = `<i class="fa-solid fa-code-compare me-1 tab-icon" style="font-size: 11px;"></i>`;
+        } else {
+            tabIconHtml = getDbIconHtml(typ || defaultContext.dbType || window.ActiveDbType);
+        }
+
         tabEl.innerHTML = `
-            <i class="fa-solid ${icon} me-1 tab-icon" style="font-size: 11px;"></i>
+            ${tabIconHtml}
             <span class="tab-label text-truncate" style="max-width: 140px;" title="${tabTitle}">${tabTitle}</span>
             ${envBadgeHtml}
             ${roBadgeHtml}
@@ -426,7 +500,12 @@ function initTabs() {
         setupTabDragAndDrop(tabEl, tabId);
 
         // Append to the tabs list
-        tabsBar.appendChild(tabEl);
+        const newTabLi = document.getElementById('ide-new-tab-li');
+        if (newTabLi && newTabLi.parentNode === tabsBar) {
+            tabsBar.insertBefore(tabEl, newTabLi);
+        } else {
+            tabsBar.appendChild(tabEl);
+        }
         tabOrder.push(tabId);
 
         if (opts.pinned) {
@@ -437,6 +516,11 @@ function initTabs() {
         switchTab(tabId);
         calculateTabLayout();
         syncTabsSession();
+
+        if (tabData && (tabData.tabType === 'query' || !tabData.tabType) && tabData.connectionId) {
+            initDedicatedSessionForTab(tabId, tabData.connectionId);
+        }
+
         return tabId;
     }
 
@@ -474,10 +558,14 @@ function initTabs() {
         if (tabEl) tabEl.classList.add('active');
 
         activeTabId = tabId;
+        updateTabIcon(tabId);
         if (window.AppSession) {
             window.AppSession.setActiveTabId(tabId);
         }
         const state = tabsData.get(tabId);
+        if (typeof window.updateActionBar === 'function') {
+            window.updateActionBar();
+        }
         updateEmptyTabsState();
 
         // Toggle Editor Status Bar based on isTextEditor
@@ -503,6 +591,7 @@ function initTabs() {
         const visualizerContainer = document.getElementById('sql-visualizer-container');
         const actContainer = document.getElementById('activity-monitor-container');
         const scContainer = document.getElementById('schema-compare-container');
+        const userPermsContainer = document.getElementById('user-permissions-container');
         const editorWrap = document.querySelector('.ide-editor-wrap');
         const resizer = document.querySelector('.ide-resizer-horizontal');
         const resultsPane = document.getElementById('ide-result-panel') || document.getElementById('ide-results-pane') || (resizer ? resizer.nextElementSibling : null);
@@ -513,6 +602,9 @@ function initTabs() {
         if (!state || state.tabType !== 'schema-compare') {
             if (scContainer) scContainer.classList.add('d-none');
             if (ideStatusbar) ideStatusbar.classList.remove('d-none');
+        }
+        if (!state || state.tabType !== 'user-permissions') {
+            if (userPermsContainer) userPermsContainer.classList.add('d-none');
         }
 
         if (state && state.tabType === 'designer') {
@@ -653,8 +745,28 @@ function initTabs() {
                 }
                 window.SchemaCompare.activateTab(tabId);
             }
+        } else if (state && state.tabType === 'user-permissions') {
+            if (typeof window.hideDiffView === 'function') window.hideDiffView();
+            if (editorWrap) editorWrap.classList.add('d-none');
+            if (resizer) resizer.classList.add('d-none');
+            if (resultsPane) resultsPane.classList.add('d-none');
+            if (designerContainer) designerContainer.classList.add('d-none');
+            if (dataEditorContainer) dataEditorContainer.classList.add('d-none');
+            if (depContainer) depContainer.classList.add('d-none');
+            if (ocsContainer) ocsContainer.classList.add('d-none');
+            if (visualizerContainer) visualizerContainer.classList.add('d-none');
+            if (actContainer) actContainer.classList.add('d-none');
+            if (scContainer) scContainer.classList.add('d-none');
+            if (queryControls) queryControls.classList.add('opacity-50', 'pe-none');
+            if (userPermsContainer) userPermsContainer.classList.remove('d-none');
+            if (ideStatusbar) ideStatusbar.classList.remove('d-none');
+
+            if (window.UserPermissionsViewer) {
+                window.UserPermissionsViewer.activateTab(tabId, state.context);
+            }
         } else if (state && state.tabType === 'diff') {
             if (scContainer) scContainer.classList.add('d-none');
+            if (userPermsContainer) userPermsContainer.classList.add('d-none');
             if (designerContainer) designerContainer.classList.add('d-none');
             if (dataEditorContainer) dataEditorContainer.classList.add('d-none');
             if (depContainer) depContainer.classList.add('d-none');
@@ -693,6 +805,7 @@ function initTabs() {
         } else {
             if (typeof window.hideDiffView === 'function') window.hideDiffView();
             if (scContainer) scContainer.classList.add('d-none');
+            if (userPermsContainer) userPermsContainer.classList.add('d-none');
             if (designerContainer) designerContainer.classList.add('d-none');
             if (dataEditorContainer) dataEditorContainer.classList.add('d-none');
             if (depContainer) depContainer.classList.add('d-none');
@@ -956,15 +1069,16 @@ function initTabs() {
             state.monacoModel = null;
         }
 
+        // Clean up dedicated tab session connection if any
+        if (state && (state.isDedicatedTabSession || state.tabType === 'query')) {
+            fetch(`/api/connections/tab-session/${encodeURIComponent(tabId)}`, { method: 'DELETE' }).catch(() => {});
+        }
+
         tabsData.delete(tabId);
         pinnedTabs.delete(tabId);
         tabOrder = tabOrder.filter(id => id !== tabId);
         document.dispatchEvent(new CustomEvent('ide-tab-closed', { detail: { tabId } }));
         tabEl.remove();
-
-        if (typeof showToast === 'function') {
-            showToast('Đã đóng tab "' + title + '"', 'secondary');
-        }
 
         if (activeTabId === tabId) {
             activeTabId = null;
@@ -1111,9 +1225,7 @@ function initTabs() {
             others.forEach(el => {
                 forceCloseTab(el.dataset.tabId, el);
             });
-            if (typeof showToast === 'function') {
-                showToast(`Đã đóng ${others.length} tab khác`, 'info');
-            }
+            // Closed other tabs silently
         };
 
         if (dirtyOthers.length > 0) {
@@ -1144,9 +1256,7 @@ function initTabs() {
             rightTabs.forEach(el => {
                 forceCloseTab(el.dataset.tabId, el);
             });
-            if (typeof showToast === 'function') {
-                showToast(`Đã đóng ${rightTabs.length} tab bên phải`, 'info');
-            }
+            // Closed tabs to right silently
         };
 
         if (dirtyRights.length > 0) {
@@ -1172,9 +1282,7 @@ function initTabs() {
             allTabEls.forEach(el => {
                 forceCloseTab(el.dataset.tabId, el);
             });
-            if (typeof showToast === 'function') {
-                showToast('Đã đóng tất cả các tab', 'info');
-            }
+            // Closed all tabs silently
         };
 
         if (dirtyTabs.length > 0) {
@@ -1220,10 +1328,6 @@ function initTabs() {
                 tabOrder.splice(origIdx + 1, 0, newTabId);
             }
             calculateTabLayout();
-        }
-
-        if (typeof showToast === 'function') {
-            showToast(`Đã nhân bản tab "${state.title}"`, 'success');
         }
         return newTabId;
     }
@@ -1424,6 +1528,11 @@ function initTabs() {
                 <i class="fa-regular fa-file-code ide-ctx-icon"></i>
                 <span class="ide-ctx-label">Compare with File on Disk...</span>
             </button>
+            <div class="ide-ctx-separator"></div>
+            <button class="ide-ctx-item" id="ctx-tab-syntax-ref">
+                <i class="fa-solid fa-circle-question ide-ctx-icon text-success"></i>
+                <span class="ide-ctx-label">Tra cứu &amp; Đối chiếu cú pháp...</span>
+            </button>
             ` : ''}
         `;
 
@@ -1570,6 +1679,15 @@ function initTabs() {
                 ev.preventDefault();
                 closeMenu();
                 handleCompareWithDisk(tabId);
+            });
+
+            menu.querySelector('#ctx-tab-syntax-ref')?.addEventListener('click', (ev) => {
+                ev.preventDefault();
+                closeMenu();
+                switchTab(tabId);
+                if (window.openSyntaxReferenceWindow) {
+                    window.openSyntaxReferenceWindow();
+                }
             });
         }
     }
@@ -1998,8 +2116,14 @@ function initTabs() {
 
         if (activeTabId && tabsData.has(activeTabId)) {
             const state = tabsData.get(activeTabId);
+            if (ctx.connectionId !== undefined && state.connectionId && ctx.connectionId !== state.connectionId) {
+                state.isDedicatedTabSession = false;
+                state.spid = null;
+                initDedicatedSessionForTab(activeTabId, ctx.connectionId);
+            }
             Object.assign(state, ctx);
             updateTabSafetyBadges(activeTabId);
+            updateTabIcon(activeTabId);
         }
         document.dispatchEvent(new CustomEvent('ide-context-changed', { detail: ctx }));
         if (typeof window.updateActionBar === 'function') {
@@ -2083,6 +2207,11 @@ function initTabs() {
                 tabsBar.insertBefore(sourceEl, tabEl.nextSibling);
             }
 
+            const newTabLi = document.getElementById('ide-new-tab-li');
+            if (newTabLi && newTabLi.parentNode === tabsBar) {
+                tabsBar.appendChild(newTabLi);
+            }
+
             const currentDomIds = Array.from(tabsBar.querySelectorAll('.ide-tab[data-tab-id]')).map(el => el.dataset.tabId);
             tabOrder = currentDomIds;
             calculateTabLayout();
@@ -2118,8 +2247,17 @@ function initTabs() {
             if (firstUnpinned) {
                 tabsBar.insertBefore(tabEl, firstUnpinned);
             } else {
-                tabsBar.appendChild(tabEl);
+                const newTabLi = document.getElementById('ide-new-tab-li');
+                if (newTabLi && newTabLi.parentNode === tabsBar) {
+                    tabsBar.insertBefore(tabEl, newTabLi);
+                } else {
+                    tabsBar.appendChild(tabEl);
+                }
             }
+        }
+        const newTabLi = document.getElementById('ide-new-tab-li');
+        if (newTabLi && tabsBar && newTabLi.parentNode === tabsBar) {
+            tabsBar.appendChild(newTabLi);
         }
         calculateTabLayout();
     }
@@ -2135,6 +2273,10 @@ function initTabs() {
         const pinned = tabOrder.filter(id => pinnedTabs.has(id));
         const unpinned = tabOrder.filter(id => !pinnedTabs.has(id));
         tabOrder = [...pinned, ...unpinned];
+        const newTabLi = document.getElementById('ide-new-tab-li');
+        if (newTabLi && tabsBar && newTabLi.parentNode === tabsBar) {
+            tabsBar.appendChild(newTabLi);
+        }
         calculateTabLayout();
     }
 
@@ -2154,6 +2296,10 @@ function initTabs() {
                 const el = document.querySelector(`.ide-tab[data-tab-id="${id}"]`);
                 if (el) el.classList.remove('tab-overflow-hidden');
             });
+            const newTabLi = document.getElementById('ide-new-tab-li');
+            if (newTabLi && tabsBar && newTabLi.parentNode === tabsBar) {
+                tabsBar.appendChild(newTabLi);
+            }
             visibleTabIds = new Set(tabOrder);
             overflowTabIds = new Set();
             if (window.AppEditor && typeof window.AppEditor.layout === 'function') {
@@ -2164,6 +2310,10 @@ function initTabs() {
 
         tabsContainerEl.classList.remove('display-all');
         tabsBar.classList.remove('display-all');
+        const newTabLi = document.getElementById('ide-new-tab-li');
+        if (newTabLi && tabsBar && newTabLi.parentNode === tabsBar) {
+            tabsBar.appendChild(newTabLi);
+        }
 
         const containerWidth = forcedContainerWidth !== null ? forcedContainerWidth : tabsContainerEl.clientWidth;
         if (containerWidth <= 0) return;
@@ -2337,17 +2487,26 @@ function initTabs() {
             const isPinned = pinnedTabs.has(tabId);
             const isDirty = !!data.isDirty;
 
-            const iconClass = data.tabType === 'designer' 
-                ? 'fa-drafting-compass text-info' 
-                : data.tabType === 'diff' 
-                    ? 'fa-code-compare text-warning' 
-                    : 'fa-table-list text-primary';
+            let iconHtml = '';
+            if (data.tabType === 'designer') {
+                iconHtml = '<i class="fa-solid fa-drafting-compass text-info flex-shrink-0" style="font-size: 11px;"></i>';
+            } else if (data.tabType === 'diff') {
+                iconHtml = '<i class="fa-solid fa-code-compare text-warning flex-shrink-0" style="font-size: 11px;"></i>';
+            } else if (data.tabType === 'dependency-graph' || data.tabType === 'query-designer') {
+                iconHtml = '<i class="fa-solid fa-diagram-project text-info flex-shrink-0" style="font-size: 11px;"></i>';
+            } else if (data.tabType === 'object-search') {
+                iconHtml = '<i class="fa-solid fa-magnifying-glass text-info flex-shrink-0" style="font-size: 11px;"></i>';
+            } else if (data.tabType === 'activity-monitor') {
+                iconHtml = '<i class="fa-solid fa-heart-pulse text-danger flex-shrink-0" style="font-size: 11px;"></i>';
+            } else {
+                iconHtml = getDbIconHtml(data.dbType || defaultContext.dbType || window.ActiveDbType, 'fa-table-list text-primary');
+            }
 
             return `
                 <button type="button" class="ide-overflow-item ${isVisible ? 'is-visible' : 'is-overflow'} ${isActive ? 'active' : ''}" data-tab-id="${tabId}" title="${title}">
                     <div class="d-flex align-items-center gap-2 overflow-hidden flex-grow-1">
                         ${isPinned ? '<i class="fa-solid fa-thumbtack text-warning flex-shrink-0" style="font-size: 10px;" title="Pinned"></i>' : ''}
-                        <i class="fa-solid ${iconClass} flex-shrink-0" style="font-size: 11px;"></i>
+                        ${iconHtml}
                         <span class="tab-list-title text-truncate">${title}</span>
                         ${isDirty ? '<span class="text-warning flex-shrink-0" style="font-size: 10px;">●</span>' : ''}
                     </div>
@@ -2456,6 +2615,52 @@ function initTabs() {
         calculateTabLayout();
     }
 
+    function initDedicatedSessionForTab(tabId, sourceConnId) {
+        if (!tabId || !sourceConnId) return;
+        const tabState = tabsData.get(tabId);
+        if (!tabState || tabState.isDedicatedTabSession) return;
+
+        let isPerTabSession = true;
+        try {
+            const rawSettings = localStorage.getItem('ide-settings');
+            if (rawSettings) {
+                const parsed = JSON.parse(rawSettings);
+                if (parsed && parsed.sql && parsed.sql.perTabSession !== undefined) {
+                    isPerTabSession = Boolean(parsed.sql.perTabSession);
+                }
+            }
+        } catch (_) {}
+
+        const curType = ((tabState && tabState.dbType) || '').toLowerCase();
+        const isSupportedDb = curType === 'sqlserver' || curType === 'mssql' || curType === 'tsql' || curType === 'postgresql' || curType === 'postgres' || curType === 'pg' || !curType;
+        if (!isPerTabSession || !isSupportedDb) return;
+
+        fetch('/api/connections/tab-session', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                tab_id: tabId,
+                connection_id: sourceConnId,
+                database: tabState.database || null,
+                schema: tabState.schema || null
+            })
+        }).then(res => res.json()).then(data => {
+            if (data && data.success && data.connection) {
+                const curState = tabsData.get(tabId);
+                if (curState) {
+                    curState.connectionId = data.connection.connection_id;
+                    curState.spid = data.connection.spid;
+                    curState.isDedicatedTabSession = true;
+                    if (tabId === activeTabId && typeof window.updateActionBar === 'function') {
+                        window.updateActionBar();
+                    }
+                }
+            }
+        }).catch(err => {
+            console.warn('[Tabs] Dedicated session background init failed:', err);
+        });
+    }
+
     function createNewQueryTab(opts = {}) {
         const focusedCtx = window.LastFocusedTreeContext || {};
         const hasFocusedConn = Boolean(focusedCtx.connectionName || focusedCtx.connectionId);
@@ -2474,12 +2679,20 @@ function initTabs() {
             } else {
                 const activeState = getActiveTabState();
                 if (activeState) {
+                    const baseConnId = (activeState.isDedicatedTabSession)
+                        ? (defaultContext.connectionId || window.ActiveConnectionId || null)
+                        : (activeState.connectionId || defaultContext.connectionId || window.ActiveConnectionId || null);
+
                     opts = {
-                        connectionId: activeState.connectionId,
+                        connectionId: baseConnId,
                         connectionName: activeState.connectionName,
                         database: activeState.database,
                         schema: activeState.schema,
                         dbType: activeState.dbType,
+                        environment: activeState.environment,
+                        read_only: activeState.read_only,
+                        isDedicatedTabSession: false,
+                        spid: null,
                         ...opts
                     };
                 }
@@ -2517,6 +2730,11 @@ function initTabs() {
     });
     document.addEventListener('ide-results-panel-resized', () => {
         setTimeout(calculateTabLayout, 50);
+    });
+    document.addEventListener('ide-context-changed', () => {
+        if (activeTabId) {
+            updateTabIcon(activeTabId);
+        }
     });
 
     // Wire Action Bar Toolbar buttons for Split and Compare
@@ -2629,9 +2847,6 @@ function initTabs() {
             if (window.AppEditor) {
                 if (typeof window.AppEditor.focus === 'function') window.AppEditor.focus();
                 if (typeof window.AppEditor.layout === 'function') window.AppEditor.layout();
-            }
-            if (typeof showToast === 'function') {
-                showToast('Đã đóng màn hình so sánh (Diff View)', 'info');
             }
         }
     };
@@ -2881,12 +3096,18 @@ function initTabs() {
                     }
                 });
 
+                // Ensure at least one tab always exists if restore resulted in 0 tabs
+                if (tabsData.size === 0) {
+                    createTab();
+                }
+
                 const targetActiveId = session.activeTabId;
                 if (targetActiveId && tabsData.has(targetActiveId)) {
                     switchTab(targetActiveId);
                 } else if (tabsData.size > 0) {
                     switchTab(Array.from(tabsData.keys())[0]);
                 }
+                syncActiveTabWithEditor();
                 restoredAny = true;
             } else {
                 // Các tabs đã được nạp từ cache trước đó, cập nhật bổ sung nội dung & trạng thái
@@ -2904,7 +3125,10 @@ function initTabs() {
                             if (st.connectionName && !tabState.connectionName) tabState.connectionName = st.connectionName;
                             if (st.database && !tabState.database) tabState.database = st.database;
                             if (st.schema && !tabState.schema) tabState.schema = st.schema;
-                            if (st.dbType && !tabState.dbType) tabState.dbType = st.dbType;
+                            if (st.dbType && !tabState.dbType) {
+                                tabState.dbType = st.dbType;
+                                updateTabIcon(st.id);
+                            }
                         }
                         if (st.content !== undefined && (!tabState.content || tabState.content.startsWith('-- Write your SQL query here'))) {
                             tabState.content = st.content;
@@ -2972,9 +3196,6 @@ function initTabs() {
                         window.SchemaCompare.setSourceContext(opts.connectionId, opts.database, opts.schema, opts.dbType);
                     }
                 }
-                if (typeof showToast === 'function') {
-                    showToast('Đang hiển thị tab So sánh Schema', 'info', 1500);
-                }
                 return id;
             }
         }
@@ -3004,9 +3225,74 @@ function initTabs() {
     window.getOverflowTabIds = () => Array.from(overflowTabIds);
     window.getTabOrder = () => [...tabOrder];
 
+    window.getDbIconHtml = getDbIconHtml;
+    window.updateTabIcon = updateTabIcon;
+
+    function syncActiveTabWithEditor(customEd) {
+        if (!activeTabId || !tabsData.has(activeTabId)) {
+            if (tabsData.size > 0) {
+                switchTab(Array.from(tabsData.keys())[0]);
+            } else {
+                createTab();
+            }
+            return;
+        }
+        const state = tabsData.get(activeTabId);
+        if (!isTextEditorTab(state)) return;
+
+        const rawEd = customEd || (window.AppEditor ? window.AppEditor.rawEditor : null);
+        if (!rawEd) return;
+
+        const nextVal = state.content || '';
+        const lang = state.language || (state.tabType === 'structured-data' ? (state.structuredFormat || 'json') : 'sql');
+
+        if (typeof monaco !== 'undefined' && monaco.editor && typeof monaco.editor.createModel === 'function') {
+            if (!state.monacoModel || state.monacoModel.isDisposed()) {
+                state.monacoModel = monaco.editor.createModel(nextVal, lang);
+                state.monacoModel.onDidChangeContent(() => {
+                    state.content = state.monacoModel.getValue();
+                    if (window.AppSession && typeof window.AppSession.scheduleAutoSave === 'function') {
+                        window.AppSession.scheduleAutoSave(800);
+                    }
+                });
+            } else if (state.monacoModel.getValue() !== nextVal) {
+                state.monacoModel.setValue(nextVal);
+            }
+            if (rawEd.getModel() !== state.monacoModel) {
+                rawEd.setModel(state.monacoModel);
+            }
+        } else if (window.AppEditor && typeof window.AppEditor.setValue === 'function') {
+            window.AppEditor.setValue(nextVal);
+        }
+
+        if (state.viewState && typeof rawEd.restoreViewState === 'function') {
+            try { rawEd.restoreViewState(state.viewState); } catch (_) {}
+        } else if (state.savedCursorPosition && typeof rawEd.setPosition === 'function') {
+            try { rawEd.setPosition(state.savedCursorPosition); } catch (_) {}
+        }
+
+        if (typeof rawEd.layout === 'function') {
+            rawEd.layout();
+        }
+        if (typeof window.remeasureMonacoFonts === 'function') {
+            window.remeasureMonacoFonts();
+        }
+    }
+    window.syncActiveTabWithEditor = syncActiveTabWithEditor;
+
+    window.addEventListener('editor-mounted', (e) => {
+        syncActiveTabWithEditor(e.detail ? e.detail.editor : null);
+    });
+    window.addEventListener('monaco-ready', () => {
+        setTimeout(() => syncActiveTabWithEditor(), 50);
+        setTimeout(() => syncActiveTabWithEditor(), 300);
+        setTimeout(() => syncActiveTabWithEditor(), 1000);
+    });
+
     return { 
         createTab,
         addTab: createTab,
+        syncActiveTabWithEditor,
         openActivityMonitorTab,
         openSchemaCompareTab,
         openFilesFromDisk,
@@ -3030,10 +3316,13 @@ function initTabs() {
         getTabsList,
         updateActiveTabContext,
         updateTabsConnectionId,
+        initDedicatedSession: initDedicatedSessionForTab,
         setDefaultContext,
         getDefaultContext,
         syncDiffTabsWithSourceTab,
         updateTabContentFromDiff,
+        getDbIconHtml,
+        updateTabIcon,
         // Tab Layout & Overflow APIs
         calculateTabLayout,
         showTabOverflowMenu,

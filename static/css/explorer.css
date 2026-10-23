@@ -5,17 +5,34 @@
 /* ── Sidebar shell ───────────────────────────────────────────────────────────── */
 .ide-sidebar {
     background: var(--ide-bg-sidebar);
-    border-right: 1px solid var(--ide-border);
+    border: 1px solid var(--ide-border);
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
     flex-shrink: 0;
     position: relative;
     overflow: hidden;
+    box-sizing: border-box;
 }
 
 .ide-sidebar-header {
     background: var(--ide-bg-toolbar);
+    border-top: none;
     border-bottom: 1px solid var(--ide-border);
-    height: 30px;
+    border-top-left-radius: 7px;
+    border-top-right-radius: 7px;
+    height: 34px;
+    min-height: 34px;
+    max-height: 34px;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
     flex-shrink: 0;
+}
+
+.ide-tree,
+.ide-sidebar-collapsed-rail {
+    border-bottom-left-radius: 7px;
+    border-bottom-right-radius: 7px;
 }
 
 .ide-sidebar-header-title {
@@ -27,23 +44,28 @@
     color: var(--ide-text-muted);
 }
 
-/* ── Sidebar drag resizer ─────────────────────────────────────────────────────── */
+/* ── Sidebar drag resizer (Sash gutter) ────────────────────────────────────────── */
 .ide-sidebar-resizer {
-    width: 5px;
+    width: 6px;
+    min-width: 6px;
+    max-width: 6px;
     cursor: col-resize;
-    background: var(--ide-bg-toolbar, var(--ide-border, #3c3f41));
-    border-left: 1px solid var(--ide-border, #3c3f41);
-    border-right: 1px solid var(--ide-border, #3c3f41);
-    margin-left: -1px;
+    background: var(--ide-bg-toolbar, transparent);
+    background: transparent;
+    border-left: 1px solid var(--ide-border, transparent);
+    border-right: 1px solid var(--ide-border, transparent);
+    border: none;
+    margin: 0;
     flex-shrink: 0;
     z-index: 20;
     position: relative;
-    transition: background 0.15s, border-color 0.15s;
+    border-radius: 3px;
+    transition: background 0.15s ease;
 }
 .ide-sidebar-resizer:hover,
 .ide-sidebar-resizer.dragging {
     background: var(--ide-accent, #CC7832);
-    border-color: var(--ide-accent, #CC7832);
+    filter: brightness(1.25);
 }
 
 /* ── Sidebar reopen (collapsed state) ────────────────────────────────────────── */
@@ -135,9 +157,26 @@
     box-sizing: border-box;
 }
 .tree-item:hover { background: var(--ide-hover-bg); }
+.tree-item:focus {
+    outline: 1px dotted var(--ide-accent, #61afef);
+    outline-offset: -1px;
+}
 .tree-item.selected {
     background: var(--ide-active-bg);
     color: var(--ide-text-active);
+}
+.tree-item.tree-item-copied {
+    animation: treeItemCopiedFlash 0.5s ease-out;
+}
+@keyframes treeItemCopiedFlash {
+    0% {
+        background-color: var(--ide-accent, #61afef);
+        color: #ffffff;
+    }
+    100% {
+        background-color: var(--ide-active-bg, rgba(97, 175, 239, 0.2));
+        color: var(--ide-text-active, #ffffff);
+    }
 }
 
 .tree-toggle {
@@ -674,8 +713,15 @@ html[data-bs-theme="win-nt"] .tree-conn-icon.disconnected {
 /* ── Object Explorer Quick Search / Filter Bar ─────────────────────────────── */
 .ide-sidebar-search {
     background: var(--ide-bg-sidebar);
+    border-top: none;
     border-bottom: 1px solid var(--ide-border);
-    padding: 4px 6px;
+    height: 32px;
+    min-height: 32px;
+    max-height: 32px;
+    padding: 0 8px !important;
+    display: flex;
+    align-items: center;
+    box-sizing: border-box;
     flex-shrink: 0;
 }
 

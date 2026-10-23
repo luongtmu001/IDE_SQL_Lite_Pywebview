@@ -1,0 +1,106 @@
+[
+  {
+    "id": "CASE-A-OPEN-AFTER-EXEC",
+    "dialect": "sqlserver",
+    "sql": "CREATE TABLE #Kqt (Id INT);\nEXECUTE usp_sys_CreateTable N'#Kqt', @_Kqt;\nALTER TABLE #Kqt ADD IsCheck NVARCHAR(1);\nSELECT Account, ItemLevel, IsCheck FROM #Kqt;",
+    "issue": "T1/T3 - Timeline & open state after EXEC proc with temp table arg",
+    "expect": { "diagnosticsCount": 0 }
+  },
+  {
+    "id": "CASE-B-ALTER-ADD",
+    "dialect": "sqlserver",
+    "sql": "CREATE TABLE #T (Id INT);\nALTER TABLE #T ADD IsCheck NVARCHAR(1);\nSELECT IsCheck FROM #T;",
+    "issue": "T2 - ALTER TABLE ADD COLUMN not handled in temp tables",
+    "expect": { "diagnosticsCount": 0 }
+  },
+  {
+    "id": "CASE-C-ALTER-DROP",
+    "dialect": "sqlserver",
+    "sql": "CREATE TABLE #T (Id INT, Old INT);\nALTER TABLE #T DROP COLUMN Old;\nSELECT Old FROM #T;",
+    "issue": "T2 - ALTER TABLE DROP COLUMN not handled in temp tables",
+    "expect": { "diagnosticsCount": 1, "token": "Old" }
+  },
+  {
+    "id": "CASE-D-EXEC-STRING-ALTER",
+    "dialect": "sqlserver",
+    "sql": "CREATE TABLE #T (Id INT);\nEXEC('ALTER TABLE #T ADD Extra INT');\nSELECT Extra FROM #T;",
+    "issue": "T3 - EXEC(@sql) mutates temp table to open state",
+    "expect": { "diagnosticsCount": 0 }
+  },
+  {
+    "id": "CASE-E-SELECT-BEFORE-CREATE",
+    "dialect": "sqlserver",
+    "sql": "SELECT Name FROM #T;\nCREATE TABLE #T (Id INT, Name VARCHAR(50));",
+    "issue": "T1 - Timeline order: #T referenced before creation",
+    "expect": { "hasWarningOrError": true }
+  },
+  {
+    "id": "CASE-F-DROP-RECREATE",
+    "dialect": "sqlserver",
+    "sql": "CREATE TABLE #T (A INT);\nSELECT A FROM #T;\nDROP TABLE #T;\nCREATE TABLE #T (B INT);\nSELECT A FROM #T;",
+    "issue": "T1 - Timeline order: Drop and recreate with different schema",
+    "expect": { "diagnosticsCount": 1, "token": "A" }
+  },
+  {
+    "id": "CASE-G-GLOBAL-TEMP-EXEC",
+    "dialect": "sqlserver",
+    "sql": "CREATE TABLE ##G (Id INT);\nEXEC usp_fill_g;\nSELECT Extra FROM ##G;",
+    "issue": "T10 - Global temp table with EXEC is open",
+    "expect": { "diagnosticsCount": 0 }
+  },
+  {
+    "id": "CASE-H-EXEC-NAMED-OPEN",
+    "dialect": "sqlserver",
+    "sql": "EXEC usp_x N'#T';\nSELECT Missing FROM #T WHERE Missing = 1;",
+    "issue": "T3 - Temp table created/mutated by child procedure",
+    "expect": { "diagnosticsCount": 0 }
+  },
+  {
+    "id": "CASE-I-EXEC-DYNAMIC-MUTATOR",
+    "dialect": "sqlserver",
+    "sql": "EXEC usp_sys_CreateTable N'#T', 'B20Customer';\nUPDATE #T SET Name = 'ABC';",
+    "issue": "T3 - usp_sys_CreateTable marks #T open",
+    "expect": { "diagnosticsCount": 0 }
+  },
+  {
+    "id": "CASE-J-INSERT-NOT-DEFINE-COLS",
+    "dialect": "sqlserver",
+    "sql": "CREATE TABLE #T (Id INT);\nINSERT INTO #T (Id, Name) VALUES (1, 'ABC');\nSELECT Id FROM #T;",
+    "expect": { "diagnosticsCount": 1, "token": "Name" }
+  },
+  {
+    "id": "CASE-K-PG-TEMP-ALTER-ADD",
+    "dialect": "postgresql",
+    "sql": "CREATE TEMP TABLE t_kqt (id INT);\nALTER TABLE t_kqt ADD COLUMN is_check TEXT;\nSELECT is_check FROM t_kqt;",
+    "issue": "T2 - PostgreSQL ALTER TABLE ADD COLUMN not handled in temp tables",
+    "expect": { "diagnosticsCount": 0 }
+  },
+  {
+    "id": "CASE-L-GO-BATCHES",
+    "dialect": "sqlserver",
+    "sql": "CREATE TABLE #T (Id INT);\nGO\nALTER TABLE #T ADD Name VARCHAR(50);\nGO\nSELECT Name FROM #T;",
+    "issue": "T1/T2 - Temp table survives GO batches",
+    "expect": { "diagnosticsCount": 0 }
+  },
+  {
+    "id": "CASE-M-PROC-SNIPPET-DYNAMIC",
+    "dialect": "sqlserver",
+    "sql": "CREATE TABLE #BcTmp (Id INT DEFAULT 0);\nCREATE TABLE #Kqt (Id INT DEFAULT 0);\nEXECUTE usp_sys_CreateTable N'#Kqt', @_Kqt;\nALTER TABLE #Kqt ADD IsCheck NVARCHAR(1);\nSELECT Account, ItemLevel, BuiltinOrder, IsCheck, Description, GroupDescription, SourceData, ItemType FROM #Kqt;",
+    "issue": "T1/T3 - Real-world procedure snippet with dynamic columns",
+    "expect": { "diagnosticsCount": 0 }
+  },
+  {
+    "id": "CASE-N-SELECT-INTO-EXPR-ALIAS",
+    "dialect": "sqlserver",
+    "sql": "IF OBJECT_ID('TempDb..#curKqt') IS NOT NULL DROP TABLE #curKqt;\nSELECT Id, BuiltinOrder, CAST('' AS NVARCHAR(1)) AS _Check INTO #curKqt FROM #Kqt;\nSELECT * FROM #curKqt WHERE ISNULL(_Check, '') = '';\nUPDATE #curKqt SET _Check = 'x' WHERE BuiltinOrder = @_Id;",
+    "issue": "SELECT INTO with expression alias CAST(...) AS _Check and timeline lifecycle",
+    "expect": { "diagnosticsCount": 0 }
+  },
+  {
+    "id": "CASE-O-PG-CREATE-TEMP-AS",
+    "dialect": "postgresql",
+    "sql": "CREATE TEMP TABLE cur_kqt AS SELECT id, CAST('' AS TEXT) AS _check FROM kqt;\nSELECT _check FROM cur_kqt;\nUPDATE cur_kqt SET _check = 'x';",
+    "issue": "PostgreSQL CREATE TEMP TABLE ... AS SELECT with projection alias",
+    "expect": { "diagnosticsCount": 0 }
+  }
+]

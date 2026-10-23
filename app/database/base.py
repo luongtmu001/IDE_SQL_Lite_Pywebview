@@ -85,9 +85,14 @@ class DatabaseAdapter(ABC):
         """Returns list of foreign key relationships."""
         return []
 
+    def get_routine_signatures(self, schema: str = None, name: str = None, database: str = None) -> list:
+        """Returns list of routine parameter signatures / overloads (e.g. for PostgreSQL)."""
+        return []
+
     def execute_migration_transaction(self, batches: list[str], database: str = None):
         """Executes a list of SQL batches within a single atomic transaction.
         Must rollback and re-raise if any statement fails.
         """
         for b in batches:
             self.execute(b, database=database)
+

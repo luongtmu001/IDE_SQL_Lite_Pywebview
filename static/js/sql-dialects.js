@@ -17,6 +17,80 @@
 (function(window) {
     'use strict';
 
+    // ─────────────────────────────────────────────────────────────────────────────
+    // KEYWORD & FUNCTION POPULARITY WEIGHTS (Spec Section 5 GĐ4 / RC3)
+    // Range: 0 to 12. Boosts essential, high-frequency SQL constructs.
+    // ─────────────────────────────────────────────────────────────────────────────
+    const COMMON_KEYWORD_POPULARITY = {
+        'SELECT': 12, 'WHERE': 12, 'FROM': 12, 'ON': 12,
+        'CASE': 11, 'AND': 11, 'OR': 11,
+        'JOIN': 10, 'INNER': 10, 'LEFT': 10, 'INSERT': 10, 'UPDATE': 10, 'DELETE': 10, 'VALUES': 10, 'INTO': 10,
+        'ORDER': 10, 'BY': 10, 'GROUP': 10, 'AS': 10, 'SET': 10, 'WITH': 9, 'DECLARE': 9,
+        'DISTINCT': 10, 'IN': 10, 'IS': 10, 'NOT': 10, 'NULL': 10, 'EXISTS': 10,
+        'WHEN': 10, 'THEN': 10,
+        'HAVING': 9, 'UNION': 9, 'ALL': 9, 'ELSE': 9, 'END': 9,
+        'DEFAULT': 9, 'LIKE': 9, 'BETWEEN': 9, 'ASC': 9, 'DESC': 9, 'CAST': 9, 'CONVERT': 9,
+        'EXEC': 9, 'EXECUTE': 9, 'BEGIN': 9, 'TOP': 9, 'LIMIT': 9,
+        'CREATE': 8, 'ALTER': 8, 'DROP': 8, 'TABLE': 8, 'VIEW': 7, 'INDEX': 7,
+        'PROCEDURE': 7, 'PROC': 7, 'FUNCTION': 7, 'TRIGGER': 7,
+        'TRY': 8, 'CATCH': 8, 'THROW': 8, 'NOLOCK': 9, 'IF': 8, 'OVER': 8, 'PARTITION': 8,
+        'CROSS': 8, 'RIGHT': 8, 'FULL': 8, 'OUTER': 8, 'OFFSET': 8, 'PRIMARY': 8, 'KEY': 8,
+        'FOREIGN': 8, 'REFERENCES': 8, 'CONSTRAINT': 7, 'IDENTITY': 7, 'CHECK': 7,
+        'TRUNCATE': 7, 'MERGE': 7, 'RETURN': 7, 'PRINT': 6
+    };
+
+    const COMMON_FUNCTION_POPULARITY = {
+        'COUNT': 12,
+        'GETDATE': 11, 'NOW': 11,
+        'SUM': 10, 'AVG': 10, 'ISNULL': 10, 'COALESCE': 10, 'ROW_NUMBER': 10,
+        'DATEADD': 10, 'DATEDIFF': 10, 'TO_CHAR': 10, 'ERROR_MESSAGE': 10, 'ERROR_NUMBER': 10, 'SCOPE_IDENTITY': 10,
+        'MIN': 9, 'MAX': 9, 'CAST': 9, 'CONVERT': 9, 'SUBSTRING': 9, 'LEN': 9, 'LENGTH': 9,
+        'CONCAT': 9, 'DATEPART': 9, 'DENSE_RANK': 9, 'RANK': 9, 'LEAD': 9, 'LAG': 9,
+        'IIF': 9, 'STRING_AGG': 9, 'TO_DATE': 9, 'TO_TIMESTAMP': 9,
+        'TRIM': 8, 'LTRIM': 8, 'RTRIM': 8, 'LOWER': 8, 'UPPER': 8, 'REPLACE': 8, 'CHARINDEX': 8,
+        'POSITION': 8, 'CONCAT_WS': 8, 'NULLIF': 8, 'YEAR': 8, 'MONTH': 8, 'DAY': 8, 'DATENAME': 8,
+        'EOMONTH': 8, 'FORMAT': 8, 'ROUND': 8, 'FLOOR': 7, 'CEILING': 7, 'ABS': 7, 'STUFF': 7, 'CHOOSE': 7
+    };
+
+    const MSSQL_KEYWORD_POPULARITY = {
+        ...COMMON_KEYWORD_POPULARITY,
+        'TOP': 10,
+        'NOLOCK': 10,
+        'TRY_CAST': 9,
+        'TRY_CONVERT': 8
+    };
+
+    const MSSQL_FUNCTION_POPULARITY = {
+        ...COMMON_FUNCTION_POPULARITY,
+        'GETDATE': 12,
+        'ISNULL': 11,
+        'SCOPE_IDENTITY': 10,
+        'GETUTCDATE': 9
+    };
+
+    const PG_KEYWORD_POPULARITY = {
+        ...COMMON_KEYWORD_POPULARITY,
+        'ILIKE': 11,
+        'RETURNING': 10,
+        'LIMIT': 10,
+        'OFFSET': 9,
+        'CONFLICT': 9,
+        'DO': 8,
+        'PERFORM': 8,
+        'RAISE': 8
+    };
+
+    const PG_FUNCTION_POPULARITY = {
+        ...COMMON_FUNCTION_POPULARITY,
+        'NOW': 12,
+        'TO_CHAR': 11,
+        'TO_DATE': 10,
+        'TO_TIMESTAMP': 10,
+        'LENGTH': 9,
+        'GREATEST': 8,
+        'LEAST': 8
+    };
+
     /**
      * Base SqlDialect Contract (Section 43)
      */
@@ -66,6 +140,47 @@
          */
         getKeywords() {
             return [];
+        }
+
+        /**
+         * Get expected keywords for a specific syntax position (GĐ3 & GĐ4)
+         */
+        getExpectedKeywords(position, context = null) {
+            switch (position) {
+                case 'select_clause':
+                    return ['DISTINCT', 'CASE', 'CAST', 'NULL'];
+                case 'value_expression':
+                    return ['SELECT', 'NULL', 'DEFAULT', 'CASE', 'CAST'];
+                default:
+                    if (!position && context && context.clause === 'SELECT') {
+                        return ['DISTINCT', 'CASE', 'CAST', 'NULL'];
+                    }
+                    return [];
+            }
+        }
+
+        /**
+         * Get popularity weight (0-12) for a keyword or function (Spec GĐ4)
+         */
+        getKeywordPopularity(keyword) {
+            if (!keyword) return 0;
+            return COMMON_KEYWORD_POPULARITY[keyword.toUpperCase()] || 0;
+        }
+
+        getFunctionPopularity(functionName) {
+            if (!functionName) return 0;
+            return COMMON_FUNCTION_POPULARITY[functionName.toUpperCase()] || 0;
+        }
+
+        getPopularity(name, type) {
+            if (!name) return 0;
+            if (type === 'keyword' || type === 'syntax_operator') {
+                return this.getKeywordPopularity(name);
+            }
+            if (type === 'sql_function' || type === 'function') {
+                return this.getFunctionPopularity(name);
+            }
+            return 0;
         }
 
         /**
@@ -218,8 +333,76 @@
                 "TRIGGER", "TRUNCATE", "TRY", "CATCH", "TRYCONNECT", "TRY_CONVERT", "TSEQUAL", "UNION", "UNIQUE",
                 "UNPIVOT", "UPDATE", "UPDATETEXT", "USE", "USER", "VALUES", "VARYING", "VIEW",
                 "WAITFOR", "WHEN", "WHERE", "WHILE", "WITH", "WITHIN GROUP", "WRITETEXT",
-                "APPLY", "CROSS APPLY", "OUTER APPLY", "NOLOCK"
+                "APPLY", "CROSS APPLY", "OUTER APPLY", "NOLOCK",
+                "OUTPUT", "INSERTED", "DELETED", "NOWAIT", "READPAST", "UPDLOCK", "XLOCK",
+                "ROWLOCK", "PAGLOCK", "TABLOCK", "TABLOCKX", "READCOMMITTED", "READUNCOMMITTED",
+                "REPEATABLEREAD", "SNAPSHOT", "RECOMPILE", "MAXDOP", "FAST", "OPTIMIZE",
+                "SYNONYM", "SEQUENCE", "RESTART", "PERIOD", "SYSTEM_TIME", "UNBOUNDED",
+                "PRECEDING", "FOLLOWING", "RANGE", "ROWS", "ONLY", "PARTITION", "WITHIN"
             ];
+        }
+
+        getExpectedKeywords(position, context = null) {
+            switch (position) {
+                case 'statement_start':
+                    return [
+                        'SELECT', 'INSERT', 'UPDATE', 'DELETE', 'WITH', 'DECLARE', 'SET',
+                        'EXEC', 'EXECUTE', 'IF', 'BEGIN', 'CREATE', 'ALTER', 'DROP',
+                        'TRUNCATE', 'MERGE', 'PRINT', 'RETURN', 'THROW', 'USE'
+                    ];
+                case 'after_source': {
+                    const list = [
+                        'WHERE', 'JOIN', 'INNER JOIN', 'LEFT JOIN', 'RIGHT JOIN', 'FULL JOIN',
+                        'CROSS JOIN', 'INNER', 'LEFT', 'RIGHT', 'FULL', 'CROSS', 'OUTER',
+                        'ON', 'GROUP BY', 'ORDER BY', 'GROUP', 'ORDER', 'HAVING',
+                        'UNION', 'UNION ALL', 'EXCEPT', 'INTERSECT', 'WITH', 'AS',
+                        'APPLY', 'CROSS APPLY', 'OUTER APPLY'
+                    ];
+                    if (context && context.clause === 'JOIN') {
+                        return ['ON', ...list.filter(k => k !== 'ON')];
+                    }
+                    return list;
+                }
+                case 'after_operand':
+                    return [
+                        '=', '<>', '!=', '>', '<', '>=', '<=',
+                        'AND', 'OR', 'NOT', 'IN', 'IS', 'LIKE', 'BETWEEN', 'EXISTS', 'ESCAPE'
+                    ];
+                case 'is_predicate':
+                    return ['NULL', 'NOT', 'NOT NULL'];
+                case 'order_direction':
+                    return ['ASC', 'DESC', ','];
+                case 'table_hint':
+                    return [
+                        'NOLOCK', 'READUNCOMMITTED', 'UPDLOCK', 'ROWLOCK', 'HOLDLOCK',
+                        'TABLOCK', 'TABLOCKX', 'PAGLOCK', 'READPAST', 'INDEX', 'FORCESEEK', 'NOWAIT'
+                    ];
+                case 'on_conflict':
+                    return [];
+                case 'select_clause':
+                    return ['DISTINCT', 'TOP', 'CASE', 'CAST', 'TRY_CAST', 'CONVERT', 'NULL'];
+                case 'value_expression':
+                    return ['SELECT', 'NULL', 'DEFAULT', 'CASE', 'CAST', 'TRY_CAST', 'CONVERT'];
+                default:
+                    if (!position && context && context.clause === 'SELECT') {
+                        return ['DISTINCT', 'TOP', 'CASE', 'CAST', 'TRY_CAST', 'CONVERT', 'NULL'];
+                    }
+                    return [];
+            }
+        }
+
+        getKeywordPopularity(keyword) {
+            if (!keyword) return 0;
+            const kw = keyword.toUpperCase();
+            if (MSSQL_KEYWORD_POPULARITY[kw] !== undefined) return MSSQL_KEYWORD_POPULARITY[kw];
+            return super.getKeywordPopularity(keyword);
+        }
+
+        getFunctionPopularity(functionName) {
+            if (!functionName) return 0;
+            const fn = functionName.toUpperCase();
+            if (MSSQL_FUNCTION_POPULARITY[fn] !== undefined) return MSSQL_FUNCTION_POPULARITY[fn];
+            return super.getFunctionPopularity(functionName);
         }
 
         getFunctions() {
@@ -377,9 +560,81 @@
                 "STABLE", "STACKED", "START", "STRICT", "SYMMETRIC", "TABLE", "TABLESAMPLE", "TABLESPACE", "TEMPORARY",
                 "TEMP", "THEN", "TO", "TRAILING", "TRANSACTION", "TRIGGER", "TRUE", "TRUNCATE", "UNION", "UNIQUE",
                 "UNLOGGED", "UPDATE", "USER", "USING", "VACUUM", "VALUES", "VARIADIC", "VERBOSE", "VIEW", "VOLATILE",
-                "WARNING", "WHEN", "WHERE", "WHILE", "WINDOW", "WITH", "WITHIN GROUP",
+                "WARNING", "WHEN", "WHERE", "WHILE", "WINDOW", "WITH", "WITHIN GROUP", "WITHIN",
+                "MATERIALIZED", "REFRESH", "POLICY", "PUBLICATION", "SUBSCRIPTION", "ROUTINE",
+                "NOWAIT", "LOCKED", "SKIP", "STORED", "SUPERUSER", "TYPE", "RULE", "UNLISTEN",
+                "UNTIL", "VALID", "WRAPPER", "DISCARD", "RESET", "RESTART", "SEQUENCE",
                 "LEFT JOIN LATERAL", "CROSS JOIN LATERAL"
             ];
+        }
+
+        getExpectedKeywords(position, context = null) {
+            switch (position) {
+                case 'statement_start': {
+                    const inRoutine = context && context.isInRoutineBody;
+                    if (inRoutine) {
+                        return [
+                            'SELECT', 'INSERT', 'UPDATE', 'DELETE', 'WITH', 'CREATE', 'ALTER',
+                            'DROP', 'TRUNCATE', 'DO', 'CALL', 'PERFORM', 'RAISE', 'RETURN',
+                            'IF', 'LOOP', 'WHILE', 'EXIT', 'CONTINUE'
+                        ];
+                    }
+                    return [
+                        'SELECT', 'INSERT', 'UPDATE', 'DELETE', 'WITH', 'CREATE', 'ALTER',
+                        'DROP', 'TRUNCATE', 'DO', 'CALL'
+                    ];
+                }
+                case 'after_source': {
+                    const list = [
+                        'WHERE', 'JOIN', 'INNER JOIN', 'LEFT JOIN', 'RIGHT JOIN', 'FULL JOIN',
+                        'CROSS JOIN', 'INNER', 'LEFT', 'RIGHT', 'FULL', 'CROSS',
+                        'ON', 'GROUP BY', 'ORDER BY', 'GROUP', 'ORDER', 'HAVING',
+                        'UNION', 'UNION ALL', 'EXCEPT', 'INTERSECT', 'AS',
+                        'LIMIT', 'OFFSET', 'RETURNING', 'USING', 'NATURAL'
+                    ];
+                    if (context && context.clause === 'JOIN') {
+                        return ['ON', ...list.filter(k => k !== 'ON')];
+                    }
+                    return list;
+                }
+                case 'after_operand':
+                    return [
+                        '=', '<>', '!=', '>', '<', '>=', '<=',
+                        'AND', 'OR', 'NOT', 'IN', 'IS', 'LIKE', 'ILIKE',
+                        'SIMILAR TO', 'SIMILAR', 'BETWEEN', 'EXISTS', 'ESCAPE'
+                    ];
+                case 'is_predicate':
+                    return ['NULL', 'NOT', 'NOT NULL', 'TRUE', 'FALSE', 'UNKNOWN'];
+                case 'order_direction':
+                    return ['ASC', 'DESC', 'NULLS FIRST', 'NULLS LAST', 'NULLS', ','];
+                case 'table_hint':
+                    return [];
+                case 'on_conflict':
+                    return ['CONFLICT', 'DO NOTHING', 'DO UPDATE'];
+                case 'select_clause':
+                    return ['DISTINCT', 'CASE', 'CAST', 'NULL', 'TRUE', 'FALSE'];
+                case 'value_expression':
+                    return ['SELECT', 'NULL', 'DEFAULT', 'CASE', 'CAST', 'TRUE', 'FALSE'];
+                default:
+                    if (!position && context && context.clause === 'SELECT') {
+                        return ['DISTINCT', 'CASE', 'CAST', 'NULL', 'TRUE', 'FALSE'];
+                    }
+                    return [];
+            }
+        }
+
+        getKeywordPopularity(keyword) {
+            if (!keyword) return 0;
+            const kw = keyword.toUpperCase();
+            if (PG_KEYWORD_POPULARITY[kw] !== undefined) return PG_KEYWORD_POPULARITY[kw];
+            return super.getKeywordPopularity(keyword);
+        }
+
+        getFunctionPopularity(functionName) {
+            if (!functionName) return 0;
+            const fn = functionName.toUpperCase();
+            if (PG_FUNCTION_POPULARITY[fn] !== undefined) return PG_FUNCTION_POPULARITY[fn];
+            return super.getFunctionPopularity(functionName);
         }
 
         getFunctions() {
@@ -521,5 +776,11 @@
     window.PostgreSQLDialect = PostgresDialect;
     window.SqlDialectFactory = SqlDialectFactory;
     window.DefaultSqlDialectFactory = SqlDialectFactory;
+    window.COMMON_KEYWORD_POPULARITY = COMMON_KEYWORD_POPULARITY;
+    window.COMMON_FUNCTION_POPULARITY = COMMON_FUNCTION_POPULARITY;
+    window.MSSQL_KEYWORD_POPULARITY = MSSQL_KEYWORD_POPULARITY;
+    window.MSSQL_FUNCTION_POPULARITY = MSSQL_FUNCTION_POPULARITY;
+    window.PG_KEYWORD_POPULARITY = PG_KEYWORD_POPULARITY;
+    window.PG_FUNCTION_POPULARITY = PG_FUNCTION_POPULARITY;
 
 })(typeof window !== 'undefined' ? window : globalThis);
