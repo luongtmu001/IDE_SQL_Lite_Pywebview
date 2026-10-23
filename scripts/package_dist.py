@@ -21,7 +21,7 @@ if sys.platform == "win32":
 ROOT_DIR = Path(__file__).resolve().parent.parent
 DIST_DIR = ROOT_DIR / "dist"
 APP_DIST_DIR = DIST_DIR / "LLTool"
-VERSION = "1.1.4"
+VERSION = "1.1.5"
 
 def calculate_sha256(file_path: Path) -> str:
     h = hashlib.sha256()

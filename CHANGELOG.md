@@ -2,6 +2,25 @@
 
 Tất cả các thay đổi, sửa đổi, bổ sung tính năng và bản vá lỗi đáng chú ý của dự án **LLTool IDE** (Database Desktop Client for SQL Server & PostgreSQL) được ghi lại đầy đủ và chi tiết tại file này.
 
+## [v1.1.5] — 24/10/2026
+
+### 🐘 Sửa Lỗi Cú Pháp Bảng Tạm & Bổ Sung Gợi Ý/Cảnh Báo Kế Thừa Bảng Tạm PostgreSQL (Cross-Routine Temp Table Scope)
+
+- **Khắc Phục Lỗi Syntax Check Báo Sai Kiểu Dữ Liệu Khi Tạo Bảng Tạm PostgreSQL**:
+  - Sửa lỗi câu lệnh `CREATE TEMP TABLE ... (id integer)` bị báo gạch đỏ ở kiểu dữ liệu `integer`.
+  - Mở rộng regex nhận diện câu lệnh DDL trong `validator_pg.py` để hỗ trợ đầy đủ các tiền tố `CREATE [GLOBAL|LOCAL] [TEMP|TEMPORARY|UNLOGGED] TABLE`, `INDEX`, `SEQUENCE`, `VIEW`.
+  - Ngăn chặn việc gửi câu lệnh tạo bảng tạm xuống server thông qua `EXPLAIN` (vốn không hỗ trợ cú pháp `CREATE TABLE ... (cột kiểu)`), chuyển sang phân tích tĩnh ngữ nghĩa (`semantic_analyzer.py`) an toàn và không gây lỗi giả.
+
+- **Gợi Ý IntelliSense Bảng Tạm Kế Thừa Giữa Các Routine (Hàm/Thủ tục/Trigger) Cho PostgreSQL**:
+  - Khác với SQL Server (bảng tạm `#temp` bị hủy ngay khi procedure con kết thúc), PostgreSQL duy trì bảng tạm trong suốt phiên làm việc (Session Scope). Khi Routine A gọi Routine B (`CALL proc_b();` hoặc `PERFORM`), các bảng tạm tạo trong B vẫn tồn tại và sử dụng được trong A.
+  - Tự động nhận diện và gợi ý các bảng tạm được sinh ra từ các routine được gọi (kể cả gọi bắc cầu $A \rightarrow B \rightarrow C$).
+  - Hiển thị nhãn trực quan: `displayType: "Temp Table (proc_name)"`, `detail: "Kế thừa từ proc_name()"`, cùng đầy đủ danh sách cột khi truy cập `temp_table.`.
+
+- **Hệ Thống Cảnh Báo Vàng (Warning) Nhận Diện Trạng Thái Bảng Tạm Trong Routine**:
+  - **Cảnh báo nhận diện bảng tạm đã có**: Khi Routine A gọi Routine B và sử dụng bảng tạm được tạo trong B, hiển thị cảnh báo vàng (`PG_TEMP_TABLE_INHERITED`): `Bảng tạm "{tbl}" đã có trong routine "{proc}()" được gọi đến trong session.`
+  - **Cảnh báo bảng tạm chưa tồn tại**: Khi Routine A gọi Routine B nhưng truy vấn bảng tạm chưa hề được khai báo trong routine con hay routine hiện tại, hiển thị cảnh báo vàng (`PG_TEMP_NOT_FOUND_IN_CALLEE`): `Cảnh báo: Bảng tạm "{tbl}" chưa có trong routine "{proc}()" được gọi đến hoặc routine hiện tại.`
+  - **Cảnh báo xung đột tạo lại (Conflict Warning)**: Khi Routine A gọi Routine B (đã tạo bảng tạm) nhưng Routine A lại tiếp tục `CREATE TEMP TABLE` trùng tên mà không dùng `IF NOT EXISTS`, cảnh báo vàng (`PG_TEMP_CONFLICT_WARNING`) báo nguy cơ lỗi runtime `relation already exists` trong PostgreSQL.
+
 ## [v1.1.4] — 24/10/2026
 
 ### 🛡️ Kích Hoạt Mô Hình Phiên Độc Lập Theo Từng Tab (Per-Tab Session Model & Temp Table Isolation)

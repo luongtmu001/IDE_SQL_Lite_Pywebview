@@ -74,6 +74,7 @@ $$;
         
         // Check columns of temp_b
         const tempBSym = scopeTemps.find(t => t.name.toLowerCase() === 'temp_b');
+        console.log('tempBSym keys and values:', Object.keys(tempBSym), 'inheritedFrom:', tempBSym.inheritedFrom, 'originRoutine:', tempBSym.originRoutine);
         assert(tempBSym, 'temp_b symbol must exist');
         const colNames = (tempBSym.columns || []).map(c => c.name.toLowerCase());
         console.log('temp_b columns:', colNames);
@@ -83,9 +84,12 @@ $$;
         const gen = new sandbox.CandidateGenerator();
         const candidates = await gen.generate(context, {});
         const tempBCand = candidates.find(c => c.name.toLowerCase() === 'temp_b');
+        console.log('tempBCand in test 1:', tempBCand);
         assert(tempBCand, 'CandidateGenerator should generate candidate for temp_b inside proc_a');
         assert.strictEqual(tempBCand.type, 'temp_table');
-        console.log('[PASS] Test 1: PostgreSQL CALL proc_b exports temp_b to proc_a');
+        assert.strictEqual(tempBCand.displayType, 'Temp Table (proc_b)');
+        assert.strictEqual(tempBCand.detail, 'Kế thừa từ proc_b()');
+        console.log('[PASS] Test 1: PostgreSQL CALL proc_b exports temp_b to proc_a with displayType and detail');
     }
 
     // Test 2: PostgreSQL uncalled routine temp table should NOT be visible

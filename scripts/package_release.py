@@ -26,7 +26,7 @@ ROOT_DIR = Path(__file__).resolve().parent.parent
 DIST_DIR = ROOT_DIR / "dist"
 APP_DIST_DIR = DIST_DIR / "LLTool"
 
-VERSION = "1.1.4"
+VERSION = "1.1.5"
 FULL_ZIP_NAME = f"LLTool_v{VERSION}.zip"
 PATCH_ZIP_NAME = f"LLTool_v{VERSION}_patch.zip"
 
@@ -44,27 +44,24 @@ def create_readme_update() -> str:
 HUONG DAN CAP NHAT & PHAT HANH LLTOOL IDE v{VERSION}
 ================================================================================
 Ngay phat hanh: 2026-10-24
-Phien ban: v{VERSION} (Per-Tab Dedicated Session, Temp Table Isolation & Desktop IPC Bridge)
+Phien ban: v{VERSION} (PostgreSQL Temp Table Syntax Fix & Cross-Routine Temp Table Scope)
 
 CAC TINH NANG MOI & NANG CAP TRONG BAN v{VERSION}:
-1. Kich Hoat Mo Hinh Phien Lam Viec Doc Lap Theo Tung Tab (Per-Tab Session Model on Desktop IPC):
-   - Khac phuc dut gay cau noi IPC (/api/connections/tab-session) tren moi truong PyWebview Native Desktop.
-   - Bo sung day du native API get_or_create_tab_session va close_tab_session vao ConnectionsApiMixin.
-   - Moi Query Tab khi mo ra duoc cap phat ngay mot ket noi thuc thi rieng biet (Dedicated Connection Session),
-     so huu SPID (SQL Server) va PID (PostgreSQL pg_backend_pid) hoan toan doc lap nhu SSMS.
+1. Khac Phuc Loi Syntax Check Ki Kieu Du Lieu Khi Tao Bang Tam PostgreSQL:
+   - Sua loi cau lenh CREATE TEMP TABLE ... (id integer) bi bao do tai kieu du lieu integer.
+   - Mo rong regex DDL trong validator_pg.py bao quat day du CREATE [GLOBAL|LOCAL] [TEMP|TEMPORARY|UNLOGGED] TABLE, INDEX, SEQUENCE, VIEW.
+   - Ngan ngua gui lenh tao bang xuong database bang EXPLAIN (von khong ho tro CREATE TABLE (col type)), chuyen sang semantic_analyzer an toan.
 
-2. Co Lap Triet De Bang Tam Cuc Bo (#temp va pg_temp) Giua Cac Tab:
-   - Ngan ngua hoan toan viec dung chung ket noi gay ro ri bang tam #temp sang tab khac tren cung server.
-   - Bang tam tao o Tab 1 gio day chi co hieu luc trong duy nhat Tab 1.
-   - Dong tab tu dong giai phong ket noi va thu hoi toan bo bang tam tren database server.
+2. Goi Y IntelliSense Bang Tam Ke Thua Giua Cac Routine (Procedure/Function/Trigger) Cho PostgreSQL:
+   - Ho tro day du dac thu cua PostgreSQL (Session Scope): bang tam tao trong routine con van ton tai sau khi return va dung duoc trong routine cha.
+   - Tu dong nhan dien va goi y cac bang tam sinh ra tu routine duoc goi (ke ca goi bac cau A -> B -> C).
+   - Hien thi nhan truc quan: displayType: 'Temp Table (proc_name)', detail: 'Ke thua tu proc_name()'.
+   - Ho tro autocomplete day du danh sach cot khi go temp_table.
 
-3. Hien Thi SPID/PID Thoi Gian Thuc Tren Thanh Trang Thai (Status Bar):
-   - Hien thi chinh xac badge SPID/PID cua tung tab ngay khi tab vua duoc khoi tao.
-   - Tu dong cap phat lai session rieng tuong ung khi nguoi dung chuyen doi ket noi (Switch Connection) tren tab.
-
-4. Dong Bo & Toi Uu Hoa Toan Dien Ca 2 He Quan Tri:
-   - Ho tro day du cac bien the dialect: SQL Server (sqlserver, mssql, tsql) va PostgreSQL (postgresql, postgres, pg).
-   - Ke thua dung database/schema ngu canh rieng cho tung tab.
+3. He Thong Canh Bao Vang (Warning) Nhận Dien Trang Thai Bang Tam Trong Routine:
+   - Canh bao xac nhan bang tam da co tu routine duoc goi den trong session (PG_TEMP_TABLE_INHERITED).
+   - Canh bao bang tam chua co trong routine duoc goi hoac routine hien tai (PG_TEMP_NOT_FOUND_IN_CALLEE).
+   - Canh bao xung dot tao lai bang tam da co tu routine con ma khong dung IF NOT EXISTS (PG_TEMP_CONFLICT_WARNING).
 
 --------------------------------------------------------------------------------
 CACH 1: SU DUNG GOI FULL (LLTool_v{VERSION}.zip - Khuyen nghi)

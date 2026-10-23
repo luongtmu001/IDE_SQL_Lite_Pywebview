@@ -93,13 +93,22 @@ def _filter_debug_diagnostics(
 def _is_destructive_or_locking_ddl(sql: str) -> bool:
     """Detect DDL or catalog modifications that must never run against a live database."""
     ddl_pattern = re.compile(
-        r"\b(?:DROP\s+(?:DATABASE|TABLE|SCHEMA|VIEW|INDEX|FUNCTION|PROCEDURE|SEQUENCE|TRIGGER|TYPE)|"
-        r"ALTER\s+(?:DATABASE|TABLE|SCHEMA|SYSTEM|ROLE|USER)|"
+        r"\b(?:"
+        r"DROP\s+(?:DATABASE|TABLE|SCHEMA|VIEW|INDEX|FUNCTION|PROCEDURE|SEQUENCE|TRIGGER|TYPE|DOMAIN|EXTENSION|MATERIALIZED\s+VIEW)|"
+        r"ALTER\s+(?:DATABASE|TABLE|SCHEMA|SYSTEM|ROLE|USER|VIEW|INDEX|SEQUENCE|FUNCTION|PROCEDURE|TRIGGER|TYPE|DOMAIN|MATERIALIZED\s+VIEW)|"
         r"TRUNCATE(?:\s+TABLE)?|"
-        r"CREATE\s+(?:(?:OR\s+REPLACE\s+)?(?:PROCEDURE|FUNCTION|VIEW|TRIGGER)|INDEX\s+CONCURRENTLY|DATABASE|TABLE|SCHEMA|SEQUENCE|TYPE)|"
+        r"CREATE\s+(?:"
+            r"(?:OR\s+REPLACE\s+)?(?:PROCEDURE|FUNCTION|TRIGGER|MATERIALIZED\s+VIEW)|"
+            r"(?:OR\s+REPLACE\s+)?(?:(?:GLOBAL\s+|LOCAL\s+)?(?:TEMPORARY|TEMP)\s+|RECURSIVE\s+)?VIEW|"
+            r"(?:(?:GLOBAL\s+|LOCAL\s+)?(?:TEMPORARY|TEMP)\s+|UNLOGGED\s+)?TABLE|"
+            r"(?:(?:GLOBAL\s+|LOCAL\s+)?(?:TEMPORARY|TEMP)\s+)?SEQUENCE|"
+            r"(?:UNIQUE\s+)?INDEX|"
+            r"DATABASE|SCHEMA|TYPE|DOMAIN|EXTENSION"
+        r")|"
         r"DO(?:\s+LANGUAGE\s+[a-zA-Z0-9_]+)?\s*\$|"
         r"CALL\s+[a-zA-Z0-9_.\"$]+|"
-        r"VACUUM|REINDEX|CLUSTER)\b",
+        r"VACUUM|REINDEX|CLUSTER"
+        r")\b",
         re.IGNORECASE,
     )
     cleaned = re.sub(r"--[^\r\n]*", " ", sql)

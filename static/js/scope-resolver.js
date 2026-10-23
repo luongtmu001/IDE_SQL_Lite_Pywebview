@@ -8,7 +8,7 @@
     // 1. SYMBOL & SYMBOL TABLE (Hierarchical Scope Tree)
     // ─────────────────────────────────────────────────────────────────────────────
     class SqlSymbol {
-        constructor({ name, type = 'table', schema = '', database = '', server = '', sourceType = '', alias = '', columns = [], dataType = '', targetObject = '', hasStar = false, underlyingTables = [], isDeclared = true }) {
+        constructor({ name, type = 'table', schema = '', database = '', server = '', sourceType = '', alias = '', columns = [], dataType = '', targetObject = '', hasStar = false, underlyingTables = [], isDeclared = true, inheritedFrom = '', originRoutine = '' }) {
             this.name = name;
             this.type = type; // 'table', 'view', 'cte', 'subquery', 'temp_table', 'table_variable', 'scalar_variable', 'pseudo_table', 'remote_table', 'foreign_table'
             this.schema = schema;
@@ -22,6 +22,28 @@
             this.hasStar = Boolean(hasStar);
             this.underlyingTables = underlyingTables || [];
             this.isDeclared = Boolean(isDeclared);
+            this.inheritedFrom = inheritedFrom;
+            this.originRoutine = originRoutine;
+        }
+
+        clone() {
+            return new SqlSymbol({
+                name: this.name,
+                type: this.type,
+                schema: this.schema,
+                database: this.database,
+                server: this.server,
+                sourceType: this.sourceType,
+                alias: this.alias,
+                columns: Array.isArray(this.columns) ? [...this.columns] : [],
+                dataType: this.dataType,
+                targetObject: this.targetObject,
+                hasStar: this.hasStar,
+                underlyingTables: this.underlyingTables ? [...this.underlyingTables] : [],
+                isDeclared: this.isDeclared,
+                inheritedFrom: this.inheritedFrom,
+                originRoutine: this.originRoutine
+            });
         }
 
         toContextObject() {
@@ -39,7 +61,9 @@
                 dataType: this.dataType,
                 hasStar: Boolean(this.hasStar),
                 underlyingTables: this.underlyingTables || [],
-                isDeclared: this.isDeclared !== false
+                isDeclared: this.isDeclared !== false,
+                inheritedFrom: this.inheritedFrom || null,
+                originRoutine: this.originRoutine || null
             };
         }
     }
@@ -1408,7 +1432,14 @@
                 visited.add(norm);
                 const r = routineMap.get(norm) || (norm.includes('.') ? routineMap.get(norm.split('.').pop()) : null);
                 if (!r) return [];
-                const res = [...r.tempTables];
+                const res = r.tempTables.map(s => {
+                    const cloned = (typeof s.clone === 'function')
+                        ? s.clone()
+                        : Object.assign(Object.create(Object.getPrototypeOf(s)), s);
+                    cloned.inheritedFrom = r.name || norm;
+                    cloned.originRoutine = r.name || norm;
+                    return cloned;
+                });
                 for (const child of r.calledRoutines) {
                     res.push(...getExportedTempTables(child, visited));
                 }

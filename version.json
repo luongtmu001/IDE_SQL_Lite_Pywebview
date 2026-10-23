@@ -1,21 +1,22 @@
 {
-  "version": "1.1.4",
+  "version": "1.1.5",
   "releaseDate": "2026-10-24",
   "minSupportedVersion": "1.0.0",
-  "title": "LLTool IDE v1.1.4",
-  "downloadUrl": "https://github.com/luongtmu001/IDE_SQL_Lite_Pywebview/releases/download/v1.1.4/LLTool_v1.1.4.zip",
-  "patchDownloadUrl": "https://github.com/luongtmu001/IDE_SQL_Lite_Pywebview/releases/download/v1.1.4/LLTool_v1.1.4_patch.zip",
-  "fileName": "LLTool_v1.1.4.zip",
-  "fileSize": 61601478,
-  "releaseNotes": "Bản phát hành v1.1.4 kích hoạt mô hình phiên kết nối độc lập theo từng tab (Per-Tab Dedicated Session Model) trên môi trường Native Desktop PyWebview; Khắc phục lỗi rò rỉ và chia sẻ bảng tạm cục bộ (#temp trên SQL Server và CREATE TEMP TABLE trên PostgreSQL) giữa các tab; Tự động giải phóng kết nối và thu hồi bảng tạm khi đóng tab; Hiển thị SPID/PID thời gian thực trên thanh trạng thái ngay khi tạo tab.",
+  "title": "LLTool IDE v1.1.5",
+  "downloadUrl": "https://github.com/luongtmu001/IDE_SQL_Lite_Pywebview/releases/download/v1.1.5/LLTool_v1.1.5.zip",
+  "patchDownloadUrl": "https://github.com/luongtmu001/IDE_SQL_Lite_Pywebview/releases/download/v1.1.5/LLTool_v1.1.5_patch.zip",
+  "fileName": "LLTool_v1.1.5.zip",
+  "fileSize": 61605233,
+  "releaseNotes": "Bản phát hành v1.1.5 sửa lỗi kiểm tra cú pháp khi tạo bảng tạm trên PostgreSQL (loại bỏ lỗi gạch đỏ sai ở kiểu dữ liệu integer); Tích hợp cơ chế gợi ý IntelliSense chuyên biệt cho PostgreSQL nhận diện và kế thừa bảng tạm giữa các routine (hàm/thủ tục/trigger) trong cùng session; Bổ sung hệ thống cảnh báo vàng thông minh nhận biết trạng thái bảng tạm đã có/chưa có/xung đột khi gọi routine con.",
   "highlights": [
-    "Kích hoạt Mô hình Phiên Độc lập theo Tab (Per-Tab Session Model on Desktop IPC): Đấu nối hoàn chỉnh IPC bridge /api/connections/tab-session, mỗi tab sở hữu kết nối thực thi độc lập với SPID/PID riêng tương tự SSMS.",
-    "Cô lập Triệt để Bảng tạm Cục bộ: Khắc phục lỗi dùng chung kết nối khiến #temp (SQL Server) và CREATE TEMP TABLE (PostgreSQL) bị nhìn thấy xuyên tab; đảm bảo bảng tạm chỉ có hiệu lực duy nhất trong tab tạo nó.",
-    "Thu hồi Tài nguyên Tự động: Đóng tab sẽ tự động ngắt kết nối thực thi và thu hồi toàn bộ bảng tạm trên database server.",
-    "Hiển thị Badge SPID/PID Thời gian thực: Thanh trạng thái cập nhật chính xác SPID (SQL Server) hoặc PID (PostgreSQL pg_backend_pid) ngay khi tab vừa được khởi tạo và tự động cập nhật khi đổi kết nối."
+    "Khắc phục Lỗi Cú pháp Bảng tạm PostgreSQL: Nhận diện chính xác cú pháp CREATE TEMP/TEMPORARY/UNLOGGED TABLE, loại bỏ triệt để lỗi báo sai cú pháp ở kiểu dữ liệu của cột.",
+    "Gợi ý IntelliSense Bảng tạm Kế thừa (PostgreSQL Cross-Routine Scope): Tự động nhận diện bảng tạm được tạo trong routine được gọi và gợi ý vào routine gọi kèm nhãn nguồn gốc 'Temp Table (proc_name)' và danh sách cột.",
+    "Cảnh báo Vàng Xác nhận Bảng tạm Đã có: Hiển thị cảnh báo vàng thông báo bảng tạm đã được tạo từ routine được gọi đến trong cùng session.",
+    "Cảnh báo Vàng Bảng tạm Chưa tồn tại: Báo vàng khi truy vấn bảng tạm chưa hề được khai báo trong routine con hay routine hiện tại.",
+    "Cảnh báo Vàng Xung đột Tạo lại: Cảnh báo nguy cơ lỗi runtime khi tạo lại bảng tạm trùng tên với bảng tạm của routine con mà không dùng IF NOT EXISTS."
   ],
-  "sha256": "0dba77651fb3c9ee6e2850cd2e9d5b32e6b4665a3055fdb587f6cbc635f31bea",
-  "patchFileName": "LLTool_v1.1.4_patch.zip",
-  "patchFileSize": 27873425,
-  "patchSha256": "b9597cd877cf2661a91684e7a9d66b29f585bbe8ef0f80bc0e46b314983ca066"
+  "sha256": "fbf57b7437e2a3c718b68f573c10c7a72269f768dc2736b0894c7048b10da7c3",
+  "patchFileName": "LLTool_v1.1.5_patch.zip",
+  "patchFileSize": 27877180,
+  "patchSha256": "c02de04aff23cda1d9f4c7f075e469b0c6eac19ec09c8c3fc26121701f57a749"
 }

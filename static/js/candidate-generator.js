@@ -624,13 +624,16 @@
 
             tempTables.forEach(tbl => {
                 const tblName = tbl.name || tbl;
+                const inherited = tbl.inheritedFrom || tbl.originRoutine;
                 allCandidates.push({
                     name: tblName,
                     label: tblName,
                     type: 'temp_table',
                     kind: 'table',
-                    level: 1.3,
-                    displayType: 'Temp Table',
+                    level: inherited ? 1.32 : 1.3,
+                    displayType: inherited ? `Temp Table (${inherited})` : 'Temp Table',
+                    detail: inherited ? `Kế thừa từ ${inherited}()` : undefined,
+                    documentation: inherited ? `Bảng tạm kế thừa từ routine ${inherited}() trong cùng session.` : undefined,
                     columns: tbl.columns || [],
                     insertText: this.formatInsertText(tblName, 'temp_table', context, tabCtx)
                 });

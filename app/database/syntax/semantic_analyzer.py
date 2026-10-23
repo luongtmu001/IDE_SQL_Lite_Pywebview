@@ -600,6 +600,7 @@ class TempTableState:
     is_dropped: bool = False
     created_at_pos: int = -1
     is_defined: bool = False
+    inherited_from: str | None = None
 
 
 @dataclass
@@ -634,6 +635,9 @@ class TempTableTimeline:
         self.mutators = mutators or {}
         self.declared_temp_tables = declared_temp_tables or {}
         self.events: list[TimelineEvent] = []
+        self.routines: list[dict[str, Any]] = []
+        self.routine_map: dict[str, dict[str, Any]] = {}
+        self.is_postgres: bool = False
         self._build_timeline()
 
     def has_table(self, table_name: str) -> bool:
@@ -1096,7 +1100,7 @@ class TempTableTimeline:
             r = routine_map.get(norm) or (routine_map.get(norm.split(".")[-1]) if "." in norm else None)
             if not r:
                 return []
-            res = list(r["temp_tables"])
+            res = [(t_name, set(t_cols), r["name"]) for t_name, t_cols in r["temp_tables"]]
             for child in r["called_routines"]:
                 res.extend(get_exported_temp_tables(child, visited))
             return res
@@ -1107,12 +1111,13 @@ class TempTableTimeline:
                 c_pos = m_call.start()
                 c_name = clean_identifier(m_call.group(2) or "").lower()
                 exported = get_exported_temp_tables(c_name)
-                for tbl_name, tbl_cols in exported:
+                for tbl_name, tbl_cols, origin_rtn in exported:
                     self.events.append(TimelineEvent(
                         pos=c_pos,
                         event_type="CREATE",
                         table_name=tbl_name,
-                        columns=set(tbl_cols)
+                        columns=set(tbl_cols),
+                        extra={"inherited_from": origin_rtn}
                     ))
 
         # Routines define procedure bodies; local temp tables declared within routine bodies
@@ -1130,6 +1135,30 @@ class TempTableTimeline:
 
         # Sort all events chronologically by pos
         self.events.sort(key=lambda e: e.pos)
+        self.routines = routines
+        self.routine_map = routine_map
+        self.is_postgres = is_postgres
+
+    def get_enclosing_routine(self, pos: int) -> dict[str, Any] | None:
+        for r in self.routines:
+            if r["start"] <= pos <= r["end"]:
+                return r
+        return None
+
+    def get_exported_temp_tables(self, rtn_name: str, visited: set[str] | None = None) -> list[tuple[str, set[str], str]]:
+        if visited is None:
+            visited = set()
+        norm = rtn_name.lower().strip()
+        if not norm or norm in visited:
+            return []
+        visited.add(norm)
+        r = self.routine_map.get(norm) or (self.routine_map.get(norm.split(".")[-1]) if "." in norm else None)
+        if not r:
+            return []
+        res = [(t_name, set(t_cols), r["name"]) for t_name, t_cols in r["temp_tables"]]
+        for child in r["called_routines"]:
+            res.extend(self.get_exported_temp_tables(child, visited))
+        return res
 
     def _extract_columns_from_parens(self, body: str) -> set[str]:
         cols = set()
@@ -1214,6 +1243,7 @@ class TempTableTimeline:
                 state.is_dropped = False
                 state.created_at_pos = ev.pos
                 state.is_defined = True
+                state.inherited_from = ev.extra.get("inherited_from")
             elif ev.event_type == "ALTER_ADD":
                 state.columns.update(ev.columns)
             elif ev.event_type == "ALTER_DROP":
@@ -2092,6 +2122,41 @@ def analyze_sql_semantics(
     # 2. Extract SELECT / UPDATE / INSERT query statements without boundary bleed
     norm_dialect = "postgres" if ("postgres" in dialect.lower() or "pgsql" in dialect.lower() or dialect.lower() == "pg") else "sqlserver"
 
+    # PostgreSQL: Check for conflicting CREATE TEMP TABLE in routines calling other routines
+    if norm_dialect == "postgres" and timeline.routines:
+        for r in timeline.routines:
+            if not r.get("called_routines"):
+                continue
+            exported_temps: dict[str, str] = {}
+            for called in r["called_routines"]:
+                exp = timeline.get_exported_temp_tables(called)
+                for exp_tbl, _, origin_r in exp:
+                    exported_temps[exp_tbl] = origin_r
+
+            for my_tbl, _ in r.get("temp_tables", []):
+                if my_tbl in exported_temps:
+                    origin_rtn = exported_temps[my_tbl]
+                    pattern_conflict = re.compile(
+                        rf"\bCREATE\s+(?:(?:GLOBAL\s+|LOCAL\s+)?(?:TEMPORARY|TEMP)\s+TABLE\s+)(?!IF\s+NOT\s+EXISTS\b){re.escape(my_tbl)}\b",
+                        re.IGNORECASE,
+                    )
+                    rtn_code = sql_masked[r["start"]:r["end"]]
+                    m_conf = pattern_conflict.search(rtn_code)
+                    if m_conf:
+                        c_pos = r["start"] + m_conf.start()
+                        c_line = sql[:c_pos].count("\n") + 1
+                        c_col = c_pos - sql[:c_pos].rfind("\n")
+                        diagnostics.append({
+                            "severity": "warning",
+                            "message": f'Cảnh báo: Bảng tạm "{my_tbl}" đã được tạo trong routine "{origin_rtn}()" được gọi đến. Việc tạo lại không có IF NOT EXISTS có thể gây lỗi "relation already exists" trong PostgreSQL.',
+                            "code": "PG_TEMP_CONFLICT_WARNING",
+                            "line": c_line,
+                            "column": c_col,
+                            "end_column": c_col + len(my_tbl),
+                            "token": my_tbl,
+                            "source": dialect,
+                        })
+
     for proj_str, raw_table_name, raw_alias, rest_of_query, sel_start, sel_end in extract_select_query_blocks(sql_masked, sql):
         non_alias_keywords = {
             "where", "join", "inner", "left", "right", "full", "cross", "outer", "on",
@@ -2141,6 +2206,7 @@ def analyze_sql_semantics(
                 clean_tbl.startswith("#")
                 or (t_schema and t_schema.lower() in ("pg_temp", "temp"))
                 or timeline.has_table(clean_tbl)
+                or (norm_dialect == "postgres" and (clean_tbl.startswith("temp_") or clean_tbl.startswith("tmp_")))
             )
 
             if clean_tbl in table_vars or (t_schema and f"{t_schema}.{clean_tbl}" in table_vars):
@@ -2149,25 +2215,85 @@ def analyze_sql_semantics(
             elif is_temp_candidate:
                 table_category = "temporary table"
                 tbl_state = timeline.get_table_state(clean_tbl, sel_start)
-                if (not tbl_state.is_defined and tbl_state.created_at_pos > sel_start) or tbl_state.is_dropped:
-                    query_start_line = sql[:sel_start].count("\n") + 1
-                    if norm_dialect == "postgres":
-                        msg = f'relation "{clean_identifier(raw_table_name)}" does not exist'
-                    else:
-                        msg = f"Invalid object name '{clean_identifier(raw_table_name)}'."
+                enc_rtn = timeline.get_enclosing_routine(sel_start)
+
+                # PostgreSQL: Yellow warning if temp table was inherited from a called routine
+                if norm_dialect == "postgres" and tbl_state.is_defined and tbl_state.inherited_from:
+                    tbl_clean_tok = clean_identifier(raw_table_name)
+                    m_tbl = re.search(rf"\b{re.escape(tbl_clean_tok)}\b", sql[sel_start:], re.IGNORECASE)
+                    tbl_offset = sel_start + m_tbl.start() if m_tbl else sel_start
+                    tbl_line = sql[:tbl_offset].count("\n") + 1
+                    tbl_col = tbl_offset - sql[:tbl_offset].rfind("\n")
                     diagnostics.append(
                         {
-                            "severity": "error",
-                            "message": msg,
-                            "code": "SQL_INVALID_OBJECT",
-                            "line": query_start_line,
-                            "column": 1,
-                            "end_column": 1 + len(raw_table_name),
-                            "token": clean_identifier(raw_table_name),
+                            "severity": "warning",
+                            "message": f'Bảng tạm "{tbl_clean_tok}" đã có trong routine "{tbl_state.inherited_from}()" được gọi đến trong session.',
+                            "code": "PG_TEMP_TABLE_INHERITED",
+                            "line": tbl_line,
+                            "column": tbl_col,
+                            "end_column": tbl_col + len(tbl_clean_tok),
+                            "token": tbl_clean_tok,
+                            "source": dialect,
+                        }
+                    )
+
+                if norm_dialect == "postgres" and enc_rtn and enc_rtn.get("called_routines") and not tbl_state.is_defined:
+                    tbl_clean_tok = clean_identifier(raw_table_name)
+                    m_tbl = re.search(rf"\b{re.escape(tbl_clean_tok)}\b", sql[sel_start:], re.IGNORECASE)
+                    tbl_offset = sel_start + m_tbl.start() if m_tbl else sel_start
+                    tbl_line = sql[:tbl_offset].count("\n") + 1
+                    tbl_col = tbl_offset - sql[:tbl_offset].rfind("\n")
+                    called_names = ", ".join(f"{c}()" for c in enc_rtn["called_routines"])
+                    diagnostics.append(
+                        {
+                            "severity": "warning",
+                            "message": f'Cảnh báo: Bảng tạm "{tbl_clean_tok}" chưa có trong routine {called_names} được gọi đến hoặc routine hiện tại.',
+                            "code": "PG_TEMP_NOT_FOUND_IN_CALLEE",
+                            "line": tbl_line,
+                            "column": tbl_col,
+                            "end_column": tbl_col + len(tbl_clean_tok),
+                            "token": tbl_clean_tok,
                             "source": dialect,
                         }
                     )
                     continue
+
+                if (not tbl_state.is_defined and tbl_state.created_at_pos > sel_start) or tbl_state.is_dropped:
+                    # Check active DB session before declaring not found
+                    db_cols = None
+                    if clean_tbl.startswith("#") or (t_schema and t_schema.lower() in ("pg_temp", "temp")):
+                        db_cols = get_temp_table_columns_from_db(
+                            connection_session=connection_session,
+                            dialect=dialect,
+                            table_name=clean_tbl,
+                        )
+                    if db_cols:
+                        tbl_state.is_defined = True
+                        tbl_state.columns.update(db_cols)
+                    else:
+                        tbl_clean_tok = clean_identifier(raw_table_name)
+                        m_tbl = re.search(rf"\b{re.escape(tbl_clean_tok)}\b", sql[sel_start:], re.IGNORECASE)
+                        tbl_offset = sel_start + m_tbl.start() if m_tbl else sel_start
+                        tbl_line = sql[:tbl_offset].count("\n") + 1
+                        tbl_col = tbl_offset - sql[:tbl_offset].rfind("\n")
+
+                        if norm_dialect == "postgres":
+                            msg = f'relation "{tbl_clean_tok}" does not exist'
+                        else:
+                            msg = f"Invalid object name '{tbl_clean_tok}'."
+                        diagnostics.append(
+                            {
+                                "severity": "error",
+                                "message": msg,
+                                "code": "SQL_INVALID_OBJECT",
+                                "line": tbl_line,
+                                "column": tbl_col,
+                                "end_column": tbl_col + len(tbl_clean_tok),
+                                "token": tbl_clean_tok,
+                                "source": dialect,
+                            }
+                        )
+                        continue
 
                 if tbl_state.is_open:
                     known_columns = set(tbl_state.columns) | {"*"}
