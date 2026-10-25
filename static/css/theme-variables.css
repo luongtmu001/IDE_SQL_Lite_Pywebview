@@ -298,7 +298,7 @@ html[data-bs-theme="win-nt"] {
     --ide-titlebar-text:            #FFFFFF;
 
     /* Bootstrap theme overrides */
-    --bs-body-bg:                   #000080;
+    --bs-body-bg:                   #C0C0C0;
     --bs-body-color:                #000000;
     --bs-border-color:              #777777;
     --bs-border-color-translucent:  rgba(119,119,119,0.5);
@@ -312,7 +312,7 @@ html[data-bs-theme="win-nt"] {
     --bs-link-hover-color:          #0000aa;
 
     /* IDE Surface layers */
-    --ide-bg-main:                  #000080;
+    --ide-bg-main:                  #C0C0C0;
     --ide-bg-sidebar:               #C0C0C0;
     --ide-bg-toolbar:               #C0C0C0;
     --ide-bg-editor:                #ffffff;
@@ -384,7 +384,7 @@ html[data-bs-theme="win-xp"] {
     --ide-titlebar-text:            #FFFFFF;
 
     /* Bootstrap theme overrides */
-    --bs-body-bg:                   #0055ea;
+    --bs-body-bg:                   #ece9d8;
     --bs-body-color:                #000000;
     --bs-border-color:              #d8d2bd;
     --bs-border-color-translucent:  rgba(216,210,189,0.5);
@@ -398,7 +398,7 @@ html[data-bs-theme="win-xp"] {
     --bs-link-hover-color:          #16449c;
 
     /* IDE Surface layers */
-    --ide-bg-main:                  #0055ea;
+    --ide-bg-main:                  #ece9d8;
     --ide-bg-sidebar:               #f0eee4;
     --ide-bg-toolbar:               #efede0;
     --ide-bg-editor:                #ffffff;

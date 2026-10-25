@@ -105,7 +105,7 @@
     <link rel="stylesheet" href="../static/css/syntax-catalog.css?v=1.0.5">
 </head>
 
-<body class="overflow-hidden vh-100 d-flex flex-column m-0 p-0" style="background-color: var(--ide-bg-main, #1C1D23);">
+<body class="ide-main-window overflow-hidden vh-100 d-flex flex-column m-0 p-0" style="background-color: var(--ide-bg-main, #1C1D23);">
 
     <!-- Main Navbar / Toolbar -->
     <nav class="navbar navbar-expand ide-toolbar px-2 py-0">
@@ -298,6 +298,14 @@
                                     Manager...</span>
                                 <kbd class="text-muted"
                                     style="font-size: 10px; background: transparent; border: 1px solid var(--ide-border, #444);">Ctrl+Alt+G</kbd>
+                            </a>
+                        </li>
+                        <li>
+                            <a class="dropdown-item d-flex align-items-center justify-content-between" href="#"
+                                id="ide-menu-report-gen">
+                                <span><i class="fa-solid fa-file-excel me-2 text-warning"></i>Sinh Layout Bravo từ Excel...</span>
+                                <kbd class="text-muted"
+                                    style="font-size: 10px; background: transparent; border: 1px solid var(--ide-border, #444);">Ctrl+Alt+E</kbd>
                             </a>
                         </li>
                     </ul>
@@ -2601,7 +2609,57 @@
                 }
             });
 
-            window.addEventListener('keydown', function (e) {
+                var menuReportGen = document.getElementById('ide-menu-report-gen');
+                if (menuReportGen && !menuReportGen._rgBound) {
+                    menuReportGen._rgBound = true;
+                    menuReportGen.addEventListener('click', function (e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        triggerReportGen();
+                    });
+                }
+
+                window.triggerReportGen = async function () {
+                    if (window._isOpeningReportGen) return;
+                    window._isOpeningReportGen = true;
+                    setTimeout(function () { window._isOpeningReportGen = false; }, 1500);
+                    if (window.AppLoader) window.AppLoader.show('Đang mở Trình sinh Layout Báo cáo...');
+                    try {
+                        const activeTab = window.AppTabs ? window.AppTabs.getActiveTabState() : null;
+                        const connId = (activeTab && activeTab.connectionId) || window.ActiveConnectionId || null;
+                        const connName = (activeTab && activeTab.connectionName) || window.ActiveConnectionName || null;
+                        const db = (activeTab && activeTab.database) || window.ActiveDatabase || null;
+                        const schema = (activeTab && activeTab.schema) || window.ActiveSchema || null;
+                        const dbType = (activeTab && activeTab.dbType) || window.ActiveDbType || null;
+                        const initOpts = {
+                            connectionId: connId,
+                            connectionName: connName,
+                            database: db,
+                            schema: schema,
+                            dbType: dbType
+                        };
+
+                        if (window.pywebview && window.pywebview.api && typeof window.pywebview.api.open_report_gen_window === 'function') {
+                            const res = await window.pywebview.api.open_report_gen_window(initOpts);
+                            if (res && res.success) return;
+                        } else {
+                            const q = new URLSearchParams();
+                            if (connId) q.set('connectionId', connId);
+                            if (connName) q.set('connectionName', connName);
+                            if (db) q.set('database', db);
+                            if (schema) q.set('schema', schema);
+                            if (dbType) q.set('dbType', dbType);
+                            const qStr = q.toString();
+                            window.open('/report-gen' + (qStr ? '?' + qStr : ''), '_blank');
+                        }
+                    } catch (e) {
+                        console.warn('Cannot open report gen window:', e);
+                    } finally {
+                        if (window.AppLoader) window.AppLoader.hide();
+                    }
+                };
+
+                window.addEventListener('keydown', function (e) {
                 if ((e.ctrlKey || e.metaKey) && e.altKey && (e.key === 'p' || e.key === 'P')) {
                     e.preventDefault();
                     triggerProfiler();
@@ -2611,6 +2669,9 @@
                 } else if ((e.ctrlKey || e.metaKey) && e.altKey && (e.key === 'c' || e.key === 'C')) {
                     e.preventDefault();
                     triggerSchemaCompare();
+                } else if ((e.ctrlKey || e.metaKey) && e.altKey && (e.key === 'e' || e.key === 'E')) {
+                    e.preventDefault();
+                    triggerReportGen();
                 }
             });
         })();

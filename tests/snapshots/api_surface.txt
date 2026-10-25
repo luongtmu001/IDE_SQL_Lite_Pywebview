@@ -3,13 +3,14 @@
 # Generated for IDE-SQL-Lite_New_Pyweb_Claude
 # ====================================================================
 
-CLASS BravoApi (109 public methods):
+CLASS BravoApi (111 public methods):
   - apply_table_design(self, connection_id, database=None, statements=None, migration_sql=None)
   - apply_titlebar_theme(self, bg_hex=None, text_hex=None, border_hex=None, is_dark=None)
   - cancel_download(self)
   - check_credential(self, config)
   - check_for_updates(self, force=True, custom_url=None)
   - clear_credential(self, config)
+  - close_tab_session(self, tab_id)
   - create_connection(self, config)
   - create_session(self, config=None, connection_id=None, window_id=None)
   - delete_connection(self, connection_id)
@@ -25,7 +26,7 @@ CLASS BravoApi (109 public methods):
   - get_code_styles(self)
   - get_config(self)
   - get_connection_password(self, profile_id_or_name)
-  - get_databases(self, connection_id, search=None)
+  - get_databases(self, connection_id, search=None, accessible_only=False)
   - get_definition(self, connection_id, database=None, schema=None, name=None, type=None)
   - get_download_progress(self)
   - get_foreign_keys(self, connection_id, database=None, schema=None, table=None)
@@ -41,6 +42,7 @@ CLASS BravoApi (109 public methods):
   - get_log_info(self)
   - get_object_children(self, connection_id, database=None, schema=None, name=None, type=None, child_type=None)
   - get_objects(self, connection_id, database=None, schema=None, type='tables', search=None)
+  - get_or_create_tab_session(self, tab_id, connection_id=None, config=None)
   - get_program_groups(self)
   - get_program_list(self)
   - get_remote_columns(self, connection_id, server, database=None, schema=None, table=None)
@@ -114,7 +116,7 @@ CLASS BravoApi (109 public methods):
   - validate_table_row(self, connection_id, database=None, schema=None, table=None, values=None, keys=None, is_new=True, target_column=None)
   - validate_table_rows(self, connection_id, database=None, schema=None, table=None, rows=None)
 
-CLASS MainApi (214 public methods):
+CLASS MainApi (233 public methods):
   - activity_cancel_session(self, connection_id: str, session_id: int) -> Dict[str, Any]
   - activity_get_current_spid(self, connection_id: str) -> Dict[str, Any]
   - activity_get_sessions(self, connection_id: str, database: str | None = None, active_only: bool = False) -> Dict[str, Any]
@@ -127,6 +129,7 @@ CLASS MainApi (214 public methods):
   - check_credential(self, config)
   - check_for_updates(self, force=True, custom_url=None)
   - clear_credential(self, config)
+  - close_tab_session(self, tab_id)
   - compare_syntax_selection(self, sql_text: str, source_db: str = 'postgresql', target_db: str = 'sqlserver') -> Dict[str, Any]
   - create_connection(self, config)
   - create_session(self, config=None, connection_id=None, window_id=None)
@@ -148,7 +151,7 @@ CLASS MainApi (214 public methods):
   - get_database_user_memberships(self, connection_id, principal_name, database=None)
   - get_database_user_permissions(self, connection_id, principal_name, database=None)
   - get_database_user_properties(self, connection_id, principal_name, database=None)
-  - get_databases(self, connection_id, search=None)
+  - get_databases(self, connection_id, search=None, accessible_only=False)
   - get_definition(self, connection_id, database=None, schema=None, name=None, type=None)
   - get_download_progress(self)
   - get_foreign_keys(self, connection_id, database=None, schema=None, table=None)
@@ -164,6 +167,7 @@ CLASS MainApi (214 public methods):
   - get_log_info(self)
   - get_object_children(self, connection_id, database=None, schema=None, name=None, type=None, child_type=None)
   - get_objects(self, connection_id, database=None, schema=None, type='tables', search=None)
+  - get_or_create_tab_session(self, tab_id, connection_id=None, config=None)
   - get_proc_params(self, connection_id, database=None, schema=None, proc_name=None, name=None)
   - get_program_groups(self)
   - get_program_list(self)
@@ -261,6 +265,7 @@ CLASS MainApi (214 public methods):
   - open_log_folder(self)
   - open_profiler_window(self, conn_id=None, db_type=None)
   - open_query_history_window(self)
+  - open_report_gen_window(self, initial_options: Dict[str, Any] | None = None) -> Dict[str, Any]
   - open_result_comparator_window(self, payload=None)
   - open_schema_compare_window(self, source_conn_id: str | None = None, source_db: str | None = None, source_schema: str | None = None, target_conn_id: str | None = None, target_db: str | None = None, target_schema: str | None = None) -> Dict[str, Any]
   - open_settings_window(self)
@@ -283,6 +288,22 @@ CLASS MainApi (214 public methods):
   - refresh_metadata(self, connection_id, database=None, schema=None, type=None)
   - reset_code_styles(self)
   - reset_snippets(self)
+  - rg_add_files(self, session_id: str, files: List[Dict[str, Any]]) -> Dict[str, Any]
+  - rg_apply_mapping(self, session_id: str, data_member: str, mapping: Dict[str, str], mode: str = 'rename', unmapped_columns: List[str] | None = None, sheet_name: str | None = None, param_mappings: Dict[str, str] | None = None) -> Dict[str, Any]
+  - rg_build(self, session_id: str) -> Dict[str, Any]
+  - rg_describe_routine(self, session_id: str, connection_id: str, routine_name: str, schema: str | None = None, database: str | None = None) -> Dict[str, Any]
+  - rg_get_connections(self) -> Dict[str, Any]
+  - rg_get_databases(self, connection_id: str) -> Dict[str, Any]
+  - rg_get_schemas(self, connection_id: str, database: str | None = None) -> Dict[str, Any]
+  - rg_get_sheet(self, session_id: str, sheet_name: str | None = None) -> Dict[str, Any]
+  - rg_list_routines(self, connection_id: str, schema: str | None = None, search: str | None = None, database: str | None = None) -> Dict[str, Any]
+  - rg_open_file(self, content_or_path: str | bytes, filename: str | None = None) -> Dict[str, Any]
+  - rg_open_files(self, files: List[Dict[str, Any]]) -> Dict[str, Any]
+  - rg_open_gsheet(self, url: str) -> Dict[str, Any]
+  - rg_remove_file(self, session_id: str, file_id: str) -> Dict[str, Any]
+  - rg_save_files(self, session_id: str, folder: str) -> Dict[str, Any]
+  - rg_select_file(self, session_id: str, file_id: str) -> Dict[str, Any]
+  - rg_set_regions(self, session_id: str, regions: List[Dict[str, Any]], sheet_name: str | None = None) -> Dict[str, Any]
   - run_program(self, program_data)
   - save_code_styles(self, payload)
   - save_connection_profile(self, profile)
@@ -320,7 +341,7 @@ CLASS MainApi (214 public methods):
   - start_download_update(self, download_url=None, file_name=None, total_bytes_hint=0)
   - submit_table_changes(self, connection_id, database=None, schema=None, table=None, changes=None, concurrency_mode='optimistic')
   - syntax_catalog_insert_to_editor(self, sql_content: str) -> Dict[str, Any]
-  - syntax_check(self, connection_id=None, sql='', dialect='sqlserver', database=None, schema=None, is_debug=False, cached_tables=None)
+  - syntax_check(self, connection_id=None, sql='', dialect='sqlserver', database=None, schema=None, is_debug=False, cached_tables=None, tab_id=None)
   - test_linked_server(self, connection_id, server)
   - tx_begin(self, connection_id)
   - tx_commit(self, connection_id)
@@ -441,7 +462,7 @@ CLASS EventListenerSubwindowApi (11 public methods):
   - set_clipboard_text(self, text)
   - set_window(self, win)
 
-FLASK ROUTES (108 endpoints):
+FLASK ROUTES (127 endpoints):
   - / [GET] -> main.index
   - /api/bravo/config [GET] -> bravo.get_config
   - /api/bravo/connections [GET] -> bravo.list_connections
@@ -468,6 +489,8 @@ FLASK ROUTES (108 endpoints):
   - /api/connections/clear-credential [POST] -> connections.clear_credential
   - /api/connections/fetch-metadata [POST] -> connections.fetch_metadata
   - /api/connections/ping-all [POST] -> connections.ping_all_connections
+  - /api/connections/tab-session [POST] -> connections.get_or_create_tab_session
+  - /api/connections/tab-session/<tab_id> [DELETE] -> connections.close_tab_session
   - /api/history/active_editor_content [GET] -> history.active_editor_content
   - /api/history/clear_all [POST] -> history.clear_all
   - /api/history/compact [POST] -> history.compact
@@ -537,6 +560,22 @@ FLASK ROUTES (108 endpoints):
   - /api/query/parse-parameters [POST] -> query.parse_parameters
   - /api/query/proc-params [POST] -> query.proc_params
   - /api/query/syntax-check [POST] -> query.syntax_check
+  - /api/report-gen/ [GET] -> report_gen.report_gen_ui
+  - /api/report-gen/<session_id>/add-files [POST] -> report_gen.add_files
+  - /api/report-gen/<session_id>/build [POST] -> report_gen.build
+  - /api/report-gen/<session_id>/describe [POST] -> report_gen.describe_routine
+  - /api/report-gen/<session_id>/file/<file_id> [DELETE] -> report_gen.remove_file
+  - /api/report-gen/<session_id>/mapping [PUT] -> report_gen.apply_mapping
+  - /api/report-gen/<session_id>/regions [PUT] -> report_gen.set_regions
+  - /api/report-gen/<session_id>/select-file [POST] -> report_gen.select_file
+  - /api/report-gen/<session_id>/sheet [GET] -> report_gen.get_sheet_preview
+  - /api/report-gen/<session_id>/sheet/<path:sheet_name> [GET] -> report_gen.get_sheet_preview
+  - /api/report-gen/connections [GET] -> report_gen.list_connections
+  - /api/report-gen/databases [GET] -> report_gen.get_databases
+  - /api/report-gen/routines [GET] -> report_gen.list_routines
+  - /api/report-gen/schemas [GET] -> report_gen.get_schemas
+  - /api/report-gen/source [POST] -> report_gen.open_source
+  - /api/report-gen/ui [GET] -> report_gen.report_gen_ui
   - /api/session/clear [POST] -> session.api_clear_session
   - /api/session/load [GET] -> session.api_load_session
   - /api/session/save [POST] -> session.api_save_session
@@ -549,4 +588,5 @@ FLASK ROUTES (108 endpoints):
   - /api/styles/reset [POST] -> styles.reset_styles
   - /api/system/fonts [GET] -> main.system_fonts
   - /query-history-demo [GET] -> main.query_history_demo
+  - /report-gen [GET] -> main.report_gen
   - /static/<path:filename> [GET] -> static

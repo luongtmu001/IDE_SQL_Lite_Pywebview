@@ -33,6 +33,7 @@ scratch/
 scratch_*.txt
 dump.json
 project-tree.txt
+*.sql
 
 # User Secrets & Sensitive Local Data
 data/.secret.key

@@ -24,6 +24,7 @@ try:
         from app.routes.object_search import object_search_bp
         from app.routes.styles import styles_bp
         from app.routes.session import session_bp
+        from app.routes.report_gen import report_gen_bp
 
         app.register_blueprint(main_bp)
         app.register_blueprint(connections_bp, url_prefix="/api/connections")
@@ -35,6 +36,7 @@ try:
         app.register_blueprint(object_search_bp, url_prefix="/api/sql")
         app.register_blueprint(styles_bp, url_prefix="/api/styles")
         app.register_blueprint(session_bp, url_prefix="/api/session")
+        app.register_blueprint(report_gen_bp, url_prefix="/api/report-gen")
 
         return app
 except ImportError:

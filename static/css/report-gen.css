@@ -1,0 +1,1799 @@
+/* =============================================================================
+   Report Layout Generator Styles (Phase 2 & 3)
+   Built with IDE Theme Variables: compatible with Dark, Light, Win-XP, Win-NT
+   ============================================================================= */
+
+:root {
+  --rg-bg-main: var(--ide-bg-main, #1e1e1e);
+  --rg-bg-panel: var(--ide-bg-sidebar, #252526);
+  --rg-bg-toolbar: var(--ide-bg-toolbar, #2d2d2d);
+  --rg-bg-input: var(--ide-bg-input, #3c3c3c);
+  --rg-bg-dropdown: var(--ide-bg-dropdown, #252526);
+  --rg-border: var(--ide-border, #3c3c3c);
+  --rg-accent: var(--ide-accent, #007acc);
+  --rg-accent-hover: var(--ide-accent-hover, #0098ff);
+  --rg-accent-subtle: rgba(0, 122, 204, 0.16);
+  --rg-text: var(--ide-text-main, #cccccc);
+  --rg-text-muted: var(--ide-text-muted, #858585);
+  --rg-text-dim: var(--ide-text-dim, #666666);
+  --rg-grid-header-bg: var(--ide-grid-header-bg, #2a2a2a);
+  --rg-grid-line: var(--ide-border, #333333);
+
+  /* Region Highlight Colors (compatible across light & dark via opacity) */
+  --rg-region-title-border: #0284c7;
+  --rg-region-title-bg: rgba(14, 165, 233, 0.18);
+  --rg-region-header-border: #d97706;
+  --rg-region-header-bg: rgba(245, 158, 11, 0.20);
+  --rg-region-summary-border: #7c3aed;
+  --rg-region-summary-bg: rgba(139, 92, 246, 0.18);
+  --rg-col-highlight-border: #10b981;
+  --rg-col-highlight-bg: rgba(16, 185, 129, 0.22);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body.rg-window-body {
+  margin: 0;
+  padding: 0;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background-color: var(--rg-bg-main);
+  color: var(--rg-text);
+  font-family: var(--ide-ui-font-family, 'Segoe UI', -apple-system, sans-serif);
+  font-size: var(--ide-ui-font-size, 13px);
+  user-select: none;
+}
+
+.rg-app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+}
+
+/* ─── 1. Top Compact Toolbar (36px) ───────────────────────────────────────── */
+.rg-toolbar {
+  height: 38px;
+  background-color: var(--rg-bg-toolbar);
+  border-bottom: 1px solid var(--rg-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 14px;
+  flex-shrink: 0;
+  gap: 12px;
+}
+
+.rg-toolbar-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--rg-text);
+  white-space: nowrap;
+}
+
+.rg-toolbar-title i {
+  color: #10b981;
+  font-size: 15px;
+}
+
+.rg-stepper-compact {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background-color: var(--rg-bg-main);
+  padding: 3px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--rg-border);
+}
+
+.rg-step-pill {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--rg-text-muted);
+  cursor: pointer;
+  padding: 2px 7px;
+  border-radius: 3px;
+  transition: all 0.15s ease;
+}
+
+.rg-step-pill .rg-pill-num {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background-color: var(--rg-bg-panel);
+  border: 1px solid var(--rg-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+}
+
+.rg-step-pill.active {
+  background-color: var(--rg-accent);
+  color: #ffffff;
+}
+
+.rg-step-pill.active .rg-pill-num {
+  background-color: #ffffff;
+  color: var(--rg-accent);
+  border-color: #ffffff;
+  font-weight: 700;
+}
+
+.rg-step-pill.completed {
+  color: var(--rg-text);
+}
+
+.rg-step-pill.completed .rg-pill-num {
+  background-color: #10b981;
+  color: #ffffff;
+  border-color: #10b981;
+}
+
+.rg-step-arrow {
+  color: var(--rg-text-dim);
+  font-size: 9px;
+}
+
+.rg-session-chip {
+  font-family: var(--ide-font-monospace, 'JetBrains Mono', Consolas, monospace);
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 3px;
+  background-color: var(--rg-bg-main);
+  border: 1px solid var(--rg-border);
+  color: var(--rg-text-muted);
+}
+
+/* ─── 2. Main Body Views ─────────────────────────────────────────────────── */
+.rg-body {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+  background-color: var(--rg-bg-main);
+}
+
+.rg-step-view {
+  display: none;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.rg-step-view.active {
+  display: flex !important;
+}
+
+/* Step 1: Data Source Screen */
+#view-step-1 {
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  overflow-y: auto;
+}
+
+.rg-source-container {
+  max-width: 680px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.rg-upload-card {
+  background-color: var(--rg-bg-panel);
+  border: 2px dashed var(--rg-border);
+  border-radius: 8px;
+  padding: 36px 20px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.rg-upload-card:hover, .rg-upload-card.dragover {
+  border-color: var(--rg-accent);
+  background-color: var(--rg-accent-subtle);
+}
+
+.rg-upload-icon {
+  font-size: 38px;
+  color: #10b981;
+  margin-bottom: 12px;
+}
+
+/* Multi-file list container */
+.rg-selected-files-card {
+  background-color: var(--rg-bg-panel);
+  border: 1px solid var(--rg-border);
+  border-radius: 6px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.rg-selected-files-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--rg-border);
+}
+
+.rg-files-scroll-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 220px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.rg-file-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background-color: var(--rg-bg-main);
+  border: 1px solid var(--rg-border);
+  border-radius: 4px;
+  transition: all 0.15s ease;
+}
+
+.rg-file-item:hover {
+  border-color: var(--rg-accent);
+  background-color: var(--rg-accent-subtle);
+}
+
+.rg-file-item.active {
+  border-color: var(--rg-accent);
+  background-color: var(--rg-accent-subtle);
+  box-shadow: 0 0 0 1px var(--rg-accent);
+}
+
+.rg-file-item-icon {
+  font-size: 20px;
+  color: #10b981;
+  flex-shrink: 0;
+}
+
+.rg-file-item-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.rg-file-item-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--rg-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rg-file-item-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--rg-text-muted);
+  margin-top: 2px;
+}
+
+.rg-file-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.rg-files-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 8px;
+  border-top: 1px solid var(--rg-border);
+}
+
+.rg-file-switcher-bar {
+  display: flex;
+  align-items: center;
+  padding: 6px 12px;
+  background-color: var(--rg-bg-panel);
+  border-bottom: 1px solid var(--rg-border);
+  flex-shrink: 0;
+}
+
+.rg-divider {
+  display: flex;
+  align-items: center;
+  text-align: center;
+  color: var(--rg-text-dim);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.rg-divider::before, .rg-divider::after {
+  content: '';
+  flex: 1;
+  border-bottom: 1px solid var(--rg-border);
+}
+
+.rg-divider span {
+  padding: 0 12px;
+}
+
+.rg-url-group {
+  display: flex;
+  gap: 8px;
+}
+
+.rg-input {
+  flex: 1;
+  background-color: var(--rg-bg-input);
+  border: 1px solid var(--rg-border);
+  color: var(--rg-text);
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-size: 13px;
+  outline: none;
+}
+
+.rg-input:focus {
+  border-color: var(--rg-accent);
+}
+
+.rg-btn {
+  background-color: var(--rg-bg-panel);
+  border: 1px solid var(--rg-border);
+  color: var(--rg-text);
+  padding: 5px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all 0.15s ease;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.rg-btn:hover:not(:disabled) {
+  border-color: var(--rg-accent);
+  color: var(--rg-accent);
+}
+
+.rg-btn-primary {
+  background-color: var(--rg-accent);
+  border-color: var(--rg-accent);
+  color: #ffffff !important;
+}
+
+.rg-btn-primary:hover:not(:disabled) {
+  background-color: var(--rg-accent-hover);
+  border-color: var(--rg-accent-hover);
+}
+
+.rg-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Step 2: Excel Preview & Regions Screen */
+#view-step-2 {
+  flex-direction: row;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.rg-grid-main {
+  flex: 1 1 0% !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  height: 100% !important;
+  overflow: hidden !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+#grid-container {
+  flex: 1 1 0% !important;
+  min-height: 0 !important;
+  min-width: 0 !important;
+  height: 100% !important;
+  position: relative !important;
+  overflow: hidden !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+.rg-regions-sidebar {
+  width: 280px !important;
+  min-width: 280px !important;
+  max-width: 280px !important;
+  flex-shrink: 0 !important;
+  border-left: 1px solid var(--rg-border);
+  background-color: var(--rg-bg-panel);
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 12px;
+  padding: 12px;
+  overflow-y: auto;
+  z-index: 5;
+}
+
+.rg-card {
+  background-color: var(--rg-bg-main);
+  border: 1px solid var(--rg-border);
+  border-radius: 6px;
+  padding: 12px;
+}
+
+.rg-card-title {
+  font-weight: 600;
+  font-size: 12px;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.rg-region-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: 4px;
+  border-left: 3px solid transparent;
+  background-color: var(--rg-bg-main);
+  border: 1px solid var(--rg-border);
+}
+
+.rg-region-card.title-card {
+  border-left: 3px solid var(--rg-region-title-border);
+}
+.rg-region-card.header-card {
+  border-left: 3px solid var(--rg-region-header-border);
+}
+.rg-region-card.summary-card {
+  border-left: 3px solid var(--rg-region-summary-border);
+}
+
+.rg-region-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.rg-range-chip {
+  font-family: var(--ide-font-monospace, monospace);
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background-color: var(--rg-bg-panel);
+  border: 1px solid var(--rg-border);
+}
+
+.rg-region-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+/* Step 3: Routine & Column Mapping Screen */
+#view-step-3 {
+  flex-direction: row;
+}
+
+.rg-routine-panel {
+  width: 320px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--rg-border);
+  background-color: var(--rg-bg-panel);
+  display: flex;
+  flex-direction: column;
+  padding: 12px;
+  gap: 8px;
+  overflow: hidden;
+  height: 100%;
+}
+
+.rg-mapping-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 12px;
+  gap: 10px;
+}
+
+.rg-table-scroll {
+  flex: 1;
+  overflow-y: auto;
+  border: 1px solid var(--rg-border);
+  border-radius: 4px;
+  background-color: var(--rg-bg-main);
+}
+
+.rg-data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.rg-data-table th, .rg-data-table td {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--rg-border);
+  text-align: left;
+}
+
+.rg-data-table th {
+  background-color: var(--rg-grid-header-bg);
+  color: var(--rg-text-muted);
+  font-weight: 600;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.rg-select {
+  width: 100%;
+  background-color: var(--rg-bg-input);
+  border: 1px solid var(--rg-border);
+  color: var(--rg-text);
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  outline: none;
+}
+
+.rg-select:focus {
+  border-color: var(--rg-accent);
+}
+
+.rg-col-badge {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background-color: var(--rg-bg-input);
+  border: 1px solid var(--rg-border);
+  font-family: var(--ide-font-monospace, monospace);
+  font-size: 11px;
+}
+
+.rg-sheet-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 4px 0;
+  margin-bottom: 4px;
+}
+
+.rg-sheet-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 14px;
+  font-size: 11px;
+  font-weight: 500;
+  background-color: var(--rg-bg-panel);
+  border: 1px solid var(--rg-border);
+  color: var(--rg-text-muted);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.rg-sheet-pill:hover {
+  background-color: var(--rg-bg-input);
+  color: var(--rg-text);
+  border-color: var(--rg-accent);
+}
+
+.rg-sheet-pill.active {
+  background-color: var(--rg-accent-subtle);
+  color: var(--rg-accent);
+  border-color: var(--rg-accent);
+  font-weight: 600;
+}
+
+/* Step 4: XML Output Screen (Redesigned with Top Sheet Tabs & 2-Panel Split) */
+#view-step-4 {
+  flex-direction: column;
+  padding: 12px;
+  gap: 10px;
+}
+
+.rg-step4-sheet-tabs-bar {
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid var(--rg-border);
+  padding-bottom: 6px;
+  flex-shrink: 0;
+  overflow-x: auto;
+}
+
+.rg-step4-sheet-tabs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: nowrap;
+}
+
+.rg-step4-sheet-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 6px 6px 0 0;
+  font-size: 12px;
+  font-weight: 500;
+  background-color: var(--rg-bg-panel);
+  border: 1px solid var(--rg-border);
+  border-bottom: none;
+  color: var(--rg-text-muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.rg-step4-sheet-tab:hover {
+  background-color: var(--rg-bg-input);
+  color: var(--rg-text);
+}
+
+.rg-step4-sheet-tab.active {
+  background-color: var(--rg-bg-main);
+  color: var(--rg-accent);
+  border-color: var(--rg-accent);
+  font-weight: 600;
+  box-shadow: 0 -2px 0 var(--rg-accent) inset;
+}
+
+.rg-step4-container {
+  display: flex;
+  flex: 1;
+  gap: 12px;
+  overflow: hidden;
+}
+
+/* Left Panel: 2 Fixed Options (270px) */
+.rg-step4-nav-panel {
+  width: 270px;
+  flex-shrink: 0;
+  background-color: var(--rg-bg-panel);
+  border: 1px solid var(--rg-border);
+  border-radius: 6px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.rg-step4-option-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 6px;
+  background-color: var(--rg-bg-main);
+  border: 1px solid var(--rg-border);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.rg-step4-option-card:hover {
+  background-color: var(--rg-accent-subtle);
+  border-color: var(--rg-accent);
+  transform: translateY(-1px);
+}
+
+.rg-step4-option-card.active {
+  border: 2px solid var(--rg-accent);
+  background-color: var(--rg-accent-subtle);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.rg-option-card-icon {
+  font-size: 24px;
+  width: 32px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.rg-option-card-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.rg-option-card-title {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--rg-text);
+  line-height: 1.2;
+}
+
+.rg-option-card-subtitle {
+  font-size: 11px;
+  color: var(--rg-text-muted);
+  margin-top: 2px;
+}
+
+.rg-option-card-meta {
+  font-size: 10px;
+  color: var(--rg-text-dim);
+  margin-top: 4px;
+}
+
+.rg-option-card-check {
+  font-size: 16px;
+  color: var(--rg-accent);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.rg-step4-option-card.active .rg-option-card-check {
+  opacity: 1;
+}
+
+/* Right Panel: Editor & Toolbar */
+.rg-step4-editor-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--rg-border);
+  border-radius: 6px;
+  overflow: hidden;
+  background-color: var(--rg-bg-main);
+}
+
+.rg-step4-editor-header {
+  height: 42px;
+  background-color: var(--rg-bg-toolbar);
+  border-bottom: 1px solid var(--rg-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px;
+  flex-shrink: 0;
+}
+
+.rg-editor-wrapper {
+  flex: 1;
+  overflow: hidden;
+  background-color: var(--rg-bg-main);
+}
+
+/* ─── 3. Bottom Navigation Status Bar (32px) ─────────────────────────────── */
+.rg-footer {
+  height: 36px;
+  background-color: var(--rg-bg-toolbar);
+  border-top: 1px solid var(--rg-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px;
+  flex-shrink: 0;
+  gap: 12px;
+}
+
+.rg-status-text {
+  font-size: 12px;
+  color: var(--rg-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rg-footer-buttons {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ─── 4. SheetGrid Component Styles ───────────────────────────────────────── */
+.sg-root {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background-color: var(--rg-bg-main);
+  position: relative;
+}
+
+.sg-formula-bar {
+  height: 30px;
+  background-color: var(--rg-bg-panel);
+  border-bottom: 1px solid var(--rg-border);
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.sg-name-box-wrap {
+  width: 100px;
+  flex-shrink: 0;
+}
+
+.sg-name-box {
+  width: 100%;
+  background-color: var(--rg-bg-input);
+  border: 1px solid var(--rg-border);
+  color: var(--rg-text);
+  font-family: var(--ide-font-monospace, monospace);
+  font-size: 11px;
+  text-align: center;
+  padding: 2px 4px;
+  border-radius: 3px;
+  outline: none;
+}
+
+.sg-name-box:focus {
+  border-color: var(--rg-accent);
+}
+
+.sg-fx-icon {
+  font-style: italic;
+  font-weight: 700;
+  color: var(--rg-text-dim);
+  padding: 0 4px;
+  user-select: none;
+}
+
+.sg-fx-input-wrap {
+  flex: 1;
+}
+
+.sg-fx-input {
+  width: 100%;
+  background-color: var(--rg-bg-input);
+  border: 1px solid var(--rg-border);
+  color: var(--rg-text);
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 3px;
+  outline: none;
+}
+
+.sg-zoom-control {
+  display: flex;
+  gap: 2px;
+}
+
+.sg-zoom-btn {
+  background-color: var(--rg-bg-input);
+  border: 1px solid var(--rg-border);
+  color: var(--rg-text-muted);
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+.sg-zoom-btn.active {
+  background-color: var(--rg-accent);
+  color: #ffffff;
+  border-color: var(--rg-accent);
+}
+
+.sg-viewport {
+  flex: 1;
+  overflow: auto;
+  position: relative;
+  outline: none;
+  background-color: var(--rg-bg-main);
+}
+
+.sg-canvas {
+  position: relative;
+  display: inline-block;
+  min-width: 100%;
+}
+
+.sg-table-container {
+  display: inline-block;
+}
+
+.sg-table {
+  border-collapse: separate;
+  border-spacing: 0;
+  background-color: var(--rg-bg-main);
+  user-select: none;
+}
+
+.sg-corner-cell {
+  position: sticky;
+  top: 0;
+  left: 0;
+  z-index: 5;
+  background-color: var(--rg-grid-header-bg);
+  border-right: 1px solid var(--rg-grid-line);
+  border-bottom: 1px solid var(--rg-grid-line);
+  cursor: pointer;
+}
+
+.sg-corner-cell:hover {
+  background-color: var(--rg-accent-subtle);
+}
+
+.sg-col-header {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background-color: var(--rg-grid-header-bg);
+  border-right: 1px solid var(--rg-grid-line);
+  border-bottom: 1px solid var(--rg-grid-line);
+  color: var(--rg-text-muted);
+  font-size: 11px;
+  font-weight: 500;
+  text-align: center;
+  padding: 3px 0;
+  cursor: pointer;
+}
+
+.sg-col-header.active {
+  background-color: var(--rg-accent-subtle);
+  color: var(--rg-accent);
+  font-weight: 700;
+}
+
+.sg-row-header {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background-color: var(--rg-grid-header-bg);
+  border-right: 1px solid var(--rg-grid-line);
+  border-bottom: 1px solid var(--rg-grid-line);
+  color: var(--rg-text-muted);
+  font-size: 11px;
+  font-weight: 500;
+  text-align: center;
+  padding: 0 4px;
+  cursor: pointer;
+}
+
+.sg-row-header.active {
+  background-color: var(--rg-accent-subtle);
+  color: var(--rg-accent);
+  font-weight: 700;
+}
+
+.sg-cell {
+  border-right: 1px solid var(--rg-grid-line);
+  border-bottom: 1px solid var(--rg-grid-line);
+  padding: 2px 6px;
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+}
+
+/* Overlays Layer */
+.sg-overlays-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 4;
+}
+
+.sg-selection-box {
+  position: absolute;
+  border: 2px solid var(--rg-accent);
+  background-color: var(--rg-accent-subtle);
+  pointer-events: none;
+  box-sizing: border-box;
+}
+
+.sg-region-box {
+  position: absolute;
+  box-sizing: border-box;
+  pointer-events: none;
+}
+
+.sg-region-title {
+  border: 2px dashed var(--rg-region-title-border);
+  background-color: var(--rg-region-title-bg);
+}
+
+.sg-region-header {
+  border: 2px dashed var(--rg-region-header-border);
+  background-color: var(--rg-region-header-bg);
+}
+
+.sg-region-summary {
+  border: 2px dashed var(--rg-region-summary-border);
+  background-color: var(--rg-region-summary-bg);
+}
+
+.sg-region-tag {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  padding: 1px 4px;
+  border-radius: 2px;
+  color: #ffffff;
+  pointer-events: none;
+}
+
+.sg-region-title .sg-region-tag {
+  background-color: var(--rg-region-title-border);
+}
+
+.sg-region-header .sg-region-tag {
+  background-color: var(--rg-region-header-border);
+}
+
+.sg-region-summary .sg-region-tag {
+  background-color: var(--rg-region-summary-border);
+}
+
+.sg-highlight-column-box {
+  position: absolute;
+  border: 2px solid var(--rg-col-highlight-border);
+  background-color: var(--rg-col-highlight-bg);
+  pointer-events: none;
+  box-sizing: border-box;
+}
+
+/* Bottom Bar (Sheet Tabs) */
+.sg-bottom-bar {
+  height: 28px;
+  background-color: var(--rg-bg-panel);
+  border-top: 1px solid var(--rg-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 6px;
+  flex-shrink: 0;
+}
+
+.sg-sheet-tabs-wrap {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  overflow: hidden;
+}
+
+.sg-tab-scroll-btn {
+  background: transparent;
+  border: none;
+  color: var(--rg-text-muted);
+  font-size: 10px;
+  cursor: pointer;
+  padding: 2px 4px;
+}
+
+.sg-sheet-tabs {
+  display: flex;
+  gap: 2px;
+  overflow-x: auto;
+}
+
+.sg-tab-item {
+  display: flex;
+  align-items: center;
+  padding: 2px 10px;
+  font-size: 11px;
+  color: var(--rg-text-muted);
+  background-color: var(--rg-bg-main);
+  border: 1px solid var(--rg-border);
+  border-radius: 3px 3px 0 0;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.sg-tab-item.active {
+  background-color: var(--rg-bg-panel);
+  color: var(--rg-accent);
+  border-bottom: 2px solid var(--rg-accent);
+  font-weight: 600;
+}
+
+.sg-info-stats {
+  font-size: 11px;
+  color: var(--rg-text-dim);
+  padding: 0 8px;
+}
+
+/* Context Menu */
+.sg-context-menu {
+  position: fixed;
+  z-index: 1000;
+  background-color: var(--rg-bg-dropdown);
+  border: 1px solid var(--rg-border);
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+  padding: 4px 0;
+  min-width: 200px;
+}
+
+.sg-ctx-item {
+  padding: 6px 14px;
+  font-size: 12px;
+  color: var(--rg-text);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sg-ctx-item:hover {
+  background-color: var(--rg-accent);
+  color: #ffffff !important;
+}
+
+.sg-ctx-divider {
+  height: 1px;
+  background-color: var(--rg-border);
+  margin: 4px 0;
+}
+
+/* Mini Grid mode for Step 3 column highlight */
+.sg-mini .sg-formula-bar, .sg-mini .sg-bottom-bar {
+  display: none !important;
+}
+
+/* ─── 5. AG-Grid Excel Mode for Report Gen ──────────────────────────────── */
+.rg-range-input {
+  width: 90px;
+  padding: 2px 6px;
+  font-size: 11px;
+  font-family: var(--ide-code-font-family, Consolas, Monaco, monospace);
+  font-weight: 600;
+  text-align: center;
+  text-transform: uppercase;
+  color: var(--rg-text);
+  background-color: var(--rg-bg-input);
+  border: 1px solid var(--rg-border);
+  border-radius: 3px;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.rg-range-input:focus {
+  outline: none;
+  border-color: var(--rg-accent);
+  box-shadow: 0 0 0 2px rgba(13, 110, 253, 0.25);
+  background-color: var(--rg-bg-panel);
+}
+
+.flex-1 {
+  flex: 1 1 0% !important;
+  min-height: 0 !important;
+  min-width: 0 !important;
+}
+
+.rg-ag-grid-wrapper {
+  flex: 1 1 0% !important;
+  min-height: 0 !important;
+  min-width: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  position: relative !important;
+  overflow: hidden !important;
+}
+
+.rg-ag-instance {
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* AG-Grid Excel-like customization - strictly scoped to Report Gen */
+.rg-ag-grid-wrapper .ag-theme-quartz,
+.rg-ag-grid-wrapper .ag-theme-quartz-dark {
+  --ag-font-family: var(--ide-ui-font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif);
+  --ag-font-size: 12px;
+  --ag-grid-size: 3px;
+  --ag-row-height: 24px;
+  --ag-header-height: 24px;
+  --ag-border-color: #d1d5db;
+  --ag-header-background-color: #f3f4f6;
+  --ag-header-foreground-color: #374151;
+  --ag-row-border-color: #e5e7eb;
+  --ag-cell-horizontal-border: solid #e5e7eb 1px;
+  --ag-borders: solid 1px;
+  --ag-selected-row-background-color: transparent;
+  --ag-background-color: #ffffff;
+  --ag-data-color: #111827;
+  --ag-odd-row-background-color: #ffffff;
+}
+
+[data-bs-theme="dark"] .rg-ag-grid-wrapper .ag-theme-quartz,
+[data-bs-theme="dark"] .rg-ag-grid-wrapper .ag-theme-quartz-dark {
+  --ag-border-color: #374151;
+  --ag-header-background-color: #1f2937;
+  --ag-header-foreground-color: #9ca3af;
+  --ag-row-border-color: #374151;
+  --ag-cell-horizontal-border: solid #374151 1px;
+  --ag-background-color: #111827;
+  --ag-data-color: #e5e7eb;
+  --ag-odd-row-background-color: #111827;
+}
+
+.rg-ag-instance,
+.rg-ag-instance .ag-root-wrapper,
+.rg-ag-instance .ag-root {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.rg-ag-grid-wrapper .ag-header-cell-label {
+  justify-content: center;
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+}
+
+.rg-ag-grid-wrapper .ag-header-cell {
+  border-right: 1px solid var(--ag-border-color) !important;
+  padding-left: 4px;
+  padding-right: 4px;
+}
+
+.rg-ag-grid-wrapper .ag-cell {
+  border-right: 1px solid var(--ag-row-border-color);
+  padding: 0 4px;
+  display: flex !important;
+  align-items: center;
+  box-sizing: border-box;
+  user-select: none;
+  overflow: hidden;
+}
+
+.rg-ag-grid-wrapper .ag-cell-value {
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: inherit;
+}
+
+/* Merged Cell Anchor and Covered rules */
+.rg-ag-grid-wrapper .rg-cell-anchor {
+  z-index: 3 !important;
+}
+
+.rg-ag-grid-wrapper .rg-cell-covered {
+  visibility: hidden !important;
+  pointer-events: none !important;
+  border: none !important;
+}
+
+/* Row numbers sticky left column */
+.rg-ag-grid-wrapper .rg-ag-row-num-cell {
+  background-color: #f3f4f6 !important;
+  color: #6b7280 !important;
+  text-align: center;
+  font-weight: 700;
+  font-size: 11px;
+  border-right: 1px solid #d1d5db !important;
+  user-select: none;
+  justify-content: center;
+}
+
+[data-bs-theme="dark"] .rg-ag-grid-wrapper .rg-ag-row-num-cell {
+  background-color: #1f2937 !important;
+  color: #9ca3af !important;
+  border-right: 1px solid #374151 !important;
+}
+
+/* User Interactive Selection highlight */
+.rg-ag-grid-wrapper .rg-cell-selected {
+  background-color: rgba(13, 110, 253, 0.20) !important;
+  outline: 2px solid #0d6efd !important;
+  outline-offset: -2px;
+  z-index: 4 !important;
+}
+
+/* Title Region (Blue tint) */
+.rg-ag-grid-wrapper .rg-cell-title {
+  background-color: rgba(13, 202, 240, 0.20) !important;
+  border-top: 1px dashed #0dcaf0 !important;
+  border-bottom: 1px dashed #0dcaf0 !important;
+}
+
+/* Header Region (Amber/Yellow tint with solid borders) */
+.rg-ag-grid-wrapper .rg-cell-header {
+  background-color: rgba(255, 193, 7, 0.28) !important;
+  border-top: 2px solid #d97706 !important;
+  border-bottom: 2px solid #d97706 !important;
+  font-weight: 600;
+}
+
+/* Summary Region (Purple tint) */
+.rg-ag-grid-wrapper .rg-cell-summary {
+  background-color: rgba(111, 66, 193, 0.22) !important;
+  border-top: 2px dashed #8b5cf6 !important;
+  border-bottom: 2px dashed #8b5cf6 !important;
+  font-weight: 600;
+}
+
+/* Highlight Column for Step 3 hover */
+.rg-ag-grid-wrapper .rg-cell-highlight-col {
+  background-color: rgba(25, 135, 84, 0.25) !important;
+  border-left: 2px solid #198754 !important;
+  border-right: 2px solid #198754 !important;
+}
+
+/* Sheet tabs bottom bar improvements */
+.sg-tab-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--rg-text);
+  background-color: var(--rg-bg-main);
+  border: 1px solid var(--rg-border);
+  border-radius: 4px 4px 0 0;
+  cursor: pointer;
+  white-space: nowrap;
+  user-select: none;
+  transition: background-color 0.12s, color 0.12s;
+}
+
+.sg-tab-item:hover {
+  background-color: var(--rg-hover);
+  color: var(--rg-text);
+}
+
+.sg-tab-item.active {
+  background-color: var(--rg-bg-panel);
+  color: #198754;
+  border-bottom: 2px solid #198754;
+  font-weight: 700;
+}
+
+[data-bs-theme="dark"] .sg-tab-item.active {
+  color: #4ade80;
+  border-bottom: 2px solid #4ade80;
+}
+
+.sg-tab-title {
+  display: inline-block;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+}
+
+/* Tree View Grouping in Step 3 */
+.rg-group-card {
+  border: 1px solid var(--rg-border);
+  border-radius: 6px;
+  background-color: var(--rg-bg-panel);
+  margin-bottom: 12px;
+  overflow: visible;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+
+.rg-group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background-color: var(--rg-bg-sidebar, rgba(0,0,0,0.03));
+  border-bottom: 1px solid var(--rg-border);
+  cursor: pointer;
+  user-select: none;
+  font-size: 13px;
+  transition: background-color 0.15s ease;
+}
+
+.rg-group-header:hover {
+  background-color: var(--rg-bg-input, rgba(0,0,0,0.07));
+}
+
+.rg-group-header .rg-group-toggle-icon {
+  transition: transform 0.2s ease;
+  font-size: 11px;
+}
+
+.rg-group-card.collapsed .rg-group-toggle-icon {
+  transform: rotate(-90deg);
+}
+
+.rg-group-card.collapsed .rg-group-body {
+  display: none !important;
+}
+
+.rg-group-body {
+  padding: 0;
+}
+
+/* 2-Row Column Structure inside Content group */
+.rg-content-col-item {
+  display: flex;
+  align-items: flex-start;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--rg-border);
+  gap: 12px;
+  transition: background-color 0.15s ease;
+}
+
+.rg-content-col-item:last-child {
+  border-bottom: none;
+}
+
+.rg-content-col-item:hover {
+  background-color: rgba(255, 255, 255, 0.02);
+}
+
+.rg-content-col-details {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  gap: 4px;
+}
+
+.rg-content-col-line1 {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.rg-content-col-line2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.rg-routine-item-btn {
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 5px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  color: var(--rg-text);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: background 0.1s ease;
+}
+
+.rg-routine-item-btn:hover {
+  background-color: var(--rg-accent-subtle);
+  color: var(--rg-accent);
+}
+
+.rg-routine-item-btn.active {
+  background-color: var(--rg-accent);
+  color: #fff;
+  font-weight: 600;
+}
+
+/* ─── Result Sets / DataMember Tree List ──────────────────────────────────── */
+.rg-table-node {
+  border: 1px solid var(--rg-border);
+  border-radius: 4px;
+  background-color: var(--rg-bg-input, #1e1e1e);
+  margin-bottom: 6px;
+  transition: all 0.15s ease;
+  overflow: hidden;
+}
+
+.rg-table-node:hover {
+  border-color: rgba(255, 193, 7, 0.4);
+}
+
+.rg-table-node.active {
+  border-color: #ffc107;
+  box-shadow: 0 0 0 1px rgba(255, 193, 7, 0.35);
+  background: rgba(255, 193, 7, 0.04);
+}
+
+.rg-table-node-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 8px;
+  cursor: pointer;
+  user-select: none;
+  font-size: 11.5px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.rg-table-node.active .rg-table-node-header {
+  background-color: rgba(255, 193, 7, 0.12);
+}
+
+.rg-table-node-cols {
+  padding: 6px 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  background-color: var(--rg-bg-main, #141414);
+}
+
+/* ─── Title & Summary List with Output Param Select ───────────────────────── */
+.rg-param-mapping-table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.rg-param-mapping-table tr {
+  border-bottom: 1px solid var(--rg-border);
+  transition: background-color 0.1s ease;
+}
+
+.rg-param-mapping-table tr:hover {
+  background-color: rgba(255, 255, 255, 0.02);
+}
+
+.rg-param-mapping-table td {
+  padding: 6px 10px;
+  vertical-align: middle;
+}
+
+.rg-param-mapping-table td.cell-label {
+  width: 55%;
+  overflow: hidden;
+}
+
+.rg-param-mapping-table td.cell-select {
+  width: 45%;
+  overflow: visible;
+}
+
+/* ─── Content 3-Row Table Grid View ───────────────────────────────────────── */
+.rg-content-grid-wrap {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--rg-border);
+  background-color: var(--rg-bg-main, #141414);
+}
+
+.rg-content-grid-table {
+  width: max-content;
+  min-width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.rg-content-grid-table th,
+.rg-content-grid-table td {
+  border: 1px solid var(--rg-border);
+  padding: 6px 14px;
+  text-align: center;
+  vertical-align: middle;
+  white-space: nowrap;
+  width: max-content;
+  min-width: 140px;
+}
+
+.rg-content-grid-table .rg-grid-header-cell {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background-color: var(--rg-bg-panel, #1e1e1e);
+  font-weight: 600;
+  color: var(--rg-text-muted);
+  text-align: left;
+  min-width: 120px;
+  border-right: 2px solid var(--rg-border);
+}
+
+.rg-content-grid-table tr.tr-checkboxes td {
+  background-color: rgba(255, 255, 255, 0.015);
+  padding: 8px 12px;
+}
+
+.rg-content-grid-table tr.tr-layout-cols td {
+  background-color: var(--rg-bg-input, #1b1b1b);
+  padding: 8px 12px;
+}
+
+.rg-content-grid-table tr.tr-db-selects td {
+  background-color: var(--rg-bg-main, #141414);
+  padding: 8px 12px;
+}
+
+.rg-view-mode-btn {
+  padding: 2px 8px;
+  font-size: 11px;
+  border: 1px solid var(--rg-border);
+  background: var(--rg-bg-panel);
+  color: var(--rg-text-muted);
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.rg-view-mode-btn.active {
+  background: var(--rg-accent);
+  color: #fff;
+  border-color: var(--rg-accent);
+}
+
+/* ─── Action Bar Style Connection Selectors (Local > Bravo10Setup > dbo) ───── */
+.rg-action-bar-strip {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  background: transparent;
+  border: none;
+  padding: 0;
+  min-height: 26px;
+  box-sizing: border-box;
+}
+
+.rg-action-bar-strip .ide-ctx-badge {
+  display: inline-flex;
+  align-items: center;
+  background: var(--ide-badge-bg, rgba(255, 255, 255, 0.06));
+  color: var(--ide-badge-text, var(--rg-text));
+  border: 1px solid var(--ide-border, var(--rg-border));
+  border-radius: 3px;
+  padding: 2px 7px;
+  font-size: 11.5px;
+  height: 24px;
+  cursor: pointer;
+  white-space: nowrap;
+  user-select: none;
+  line-height: 1;
+  text-decoration: none;
+  transition: all 0.12s ease;
+}
+
+.rg-action-bar-strip .ide-ctx-badge:hover {
+  background: var(--ide-badge-hover, rgba(255, 255, 255, 0.12));
+  border-color: var(--ide-accent, #3b82f6);
+  color: var(--ide-text-active, #ffffff);
+}
+
+.rg-action-bar-strip .ide-ctx-badge.dropdown-toggle::after {
+  margin-left: 5px;
+  vertical-align: middle;
+  font-size: 8px;
+}
+
+.rg-action-bar-strip .ide-ctx-sep {
+  color: var(--rg-text-muted);
+  font-size: 13px;
+  font-weight: 300;
+  padding: 0 1px;
+  user-select: none;
+}
+
+/* ─── Routine Searchable Selection Combobox ────────────────────────────────── */
+.rg-routine-combobox-box {
+  background-color: var(--rg-bg-input, #1e1e1e);
+  border: 1px solid var(--rg-border);
+  border-radius: 4px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.rg-routine-combobox-box:focus-within {
+  border-color: var(--rg-accent, #007acc);
+  box-shadow: 0 0 0 2px rgba(0, 122, 204, 0.2);
+}
+
+.rg-routine-combobox-box input {
+  color: var(--rg-text);
+}
+
+.rg-routine-combobox-box input:focus {
+  outline: none;
+  box-shadow: none;
+}
+
+#routine-dropdown-list {
+  background-color: var(--rg-bg-dropdown, #202228);
+  border: 1px solid var(--rg-border);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+
+/* ─── Inline Searchable Select Component (Title, Content, Summary) ─────────── */
+.rg-searchable-select {
+  position: relative;
+  display: inline-block;
+  width: 100%;
+}
+
+.rg-searchable-input {
+  cursor: text;
+  background-color: var(--rg-bg-input, #1e1e1e) !important;
+  color: var(--rg-text) !important;
+  border: 1px solid var(--rg-border) !important;
+  border-radius: 3px !important;
+  transition: all 0.12s ease;
+}
+
+.rg-searchable-input:focus {
+  border-color: var(--rg-accent, #007acc) !important;
+  box-shadow: 0 0 0 2px rgba(0, 122, 204, 0.2) !important;
+  outline: none !important;
+}
+
+.rg-searchable-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: 100%;
+  min-width: 220px;
+  max-width: 380px;
+  max-height: 240px;
+  overflow-y: auto;
+  z-index: 1060;
+  background-color: var(--rg-bg-dropdown, #202228);
+  border: 1px solid var(--rg-border);
+  border-radius: 4px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  margin-top: 2px;
+  padding: 4px 0;
+}
+
+.rg-searchable-opt {
+  padding: 5px 10px;
+  font-size: 11.5px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--rg-text);
+  transition: background-color 0.1s ease;
+}
+
+.rg-searchable-opt:hover,
+.rg-searchable-opt.highlighted {
+  background-color: var(--ide-hover-bg, rgba(255, 255, 255, 0.08));
+  color: #ffffff;
+}
+
+.rg-searchable-opt.selected {
+  background-color: rgba(0, 122, 204, 0.2);
+  color: var(--rg-accent-hover, #0098ff);
+  font-weight: 600;
+}
+
+.rg-searchable-opt .opt-type {
+  font-size: 10px;
+  opacity: 0.7;
+  font-family: monospace;
+}
+
+
+

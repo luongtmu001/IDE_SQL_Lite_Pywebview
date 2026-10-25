@@ -13,11 +13,13 @@ from app.desktop.windows import (
     SettingsSubwindowApi,
     ProfilerSubwindowApi,
     EventListenerSubwindowApi,
+    ReportGenSubwindowApi,
     open_settings_window,
     open_profiler_window,
     open_event_listener_window,
     open_query_history_window,
     open_bravo_window,
+    open_report_gen_window,
     apply_titlebar_theme_to_windows,
 )
 
@@ -89,4 +91,49 @@ def test_open_bravo_window_creation():
         kwargs = mock_create.call_args[1]
         assert "bravo_form.html" in kwargs["url"]
         assert mock_win in mock_api._bravo_windows
+
+
+def test_open_report_gen_window_creation():
+    mock_api = MagicMock()
+    mock_api._report_gen_window = None
+    mock_win = MagicMock()
+
+    with patch("webview.create_window", return_value=mock_win) as mock_create:
+        res = open_report_gen_window(mock_api)
+        assert res["success"] is True
+        mock_create.assert_called_once()
+        kwargs = mock_create.call_args[1]
+        assert "report_gen_window.html" in kwargs["url"]
+        assert "?" not in kwargs["url"]  # Ensure no query string breaks WebView2 on Windows
+        assert mock_api._report_gen_window == mock_win
+
+
+def test_report_gen_subwindow_api_forwarding():
+    mock_main_api = MagicMock()
+    rg_api = ReportGenSubwindowApi(mock_main_api)
+
+    # Test rg_set_regions with sheet_name
+    rg_api.rg_set_regions("sess1", [{"kind": "header", "range": "A1:B2"}], sheet_name="Sheet1")
+    mock_main_api.rg_set_regions.assert_called_once_with(
+        "sess1", [{"kind": "header", "range": "A1:B2"}], sheet_name="Sheet1"
+    )
+
+    # Test rg_apply_mapping with sheet_name
+    rg_api.rg_apply_mapping("sess1", "DataMember1", {"ColA": "Field1"}, sheet_name="Sheet1")
+    mock_main_api.rg_apply_mapping.assert_called_once_with(
+        "sess1", "DataMember1", {"ColA": "Field1"}, mode="rename", unmapped_columns=None, sheet_name="Sheet1"
+    )
+
+    # Test rg_pick_excel_files without window
+    assert rg_api.rg_pick_excel_files()["success"] is False
+
+    # Test rg_pick_excel_files with window
+    mock_win = MagicMock()
+    mock_win.create_file_dialog.return_value = ["C:/path/file1.xlsx", "C:/path/file2.xlsm"]
+    rg_api.set_window(mock_win)
+    res = rg_api.rg_pick_excel_files()
+    assert res["success"] is True
+    assert res["files"] == ["C:/path/file1.xlsx", "C:/path/file2.xlsm"]
+
+
 

@@ -2241,9 +2241,254 @@ def open_syntax_reference_window(
         except Exception as exc:
             logger.exception("Error opening syntax reference window: %s", exc)
             return {"success": False, "error": str(exc)}
-        finally:
-            _syntax_ref_is_opening = False
+
+# ── Report Layout Generator Wizard Subwindow ─────────────────────────────────
+
+_report_gen_window_lock = threading.Lock()
+_report_gen_is_opening = False
 
 
+class ReportGenSubwindowApi:
+    """Bridge for the standalone Report Layout Generator Wizard subwindow."""
+
+    def __init__(self, main_api, initial_options=None):
+        self._main_api = main_api
+        self._initial_options = initial_options or {}
+        self._window = None
+
+    def get_initial_options(self):
+        return self._initial_options
+
+    def set_window(self, win):
+        self._window = win
+
+    def rg_open_file(self, content_or_path, filename=None):
+        return self._main_api.rg_open_file(content_or_path, filename)
+
+    def rg_open_files(self, files):
+        return self._main_api.rg_open_files(files)
+
+    def rg_add_files(self, session_id, files):
+        return self._main_api.rg_add_files(session_id, files)
+
+    def rg_remove_file(self, session_id, file_id):
+        return self._main_api.rg_remove_file(session_id, file_id)
+
+    def rg_select_file(self, session_id, file_id):
+        return self._main_api.rg_select_file(session_id, file_id)
+
+    def rg_open_gsheet(self, url):
+        return self._main_api.rg_open_gsheet(url)
+
+    def rg_get_sheet(self, session_id, sheet_name=None):
+        return self._main_api.rg_get_sheet(session_id, sheet_name)
+
+    def rg_set_regions(self, session_id, regions, sheet_name=None):
+        return self._main_api.rg_set_regions(session_id, regions, sheet_name=sheet_name)
+
+    def rg_get_connections(self):
+        if hasattr(self._main_api, "rg_get_connections"):
+            return self._main_api.rg_get_connections()
+        if hasattr(self._main_api, "schema_compare_get_connections"):
+            return self._main_api.schema_compare_get_connections()
+        return {"success": True, "connections": []}
+
+    def rg_get_databases(self, connection_id):
+        if hasattr(self._main_api, "rg_get_databases"):
+            return self._main_api.rg_get_databases(connection_id)
+        return {"success": True, "databases": []}
+
+    def rg_get_schemas(self, connection_id, database=None):
+        if hasattr(self._main_api, "rg_get_schemas"):
+            return self._main_api.rg_get_schemas(connection_id, database=database)
+        return {"success": True, "schemas": ["dbo"]}
+
+    def rg_list_routines(self, connection_id, schema=None, search=None, database=None):
+        return self._main_api.rg_list_routines(connection_id, schema, search, database=database)
+
+    def rg_describe_routine(self, session_id, connection_id, routine_name, schema=None, database=None):
+        return self._main_api.rg_describe_routine(session_id, connection_id, routine_name, schema, database=database)
+
+    def rg_apply_mapping(self, session_id, data_member, mapping, mode="rename", unmapped_columns=None, sheet_name=None, param_mappings=None):
+        kwargs = dict(mode=mode, unmapped_columns=unmapped_columns, sheet_name=sheet_name)
+        if param_mappings is not None:
+            kwargs["param_mappings"] = param_mappings
+        return self._main_api.rg_apply_mapping(session_id, data_member, mapping, **kwargs)
+
+    def rg_build(self, session_id):
+        return self._main_api.rg_build(session_id)
+
+    def rg_save_files(self, session_id, folder=None):
+        if not folder and self._window:
+            try:
+                folders = self._window.create_file_dialog(webview.FOLDER_DIALOG)
+                if folders and len(folders) > 0:
+                    folder = folders[0]
+                else:
+                    return {"success": False, "cancelled": True}
+            except Exception as e:
+                logger.warning("Could not open native folder dialog: %s", e)
+        return self._main_api.rg_save_files(session_id, folder)
+
+    def rg_pick_folder(self):
+        if self._window:
+            try:
+                folders = self._window.create_file_dialog(webview.FOLDER_DIALOG)
+                if folders and len(folders) > 0:
+                    return {"success": True, "folder": folders[0]}
+                return {"success": False, "cancelled": True}
+            except Exception as exc:
+                return {"success": False, "error": str(exc)}
+        return {"success": False, "error": "Cửa sổ chưa khởi tạo."}
+
+    def rg_pick_excel_files(self):
+        """Open native desktop multi-file picker for Excel files."""
+        if self._window:
+            try:
+                import webview
+                files = self._window.create_file_dialog(
+                    webview.OPEN_DIALOG,
+                    allow_multiple=True,
+                    file_types=('Excel Files (*.xlsx;*.xlsm)', 'All files (*.*)')
+                )
+                if files and len(files) > 0:
+                    return {"success": True, "files": list(files)}
+                return {"success": False, "cancelled": True}
+            except Exception as exc:
+                return {"success": False, "error": str(exc)}
+        return {"success": False, "error": "Cửa sổ chưa khởi tạo."}
+
+    def get_connections(self):
+        return self.rg_get_connections()
+
+    def get_settings(self):
+        if hasattr(self._main_api, "get_settings"):
+            return self._main_api.get_settings()
+        return {}
+
+    def get_typography(self):
+        if hasattr(self._main_api, "get_typography"):
+            return self._main_api.get_typography()
+        return {}
 
 
+def open_report_gen_window(api: Any, base_dir: Optional[Path] = None, initial_options: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """Open or focus the Report Layout Generator Wizard subwindow."""
+    global _report_gen_is_opening
+    if base_dir is None:
+        base_dir = get_bundle_dir()
+
+    with _report_gen_window_lock:
+        if hasattr(api, "_report_gen_window") and api._report_gen_window:
+            try:
+                sub_win = api._report_gen_window
+                sub_win.show()
+                sub_win.focus()
+                return {"success": True}
+            except Exception:
+                api._report_gen_window = None
+
+        if _report_gen_is_opening:
+            return {"success": True}
+        _report_gen_is_opening = True
+
+    try:
+        # Auto-detect active connection context if not explicitly provided
+        if not initial_options and hasattr(api, "cm") and api.cm:
+            try:
+                with api.cm._lock:
+                    for cid, conn in api.cm._connections.items():
+                        if getattr(conn, "is_alive", lambda: True)():
+                            cfg = getattr(conn, "config", {}) or {}
+                            initial_options = {
+                                "connectionId": str(cid),
+                                "connectionName": cfg.get("name") or str(cid),
+                                "database": getattr(conn.adapter, "database", cfg.get("database", "")) or cfg.get("default_database", ""),
+                                "schema": cfg.get("schema") or getattr(conn.adapter, "default_schema", getattr(conn.adapter, "schema", "")) or "dbo",
+                                "dbType": getattr(conn.adapter, "db_type", cfg.get("type", "sqlserver")),
+                            }
+                            break
+            except Exception as exc:
+                logger.debug("Could not auto-detect active connection for report gen: %s", exc)
+
+        candidate_paths = [
+            base_dir / "templates" / "report_gen_window.html",
+            base_dir / "_internal" / "templates" / "report_gen_window.html",
+            Path(__file__).resolve().parent.parent.parent / "templates" / "report_gen_window.html",
+        ]
+        chosen_path = None
+        for cand in candidate_paths:
+            if cand.exists():
+                chosen_path = cand
+                break
+        if not chosen_path:
+            chosen_path = candidate_paths[0]
+        html_path = chosen_path.resolve().as_uri()
+
+        settings = _load_settings_file()
+        cur_theme = settings.get("theme") or settings.get("appearance", {}).get("theme", "dark")
+
+        w, h = 1280, 800
+        cx, cy, target_screen = calculate_centered_coordinates(w, h, api)
+
+        sub_api = ReportGenSubwindowApi(api, initial_options=initial_options)
+        win_title = "Sinh Layout Báo cáo Bravo từ Excel — luoBTool IDE"
+
+        sub_win = webview.create_window(
+            title=win_title,
+            url=html_path,
+            js_api=sub_api,
+            width=w,
+            height=h,
+            x=cx,
+            y=cy,
+            screen=target_screen,
+            resizable=True,
+            min_size=(960, 600),
+            background_color="#18181b",
+            text_select=True,
+        )
+        sub_api.set_window(sub_win)
+        api._report_gen_window = sub_win
+
+        def _center_on_shown():
+            try:
+                sub_win.move(cx, cy)
+            except Exception:
+                pass
+
+        def _apply_theme_on_loaded():
+            try:
+                sub_win.evaluate_js(
+                    f"if (window.ThemeManager) {{ window.ThemeManager.applyTheme('{cur_theme}', false); }} "
+                    f"else {{ document.documentElement.setAttribute('data-bs-theme', '{cur_theme}'); }}"
+                )
+            except Exception:
+                pass
+
+        sub_win.events.shown += _center_on_shown
+        sub_win.events.loaded += _apply_theme_on_loaded
+
+        if getattr(api, "_current_titlebar_theme", None):
+            t = api._current_titlebar_theme
+            apply_dwm_titlebar_theme(sub_win, bg=t.get("bg"), text=t.get("text"), border=t.get("border"), is_dark=t.get("is_dark"), title=win_title)
+        else:
+            apply_dwm_titlebar_theme(sub_win, bg=cur_theme, title=win_title)
+
+        def on_closed():
+            with _report_gen_window_lock:
+                api._report_gen_window = None
+            try:
+                if sub_win in webview.windows:
+                    webview.windows.remove(sub_win)
+            except Exception:
+                pass
+
+        sub_win.events.closed += on_closed
+        return {"success": True}
+    except Exception as exc:
+        logger.exception("Error opening report gen window: %s", exc)
+        return {"success": False, "error": str(exc)}
+    finally:
+        with _report_gen_window_lock:
+            _report_gen_is_opening = False

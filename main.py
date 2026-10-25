@@ -65,6 +65,7 @@ from app.api.schema_compare_api import SchemaCompareApiMixin as _SchemaCompareAp
 from app.api.google_sheets_api import GoogleSheetsApiMixin as _GoogleSheetsApiMixin
 from app.api.database_users_api import DatabaseUsersApiMixin as _DatabaseUsersApiMixin
 from app.api.syntax_catalog_api import SyntaxCatalogApiMixin as _SyntaxCatalogApiMixin
+from app.api.report_gen_api import ReportGenApiMixin as _ReportGenApiMixin
 
 logger = logging.getLogger("luobtool.main")
 connection_manager = ConnectionManager()
@@ -109,6 +110,7 @@ class MainApi(
     _GoogleSheetsApiMixin,
     _DatabaseUsersApiMixin,
     _SyntaxCatalogApiMixin,
+    _ReportGenApiMixin,
     BravoApi,
 ):
     def __init__(self, cm: ConnectionManager = connection_manager):

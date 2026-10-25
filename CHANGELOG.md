@@ -2,6 +2,49 @@
 
 Tất cả các thay đổi, sửa đổi, bổ sung tính năng và bản vá lỗi đáng chú ý của dự án **LLTool IDE** (Database Desktop Client for SQL Server & PostgreSQL) được ghi lại đầy đủ và chi tiết tại file này.
 
+## [v1.1.6] — 25/10/2026
+
+### 📊 Nâng Cấp Toàn Diện Công Cụ Sinh Layout Báo Cáo Bravo Từ Excel / Google Sheets v2 (Report Layout Gen v2)
+
+- **Quy Chuẩn Ánh Xạ & Sinh Mã XML Layout Bravo Chuẩn**:
+  - **Content (Cột nội dung)**: Giữ nguyên tên thẻ cột layout `<Col_A>`, `<Col_B>`... và tự động chèn thẻ con `<Name>tên_cột_DB</Name>` bên dưới cột khi được ánh xạ.
+  - **Cột Bỏ Chọn**: Đánh dấu ẩn với thẻ `<Visible>False</Visible>`.
+  - **Title & Summary (Tiêu đề & Tổng cộng)**: Tự động thay thế giá trị chuỗi hiển thị thành tham số Output `{=@_param}` (ví dụ: `"Địa chỉ"` chuyển thành `{=@_Address}`), hỗ trợ nhận diện theo dòng và chuỗi text.
+  - **Trải Nghiệm Dropdown Tìm Kiếm**: Tối ưu hóa dropdown chọn cột/param, tự động định vị cố định theo viewport (`fixed`), mở lên trên/xuống dưới thông minh và không bị mất khi cuộn danh sách.
+- **Sửa Lỗi Quản Lý Kết Nối & Tự Động Kết Nối CSDL (Connection Resolution)**:
+  - Khắc phục lỗi dropdown kết nối bị rỗng; tích hợp hàm `rg_get_connections()` lấy đồng thời cả kết nối đang mở (`active`) và profile kết nối đã lưu (`saved profiles`).
+  - Lọc bỏ SQLite, chỉ tập trung vào Microsoft SQL Server và PostgreSQL (các hệ CSDL có Stored Procedures và Routines).
+  - Tự động kết nối runtime (`_rg_resolve_connection_id`) khi người dùng chọn một profile đã lưu mà chưa từng kết nối trước đó.
+- **An Toàn CSDL Tuyệt Đối — Bóc Tách Cột Qua Phân Tích Cú Pháp Tĩnh (`NO EXEC`)**:
+  - Không bao giờ thực thi câu lệnh gọi thủ tục (`EXEC proc` hoặc `SELECT fn()`) trên CSDL.
+  - Tự động truy vấn định nghĩa DDL của Routine và bóc tách cây ngữ pháp AST tĩnh để nhận biết cấu trúc các cột và tập kết quả (`Result Sets`).
+- **Trình Kết Xuất Bảng Tính Tương Tác `SheetGrid` Độc Lập**:
+  - Trích xuất toàn bộ kiểu dáng ô tính từ Excel: font chữ, cỡ chữ, in đậm/nghiêng/gạch chân, màu chữ, màu nền (ARGB và 10 màu Theme Office cơ bản kèm tint), kiểu đường viền 4 cạnh, căn lề và định dạng số/ngày tháng.
+  - Tối ưu hóa tra cứu ô gộp (merged cells) với độ phức tạp $O(1)$ và nén dữ liệu kiểu dáng vào bảng kiểu dùng chung (`styles: []`).
+  - Hỗ trợ đầy đủ các thao tác bảng tính: thanh tiêu đề dòng/cột cố định khi cuộn (`sticky`), chọn dải ô bằng kéo chuột, Shift+Click, điều hướng bàn phím, Name Box (nhập dải ô và nhấn Enter), thanh công thức `fx`, nút chọn tỷ lệ Zoom (75%, 100%, 125%), và tab chuyển đổi sheet ở đáy.
+  - Menu ngữ cảnh chuột phải hỗ trợ gán nhanh hoặc huỷ gán vùng `Title`, `Header`, `Summary`.
+- **Ánh Xạ Cột Trực Quan (Visual Column Mapping)**:
+  - Cho phép người dùng bật/tắt (checkbox) từng cột để đưa vào hoặc loại bỏ khỏi layout Bravo.
+  - Tích hợp khung xem trước thu nhỏ (`mini grid preview`): khi rê chuột vào từng dòng trong bảng mapping, cột tương ứng trên bảng tính sẽ tự động phát sáng giúp đối chiếu trực quan.
+- **Chọn Nhiều File Excel Đồng Thời & Hiển Thị Danh Sách File Trực Quan**:
+  - Khi chọn hoặc kéo thả file, hệ thống hiển thị danh sách thẻ file (`File Cards`) rõ ràng tại Bước 1 (icon Excel, tên file, dung lượng format đẹp, số sheet, trạng thái "Đang chọn", nút xem và nút xóa).
+  - Cho phép người dùng chọn hoặc kéo thả cùng lúc nhiều file Excel (`multiple`).
+  - Backend quản lý danh sách file theo phiên (`WorkbookFileInfo`), hỗ trợ thêm file (`rg_add_files`), xóa file (`rg_remove_file`), và chuyển đổi file kích hoạt (`rg_select_file`).
+  - Tại Bước 2: Tự động hiển thị thanh chuyển đổi file (`File Switcher Bar`) giúp người dùng dễ dàng chuyển đổi qua lại giữa các file Excel để khoanh vùng và sinh layout.
+- **Thiết Kế Lại Giao Diện Bước 3 (Mapping Không Hiển Thị Mini Sheet & Hỗ Trợ Đa Sheet)**:
+  - Bỏ hoàn toàn khung xem trước mini sheet ở Bước 3 để mở rộng bảng ánh xạ cột ra toàn bộ chiều cao màn hình.
+  - Hỗ trợ tình huống có nhiều sheet: Tích hợp thanh lọc sheet (`#step3-sheet-filter-bar`) dạng pills (`[ Tất cả Sheets ]`, `[ Sheet 1 ]`, `[ Sheet 2 ]`...).
+  - Mỗi hàng ánh xạ cho phép người dùng chọn **Bảng dữ liệu (Table / Result Set)** và **Cột Database** tương ứng; danh sách cột DB tự động nạp theo bảng đã chọn.
+  - Tự động so khớp thông minh (`autoMatchColumns`) dựa trên độ tương đồng tên cột.
+- **Thiết Kế Lại Giao Diện Bước 4 (Bố Cục 2 Panel & Thanh Tab Sheet Trên Cùng)**:
+  - Thanh tab trên cùng (`#step4-sheet-tabs`) hiển thị danh sách các Sheet Excel đã cấu hình layout.
+  - Bố cục 2 panel cố định (Split View):
+    - **Panel trái (270px):** 2 Card tùy chọn cố định gồm **Datasource XML** (`report_datasource.xml`) và **Layout XML** (`report_layout.xml`), có icon và mô tả thông tin tham số/cột.
+    - **Panel phải (flex-1):** Thanh công cụ hiển thị tiêu đề file, badge dòng/kích thước, nút Sao chép, Lưu ra thư mục… và Tải về, cùng trình soạn thảo Monaco Editor hiển thị XML tương ứng.
+- **Đồng Bộ Giao Diện Theo Hệ Chuẩn IDE & Trình Soạn Thảo Monaco Editor**:
+  - Đồng bộ hệ biến theme `--ide-*` và typography (font UI & cỡ chữ), đảm bảo hiển thị sắc nét trên cả Theme Tối và Theme Sáng.
+  - Nút **"Lưu ra thư mục…"** gọi hộp thoại chọn thư mục native thông qua pywebview (`rg_save_files`).
+
 ## [v1.1.5] — 24/10/2026
 
 ### 🐘 Sửa Lỗi Cú Pháp Bảng Tạm & Bổ Sung Gợi Ý/Cảnh Báo Kế Thừa Bảng Tạm PostgreSQL (Cross-Routine Temp Table Scope)

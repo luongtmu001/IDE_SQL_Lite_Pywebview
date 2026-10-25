@@ -26,7 +26,7 @@ ROOT_DIR = Path(__file__).resolve().parent.parent
 DIST_DIR = ROOT_DIR / "dist"
 APP_DIST_DIR = DIST_DIR / "LLTool"
 
-VERSION = "1.1.5"
+VERSION = "1.1.6"
 FULL_ZIP_NAME = f"LLTool_v{VERSION}.zip"
 PATCH_ZIP_NAME = f"LLTool_v{VERSION}_patch.zip"
 
@@ -43,25 +43,30 @@ def create_readme_update() -> str:
     content = f"""================================================================================
 HUONG DAN CAP NHAT & PHAT HANH LLTOOL IDE v{VERSION}
 ================================================================================
-Ngay phat hanh: 2026-10-24
-Phien ban: v{VERSION} (PostgreSQL Temp Table Syntax Fix & Cross-Routine Temp Table Scope)
+Ngay phat hanh: 2026-10-25
+Phien ban: v{VERSION} (Report Layout Gen v2 - Sinh Layout Bao Cao Bravo Tu Excel/Google Sheets)
 
 CAC TINH NANG MOI & NANG CAP TRONG BAN v{VERSION}:
-1. Khac Phuc Loi Syntax Check Ki Kieu Du Lieu Khi Tao Bang Tam PostgreSQL:
-   - Sua loi cau lenh CREATE TEMP TABLE ... (id integer) bi bao do tai kieu du lieu integer.
-   - Mo rong regex DDL trong validator_pg.py bao quat day du CREATE [GLOBAL|LOCAL] [TEMP|TEMPORARY|UNLOGGED] TABLE, INDEX, SEQUENCE, VIEW.
-   - Ngan ngua gui lenh tao bang xuong database bang EXPLAIN (von khong ho tro CREATE TABLE (col type)), chuyen sang semantic_analyzer an toan.
+1. Bo Cong Cu Sinh Layout Bao Cao Bravo v2 (Report Layout Gen v2):
+   - Trich xuat cau truc va kieu dang o tinh tu file Excel (.xlsx/.xlsm) va Google Sheets.
+   - Ho tro phien lam viec da file (File Cards & File Switcher) va quan ly da sheet.
 
-2. Goi Y IntelliSense Bang Tam Ke Thua Giua Cac Routine (Procedure/Function/Trigger) Cho PostgreSQL:
-   - Ho tro day du dac thu cua PostgreSQL (Session Scope): bang tam tao trong routine con van ton tai sau khi return va dung duoc trong routine cha.
-   - Tu dong nhan dien va goi y cac bang tam sinh ra tu routine duoc goi (ke ca goi bac cau A -> B -> C).
-   - Hien thi nhan truc quan: displayType: 'Temp Table (proc_name)', detail: 'Ke thua tu proc_name()'.
-   - Ho tro autocomplete day du danh sach cot khi go temp_table.
+2. Boc Tanh Cot Routine Sieu An Toan (Static Analysis - NO EXEC):
+   - Phan tich cu phap tinh tu dinh nghia Routine DDL (Stored Procedure/Function).
+   - Tuyet doi khong chay cau lenh EXEC len Database, phong tranh moi rui ro du lieu.
 
-3. He Thong Canh Bao Vang (Warning) Nhận Dien Trang Thai Bang Tam Trong Routine:
-   - Canh bao xac nhan bang tam da co tu routine duoc goi den trong session (PG_TEMP_TABLE_INHERITED).
-   - Canh bao bang tam chua co trong routine duoc goi hoac routine hien tai (PG_TEMP_NOT_FOUND_IN_CALLEE).
-   - Canh bao xung dot tao lai bang tam da co tu routine con ma khong dung IF NOT EXISTS (PG_TEMP_CONFLICT_WARNING).
+3. Bang Tinh Tuong Tac SheetGrid & Khoanh Vung Thong Minh:
+   - Tu dong nhan dien va goi y khoanh vung Title, Content (Header), Summary.
+   - Ho tro keo chuot chon vung, Shift+Click, Name Box, Zoom, menu chuot phai gan vung.
+
+4. Anh Xa Cot DB & Tham So Output Bravo:
+   - Cot Layout giu nguyen the <Col_...> va tu dong chen the con <Name>ten_cot</Name>.
+   - O Title / Summary tu dong thay the gia tri text thanh tham so Output {{=@_param}}.
+   - Cot bi tat su dung duoc danh dau <Visible>False</Visible>.
+
+5. Trinh Bien Dich & Xuat XML 2 Panel Truc Quan:
+   - Chia tab sheet thong minh, chuyen doi nhanh giua report_layout.xml va report_datasource.xml.
+   - Ho tro sao chep 1-click vao Clipboard hoac luu file truc tiep ra thu muc may tinh.
 
 --------------------------------------------------------------------------------
 CACH 1: SU DUNG GOI FULL (LLTool_v{VERSION}.zip - Khuyen nghi)

@@ -15,6 +15,7 @@ from app.api.activity_api import ActivityApiMixin
 from app.api.schema_compare_api import SchemaCompareApiMixin
 from app.api.google_sheets_api import GoogleSheetsApiMixin
 from app.api.syntax_catalog_api import SyntaxCatalogApiMixin
+from app.api.report_gen_api import ReportGenApiMixin
 
 __all__ = [
     "ActivityApiMixin",
@@ -26,6 +27,7 @@ __all__ = [
     "MainMetadataApiMixin",
     "ProfilerApiMixin",
     "QueryApiMixin",
+    "ReportGenApiMixin",
     "SchemaCompareApiMixin",
     "SessionApiMixin",
     "SettingsApiMixin",

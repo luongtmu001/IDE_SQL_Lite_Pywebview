@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="vi" data-bs-theme="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https:; worker-src 'self' blob:;">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sinh Layout Báo cáo Bravo từ Excel</title>
+    <link rel="icon" type="image/png" href="../static/image/logo-200x200.png">
+
+    <!-- Immediate Theme & Typography Restore -->
+    <script>
+        (function () {
+            try {
+                var saved = localStorage.getItem('ide-theme');
+                if (saved) {
+                    document.documentElement.setAttribute('data-bs-theme', saved);
+                }
+                var fontFam = localStorage.getItem('ide-ui-font-family');
+                var fontSz = localStorage.getItem('ide-ui-font-size');
+                if (fontFam) {
+                    var stack = fontFam;
+                    if (fontFam === 'Segoe UI') stack = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif";
+                    else if (fontFam === 'Inter') stack = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif";
+                    else if (fontFam === 'Roboto') stack = "'Roboto', 'Segoe UI', Arial, sans-serif";
+                    else if (fontFam === 'Arial') stack = "Arial, 'Helvetica Neue', Helvetica, sans-serif";
+                    else if (fontFam === 'Tahoma') stack = "Tahoma, Verdana, 'Segoe UI', sans-serif";
+                    else if (fontFam === 'System UI') stack = "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+                    document.documentElement.style.setProperty('--ide-ui-font-family', stack);
+                    document.documentElement.style.setProperty('--bs-body-font-family', stack);
+                }
+                if (fontSz) {
+                    var szNum = parseInt(fontSz, 10);
+                    if (!isNaN(szNum) && szNum >= 10 && szNum <= 24) {
+                        document.documentElement.style.setProperty('--ide-ui-font-size', szNum + 'px');
+                        document.documentElement.style.setProperty('--bs-body-font-size', szNum + 'px');
+                    }
+                }
+            } catch (e) { }
+        })();
+    </script>
+
+    <!-- Google Fonts for Inter & Roboto -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Roboto:wght@400;500;700&display=swap"
+        rel="stylesheet">
+
+    <!-- Vendor CSS -->
+    <link rel="stylesheet" href="../static/vendor/bootstrap/bootstrap.min.css">
+    <link rel="stylesheet" href="../static/vendor/fontawesome/all.min.css">
+
+    <!-- AG-Grid Vendor CSS -->
+    <link rel="stylesheet" href="../static/vendor/ag-grid/ag-grid.css">
+    <link rel="stylesheet" href="../static/vendor/ag-grid/ag-theme-quartz.css">
+
+    <!-- IDE Theme Variables & Report Gen Styles -->
+    <link rel="stylesheet" href="../static/css/theme-variables.css">
+    <link rel="stylesheet" href="../static/css/themes.css">
+    <link rel="stylesheet" href="../static/css/editor.css">
+    <link rel="stylesheet" href="../static/css/report-gen.css">
+</head>
+
+<body class="rg-window-body">
+    <div class="rg-app">
+        <!-- ─── 1. Top Toolbar (38px) ─── -->
+        <header class="rg-toolbar">
+            <div class="rg-toolbar-title">
+                <i class="fa-solid fa-file-excel"></i>
+                <span>Sinh Layout Báo cáo Bravo</span>
+            </div>
+
+            <!-- Compact Stepper -->
+            <div class="rg-stepper-compact" id="rg-stepper">
+                <div class="rg-step-pill active" data-step="1">
+                    <span class="rg-pill-num">1</span>
+                    <span>Nguồn dữ liệu</span>
+                </div>
+                <i class="fa-solid fa-chevron-right rg-step-arrow"></i>
+                <div class="rg-step-pill" data-step="2">
+                    <span class="rg-pill-num">2</span>
+                    <span>Khoanh vùng báo cáo</span>
+                </div>
+                <i class="fa-solid fa-chevron-right rg-step-arrow"></i>
+                <div class="rg-step-pill" data-step="3">
+                    <span class="rg-pill-num">3</span>
+                    <span>Routine & Map cột</span>
+                </div>
+                <i class="fa-solid fa-chevron-right rg-step-arrow"></i>
+                <div class="rg-step-pill" data-step="4">
+                    <span class="rg-pill-num">4</span>
+                    <span>Xuất file XML</span>
+                </div>
+            </div>
+
+            <div id="session-chip" class="rg-session-chip">Chưa có phiên</div>
+        </header>
+
+        <!-- ─── 2. Main Body Step Views ─── -->
+        <main class="rg-body">
+            <!-- Step 1: Nguồn dữ liệu -->
+            <div class="rg-step-view active" id="view-step-1">
+                <div class="rg-source-container">
+                    <div class="text-center">
+                        <h5 class="fw-bold mb-1">Chọn nguồn bảng tính Excel hoặc Google Sheets</h5>
+                        <div class="small text-muted">Hệ thống sẽ đọc toàn bộ cấu trúc ô, độ rộng cột, chiều cao dòng,
+                            format định dạng và các vùng gộp ô (merged cells) để dựng layout XML chuẩn Bravo.</div>
+                    </div>
+
+                    <!-- Dropzone -->
+                    <div class="rg-upload-card" id="dropzone" style="cursor: pointer;">
+                        <i class="fa-solid fa-cloud-arrow-up rg-upload-icon"></i>
+                        <div class="fw-bold mb-1">Kéo thả file .xlsx vào đây hoặc bấm để chọn</div>
+                        <div class="small text-muted">Hỗ trợ chọn 1 hoặc nhiều file Excel (.xlsx, .xlsm) tối đa
+                            25MB/file</div>
+                        <input type="file" id="file-input"
+                            accept=".xlsx,.xlsm,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel.sheet.macroEnabled.12"
+                            multiple style="display: none;">
+                    </div>
+
+                    <!-- Selected Files List (Shown when file(s) are chosen) -->
+                    <div class="rg-selected-files-card" id="selected-files-container" style="display: none;">
+                        <div class="rg-selected-files-header">
+                            <div class="fw-bold small">
+                                <i class="fa-solid fa-file-circle-check text-success me-1"></i>
+                                Các file đã chọn (<span id="file-count">0</span>)
+                            </div>
+                            <div class="d-flex gap-2">
+                                <button type="button" class="rg-btn rg-btn-sm" id="btn-add-more-files">
+                                    <i class="fa-solid fa-plus me-1"></i> Thêm file...
+                                </button>
+                                <button type="button" class="rg-btn rg-btn-sm text-danger" id="btn-clear-all-files"
+                                    title="Xóa tất cả file">
+                                    <i class="fa-solid fa-trash-can"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="rg-files-scroll-list" id="selected-files-list"></div>
+
+                        <div class="rg-files-footer">
+                            <span class="small text-muted">
+                                <i class="fa-solid fa-circle-info me-1"></i>
+                                Bấm "Xem & Khoanh vùng" để cấu hình layout cho file tương ứng.
+                            </span>
+                            <button type="button" class="rg-btn rg-btn-primary" id="btn-proceed-step-2">
+                                Tiến hành khoanh vùng <i class="fa-solid fa-arrow-right ms-1"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="rg-divider">
+                        <span>hoặc dán liên kết Google Sheets</span>
+                    </div>
+
+                    <!-- Google Sheets Input -->
+                    <div class="rg-url-group">
+                        <input type="text" id="gsheet-url" class="rg-input"
+                            placeholder="https://docs.google.com/spreadsheets/d/...">
+                        <button type="button" class="rg-btn rg-btn-primary" id="btn-load-gsheet">
+                            <i class="fa-solid fa-arrow-right"></i> Tải Sheet
+                        </button>
+                    </div>
+                    <div class="small text-muted">
+                        <i class="fa-solid fa-circle-info me-1"></i> Bảng tính Google Sheets cần được bật quyền xem công
+                        khai ("Bất kỳ ai có liên kết đều có thể xem").
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 2: Khoanh vùng Báo cáo (SheetGrid + Right Sidebar) -->
+            <div class="rg-step-view" id="view-step-2">
+                <!-- Left: Full SheetGrid with File Switcher -->
+                <div class="rg-grid-main"
+                    style="flex: 1 1 0%; min-width: 0; min-height: 0; height: 100%; overflow: hidden; display: flex; flex-direction: column;">
+                    <div id="file-switcher-bar" class="rg-file-switcher-bar" style="display: none;">
+                        <span class="small fw-bold text-muted me-2"><i
+                                class="fa-solid fa-file-excel text-success me-1"></i> File đang chọn:</span>
+                        <select id="active-file-select" class="rg-select rg-select-sm"
+                            style="width: auto; min-width: 220px; font-weight: 600;"></select>
+                        <span class="badge bg-secondary-subtle text-body ms-2" id="active-file-info-badge"></span>
+                    </div>
+                    <div class="flex-1 position-relative" id="grid-container"
+                        style="flex: 1 1 0%; min-height: 0; min-width: 0; height: 100%; overflow: hidden; display: flex; flex-direction: column;">
+                    </div>
+                </div>
+
+                <!-- Right: Regions Panel -->
+                <aside class="rg-regions-sidebar"
+                    style="width: 280px; min-width: 280px; max-width: 280px; flex-shrink: 0;">
+                    <div class="d-flex align-items-center justify-content-between mb-1">
+                        <span class="fw-bold small">Khoanh vùng báo cáo</span>
+                        <button type="button" class="rg-btn" id="btn-auto-detect-regions"
+                            title="Tự động nhận diện Title, Header và Summary">
+                            <i class="fa-solid fa-wand-magic-sparkles text-info"></i> Gợi ý
+                        </button>
+                    </div>
+                    <div class="small text-muted mb-2">Chọn ô/dải ô trên bảng tính rồi bấm nút "Gán vùng", hoặc click
+                        chuột phải trên vùng chọn.</div>
+
+                    <!-- Title Card -->
+                    <div class="rg-region-card title-card">
+                        <div class="rg-region-header-row">
+                            <span class="fw-bold small text-info"><i class="fa-solid fa-heading me-1"></i> Title (Tiêu
+                                đề)</span>
+                            <input type="text" class="rg-range-input" id="input-title-range" placeholder="VD: A1:F3"
+                                spellcheck="false">
+                        </div>
+                        <div class="rg-region-actions">
+                            <button type="button" class="rg-btn rg-btn-primary flex-1" id="btn-set-title">Gán vùng đã
+                                chọn</button>
+                            <button type="button" class="rg-btn" id="btn-locate-title" title="Định vị đến vùng"><i
+                                    class="fa-solid fa-crosshairs"></i></button>
+                            <button type="button" class="rg-btn text-danger" id="btn-clear-title" title="Xoá gán"><i
+                                    class="fa-solid fa-xmark"></i></button>
+                        </div>
+                    </div>
+
+                    <!-- Content / Header Card -->
+                    <div class="rg-region-card header-card">
+                        <div class="rg-region-header-row">
+                            <span class="fw-bold small text-warning"><i class="fa-solid fa-table me-1"></i> Content (Cột
+                                nội dung)</span>
+                            <input type="text" class="rg-range-input" id="input-header-range" placeholder="VD: A10:R11"
+                                spellcheck="false">
+                        </div>
+                        <div class="rg-region-actions">
+                            <button type="button" class="rg-btn rg-btn-primary flex-1" id="btn-set-header">Gán vùng đã
+                                chọn</button>
+                            <button type="button" class="rg-btn" id="btn-locate-header" title="Định vị đến vùng"><i
+                                    class="fa-solid fa-crosshairs"></i></button>
+                            <button type="button" class="rg-btn text-danger" id="btn-clear-header" title="Xoá gán"><i
+                                    class="fa-solid fa-xmark"></i></button>
+                        </div>
+                    </div>
+
+                    <!-- Summary Card -->
+                    <div class="rg-region-card summary-card">
+                        <div class="rg-region-header-row">
+                            <span class="fw-bold small text-primary"><i class="fa-solid fa-calculator me-1"></i> Summary
+                                (Tổng cộng)</span>
+                            <input type="text" class="rg-range-input" id="input-summary-range" placeholder="VD: A30:K30"
+                                spellcheck="false">
+                        </div>
+                        <div class="rg-region-actions">
+                            <button type="button" class="rg-btn rg-btn-primary flex-1" id="btn-set-summary">Gán vùng đã
+                                chọn</button>
+                            <button type="button" class="rg-btn" id="btn-locate-summary" title="Định vị đến vùng"><i
+                                    class="fa-solid fa-crosshairs"></i></button>
+                            <button type="button" class="rg-btn text-danger" id="btn-clear-summary" title="Xoá gán"><i
+                                    class="fa-solid fa-xmark"></i></button>
+                        </div>
+                    </div>
+
+                    <div class="mt-auto small text-muted">
+                        <i class="fa-solid fa-lightbulb text-warning me-1"></i> Có thể chọn 1, 2 hoặc cả 3 vùng (Title,
+                        Content, Summary) để sinh layout XML.
+                    </div>
+                </aside>
+            </div>
+
+            <!-- Step 3: Routine & Map Cột -->
+            <div class="rg-step-view" id="view-step-3">
+                <!-- Left: Routine Selection & DB Action Bar -->
+                <aside class="rg-routine-panel"
+                    style="width: 320px; min-width: 320px; max-width: 320px; flex-shrink: 0;">
+                    <div class="rg-card-title mb-2">
+                        <span><i class="fa-solid fa-server text-primary me-1"></i> Cơ sở dữ liệu</span>
+                    </div>
+
+                    <!-- Action Bar style: Connection > Database > Schema -->
+                    <div class="rg-action-bar-strip d-flex align-items-center gap-1 ide-ctx-selectors flex-nowrap mb-3">
+                        <!-- Connection Selector -->
+                        <div class="dropdown d-inline-block position-relative">
+                            <button class="ide-ctx-badge dropdown-toggle" type="button" id="ide-ctx-connection"
+                                data-bs-toggle="dropdown" aria-expanded="false" title="Chọn kết nối"
+                                data-bs-popper-config='{"strategy":"fixed"}'>
+                                <i class="fa-solid fa-plug-circle-bolt me-1 text-success"></i>
+                                <span id="ide-ctx-conn-label" class="text-truncate" style="max-width: 110px;">Chọn kết
+                                    nối...</span>
+                            </button>
+                            <ul class="dropdown-menu shadow" id="ide-ctx-conn-menu"
+                                style="min-width: 240px; max-height: 280px; overflow-y: auto;"></ul>
+                        </div>
+
+                        <span class="ide-ctx-sep">›</span>
+
+                        <!-- Database Selector -->
+                        <div class="dropdown d-inline-block">
+                            <button class="ide-ctx-badge dropdown-toggle" type="button" id="ide-ctx-database"
+                                data-bs-toggle="dropdown" aria-expanded="false" title="Chọn Database"
+                                data-bs-popper-config='{"strategy":"fixed"}'>
+                                <i class="fa-solid fa-database me-1 text-info"></i>
+                                <span id="ide-ctx-db-label" class="text-truncate" style="max-width: 85px;">—</span>
+                            </button>
+                            <ul class="dropdown-menu shadow" id="ide-ctx-db-menu"
+                                style="min-width: 180px; max-height: 280px; overflow-y: auto;"></ul>
+                        </div>
+
+                        <span class="ide-ctx-sep">›</span>
+
+                        <!-- Schema Selector -->
+                        <div class="dropdown d-inline-block">
+                            <button class="ide-ctx-badge dropdown-toggle" type="button" id="ide-ctx-schema"
+                                data-bs-toggle="dropdown" aria-expanded="false" title="Chọn Schema"
+                                data-bs-popper-config='{"strategy":"fixed"}'>
+                                <i class="fa-solid fa-layer-group me-1 text-warning"></i>
+                                <span id="ide-ctx-schema-label" class="text-truncate" style="max-width: 65px;">—</span>
+                            </button>
+                            <ul class="dropdown-menu shadow" id="ide-ctx-schema-menu"
+                                style="min-width: 160px; max-height: 280px; overflow-y: auto;"></ul>
+                        </div>
+                    </div>
+                    <!-- Hidden select for backward compatibility -->
+                    <select id="conn-select" class="d-none"></select>
+
+                    <!-- Routine Selection Dropdown with Search inside -->
+                    <div class="rg-card-title mt-2 mb-1">
+                        <span><i class="fa-solid fa-bolt text-warning me-1"></i> Chọn procedure/function</span>
+                    </div>
+
+                    <div class="dropdown w-100 mb-2">
+                        <button
+                            class="btn btn-outline-secondary btn-sm dropdown-toggle w-100 text-start d-flex align-items-center justify-content-between text-truncate"
+                            type="button" id="btn-routine-dropdown" data-bs-toggle="dropdown"
+                            data-bs-auto-close="outside" aria-expanded="false"
+                            style="font-size: 12px; background-color: var(--rg-bg-input); border-color: var(--rg-border); color: var(--rg-text);">
+                            <span id="selected-routine-label" class="text-truncate">
+                                <i class="fa-solid fa-bolt text-warning me-1"></i> -- Chọn Procedure / Function --
+                            </span>
+                        </button>
+                        <div class="dropdown-menu shadow w-100 p-2" id="routine-dropdown-menu"
+                            style="min-width: 280px; max-height: 380px;">
+                            <div class="input-group input-group-sm mb-2">
+                                <span class="input-group-text"><i class="fa-solid fa-magnifying-glass"></i></span>
+                                <input type="text" id="routine-search-input" class="form-control"
+                                    placeholder="Gõ để tìm kiếm..." autocomplete="off">
+                            </div>
+                            <div id="routine-list-container" class="rg-routine-list-scroll"
+                                style="max-height: 280px; overflow-y: auto;">
+                                <div class="text-muted small p-2 text-center">Đang tải danh sách...</div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Hidden select for compatibility -->
+                    <select id="routine-select" class="d-none"></select>
+
+                    <button type="button" class="rg-btn rg-btn-primary w-100 mb-2" id="btn-describe-routine">
+                        <i class="fa-solid fa-wand-magic-sparkles"></i> Phân tích cấu trúc bảng
+                    </button>
+
+                    <!-- Container for Output Params (30%) and Result Sets (70%) in remaining vertical space -->
+                    <div class="d-flex flex-column flex-1 gap-2" style="min-height: 0; overflow: hidden;">
+                        <!-- Card 1: Tham số Output riêng biệt (Tỷ lệ 3/10 diện tích còn lại) -->
+                        <div class="d-flex flex-column" style="flex: 3; min-height: 0;">
+                            <div
+                                class="small text-muted fw-bold mb-1 d-flex align-items-center justify-content-between flex-shrink-0">
+                                <span><i class="fa-solid fa-arrow-right-from-bracket text-info me-1"></i> Tham số
+                                    Output:</span>
+                                <span id="output-params-count-badge" class="badge bg-info-subtle text-info d-none"
+                                    style="font-size: 10px;">0 param</span>
+                            </div>
+                            <div id="routine-output-params-card" class="border rounded p-2 overflow-auto flex-1"
+                                style="font-size: 11px; background: var(--rg-bg-input, #1e1e1e); min-height: 0;">
+                                <span class="text-muted small fst-italic">Chưa có tham số Output</span>
+                            </div>
+                        </div>
+
+                        <!-- Card 2: Result Set / DataMember và danh sách cột (Tỷ lệ 7/10 diện tích còn lại) -->
+                        <div class="d-flex flex-column" style="flex: 7; min-height: 0;">
+                            <div
+                                class="small text-muted fw-bold mb-1 d-flex align-items-center justify-content-between flex-shrink-0">
+                                <span><i class="fa-solid fa-table me-1 text-warning"></i> Result Set /
+                                    DataMember:</span>
+                                <span id="tables-count-badge" class="badge bg-warning-subtle text-warning d-none"
+                                    style="font-size: 10px;">0 table</span>
+                            </div>
+                            <div id="routine-result-sets-card" class="border rounded p-2 overflow-auto flex-1"
+                                style="font-size: 11px; background: var(--rg-bg-input, #1e1e1e); min-height: 0;">
+                                <span class="text-muted small fst-italic">Chưa phân tích routine</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Hidden compatibility elements -->
+                    <div id="result-set-group" class="d-none"><select id="result-set-select"></select></div>
+                    <div id="routine-structure-tree" class="d-none"></div>
+                    <div id="db-columns-badges" class="d-none"></div>
+                </aside>
+
+                <!-- Right: Column Mapping Panel with Tree Grouping -->
+                <section class="rg-mapping-panel">
+                    <div class="d-flex align-items-center justify-content-between mb-2">
+                        <div class="fw-bold small">
+                            <i class="fa-solid fa-arrows-split-up-and-left text-warning me-1"></i>
+                            Ánh xạ Cột Layout (Excel) ⇄ Cột Database
+                        </div>
+                        <div class="d-flex align-items-center gap-2">
+                            <label class="small text-muted">Chế độ gán:</label>
+                            <select class="rg-select" id="mapping-mode" style="width: 140px;">
+                                <option value="name_tag" selected>&lt;Name&gt; tag</option>
+                                <option value="rename">Đổi tên thẻ XML</option>
+                            </select>
+                            <button type="button" class="rg-btn" id="btn-auto-match-cols"
+                                title="Tự động so khớp theo tên tương đồng">
+                                <i class="fa-solid fa-bolt text-warning"></i> Khớp tự động
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Level 1 Filter: Files -->
+                    <div id="step3-file-filter-bar" class="rg-sheet-filter-bar" style="display: none;">
+                        <span class="small fw-bold text-muted me-1"><i
+                                class="fa-solid fa-folder-open text-primary me-1"></i>File:</span>
+                        <div class="d-flex align-items-center gap-1 flex-wrap" id="step3-file-pills"></div>
+                    </div>
+
+                    <!-- Level 2 Filter: Sheets of selected file -->
+                    <div id="step3-sheet-filter-bar" class="rg-sheet-filter-bar mb-2" style="display: none;">
+                        <span class="small fw-bold text-muted me-1"><i
+                                class="fa-solid fa-table-cells text-success me-1"></i>Sheet:</span>
+                        <div class="d-flex align-items-center gap-1 flex-wrap" id="step3-sheet-pills"></div>
+                    </div>
+
+                    <!-- Mapping Tree Container (Replaces flat table with Tree Groups) -->
+                    <div class="rg-table-scroll flex-1" id="mapping-tree-container">
+                        <!-- Populated dynamically: Title Group, Content Group (with inline Table select), Summary Group -->
+                    </div>
+                </section>
+            </div>
+
+            <!-- Step 4: Xuất file XML (Sheet Tabs + 2 Panels Split View) -->
+            <div class="rg-step-view" id="view-step-4">
+                <!-- Top: Sheet Tabs Bar -->
+                <div class="rg-step4-sheet-tabs-bar">
+                    <span class="small fw-bold text-muted me-2"><i
+                            class="fa-solid fa-table-cells text-success me-1"></i> Trang tính:</span>
+                    <div class="rg-step4-sheet-tabs" id="step4-sheet-tabs">
+                        <!-- Dynamic sheet tabs generated by wizard.js -->
+                    </div>
+                </div>
+
+                <!-- Main: 2-Panel Split View -->
+                <div class="rg-step4-container">
+                    <!-- Left Panel: 2 Fixed Options (Datasource & Layout) -->
+                    <aside class="rg-step4-nav-panel">
+                        <div class="rg-card-title">
+                            <span><i class="fa-solid fa-layer-group text-primary me-1"></i> Thành phần XML sinh
+                                ra</span>
+                        </div>
+
+                        <!-- Option 1: Datasource XML -->
+                        <div class="rg-step4-option-card" id="opt-datasource" data-option="datasource">
+                            <div class="rg-option-card-icon text-warning">
+                                <i class="fa-solid fa-database"></i>
+                            </div>
+                            <div class="rg-option-card-body">
+                                <div class="rg-option-card-title">Datasource</div>
+                                <!-- <div class="rg-option-card-subtitle font-monospace">report_datasource.xml</div> -->
+                                <div class="rg-option-card-meta" id="opt-datasource-meta">Cấu trúc dữ liệu & tham số
+                                    routine</div>
+                            </div>
+                            <div class="rg-option-card-check">
+                                <i class="fa-solid fa-circle-check"></i>
+                            </div>
+                        </div>
+
+                        <!-- Option 2: Layout XML -->
+                        <div class="rg-step4-option-card active" id="opt-layout" data-option="layout">
+                            <div class="rg-option-card-icon text-info">
+                                <i class="fa-solid fa-code"></i>
+                            </div>
+                            <div class="rg-option-card-body">
+                                <div class="rg-option-card-title">Layout</div>
+                                <!-- <div class="rg-option-card-subtitle font-monospace">report_layout.xml</div> -->
+                                <div class="rg-option-card-meta" id="opt-layout-meta">Giao diện cột, band & định dạng ô
+                                </div>
+                            </div>
+                            <div class="rg-option-card-check">
+                                <i class="fa-solid fa-circle-check"></i>
+                            </div>
+                        </div>
+
+                        <!-- <div class="mt-auto small text-muted p-2 rounded bg-body-tertiary">
+                            <i class="fa-solid fa-circle-info text-info me-1"></i> Bravo sử dụng file
+                            <b>report_layout.xml</b> cho mẫu in và <b>report_datasource.xml</b> để định nghĩa nguồn dữ
+                            liệu.
+                        </div> -->
+                    </aside>
+
+                    <!-- Right Panel: Editor & Toolbar -->
+                    <section class="rg-step4-editor-panel">
+                        <div class="rg-step4-editor-header">
+                            <div class="d-flex align-items-center gap-2">
+                                <span class="badge bg-success-subtle text-success border border-success-subtle"
+                                    id="step4-active-sheet-badge">
+                                    <i class="fa-solid fa-file-excel me-1"></i> Sheet1
+                                </span>
+                                <span class="fw-bold small font-monospace"
+                                    id="step4-active-file-title">report_layout.xml</span>
+                                <span class="badge bg-secondary-subtle text-body small" id="step4-xml-stats-badge">0
+                                    dòng</span>
+                            </div>
+
+                            <div class="d-flex align-items-center gap-2">
+                                <button type="button" class="rg-btn" id="btn-copy-xml"
+                                    title="Sao chép toàn bộ nội dung XML vào Clipboard">
+                                    <i class="fa-regular fa-copy"></i> Sao chép
+                                </button>
+                                <button type="button" class="rg-btn rg-btn-primary" id="btn-save-files"
+                                    title="Lưu các file XML ra một thư mục trên máy tính">
+                                    <i class="fa-solid fa-floppy-disk"></i> Lưu ra thư mục
+                                </button>
+                                <button type="button" class="rg-btn" id="btn-download-xml"
+                                    title="Tải về file XML hoặc file nén .zip">
+                                    <i class="fa-solid fa-download"></i> Tải về (.zip/.xml)
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="rg-editor-wrapper" id="monaco-editor-container">
+                            <textarea id="xml-fallback-editor"
+                                class="form-control bg-dark text-light font-monospace w-100 h-100 border-0 p-3"
+                                style="display: none; resize: none;" readonly></textarea>
+                        </div>
+                    </section>
+                </div>
+            </div>
+        </main>
+
+        <!-- ─── 3. Bottom Navigation Status Bar ─── -->
+        <footer class="rg-footer">
+            <div class="rg-status-text" id="rg-status-msg">
+                <span class="text-muted"><i class="fa-solid fa-info-circle me-1"></i>Sẵn sàng</span>
+            </div>
+
+            <div class="rg-footer-buttons">
+                <button type="button" class="rg-btn" id="btn-prev" disabled>
+                    <i class="fa-solid fa-arrow-left"></i> Quay lại
+                </button>
+                <button type="button" class="rg-btn rg-btn-primary" id="btn-next">
+                    Tiếp tục <i class="fa-solid fa-arrow-right"></i>
+                </button>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Vendor Scripts -->
+    <script src="../static/vendor/bootstrap/bootstrap.bundle.min.js"></script>
+
+    <!-- AG-Grid Community JS (Must load before Monaco or with define temporarily undefined) -->
+    <script>
+        var _monacoDefine = window.define;
+        window.define = undefined;
+    </script>
+    <script src="../static/vendor/ag-grid/ag-grid-community.min.js"></script>
+    <script>
+        window.define = _monacoDefine;
+    </script>
+
+    <!-- Monaco Editor AMD Loader & Setup -->
+    <script src="../static/vendor/monaco/vs/loader.js"></script>
+    <script src="../static/js/monaco-init.js"></script>
+
+    <!-- IDE Core Scripts -->
+    <script src="../static/js/utils.js"></script>
+    <script src="../static/js/storage.js"></script>
+    <script src="../static/js/theme-registry.js"></script>
+    <script src="../static/js/theme.js"></script>
+    <script src="../static/js/typography.js"></script>
+
+    <!-- SheetGrid Component & Wizard Controller -->
+    <script src="../static/js/report-gen/sheet-grid.js"></script>
+    <script src="../static/js/report-gen/wizard.js"></script>
+
+    <!-- Live Theme & Typography Sync -->
+    <script>
+        window.onSettingsChanged = function (settings) {
+            try {
+                var theme = (settings && settings.appearance && settings.appearance.theme) || (settings && settings.theme) || 'dark';
+                document.documentElement.setAttribute('data-bs-theme', theme);
+                if (window.ThemeManager) {
+                    window.ThemeManager.applyTheme(theme, false);
+                }
+                if (window.MonacoInit && typeof monaco !== 'undefined' && monaco.editor && window.xmlMonacoEditor) {
+                    monaco.editor.setTheme(window.MonacoInit.getMonacoTheme(theme));
+                }
+                if (window.TypographyManager && settings && settings.appearance) {
+                    window.TypographyManager.apply({
+                        fontFamily: settings.editor && settings.editor.fontFamily,
+                        fontSize: settings.editor && settings.editor.fontSize,
+                        uiFontFamily: settings.appearance.uiFontFamily,
+                        uiFontSize: settings.appearance.uiFontSize
+                    }, false);
+                }
+            } catch (e) {
+                console.warn('onSettingsChanged error:', e);
+            }
+        };
+    </script>
+</body>
+
+</html>

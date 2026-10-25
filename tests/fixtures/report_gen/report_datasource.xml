@@ -1,0 +1,11 @@
+<root>
+	<Command>usp_B30AccDoc_VoucherFormSales</Command>
+	<TableCollection>
+		<ParametersTable>
+			<DefaultValues>
+				<nUserId>USER('Id')</nUserId>
+				<LangId>LANGID()</LangId>
+			</DefaultValues>
+		</ParametersTable>
+	</TableCollection>
+</root>

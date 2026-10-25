@@ -2234,7 +2234,7 @@ mark.bravo-le-search-mark {
     flex: 1 1 0%;
     display: flex;
     flex-direction: column;
-    background: var(--ide-bg-main);
+    background: var(--ide-bg-editor, var(--ide-bg-panel));
     height: 100%;
     overflow: hidden;
 }
@@ -2331,6 +2331,7 @@ mark.bravo-le-search-mark {
     overflow-y: auto;
     overflow-x: auto;
     position: relative;
+    background: var(--ide-bg-editor, var(--ide-bg-panel));
 }
 
 .bravo-pl-table {
@@ -2449,7 +2450,7 @@ mark.bravo-le-search-mark {
 }
 
 .bravo-pl-row.selected {
-    background: var(--ide-active-bg, rgba(59, 130, 246, 0.12)) !important;
+    background: var(--ide-accent-subtle, rgba(59, 130, 246, 0.12)) !important;
 }
 
 /* Drag and Drop visual feedback */

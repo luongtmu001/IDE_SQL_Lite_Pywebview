@@ -11,6 +11,10 @@ def index():
 def query_history_demo():
     return render_template("query_history_window.html")
 
+@main_bp.get("/report-gen")
+def report_gen():
+    return render_template("report_gen_window.html")
+
 @main_bp.get("/api/system/fonts")
 def system_fonts():
     try:
