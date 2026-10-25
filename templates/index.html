@@ -2642,7 +2642,11 @@
                         if (window.pywebview && window.pywebview.api && typeof window.pywebview.api.open_report_gen_window === 'function') {
                             const res = await window.pywebview.api.open_report_gen_window(initOpts);
                             if (res && res.success) return;
-                        } else {
+                            if (res && res.error) {
+                                if (window.showAppToast) window.showAppToast('Lỗi mở Trình sinh Layout: ' + res.error, 'error');
+                                return;
+                            }
+                        } else if (!window.pywebview) {
                             const q = new URLSearchParams();
                             if (connId) q.set('connectionId', connId);
                             if (connName) q.set('connectionName', connName);
@@ -2651,6 +2655,9 @@
                             if (dbType) q.set('dbType', dbType);
                             const qStr = q.toString();
                             window.open('/report-gen' + (qStr ? '?' + qStr : ''), '_blank');
+                        } else {
+                            console.warn('API open_report_gen_window is not ready on desktop pywebview');
+                            if (window.showAppToast) window.showAppToast('Chức năng Sinh Layout chưa sẵn sàng trên ứng dụng máy bàn!', 'warning');
                         }
                     } catch (e) {
                         console.warn('Cannot open report gen window:', e);

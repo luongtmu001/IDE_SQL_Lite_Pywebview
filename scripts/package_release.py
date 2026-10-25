@@ -247,10 +247,24 @@ def build_patch_zip() -> Path:
     return patch_zip_path
 
 
+def build_pyinstaller():
+    """Compile LLTool using PyInstaller and run.spec."""
+    import subprocess
+    print("[0/6] Đang biên dịch bản thực thi với PyInstaller (run.spec)...")
+    cmd = [sys.executable, "-m", "PyInstaller", "run.spec", "--noconfirm"]
+    res = subprocess.run(cmd, cwd=str(ROOT_DIR))
+    if res.returncode != 0:
+        print("LỖI: Biên dịch PyInstaller thất bại!")
+        sys.exit(res.returncode)
+    print("      -> Biên dịch PyInstaller thành công!")
+
+
 def main():
-    if not APP_DIST_DIR.exists() or not (APP_DIST_DIR / "LLTool.exe").exists():
-        print(f"LỖI: Không tìm thấy thư mục build '{APP_DIST_DIR}'. Hãy chạy 'pyinstaller run.spec' trước.")
-        sys.exit(1)
+    if "--build" in sys.argv or "--rebuild" in sys.argv:
+        build_pyinstaller()
+    elif not APP_DIST_DIR.exists() or not (APP_DIST_DIR / "LLTool.exe").exists():
+        print(f"Chưa tìm thấy '{APP_DIST_DIR / 'LLTool.exe'}'. Tự động biên dịch PyInstaller...")
+        build_pyinstaller()
 
     print("=================================================================")
     print(f"BẮT ĐẦU ĐÓNG GÓI PHÁT HÀNH VÀ TẠO FILE CẬP NHẬT v{VERSION}")

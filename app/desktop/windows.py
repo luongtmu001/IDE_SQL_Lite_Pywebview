@@ -2411,8 +2411,12 @@ def open_report_gen_window(api: Any, base_dir: Optional[Path] = None, initial_op
             except Exception as exc:
                 logger.debug("Could not auto-detect active connection for report gen: %s", exc)
 
+        from app.utils.paths import get_app_dir
+        app_dir = get_app_dir()
         candidate_paths = [
             base_dir / "templates" / "report_gen_window.html",
+            app_dir / "templates" / "report_gen_window.html",
+            app_dir / "_internal" / "templates" / "report_gen_window.html",
             base_dir / "_internal" / "templates" / "report_gen_window.html",
             Path(__file__).resolve().parent.parent.parent / "templates" / "report_gen_window.html",
         ]
@@ -2421,8 +2425,9 @@ def open_report_gen_window(api: Any, base_dir: Optional[Path] = None, initial_op
             if cand.exists():
                 chosen_path = cand
                 break
-        if not chosen_path:
-            chosen_path = candidate_paths[0]
+        if not chosen_path or not chosen_path.exists():
+            logger.error("report_gen_window.html not found in candidate paths: %s", [str(c) for c in candidate_paths])
+            return {"success": False, "error": "Không tìm thấy file giao diện report_gen_window.html"}
         html_path = chosen_path.resolve().as_uri()
 
         settings = _load_settings_file()

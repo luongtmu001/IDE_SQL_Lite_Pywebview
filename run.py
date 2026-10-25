@@ -7,6 +7,10 @@ import sys
 from pathlib import Path
 
 if getattr(sys, 'frozen', False):
+    from importlib.machinery import PathFinder
+    if PathFinder in sys.meta_path:
+        sys.meta_path.remove(PathFinder)
+        sys.meta_path.insert(0, PathFinder)
     meipass = getattr(sys, '_MEIPASS', None)
     if meipass:
         BASE_DIR = Path(meipass).resolve()
