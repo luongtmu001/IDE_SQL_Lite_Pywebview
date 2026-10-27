@@ -344,6 +344,10 @@
                     <div id="updateReleaseNotes" class="text-muted mb-2">Bản cập nhật chứa các cải tiến hiệu năng và tính năng mới.</div>
                     <div class="fw-semibold text-secondary mb-1">Điểm nổi bật:</div>
                     <ul class="update-highlights-list" id="updateHighlights"></ul>
+                    <div class="mt-2 text-muted" id="updateDirectLinkWrap" style="font-size: 12px; display: none;">
+                        <i class="fa-solid fa-link me-1"></i>Link tải trực tiếp: 
+                        <a href="#" id="linkDirectDownload" class="text-info text-decoration-none" title="Mở trong trình duyệt" style="word-break: break-all;"></a>
+                    </div>
                 </div>
                 <div class="download-info-banner d-none" id="downloadInfoBanner">
                     <div class="d-flex align-items-center gap-2">
@@ -377,6 +381,10 @@
                         <span id="btnDownloadText">Cập nhật chương trình</span>
                     </span>
                 </button>
+                <button type="button" class="btn-ide btn-ide-primary" id="btnOpenBrowser" style="display: none;" title="Mở link tải trực tiếp trong trình duyệt">
+                    <i class="fa-solid fa-arrow-up-right-from-square"></i>
+                    <span>Tải qua trình duyệt</span>
+                </button>
                 <button type="button" class="btn-ide btn-ide-primary" id="btnOpenFolder" style="display: none;">
                     <i class="fa-solid fa-folder-open"></i>
                     <span>Mở thư mục</span>
@@ -394,6 +402,7 @@
             'use strict';
 
             let _latestDownloadUrl = 'https://github.com/luongtmu001/IDE_SQL_Lite_Pywebview/releases';
+            let _latestFullDownloadUrl = 'https://github.com/luongtmu001/IDE_SQL_Lite_Pywebview/releases/download/v1.1.6/LLTool_v1.1.6.zip';
             let _latestFileName = '';
             let _latestFileSize = 0;
             let _pollTimer = null;
@@ -430,19 +439,24 @@
 
                 const btnRecheck = document.getElementById('btnRecheck');
                 const btnDownload = document.getElementById('btnDownloadUpdate');
+                const btnOpenBrowser = document.getElementById('btnOpenBrowser');
 
                 if (viewId === 'viewChecking') {
                     btnRecheck.style.display = 'none';
                     btnDownload.style.display = 'none';
+                    if (btnOpenBrowser) btnOpenBrowser.style.display = 'none';
                 } else if (viewId === 'viewUpToDate') {
                     btnRecheck.style.display = 'inline-flex';
                     btnDownload.style.display = 'none';
+                    if (btnOpenBrowser) btnOpenBrowser.style.display = 'none';
                 } else if (viewId === 'viewUpdateAvailable') {
                     btnRecheck.style.display = 'inline-flex';
                     btnDownload.style.display = 'inline-flex';
+                    if (btnOpenBrowser) btnOpenBrowser.style.display = 'inline-flex';
                 } else if (viewId === 'viewError') {
                     btnRecheck.style.display = 'inline-flex';
                     btnDownload.style.display = 'none';
+                    if (btnOpenBrowser) btnOpenBrowser.style.display = 'none';
                 }
             }
 
@@ -455,15 +469,28 @@
 
                     if (res && res.success && res.data) {
                         const info = res.data;
-                        // Prioritize patch archive for fast in-place auto update & automatic file overwrite
-                        if (info.patchDownloadUrl && info.patchFileName) {
-                            _latestDownloadUrl = info.patchDownloadUrl;
-                            _latestFileName = info.patchFileName;
+                        _latestFullDownloadUrl = info.downloadUrl || 'https://github.com/luongtmu001/IDE_SQL_Lite_Pywebview/releases/download/v1.1.6/LLTool_v1.1.6.zip';
+
+                        // Prioritize patch archive ONLY when both patchDownloadUrl and patchFileName are explicitly defined
+                        if (info.patchDownloadUrl && String(info.patchDownloadUrl).trim() && info.patchFileName && String(info.patchFileName).trim()) {
+                            _latestDownloadUrl = String(info.patchDownloadUrl).trim();
+                            _latestFileName = String(info.patchFileName).trim();
                             _latestFileSize = info.patchFileSize || 0;
                         } else {
-                            _latestDownloadUrl = info.downloadUrl || _latestDownloadUrl;
-                            _latestFileName = info.fileName || '';
+                            _latestDownloadUrl = _latestFullDownloadUrl;
+                            _latestFileName = info.fileName || 'LLTool_v' + (info.latestVersion || '1.1.6') + '.zip';
                             _latestFileSize = info.fileSize || 0;
+                        }
+
+                        const linkDirectEl = document.getElementById('linkDirectDownload');
+                        const linkWrapEl = document.getElementById('updateDirectLinkWrap');
+                        if (linkDirectEl && linkWrapEl) {
+                            linkDirectEl.textContent = _latestFullDownloadUrl;
+                            linkDirectEl.onclick = function (e) {
+                                e.preventDefault();
+                                callApi('open_external_url', _latestFullDownloadUrl);
+                            };
+                            linkWrapEl.style.display = 'block';
                         }
 
                         if (info.hasUpdate) {
@@ -597,6 +624,11 @@
                                 btnText.textContent = p.error ? ('Lỗi: ' + p.error) : 'Tải xuống thất bại';
                                 progressBar.style.width = '0%';
                                 btnRecheck.style.display = 'inline-flex';
+                                const obBtn = document.getElementById('btnOpenBrowser');
+                                if (obBtn) obBtn.style.display = 'inline-flex';
+
+                                // On error, fallback URL to full package so re-click will download full zip
+                                _latestDownloadUrl = _latestFullDownloadUrl;
                             }
                         } catch (pollErr) {
                             console.error('[UpdateWindow] Poll error:', pollErr);
@@ -609,6 +641,11 @@
                     _isDownloading = false;
                     btnRecheck.style.display = 'inline-flex';
                 }
+            });
+
+            document.getElementById('btnOpenBrowser').addEventListener('click', async function () {
+                const targetUrl = _latestFullDownloadUrl || _latestDownloadUrl || 'https://github.com/luongtmu001/IDE_SQL_Lite_Pywebview/releases/download/v1.1.6/LLTool_v1.1.6.zip';
+                await callApi('open_external_url', targetUrl);
             });
 
             document.getElementById('btnOpenFolder').addEventListener('click', async function () {

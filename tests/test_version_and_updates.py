@@ -311,5 +311,97 @@ def test_apply_update_dual_tier_extraction(tmp_path):
     finally:
         app.version._runtime_version = orig_runtime
 
+def test_download_update_fallback_on_404(tmp_path):
+    """Verify downloader automatically falls back to full downloadUrl if patch URL returns 404."""
+    import time
+    from unittest.mock import MagicMock, patch
+    import urllib.error
+    import app.services.update_checker as uc
+    from app.services.update_checker import (
+        start_download_update,
+        get_download_progress,
+    )
 
+    content = b"FALLBACK_ZIP_CONTENT_SUCCESS" * 20
+    mock_resp_success = MagicMock()
+    mock_resp_success.status = 200
+    mock_resp_success.__enter__.return_value = mock_resp_success
+    mock_resp_success.headers = {"Content-Length": str(len(content))}
+    mock_resp_success.read.side_effect = [content, b""]
+
+    def urlopen_side_effect(req, *args, **kwargs):
+        req_url = req.full_url if hasattr(req, "full_url") else str(req)
+        if "missing_patch.zip" in req_url:
+            raise urllib.error.HTTPError(req_url, 404, "Not Found", {}, None)
+        return mock_resp_success
+
+    with uc._check_lock:
+        uc._latest_check_result = {
+            "downloadUrl": "https://example.com/fallback_full.zip",
+            "latestVersion": "1.1.6",
+        }
+
+    with patch("urllib.request.urlopen", side_effect=urlopen_side_effect):
+        res = start_download_update(
+            download_url="https://example.com/missing_patch.zip",
+            file_name="missing_patch.zip",
+            target_dir=str(tmp_path),
+        )
+        assert res["success"] is True
+
+        # Wait briefly for thread to finish fallback download
+        time.sleep(0.4)
+
+        prog = get_download_progress()
+        assert prog["status"] == "completed"
+        assert prog["progress"] == 100.0
+        assert (tmp_path / "fallback_full.zip").exists()
+        assert (tmp_path / "fallback_full.zip").read_bytes() == content
+
+def test_download_update_fallback_on_404(tmp_path):
+    """Verify downloader automatically falls back to full downloadUrl if patch URL returns 404."""
+    import time
+    from unittest.mock import MagicMock, patch
+    import urllib.error
+    import app.services.update_checker as uc
+    from app.services.update_checker import (
+        start_download_update,
+        get_download_progress,
+    )
+
+    content = b"FALLBACK_ZIP_CONTENT_SUCCESS" * 20
+    mock_resp_success = MagicMock()
+    mock_resp_success.status = 200
+    mock_resp_success.__enter__.return_value = mock_resp_success
+    mock_resp_success.headers = {"Content-Length": str(len(content))}
+    mock_resp_success.read.side_effect = [content, b""]
+
+    def urlopen_side_effect(req, *args, **kwargs):
+        req_url = req.full_url if hasattr(req, "full_url") else str(req)
+        if "missing_patch.zip" in req_url:
+            raise urllib.error.HTTPError(req_url, 404, "Not Found", {}, None)
+        return mock_resp_success
+
+    with uc._check_lock:
+        uc._latest_check_result = {
+            "downloadUrl": "https://example.com/fallback_full.zip",
+            "latestVersion": "1.1.6",
+        }
+
+    with patch("urllib.request.urlopen", side_effect=urlopen_side_effect):
+        res = start_download_update(
+            download_url="https://example.com/missing_patch.zip",
+            file_name="missing_patch.zip",
+            target_dir=str(tmp_path),
+        )
+        assert res["success"] is True
+
+        # Wait briefly for thread to finish fallback download
+        time.sleep(0.4)
+
+        prog = get_download_progress()
+        assert prog["status"] == "completed"
+        assert prog["progress"] == 100.0
+        assert (tmp_path / "fallback_full.zip").exists()
+        assert (tmp_path / "fallback_full.zip").read_bytes() == content
 

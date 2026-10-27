@@ -4,7 +4,7 @@
   "minSupportedVersion": "1.0.0",
   "title": "LLTool IDE v1.1.6",
   "downloadUrl": "https://github.com/luongtmu001/IDE_SQL_Lite_Pywebview/releases/download/v1.1.6/LLTool_v1.1.6.zip",
-  "patchDownloadUrl": "https://github.com/luongtmu001/IDE_SQL_Lite_Pywebview/releases/download/v1.1.6/LLTool_v1.1.6_patch.zip",
+  "patchDownloadUrl": "",
   "fileName": "LLTool_v1.1.6.zip",
   "fileSize": 73836426,
   "releaseNotes": "Bản phát hành v1.1.6: Ra mắt bộ công cụ Sinh Layout Báo cáo Bravo từ Excel / Google Sheets v2 (Report Layout Gen v2) với trình bảng tính tương tác SheetGrid, tự động nhận diện vùng Title/Content/Summary, trích xuất cấu trúc cột qua phân tích cú pháp tĩnh Routine (NO EXEC), hỗ trợ đa file/đa sheet, và sinh chuẩn mã XML Layout / Datasource cho Bravo.",
@@ -16,7 +16,7 @@
     "Trình Xuất & Biên Dịch XML 2 Panel: Giao diện trực quan chia tab sheet, cho phép chuyển đổi giữa Layout XML và Datasource XML, sao chép 1-click hoặc lưu trực tiếp ra thư mục."
   ],
   "sha256": "9cfd2e64a7bd394192e8317bf23aa2796ab6e47cef9a51f90dd26ae7ae743474",
-  "patchFileName": "LLTool_v1.1.6_patch.zip",
-  "patchFileSize": 28078220,
-  "patchSha256": "d9fcd8d9421ebf718534a41a7d44e12f2d15e76cec5a9c03c3a10a0a80b8ae39"
+  "patchFileName": "",
+  "patchFileSize": 0,
+  "patchSha256": ""
 }
